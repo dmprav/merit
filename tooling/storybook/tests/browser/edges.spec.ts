@@ -8,7 +8,13 @@ const textEdges = (target: Locator) =>
     const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
     const rects: DOMRect[] = [];
     for (let text = walker.nextNode(); text; text = walker.nextNode()) {
-      if (text.textContent?.trim()) {
+      // Visually hidden text, such as a table head on mobile, is clipped rather than drawn.
+      const clipped = (element: Element | null): boolean =>
+        element !== null && element !== node.parentElement
+          ? getComputedStyle(element).clipPath !== "none" || clipped(element.parentElement)
+          : false;
+
+      if (text.textContent?.trim() && !clipped(text.parentElement)) {
         const range = document.createRange();
         range.selectNodeContents(text);
         rects.push(...range.getClientRects());
@@ -29,8 +35,8 @@ const glyphEdges = (target: Locator) =>
 
 const edges = (target: Locator) =>
   target.evaluate((node) => {
-    const { left, right, height } = node.getBoundingClientRect();
-    return { left, right, height };
+    const { left, right, top, height } = node.getBoundingClientRect();
+    return { left, right, top, height };
   });
 
 const open = async (page: Page, story: string) => {
@@ -38,10 +44,19 @@ const open = async (page: Page, story: string) => {
   await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
 };
 
-const tabStories = ["components-tabs--default", "features-funding-rounds-overview--example"];
+const tabStories = [
+  "components-tabs--default",
+  "features-funding-rounds-overview--example",
+  "features-funding-rounds-overview--applications",
+];
 
 for (const story of tabStories) {
-  test(`tabs in ${story} start their text and panel on the rail's edges`, async ({ page }) => {
+  test(`tabs in ${story} start their text and panel content on the rail's edges`, async ({
+    page,
+  }) => {
+    if (page.viewportSize()!.width > 900) {
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
     await open(page, story);
     const list = page.getByRole("tablist").first();
     const rail = await edges(list.locator(".."));
@@ -49,16 +64,38 @@ for (const story of tabStories) {
     expect(label.start).toBeCloseTo(rail.left, 0);
 
     const panel = page.getByRole("tabpanel").first();
-    const box = await edges(panel);
-    expect(box.left).toBeCloseTo(rail.left, 0);
-    expect(box.right).toBeCloseTo(rail.right, 0);
     const content = await textEdges(panel);
     expect(content.start).toBeCloseTo(rail.left, 0);
-
-    // The page never scrolls sideways for the outdent.
+    // Outdented content never makes the panel scroll sideways or clips its fills.
+    // Only a panel that scrolls can scroll sideways; the page check below covers the rest.
+    expect(
+      await panel.evaluate(
+        (node) =>
+          getComputedStyle(node).overflowX === "visible" || node.scrollWidth <= node.clientWidth,
+      ),
+    ).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       page.viewportSize()!.width,
     );
+  });
+}
+
+for (const story of ["components-tabs--counts", "components-tabs--counts-right-to-left"]) {
+  test(`a scrolled tab strip in ${story} draws nothing outside the rail`, async ({ page }) => {
+    await open(page, story);
+    const list = page.getByRole("tablist");
+    const rail = await edges(list.locator(".."));
+    await list.evaluate((node) =>
+      node.scrollTo({ left: getComputedStyle(node).direction === "rtl" ? -1e4 : 1e4 }),
+    );
+    await expect(list).toHaveAttribute("data-scrolled", "true");
+
+    const rtl = story.endsWith("right-to-left");
+    const hit = await page.evaluate(
+      ({ x, y }) => document.elementFromPoint(x, y)?.closest("[role=tab]") !== null,
+      { x: rtl ? rail.right + 4 : rail.left - 4, y: rail.top + 12 },
+    );
+    expect(hit).toBe(false);
   });
 }
 
@@ -99,6 +136,20 @@ test("long tab labels stay on one line, with the full label as the accessible na
   await expect(page.getByRole("tooltip")).toHaveText(
     "Application evidence and supporting financial documentation",
   );
+  await page.mouse.move(700, 500);
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+
+  // Keyboard focus shows the full label at once; Escape dismisses it; a tab that fits has none.
+  await page.keyboard.press("Tab");
+  await expect(long).toBeFocused();
+  await expect(page.getByRole("tooltip")).toHaveText(
+    "Application evidence and supporting financial documentation",
+  );
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await page.keyboard.press("ArrowRight");
+  await expect(short).toBeFocused();
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
 });
 
 test("tabs with counts keep the count beside a truncated label", async ({ page }) => {
@@ -120,6 +171,58 @@ test("the data table's first column starts on the heading's edge", async ({ page
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
     page.viewportSize()!.width,
   );
+});
+
+test("data table rules stay on the content edges while row fills reach into the gutter", async ({
+  page,
+}) => {
+  await open(page, "components-data-table--aligned-with-heading");
+  const heading = await edges(page.getByRole("heading", { name: "Funded projects" }));
+  const rule = await page.evaluate(() => {
+    const row = document.querySelector("table[aria-label] tbody tr")!;
+    const box = row.getBoundingClientRect();
+    const before = getComputedStyle(row, "::before");
+    if (before.content !== "none") {
+      return {
+        left: box.left + Number.parseFloat(before.left),
+        right: box.right - Number.parseFloat(before.right),
+      };
+    }
+
+    const cells = row.querySelectorAll("td");
+    const first = cells[0]!;
+    const last = cells[cells.length - 1]!;
+    return {
+      left:
+        first.getBoundingClientRect().left +
+        Number.parseFloat(getComputedStyle(first, "::after").left),
+      right:
+        last.getBoundingClientRect().right -
+        Number.parseFloat(getComputedStyle(last, "::after").right),
+    };
+  });
+  expect(rule.left).toBeCloseTo(heading.left, 0);
+  expect(rule.right).toBeCloseTo(heading.right, 0);
+
+  const row = page.locator("table[aria-label] tbody tr").first();
+  await row.hover();
+  const fill = await row.evaluate((node) => ({
+    background: getComputedStyle(node).backgroundColor,
+    left: node.getBoundingClientRect().left,
+    right: node.getBoundingClientRect().right,
+  }));
+  expect(fill.background).not.toBe("rgba(0, 0, 0, 0)");
+  expect(fill.left).toBeLessThan(heading.left - 8);
+  expect(fill.right).toBeGreaterThan(heading.right + 8);
+});
+
+test("a quiet control leading a table cell starts on the column's edge", async ({ page }) => {
+  test.skip(page.viewportSize()!.width < 760, "The mobile layout labels each value instead.");
+  await open(page, "features-contacts-directory--overview");
+  const column = await textEdges(page.getByRole("columnheader", { name: "Applications" }));
+  const control = await textEdges(page.getByRole("button", { name: /1 application/ }));
+
+  expect(control.start).toBeCloseTo(column.start, 0);
 });
 
 test("data table messages start where the cell text starts", async ({ page }) => {

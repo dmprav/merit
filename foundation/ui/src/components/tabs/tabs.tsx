@@ -11,7 +11,7 @@ import { Tab, TabList, TabPanel, Tabs as AriaTabs } from "react-aria-components/
 
 import { ButtonBase } from "../button/button-base";
 import { IconBase } from "../icon/icon-base";
-import { AnchoredTooltip } from "../tooltip/tooltip";
+import { AnchoredTooltipBase } from "../tooltip/tooltip-base";
 import styles from "./tabs.module.css";
 
 type TabsProps<Id extends string> = {
@@ -162,8 +162,9 @@ const useTabStrip = <Id extends string>({
  * countWarning gives the badge an amber treatment and supplies its hover explanation and the tab's
  * accessible description; keep the underlying status visible in the panel too. When the row
  * overflows, scroll controls reveal neighboring tabs without selecting them. Left/Right moves
- * between tabs; Tab continues through the scroll controls to the panel. The first label's text aligns with the content edge, with hover fills reaching into the gutter. Long
- * labels stay on one line with an ellipsis and a tooltip, and each count stays visible.
+ * between tabs; Tab continues through the scroll controls to the panel. The first label's text
+ * aligns with the content edge, with hover fills reaching into the gutter. Long labels stay on one
+ * line with an ellipsis and a tooltip, and each count stays visible.
  */
 export const Tabs = <Id extends string>({
   label,
@@ -201,6 +202,7 @@ export const Tabs = <Id extends string>({
             aria-label={label}
             className={styles.list}
             data-overflow={scroll.overflow || undefined}
+            data-scrolled={scroll.backward || undefined}
           >
             {items.map((item) => (
               <TabItem key={item.id} item={item} warningId={warningId} onFocus={revealFocusedTab} />
@@ -316,7 +318,12 @@ const TabItem = <Id extends string>({
       className={styles.tab}
     >
       {({ isHovered, isFocusVisible }) => (
-        <TabContent item={item} warningId={warningId} isReached={isHovered || isFocusVisible} />
+        <TabContent
+          item={item}
+          warningId={warningId}
+          isHovered={isHovered}
+          isFocused={isFocusVisible}
+        />
       )}
     </Tab>
   );
@@ -326,16 +333,20 @@ const TabItem = <Id extends string>({
 const TabContent = <Id extends string>({
   item,
   warningId,
-  isReached,
+  isHovered,
+  isFocused,
 }: {
   item: TabsProps<Id>["items"][number];
   warningId: string;
-  /** The tab is hovered or has keyboard focus, so a cut-off label may be explained. */
-  isReached: boolean;
+  /** A hovered or keyboard-focused tab explains its label when it is cut off. */
+  isHovered: boolean;
+  isFocused: boolean;
 }) => {
   const text = useRef<HTMLSpanElement>(null);
   const [cutOff, setCutOff] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
+
+  const isReached = isHovered || isFocused;
 
   // Escape dismisses the tooltip until the tab is reached again.
   useEffect(() => {
@@ -371,10 +382,11 @@ const TabContent = <Id extends string>({
   return (
     <>
       <TabLabel item={item} warningId={warningId} text={text} />
-      <AnchoredTooltip
+      <AnchoredTooltipBase
         anchorRef={text}
         content={cutOff ?? ""}
-        isOpen={cutOff != null && isReached && !dismissed}
+        isHovered={cutOff != null && isHovered && !dismissed}
+        isFocused={cutOff != null && isFocused && !dismissed}
       />
     </>
   );

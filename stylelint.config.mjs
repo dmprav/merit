@@ -33,6 +33,14 @@ const surfaces = [
   "/^border(-(top|right|bottom|left|block|inline)(-(start|end))?)?(-(color|style|width))?$/",
 ];
 
+// One value: a word, or a function call with one level of nested parentheses.
+const token = String.raw`(?:[^\s()]*\((?:[^()]|\([^()]*\))*\)|[^\s()]+)`;
+const negative = String.raw`(?:-[\d.]|calc\(\s*(?:-|0(?:px)?\s*-))`;
+
+/** Matches a value whose token at the given position is negative, such as `-8px` or `calc(0px - var(--x))`. */
+const negativeValue = (position) =>
+  new RegExp(String.raw`^(?:${token}\s+){${position}}${negative}`);
+
 /** @type {import("stylelint").Config} */
 export default {
   ignoreFiles: [
@@ -102,7 +110,9 @@ export default {
         // An outdent that lines text up with an edge belongs to a shared component's alignment option.
         "declaration-property-value-disallowed-list": [
           {
-            "/^margin(-(inline(-(start|end))?|left|right))?$/": [/(^|[\s(*,])-[\d.]/],
+            "/^margin-(inline(-(start|end))?|left|right)$/": [negativeValue(0), negativeValue(1)],
+            // The shorthand's second and fourth values are its inline sides.
+            "/^margin$/": [negativeValue(1), negativeValue(3)],
           },
           { message: () => "Use a shared alignment option instead of a negative inline margin" },
         ],

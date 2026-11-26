@@ -5,7 +5,8 @@
 
 /*
  * Row padding is outdented, so the first column's text starts and the last column's text ends on
- * the content edges while row hover and focus fills extend into the gutter.
+ * the content edges while row hover and focus fills extend into the gutter. Row rules stay on the
+ * content edges, so they line up with the tab rail and dividers around the table.
  */
 .scrollArea {
   margin-inline: calc(-1 * var(--space-4));
@@ -33,14 +34,36 @@
   color: var(--muted);
   text-align: left;
   padding: var(--space-2) var(--space-4) var(--space-2) 0;
-  border-bottom: 1px solid var(--border);
 }
 
 .table td {
   padding: var(--space-3) var(--space-4) var(--space-3) 0;
-  border-bottom: 1px solid var(--border);
   vertical-align: top;
   overflow-wrap: anywhere;
+}
+
+/* A cell's rule is drawn inside its transparent border, inset at the table's outer edges. */
+.table :is(th, td) {
+  position: relative;
+  border-bottom: 1px solid transparent;
+}
+
+.table :is(th, td)::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
+
+.table :is(th, td):first-child::after {
+  inset-inline-start: var(--space-4);
+}
+
+.table :is(th, td):last-child::after {
+  inset-inline-end: var(--space-4);
 }
 
 .table [data-align="end"] {
@@ -59,7 +82,6 @@
     top: 0;
     z-index: 1;
     background: var(--surface);
-    box-shadow: 0 1px 0 var(--border);
   }
 
   /* A page-sticky head settles below the sticky page header and collection toolbar. */
@@ -173,8 +195,29 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--space-3) var(--space-4);
+    position: relative;
     padding: var(--space-4);
-    border-top: 1px solid var(--border);
+    border-top: 1px solid transparent;
+  }
+
+  /* The card's rule is out of flow, so it is not a grid item. */
+  .table tbody tr::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    inset-inline: var(--space-4);
+    height: 1px;
+    background: var(--border);
+    pointer-events: none;
+  }
+
+  /* Cards draw their rules on the row, so cells need no positioned rule of their own. */
+  .table :is(th, td) {
+    position: static;
+  }
+
+  .table td::after {
+    display: none;
   }
 
   .table td {

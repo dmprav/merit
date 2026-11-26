@@ -1,4 +1,4 @@
-import { useContext, useEffect, type ComponentProps, type RefObject } from "react";
+import { useContext, useEffect, type ComponentProps } from "react";
 import {
   Tooltip as AriaTooltip,
   TooltipContext,
@@ -90,27 +90,6 @@ export const Tooltip = ({
     {customTrigger ? <Focusable>{children}</Focusable> : children}
     <TooltipOverlayGuard />
     <AriaTooltip className={styles.tooltip} placement={placement} offset={6}>
-      {content}
-    </AriaTooltip>
-  </TooltipTrigger>
-);
-
-/**
- * The same tooltip for a part of a composite control whose own element already handles hover and
- * focus, such as a tab whose label is cut off. The caller decides when it is open and anchors it to
- * the part it describes; the control keeps its own full accessible name.
- */
-export const AnchoredTooltip = ({
-  anchorRef,
-  content,
-  isOpen,
-  placement = "top",
-}: Pick<TooltipProps, "content" | "placement"> & {
-  anchorRef: RefObject<Element | null>;
-  isOpen: boolean;
-}) => (
-  <TooltipTrigger isOpen={isOpen}>
-    <AriaTooltip className={styles.tooltip} triggerRef={anchorRef} placement={placement} offset={6}>
       {content}
     </AriaTooltip>
   </TooltipTrigger>

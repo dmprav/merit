@@ -17,8 +17,9 @@ export type ButtonBaseProps = AriaButtonProps & {
   iconOnly?: boolean;
   /**
    * start aligns a quiet action's content with surrounding text, retaining its padded target and
-   * own width; end does the same at the trailing edge, for the last action in a row. fill takes the full width with the label starting at the leading edge, for a
-   * choice in a list whose text may wrap.
+   * own width; end does the same at the trailing edge, for the last action in a row. fill takes
+   * the full width with the label starting at the leading edge, for a choice in a list whose text
+   * may wrap.
    */
   alignment?: "default" | "start" | "end" | "fill";
   ref?: Ref<HTMLButtonElement>;
