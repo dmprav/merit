@@ -1,16 +1,35 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { parseAdvanceArgs, parseContextArgs } from "./scout.ts";
+import { parseScoutArgs } from "./scout.ts";
+
+describe("scout commands", () => {
+  test("drops the separator that vp run forwards before the command", () => {
+    expect(parseScoutArgs(["--", "context", "--lens", "auto"])).toEqual({
+      command: "context",
+      lens: "auto",
+    });
+  });
+
+  test.each([[[]], [["prune"]]])("rejects the unknown command in %j", (args) => {
+    expect(() => parseScoutArgs(args)).toThrow(/Unknown scout command ".*"\. Expected "context"/);
+  });
+});
 
 describe("context arguments", () => {
   test("accepts an explicit lens or auto", () => {
-    expect(parseContextArgs(["--lens", "auto"])).toBe("auto");
-    expect(parseContextArgs(["--lens", "security"])).toBe("security");
+    expect(parseScoutArgs(["context", "--lens", "auto"])).toEqual({
+      command: "context",
+      lens: "auto",
+    });
+    expect(parseScoutArgs(["context", "--lens", "security"])).toEqual({
+      command: "context",
+      lens: "security",
+    });
   });
 
   test("requires --lens and rejects advance-only flags", () => {
-    expect(() => parseContextArgs([])).toThrow("Missing required --lens flag.");
-    expect(() => parseContextArgs(["--lens", "auto", "--commit", "abc123"])).toThrow(
+    expect(() => parseScoutArgs(["context"])).toThrow("Missing required --lens flag.");
+    expect(() => parseScoutArgs(["context", "--lens", "auto", "--commit", "abc123"])).toThrow(
       "Unknown option '--commit'",
     );
   });
@@ -19,7 +38,8 @@ describe("context arguments", () => {
 describe("advance arguments", () => {
   test("reads the scan tip, rotation target, and optional pull request number", () => {
     expect(
-      parseAdvanceArgs([
+      parseScoutArgs([
+        "advance",
         "--lens",
         "security",
         "--commit",
@@ -29,10 +49,13 @@ describe("advance arguments", () => {
         "--pr",
         "88",
       ]),
-    ).toEqual({ lens: "security", commitSha: "abc123", target: "apps", prNumber: 88 });
-    expect(parseAdvanceArgs(["--lens", "security", "--commit", "abc123"])).toEqual({
-      lens: "security",
-      commitSha: "abc123",
+    ).toEqual({
+      command: "advance",
+      options: { lens: "security", commitSha: "abc123", target: "apps", prNumber: 88 },
+    });
+    expect(parseScoutArgs(["advance", "--lens", "security", "--commit", "abc123"])).toEqual({
+      command: "advance",
+      options: { lens: "security", commitSha: "abc123" },
     });
   });
 
@@ -52,6 +75,6 @@ describe("advance arguments", () => {
       error: "Unknown option '--dry-run'",
     },
   ])("rejects $args", ({ args, error }) => {
-    expect(() => parseAdvanceArgs(args)).toThrow(error);
+    expect(() => parseScoutArgs(["advance", ...args])).toThrow(error);
   });
 });

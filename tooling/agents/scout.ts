@@ -1,4 +1,4 @@
-import { parseCliArgs, parseWholeNumber } from "../cli.ts";
+import { parseCliArgs, parseWholeNumber, stripLeadingSeparator } from "../cli.ts";
 import { REPO_ROOT } from "../paths.ts";
 import { SCOUT_LENSES, type ScoutLens } from "./proposal.ts";
 import { type AdvanceOptions, advanceLens, buildContext } from "./scout/commands.ts";
@@ -16,7 +16,7 @@ const requireLens = (lens: string | undefined, usage: string): string => {
 };
 
 /** Reads `context` arguments; `--lens auto` lets the command pick the next lens. */
-export const parseContextArgs = (args: readonly string[]): ScoutLens | "auto" => {
+const parseContextArgs = (args: readonly string[]): ScoutLens | "auto" => {
   const { values } = parseCliArgs(args, {
     options: { lens: { type: "string" } },
     usage: CONTEXT_USAGE,
@@ -26,7 +26,7 @@ export const parseContextArgs = (args: readonly string[]): ScoutLens | "auto" =>
 };
 
 /** Validates `advance` arguments before the state issue is read or rewritten. */
-export const parseAdvanceArgs = (args: readonly string[]): AdvanceOptions => {
+const parseAdvanceArgs = (args: readonly string[]): AdvanceOptions => {
   const { values } = parseCliArgs(args, {
     options: {
       lens: { type: "string" },
@@ -56,19 +56,31 @@ export const parseAdvanceArgs = (args: readonly string[]): AdvanceOptions => {
   };
 };
 
-const runCli = () => {
-  const [command, ...rest] = process.argv.slice(2);
-  const ports = createScoutPorts(REPO_ROOT);
+export type ScoutCommand =
+  | { command: "context"; lens: ScoutLens | "auto" }
+  | { command: "advance"; options: AdvanceOptions };
 
+/** Validates a scout command line, including the `--` that `vp run` forwards, before any GitHub call. */
+export const parseScoutArgs = (args: readonly string[]): ScoutCommand => {
+  const [command, ...rest] = stripLeadingSeparator(args);
   if (command === "context") {
-    console.log(JSON.stringify(buildContext(ports, parseContextArgs(rest)), null, 2));
-    return;
+    return { command, lens: parseContextArgs(rest) };
   }
   if (command === "advance") {
-    console.log(JSON.stringify(advanceLens(ports, parseAdvanceArgs(rest))));
-    return;
+    return { command, options: parseAdvanceArgs(rest) };
   }
   throw new Error(`Unknown scout command "${command ?? ""}". Expected "context" or "advance".`);
+};
+
+const runCli = () => {
+  const command = parseScoutArgs(process.argv.slice(2));
+  const ports = createScoutPorts(REPO_ROOT);
+
+  if (command.command === "context") {
+    console.log(JSON.stringify(buildContext(ports, command.lens), null, 2));
+    return;
+  }
+  console.log(JSON.stringify(advanceLens(ports, command.options)));
 };
 
 if (import.meta.main) {
