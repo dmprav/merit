@@ -170,9 +170,9 @@ const meta = {
   tags: ["!autodocs"],
   component: IntakePreview,
   args: { onSave: fn<(value: IntakeChange) => Promise<string | null>>(async () => null) },
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   beforeEach: () => {
-    mocked(readContacts).mockResolvedValue({
+    mocked(readContacts).mockReset().mockResolvedValue({
       status: "ok",
       workspaceName: "Alder Foundation",
       contacts: [],

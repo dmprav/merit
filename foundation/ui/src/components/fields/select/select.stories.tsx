@@ -2,8 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, waitFor, within } from "storybook/test";
 
 import { Stack } from "../../layout/layout";
+import localStyles from "../field.stories.module.css";
 import { Select } from "./select";
-import localStyles from "./select.stories.module.css";
 
 const items = [
   { id: "fund", label: "Fund" },

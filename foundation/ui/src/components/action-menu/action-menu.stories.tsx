@@ -18,6 +18,10 @@ const meta = {
     items: [{ id: "reset", label: "Reset demo" }],
     onAction: fn(),
   },
+  argTypes: {
+    trigger: { control: false },
+    items: { control: false },
+  },
 } satisfies Meta<typeof ActionMenu>;
 
 export default meta;

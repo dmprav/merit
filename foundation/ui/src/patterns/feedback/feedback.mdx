@@ -104,7 +104,7 @@ Use the existing recovery view when an initial read fails, including offline.
 Retry the affected read or route without reloading the document. Show progress on
 the retry button and prevent repeated activation while it runs. Routine background
 reads need no loading indicator. When a later page of a collection fails while
-earlier entries stay on screen, `CollectionRecovery` offers the retry as a toast and
+earlier entries stay on screen, [`CollectionRecovery`](?path=/docs/patterns-paged-content--docs) offers the retry as a toast and
 keeps the entries usable. Dismissing the toast leaves a retry button beside the entries.
 
 Keep workspace navigation and account controls when a page fails inside an

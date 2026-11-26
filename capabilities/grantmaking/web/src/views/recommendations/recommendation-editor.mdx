@@ -10,7 +10,8 @@ A manager reading an application needs to know what each person proposed and
 which submission they saw. Put the author, funding position, proposed amount,
 and any qualification about the basis together. When the application has changed,
 show that beside the judgment, where someone scanning the outcome will see it.
-**Compare changes** should open the recorded basis. If the basis is unknown,
+**Compare changes** should open the recorded basis. If the
+[basis is unknown](?path=/story/features-applications-application-detail--unknown-basis),
 say so and leave the comparison unavailable.
 
 <Canvas of={Applications.EarlierManagerRecommendation} story={{ inline: false, height: "620px" }} />
@@ -26,5 +27,7 @@ submission and assessments throughout the edit.
 <Canvas of={Recommendation.BudgetPreview} story={{ inline: false, height: "620px" }} />
 
 [Resume an unfinished recommendation](?path=/story/features-applications-recommendation--resume-editing)
-to see where the work continues. The [reference workspace](?path=/docs/patterns-reference-workspace--docs)
+to see where the work continues, or inspect
+[concurrent changes](?path=/story/features-applications-recommendation--concurrent-changes)
+when another save arrives while drafting. The [reference workspace](?path=/docs/patterns-reference-workspace--docs)
 explains the shared arrangement for reading and writing.

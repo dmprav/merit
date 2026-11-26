@@ -168,6 +168,26 @@ export const EarlierManagerRecommendation: Story = {
   },
 };
 
+export const UnknownBasis: Story = {
+  args: {
+    application: {
+      ...round.applications[0]!,
+      managerRecommendation: {
+        ...round.applications[0]!.managerRecommendation!,
+        recorded: undefined,
+      },
+    },
+    tab: "reviews",
+  },
+  play: async ({ canvas }) => {
+    const recommendation = within(canvas.getByRole("region", { name: "Manager recommendation" }));
+    await expect(recommendation.getByText("Submission basis not known")).toBeVisible();
+    await expect(
+      recommendation.queryByRole("button", { name: "Compare changes" }),
+    ).not.toBeInTheDocument();
+  },
+};
+
 export const ReadOnly: Story = { args: { readOnly: true, tab: "reviews" } };
 
 const ExternalReferencePreview = (props: PreviewProps) => {

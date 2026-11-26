@@ -51,7 +51,10 @@ export const Recorded: Story = {
   ),
 };
 
+const onChooseJudgment = fn();
+
 export const NotYetRecorded: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <Stack gap={1}>
       <Judgment author="Dana Reed" />
@@ -63,6 +66,7 @@ export const NotYetRecorded: Story = {
 };
 
 export const Choices: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <Stack gap={3}>
       <JudgmentChoice
@@ -79,13 +83,13 @@ export const Choices: Story = {
             <span>Criteria changed since</span>
           </>
         }
-        onPress={fn()}
+        onPress={onChooseJudgment}
       />
       <JudgmentChoice
         author="Priya Shah"
         summary={<strong>Outstanding</strong>}
         basis={<span>Requested on version 3</span>}
-        onPress={fn()}
+        onPress={onChooseJudgment}
       />
     </Stack>
   ),

@@ -89,6 +89,7 @@ export const AlignedWithContent: Story = {
       </>
     ),
   },
+  argTypes: { children: { control: false } },
   render: (args) => (
     <section className={localStyles.variant}>
       <p>The reviewer supports the proposal with a revised amount.</p>
@@ -149,7 +150,7 @@ export const MutedSurface: Story = {
 };
 export const KeyboardFocus: Story = {
   name: "Keyboard focus",
-  argTypes: { variant: { control: false }, children: { control: false } },
+  parameters: { controls: { disable: true } },
   render: () => (
     <div className={localStyles.examples}>
       <p className={localStyles.description}>
@@ -228,6 +229,7 @@ export const Pending: Story = {
 
 export const IconOnly: Story = {
   args: { iconOnly: true, "aria-label": "Close", children: <Icon name="close" /> },
+  argTypes: { children: { control: false } },
 };
 
 export const PendingIconOnly: Story = {
@@ -237,6 +239,7 @@ export const PendingIconOnly: Story = {
     "aria-label": "Save changes",
     children: <Icon name="check" />,
   },
+  argTypes: { variant: { control: false }, children: { control: false } },
   render: renderVariants,
   play: async ({ args, canvas, userEvent }) => {
     const buttons = canvas.getAllByRole("button", { name: "Save changes" });

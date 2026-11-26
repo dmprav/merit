@@ -5,6 +5,7 @@ import { expect, waitFor, within } from "storybook/test";
 import { ChoiceList } from "../../patterns/editing/choice-list";
 import { Button } from "../button/button";
 import { Inline } from "../layout/layout";
+import { Text } from "../text/text";
 import {
   DialogContent,
   DialogSection,
@@ -13,7 +14,6 @@ import {
   PopoverDialog,
   SidePanel as SidePanelFrame,
 } from "./dialog";
-import localStyles from "./dialog.stories.module.css";
 
 const PopoverExample = (args: ComponentProps<typeof ModalDialog>) => {
   const [open, setOpen] = useState(false);
@@ -38,10 +38,10 @@ const guidanceWithActions = ({ close }: { close: () => void }) => (
       </Inline>
     }
   >
-    <p className={localStyles.description}>
+    <Text as="p" variant="supporting">
       Compare the application with its supporting evidence. Keep applicant statements separate from
       reviewer judgments, and record questions that need clarification.
-    </p>
+    </Text>
   </DialogContent>
 );
 
@@ -66,10 +66,10 @@ const meta = {
     trigger: <Button variant="secondary">Open dialog</Button>,
     children: (
       <DialogContent>
-        <p className={localStyles.description}>
+        <Text as="p" variant="supporting">
           Nothing will be published or changed in the funding round. Escape closes this dialog and
           returns focus to its trigger.
-        </p>
+        </Text>
       </DialogContent>
     ),
   },
@@ -163,10 +163,10 @@ export const Popover: Story = {
   args: {
     title: "An example dialog",
     children: (
-      <p className={localStyles.description}>
+      <Text as="p" variant="supporting">
         Nothing will be published or changed in the funding round. Escape closes this dialog and
         returns focus to its trigger.
-      </p>
+      </Text>
     ),
   },
   render: (args) => <PopoverExample {...args} />,
@@ -287,10 +287,10 @@ export const BackdropDismissalDisabled: Story = {
     title: "An example dialog",
     children: (
       <DialogContent>
-        <p className={localStyles.description}>
+        <Text as="p" variant="supporting">
           Clicking the shaded backdrop leaves this dialog open. Press Escape or use the close button
           to close it. Focus returns to the Open dialog button.
-        </p>
+        </Text>
       </DialogContent>
     ),
   },

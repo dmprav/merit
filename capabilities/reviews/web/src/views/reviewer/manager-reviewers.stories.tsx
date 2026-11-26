@@ -61,12 +61,11 @@ const meta = {
   title: "Features/Applications/Manage reviewer invitations",
   component: ManagerPreview,
   tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   args: {
     assignment: { ...reviewerPage().assignment, status: "invited" },
     scenario: "ordinary",
   },
-  argTypes: { assignment: { control: false }, scenario: { control: false } },
 } satisfies Meta<typeof ManagerPreview>;
 
 export default meta;

@@ -7,7 +7,7 @@ const meta = {
   title: "Features/Funding rounds/Create",
   tags: ["!autodocs"],
   component: ComposerPreview,
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
 } satisfies Meta<typeof ComposerPreview>;
 
 export default meta;

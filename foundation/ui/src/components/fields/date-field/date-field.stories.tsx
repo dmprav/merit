@@ -66,6 +66,7 @@ export const CalendarOpen: Story = {
   },
 };
 export const States: Story = {
+  parameters: { controls: { disable: true } },
   render: (args) => (
     <div className={styles.examples}>
       {[

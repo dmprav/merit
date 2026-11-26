@@ -32,6 +32,8 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
+const onChooseJudgment = fn();
+
 export const SidePanel: Story = {
   parameters: { controls: { disable: true } },
   render: () => (
@@ -75,7 +77,7 @@ export const SidePanel: Story = {
         <div className={styles.choices}>
           <JudgmentChoice
             author="Sam Morgan"
-            onPress={fn()}
+            onPress={onChooseJudgment}
             summary={
               <>
                 <strong>Fund</strong>
