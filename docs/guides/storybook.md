@@ -125,5 +125,5 @@ The [design-system export](../../tooling/storybook/design-system/README.md) pack
 the same shared catalog for designers and agents who work outside the repository:
 tokens from `tokens.css`, the built library and a card for each component and pattern.
 When a change adds a token, a shared export, or changes what a component shows, update
-its classification or card there and rebuild with
+its classification or card there, verify the catalog with `vp run test:design-system`, and rebuild with
 `vp run @merit/storybook#build:design-system`.
