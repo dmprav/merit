@@ -16,6 +16,7 @@ import {
   normalizeStatusCheckRollup,
   parseAgentPrState,
   parseGitHubRemote,
+  parseRecordShepherdArgs,
   selectNextWork,
   type OpenAgentPr,
   type ReadyIssueCandidate,
@@ -597,5 +598,57 @@ describe("queue", () => {
     const source = readFileSync(fileURLToPath(new URL("./queue.ts", import.meta.url)), "utf8");
     expect(source).not.toMatch(/execFileSync\("gh",\s*\[\s*"(?:pr|issue|repo)"/);
     expect(source).not.toContain('"graphql"');
+  });
+});
+
+describe("record-shepherd arguments", () => {
+  test("parses every option the queue worker and implement-proposal pass", () => {
+    expect(
+      parseRecordShepherdArgs([
+        "221",
+        "--round",
+        "0",
+        "--sha",
+        "abc123",
+        "--issue",
+        "120",
+        "--flake-reruns",
+        "1",
+        "--if-uninitialized",
+      ]),
+    ).toEqual({
+      prNumber: 221,
+      round: 0,
+      sha: "abc123",
+      issueNumber: 120,
+      flakeReruns: 1,
+      ifUninitialized: true,
+    });
+    expect(parseRecordShepherdArgs(["221", "--round", "2"])).toEqual({
+      prNumber: 221,
+      round: 2,
+      ifUninitialized: false,
+    });
+  });
+
+  test("requires --round, so a missing round never reaches the recorded state", () => {
+    expect(() => parseRecordShepherdArgs(["221", "--sha", "abc123"])).toThrow(
+      /Usage: queue\.ts record-shepherd <pr-number> --round <n>/,
+    );
+  });
+
+  test.each([
+    {
+      args: ["221", "--round", "two"],
+      error: '--round must be a whole number of at least 0 (got "two").',
+    },
+    {
+      args: ["221", "--round", "1", "--issue", "0"],
+      error: '--issue must be a whole number of at least 1 (got "0").',
+    },
+    { args: ["221", "--round", "1", "--flake-reruns"], error: "--flake-reruns requires a value." },
+    { args: ["221", "--round", "--sha", "abc123"], error: "--round requires a value." },
+  ])("rejects $args", ({ args, error }) => {
+    expect(() => parseRecordShepherdArgs(args)).toThrow(error);
   });
 });

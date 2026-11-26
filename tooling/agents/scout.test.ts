@@ -14,6 +14,7 @@ import {
   LENS_TARGET_INTERVAL_DAYS,
   listDocAreas,
   listPackageSlices,
+  parseAdvanceArgs,
   parseAdvanceLensFlag,
   parseCommitLog,
   parseContextLensFlag,
@@ -474,5 +475,36 @@ describe("scout", () => {
     expect(parseContextLensFlag(["--lens", "security"])).toBe("security");
     expect(parseAdvanceLensFlag(["--lens", "security"])).toBe("security");
     expect(() => parseAdvanceLensFlag(["--lens", "auto"])).toThrow(/Cannot pass "--lens auto"/);
+  });
+});
+
+describe("advance arguments", () => {
+  test("reads the scan tip, rotation target, and optional pull request number", () => {
+    expect(
+      parseAdvanceArgs([
+        "--lens",
+        "security",
+        "--commit",
+        "abc123",
+        "--target",
+        " apps ",
+        "--pr",
+        "88",
+      ]),
+    ).toEqual({ commitSha: "abc123", target: "apps", prNumber: 88 });
+    expect(parseAdvanceArgs(["--lens", "security", "--commit", "abc123"])).toEqual({
+      commitSha: "abc123",
+    });
+  });
+
+  test.each([
+    { args: ["--lens", "security"], error: "Missing required --commit <scanTipSha> flag." },
+    {
+      args: ["--commit", "abc123", "--pr", "next"],
+      error: '--pr must be a whole number of at least 1 (got "next").',
+    },
+    { args: ["--commit", "abc123", "--target"], error: "--target requires a value." },
+  ])("rejects $args", ({ args, error }) => {
+    expect(() => parseAdvanceArgs(args)).toThrow(error);
   });
 });

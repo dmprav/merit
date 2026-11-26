@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
-import { readFlagValue } from "../cli.ts";
+import { readFlagValue, readIntegerFlag } from "../cli.ts";
 import {
   extractLinkedIssueNumbers,
   TRUSTED_AUTHOR_ASSOCIATIONS,
@@ -823,6 +823,38 @@ const addIssueLabels = (
   ]);
 };
 
+const RECORD_SHEPHERD_USAGE =
+  "Usage: queue.ts record-shepherd <pr-number> --round <n> [--sha <sha>] [--issue <n>] [--flake-reruns <n>] [--if-uninitialized]";
+
+export type RecordShepherdOptions = {
+  prNumber: number;
+  round: number;
+  sha?: string;
+  issueNumber?: number;
+  flakeReruns?: number;
+  ifUninitialized: boolean;
+};
+
+/** Validates `record-shepherd` arguments before any GitHub call, so bad input records nothing. */
+export const parseRecordShepherdArgs = (args: readonly string[]): RecordShepherdOptions => {
+  const prNumber = Number(args[0]);
+  const round = readIntegerFlag(args, "--round", 0);
+  if (!/^[1-9]\d*$/.test(args[0] ?? "") || round === null) {
+    throw new Error(RECORD_SHEPHERD_USAGE);
+  }
+  const sha = readFlagValue(args, "--sha");
+  const issueNumber = readIntegerFlag(args, "--issue", 1);
+  const flakeReruns = readIntegerFlag(args, "--flake-reruns", 0);
+  return {
+    prNumber,
+    round,
+    ...(sha !== null ? { sha } : {}),
+    ...(issueNumber !== null ? { issueNumber } : {}),
+    ...(flakeReruns !== null ? { flakeReruns } : {}),
+    ifUninitialized: args.includes("--if-uninitialized"),
+  };
+};
+
 const applyQueueOrder = (repoRoot: string, repo: RepoIdentity, order: QueueWorkOrder) => {
   if (order.kind === "escalate") {
     addIssueLabels(repoRoot, repo, order.prNumber, ["agent:needs-human"]);
@@ -1015,17 +1047,7 @@ const runCli = () => {
   }
 
   if (command === "record-shepherd") {
-    const prNumber = Number.parseInt(rest[0] ?? "", 10);
-    const round = Number.parseInt(readFlagValue(rest, "--round") ?? "", 10);
-    const sha = readFlagValue(rest, "--sha") ?? undefined;
-    const issueRaw = readFlagValue(rest, "--issue");
-    const flakeRaw = readFlagValue(rest, "--flake-reruns");
-    const ifUninitialized = rest.includes("--if-uninitialized");
-    if (!Number.isInteger(prNumber) || prNumber <= 0) {
-      throw new Error(
-        "Usage: queue.ts record-shepherd <pr-number> --round <n> [--sha <sha>] [--issue <n>] [--flake-reruns <n>] [--if-uninitialized]",
-      );
-    }
+    const { prNumber, ifUninitialized, ...updates } = parseRecordShepherdArgs(rest);
     const comments = fetchIssueComments(repoRoot, repo, prNumber);
     const previous = parseAgentPrState(comments);
     if (ifUninitialized && hasAgentPrState(comments)) {
@@ -1033,10 +1055,10 @@ const runCli = () => {
       return;
     }
     const state = mergeAgentPrState(previous, {
-      shepherdRounds: round,
-      ...(flakeRaw !== null ? { flakeReruns: Number.parseInt(flakeRaw, 10) } : {}),
-      ...(sha ? { lastHeadSha: sha } : {}),
-      ...(issueRaw !== null ? { issueNumber: Number.parseInt(issueRaw, 10) } : {}),
+      shepherdRounds: updates.round,
+      ...(updates.flakeReruns !== undefined ? { flakeReruns: updates.flakeReruns } : {}),
+      ...(updates.sha ? { lastHeadSha: updates.sha } : {}),
+      ...(updates.issueNumber !== undefined ? { issueNumber: updates.issueNumber } : {}),
     });
     postIssueComment(repoRoot, repo, prNumber, formatAgentPrStateComment(state));
     console.log(JSON.stringify({ status: "recorded", prNumber, state }));

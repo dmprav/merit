@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
-import { errorMessage, normalizeRepoPath, readFlagValue } from "../cli.ts";
+import { errorMessage, normalizeRepoPath, readFlagValue, readIntegerFlag } from "../cli.ts";
 import { parseProposalMarker, TRUSTED_AUTHOR_ASSOCIATIONS } from "../verification/agent-policy.ts";
 import { classifyChangedPaths } from "../verification/architecture/mechanisms.ts";
 import { MAX_OPEN_PROPOSALS, runScoutGh, SCOUT_LENSES, type ScoutLens } from "./proposal.ts";
@@ -1441,13 +1441,27 @@ const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") 
   console.log(JSON.stringify(context, null, 2));
 };
 
-const runAdvanceCommand = (repoRoot: string, lens: ScoutLens, args: readonly string[]) => {
+export type AdvanceOptions = { commitSha: string; target?: string; prNumber?: number };
+
+/** Validates `advance` arguments before the state issue is read or rewritten. */
+export const parseAdvanceArgs = (args: readonly string[]): AdvanceOptions => {
   const commitSha = readFlagValue(args, "--commit");
   if (!commitSha) {
     throw new Error(
       'Missing required --commit <scanTipSha> flag. Pass the scanTipSha emitted by "scout.ts context".',
     );
   }
+  const target = readFlagValue(args, "--target")?.trim();
+  const prNumber = readIntegerFlag(args, "--pr", 1);
+  return {
+    commitSha,
+    ...(target ? { target } : {}),
+    ...(prNumber !== null ? { prNumber } : {}),
+  };
+};
+
+const runAdvanceCommand = (repoRoot: string, lens: ScoutLens, args: readonly string[]) => {
+  const { commitSha, target, prNumber } = parseAdvanceArgs(args);
   const stateIssue = fetchScoutStateIssue(repoRoot);
   const state = parseScoutState(stateIssue.body);
   const resolvedSha = execFileSync("git", ["rev-parse", "--verify", `${commitSha}^{commit}`], {
@@ -1458,10 +1472,8 @@ const runAdvanceCommand = (repoRoot: string, lens: ScoutLens, args: readonly str
     cwd: repoRoot,
     encoding: "utf8",
   }).trim();
-  const prRaw = readFlagValue(args, "--pr");
-  const lastPrNumber = prRaw ? Number.parseInt(prRaw, 10) : state[lens]?.lastPrNumber;
-  const targetRaw = readFlagValue(args, "--target")?.trim();
-  const lastRotationTarget = targetRaw || state[lens]?.lastRotationTarget;
+  const lastPrNumber = prNumber ?? state[lens]?.lastPrNumber;
+  const lastRotationTarget = target ?? state[lens]?.lastRotationTarget;
 
   const nextCursor = lensCursorSchema.parse({
     lastCommitSha: resolvedSha,
