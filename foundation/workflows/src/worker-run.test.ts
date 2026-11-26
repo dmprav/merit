@@ -196,12 +196,38 @@ it("describes errors on one short line", () => {
 
 describe("start-up work", () => {
   it("runs beside polling once the worker is connected", async () => {
-    const onConnected = vi.fn(async () => {});
+    let release = () => {};
 
-    await runWorker(settings, { logger: logger(), onConnected, backoff });
+    const onConnected = vi.fn(() => new Promise<void>((resolve) => (release = resolve)));
 
-    expect(onConnected).toHaveBeenCalledOnce();
+    const done = runWorker(settings, { logger: logger(), onConnected, backoff });
+    // Polling has started while start-up work is still pending.
+    await vi.waitFor(() => expect(onConnected).toHaveBeenCalledOnce());
     expect(worker.run).toHaveBeenCalledOnce();
+    release();
+    await done;
+  });
+
+  it("stops without waiting for start-up work that never answers, and closes the connection after", async () => {
+    const abort = new AbortController();
+    const onConnected = vi.fn(() => new Promise<void>(() => {}));
+
+    let finish = () => {};
+
+    worker = sdkWorker(() => new Promise<void>((resolve) => (finish = resolve)));
+
+    const done = runWorker(settings, {
+      logger: logger(),
+      signal: abort.signal,
+      onConnected,
+      backoff,
+    });
+    await vi.waitFor(() => expect(onConnected).toHaveBeenCalledOnce());
+    abort.abort();
+    finish();
+    await done;
+
+    expect(connection.close).toHaveBeenCalledOnce();
   });
 
   it("warns without failure details, keeps polling and retries until it succeeds", async () => {

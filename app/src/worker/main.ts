@@ -47,6 +47,9 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   });
 }
 
+/** How long one attempt to ensure the Schedule may take before it is retried. */
+const scheduleRequestDeadlineMs = 10_000;
+
 let exitCode = 0;
 try {
   // The development and preview commands set MERIT_LOCAL_WORKER; a deployed worker must not.
@@ -65,14 +68,17 @@ try {
       logger,
       signal: stop.signal,
       // Idempotent: every worker start leaves exactly one reconciliation Schedule.
+      // A server that stops answering fails the attempt after a deadline, so it is retried.
       onConnected: () =>
-        ensureSchedule(client, {
-          scheduleId: queues.reconcileScheduleId,
-          workflowType: "reconcile",
-          taskQueue: queues.taskQueue,
-          everyMs: reconcileEvery,
-          workflowId: queues.reconcileScheduleId,
-        }),
+        client.connection.withDeadline(Date.now() + scheduleRequestDeadlineMs, () =>
+          ensureSchedule(client, {
+            scheduleId: queues.reconcileScheduleId,
+            workflowType: "reconcile",
+            taskQueue: queues.taskQueue,
+            everyMs: reconcileEvery,
+            workflowId: queues.reconcileScheduleId,
+          }),
+        ),
     },
   );
 } catch (error) {

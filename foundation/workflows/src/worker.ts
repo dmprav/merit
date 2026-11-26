@@ -169,7 +169,8 @@ export type RunOptions = {
    * Start-up work that needs a reachable server, such as ensuring a Schedule. It runs beside
    * polling and is retried with the same backoff until it succeeds or the worker stops, so a
    * failure never leaves the work undone until the next process start. Each failure is logged as
-   * a warning and does not stop the worker.
+   * a warning and does not stop the worker. A stop does not wait for a request still in flight;
+   * the work should bound its own requests so a server that stops answering is retried.
    */
   onConnected?: () => Promise<void>;
 };
@@ -184,9 +185,15 @@ const retryStartup = async (
   }: { logger: WorkerLogger; backoff: { initialMs: number; maxMs: number }; signal: AbortSignal },
 ) => {
   let wait = initialMs;
+  const stopped = new Promise<void>((resolve) =>
+    signal.addEventListener("abort", () => resolve(), { once: true }),
+  );
   while (!signal.aborted) {
     try {
-      await work();
+      // A request that never answers must not hold up a stop, so the wait ends with the signal.
+      const attempt = work();
+      attempt.catch(() => undefined);
+      await Promise.race([attempt, stopped]);
       return;
     } catch (error) {
       logger.warn(
