@@ -9,6 +9,7 @@ export type WorkspacePackage = {
   deps: string[];
 };
 
+/** The `changes` job outputs `.github/workflows/verify.yml` reads, named as the workflow spells them. */
 export type ChangeClassification = {
   renovate: boolean;
   docs_only: boolean;
@@ -104,136 +105,163 @@ export const loadWorkspacePackages = (repoRoot: string): WorkspacePackage[] => {
   }));
 };
 
-const findAffectedPackages = (files: string[], workspacePackages: WorkspacePackage[]) => {
-  const byLongestDir = [...workspacePackages].sort((a, b) => b.dir.length - a.dir.length);
-  const reverseDeps = new Map<string, Set<string>>(
+const reverseDependencies = (workspacePackages: readonly WorkspacePackage[]) => {
+  const dependents = new Map<string, Set<string>>(
     workspacePackages.map((p) => [p.name, new Set()]),
   );
   for (const pkg of workspacePackages) {
     for (const dep of pkg.deps) {
-      reverseDeps.get(dep)?.add(pkg.name);
+      dependents.get(dep)?.add(pkg.name);
     }
   }
+  return dependents;
+};
 
-  const affected = new Set<string>();
-  const queue: string[] = [];
-
-  for (const file of files) {
-    const owner = byLongestDir.find((p) => file === p.dir || file.startsWith(`${p.dir}/`));
-    if (owner && !affected.has(owner.name)) {
-      affected.add(owner.name);
-      queue.push(owner.name);
-    }
-  }
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current) {
-      continue;
-    }
-    for (const dependent of reverseDeps.get(current) ?? []) {
+/** Adds every package that depends, directly or transitively, on one of `names`. */
+const withTransitiveDependents = (
+  names: readonly string[],
+  dependents: ReadonlyMap<string, ReadonlySet<string>>,
+): Set<string> => {
+  const affected = new Set(names);
+  const queue = [...affected];
+  for (let current = queue.shift(); current !== undefined; current = queue.shift()) {
+    for (const dependent of dependents.get(current) ?? []) {
       if (!affected.has(dependent)) {
         affected.add(dependent);
         queue.push(dependent);
       }
     }
   }
-
   return affected;
+};
+
+/** Finds the packages owning `files` (the deepest package directory wins) and their dependents. */
+const findAffectedPackages = (files: string[], workspacePackages: WorkspacePackage[]) => {
+  const byLongestDir = workspacePackages.toSorted((a, b) => b.dir.length - a.dir.length);
+  const owners = files.flatMap((file) => {
+    const owner = byLongestDir.find((p) => file === p.dir || file.startsWith(`${p.dir}/`));
+    return owner ? [owner.name] : [];
+  });
+  return withTransitiveDependents(owners, reverseDependencies(workspacePackages));
 };
 
 /** An unknown diff counts as a dependency change, so the audit blocks when in doubt. */
 const changesDependencies = (files: string[] | null) =>
   files === null || files.length === 0 || files.some((file) => DEPENDENCY_FILE_PATTERN.test(file));
 
-export const classifyChangedFiles = ({
+const APP_PACKAGE = "@merit/app";
+const STORYBOOK_PACKAGE = "@merit/storybook";
+const TOOLING_PATH_PREFIXES = ["tooling/", ".agents/", ".claude/", ".greptile/"];
+
+const isToolingFile = (file: string) =>
+  TOOLING_PATH_PREFIXES.some((prefix) => file.startsWith(prefix)) || file === ".coderabbit.yaml";
+
+/** Which checks a change needs: none beyond the light ones, every check, or the affected areas. */
+type ChangeScope =
+  | { mode: "skip"; reason: "docs_only" | "renovate_only" }
+  | { mode: "full" }
+  | {
+      mode: "affected";
+      runApp: boolean;
+      runStorybook: boolean;
+      runTooling: boolean;
+      /** Workspace packages whose tests run; Storybook runs as its own job. */
+      packageFilters: string[];
+    };
+
+type ChangePlan = {
+  /** Runs the Renovate config check: a manual run, or a pull request that edits renovate.json. */
+  renovate: boolean;
+  dependenciesChanged: boolean;
+  scope: ChangeScope;
+};
+
+const affectedScope = (files: string[], workspacePackages: WorkspacePackage[]): ChangeScope => {
+  const affected = findAffectedPackages(files, workspacePackages);
+  return {
+    mode: "affected",
+    runApp: affected.has(APP_PACKAGE),
+    runStorybook:
+      affected.has(STORYBOOK_PACKAGE) || files.some((f) => STORYBOOK_SOURCE_PATTERN.test(f)),
+    runTooling: files.some(isToolingFile),
+    packageFilters: [...affected]
+      .filter((name) => name !== STORYBOOK_PACKAGE)
+      .sort((a, b) => a.localeCompare(b)),
+  };
+};
+
+const pullRequestScope = (files: string[], workspacePackages: WorkspacePackage[]): ChangeScope => {
+  if (files.length > 0 && files.every(isDocFile)) {
+    return { mode: "skip", reason: "docs_only" };
+  }
+  if (
+    files.includes("renovate.json") &&
+    files.every((f) => f === "renovate.json" || isRecordFile(f))
+  ) {
+    return { mode: "skip", reason: "renovate_only" };
+  }
+  if (files.length === 0 || files.some(isRootOrInfraFile)) {
+    return { mode: "full" };
+  }
+  return affectedScope(files, workspacePackages);
+};
+
+/** Pushes, merge groups, and manual runs check everything; pull requests check what they touch. */
+const planChangedChecks = ({
   eventName,
   changedFiles,
   workspacePackages,
 }: {
   eventName: string;
-  /** Files changed by the pull request or push, or null when the diff is unknown. */
   changedFiles: string[] | null;
   workspacePackages: WorkspacePackage[];
-}): ChangeClassification => {
+}): ChangePlan => {
   const dependenciesChanged =
     eventName === "workflow_dispatch" || changesDependencies(changedFiles);
   if (eventName !== "pull_request") {
     return {
       renovate: eventName === "workflow_dispatch",
-      docs_only: false,
-      renovate_only: false,
-      full_run: true,
-      run_app: true,
-      run_storybook: true,
-      run_tooling: true,
-      run_package_tests: true,
-      package_filters: ALL_PACKAGES_FILTER,
-      dependencies_changed: dependenciesChanged,
+      dependenciesChanged,
+      scope: { mode: "full" },
     };
   }
-
   const files = (changedFiles ?? []).filter(Boolean);
-  const renovate = files.includes("renovate.json");
-  const docsOnly = files.length > 0 && files.every(isDocFile);
-  const renovateOnly = renovate && files.every((f) => f === "renovate.json" || isRecordFile(f));
+  return {
+    renovate: files.includes("renovate.json"),
+    dependenciesChanged,
+    scope: pullRequestScope(files, workspacePackages),
+  };
+};
 
-  if (docsOnly || renovateOnly) {
-    return {
-      renovate,
-      docs_only: docsOnly,
-      renovate_only: renovateOnly,
-      full_run: false,
-      run_app: false,
-      run_storybook: false,
-      run_tooling: false,
-      run_package_tests: false,
-      package_filters: [],
-      dependencies_changed: dependenciesChanged,
-    };
-  }
-
-  if (files.length === 0 || files.some(isRootOrInfraFile)) {
-    return {
-      renovate,
-      docs_only: false,
-      renovate_only: false,
-      full_run: true,
-      run_app: true,
-      run_storybook: true,
-      run_tooling: true,
-      run_package_tests: true,
-      package_filters: ALL_PACKAGES_FILTER,
-      dependencies_changed: dependenciesChanged,
-    };
-  }
-
-  const affected = findAffectedPackages(files, workspacePackages);
-  const testablePackages = [...affected]
-    .filter((name) => name !== "@merit/storybook")
-    .sort((a, b) => a.localeCompare(b));
-
+/** Spells a plan as the step outputs `.github/workflows/verify.yml` reads, keys and values unchanged. */
+const toWorkflowOutputs = ({
+  renovate,
+  dependenciesChanged,
+  scope,
+}: ChangePlan): ChangeClassification => {
+  const full = scope.mode === "full";
+  const affected = scope.mode === "affected" ? scope : null;
+  const packageFilters = full ? ALL_PACKAGES_FILTER : (affected?.packageFilters ?? []);
   return {
     renovate,
-    docs_only: false,
-    renovate_only: false,
-    full_run: false,
-    run_app: affected.has("@merit/app"),
-    run_storybook:
-      affected.has("@merit/storybook") || files.some((f) => STORYBOOK_SOURCE_PATTERN.test(f)),
-    run_tooling: files.some(
-      (f) =>
-        f.startsWith("tooling/") ||
-        f.startsWith(".agents/") ||
-        f.startsWith(".claude/") ||
-        f.startsWith(".greptile/") ||
-        f === ".coderabbit.yaml",
-    ),
-    run_package_tests: testablePackages.length > 0,
-    package_filters: testablePackages,
+    docs_only: scope.mode === "skip" && scope.reason === "docs_only",
+    renovate_only: scope.mode === "skip" && scope.reason === "renovate_only",
+    full_run: full,
+    run_app: full || affected?.runApp === true,
+    run_storybook: full || affected?.runStorybook === true,
+    run_tooling: full || affected?.runTooling === true,
+    run_package_tests: packageFilters.length > 0,
+    package_filters: packageFilters,
     dependencies_changed: dependenciesChanged,
   };
 };
+
+export const classifyChangedFiles = (input: {
+  eventName: string;
+  /** Files changed by the pull request or push, or null when the diff is unknown. */
+  changedFiles: string[] | null;
+  workspacePackages: WorkspacePackage[];
+}): ChangeClassification => toWorkflowOutputs(planChangedChecks(input));
 
 const diffFiles = (repoRoot: string, diffRange: string) =>
   execFileSync("git", ["diff", "--name-only", diffRange], { cwd: repoRoot, encoding: "utf8" })
@@ -266,19 +294,18 @@ const pushedFiles = (repoRoot: string) => {
   }
 };
 
+// A pull request compares its head with the merge base of its base commit.
+const pullRequestFiles = (repoRoot: string) => {
+  const baseSha = process.env.PR_BASE_SHA;
+  const headSha = process.env.PR_HEAD_SHA || "HEAD";
+  return diffFiles(repoRoot, baseSha ? `${baseSha}...${headSha}` : "HEAD^1...HEAD");
+};
+
 const runCli = () => {
   const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
   const eventName = process.env.EVENT_NAME ?? "pull_request";
-  let changedFiles: string[] | null;
-
-  if (eventName === "pull_request") {
-    const baseSha = process.env.PR_BASE_SHA;
-    const headSha = process.env.PR_HEAD_SHA || "HEAD";
-    changedFiles = diffFiles(repoRoot, baseSha ? `${baseSha}...${headSha}` : "HEAD^1...HEAD");
-  } else {
-    changedFiles = pushedFiles(repoRoot);
-  }
-
+  const changedFiles =
+    eventName === "pull_request" ? pullRequestFiles(repoRoot) : pushedFiles(repoRoot);
   const workspacePackages = loadWorkspacePackages(repoRoot);
   const result = classifyChangedFiles({ eventName, changedFiles, workspacePackages });
 
