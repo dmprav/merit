@@ -42,6 +42,7 @@ export const ConflictBanner = ({
   isDisabled?: boolean;
 }) => {
   const [showLatest, setShowLatest] = useState(false);
+  const hasActions = Boolean(keepMine || useSaved || latest);
 
   return (
     <div className={styles.banner}>
@@ -52,39 +53,15 @@ export const ConflictBanner = ({
         role="alert"
         title={title}
         actions={
-          (keepMine || useSaved || latest) && (
-            <Inline>
-              {keepMine && (
-                <Button
-                  variant="quiet"
-                  alignment="start"
-                  isDisabled={isDisabled}
-                  onPress={keepMine.onPress}
-                >
-                  {keepMine.label}
-                </Button>
-              )}
-              {useSaved && (
-                <Button
-                  variant="quiet"
-                  alignment={keepMine ? undefined : "start"}
-                  isDisabled={isDisabled}
-                  onPress={useSaved.onPress}
-                >
-                  {useSaved.label}
-                </Button>
-              )}
-              {latest && (
-                <Button
-                  variant="quiet"
-                  alignment={keepMine || useSaved ? undefined : "start"}
-                  aria-expanded={showLatest}
-                  onPress={() => setShowLatest((open) => !open)}
-                >
-                  {showLatest ? latest.hideLabel : latest.toggleLabel}
-                </Button>
-              )}
-            </Inline>
+          hasActions && (
+            <ConflictActions
+              keepMine={keepMine}
+              useSaved={useSaved}
+              latest={latest}
+              isDisabled={isDisabled}
+              showLatest={showLatest}
+              onToggleLatest={() => setShowLatest((open) => !open)}
+            />
           )
         }
       >
@@ -98,6 +75,58 @@ export const ConflictBanner = ({
         </section>
       )}
     </div>
+  );
+};
+
+/** Only the first action is outdented, so its text starts on the banner's text edge. */
+const ConflictActions = ({
+  keepMine,
+  useSaved,
+  latest,
+  isDisabled,
+  showLatest,
+  onToggleLatest,
+}: {
+  keepMine?: ConflictAction;
+  useSaved?: ConflictAction;
+  latest?: ConflictLatestPreview;
+  isDisabled: boolean;
+  showLatest: boolean;
+  onToggleLatest: () => void;
+}) => {
+  return (
+    <Inline>
+      {keepMine && (
+        <Button
+          variant="quiet"
+          alignment="start"
+          isDisabled={isDisabled}
+          onPress={keepMine.onPress}
+        >
+          {keepMine.label}
+        </Button>
+      )}
+      {useSaved && (
+        <Button
+          variant="quiet"
+          alignment={keepMine ? undefined : "start"}
+          isDisabled={isDisabled}
+          onPress={useSaved.onPress}
+        >
+          {useSaved.label}
+        </Button>
+      )}
+      {latest && (
+        <Button
+          variant="quiet"
+          alignment={keepMine || useSaved ? undefined : "start"}
+          aria-expanded={showLatest}
+          onPress={onToggleLatest}
+        >
+          {showLatest ? latest.hideLabel : latest.toggleLabel}
+        </Button>
+      )}
+    </Inline>
   );
 };
 

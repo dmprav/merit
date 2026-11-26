@@ -179,7 +179,6 @@
 
   .scrollPanels > .toolbar {
     flex-shrink: 0;
-    margin-inline: var(--tabs-panel-inset, 0px);
     margin-bottom: 0;
   }
 
@@ -189,7 +188,7 @@
     /* A layout that scrolls the tabs along with their surroundings sets --tabs-panel-overflow. */
     overflow-y: var(--tabs-panel-overflow, auto);
     overscroll-behavior-y: contain;
-    padding: 0 var(--tabs-panel-inset, 0px) var(--space-6);
+    padding: 0 0 var(--space-6);
   }
 
   /* The space above the content scrolls away, so sticky content, such as a toolbar, meets the edge. */
