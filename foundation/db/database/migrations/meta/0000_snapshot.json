@@ -1989,6 +1989,12 @@
           "notNull": true,
           "default": "'program_manager'"
         },
+        "dispatch_ciphertext": {
+          "name": "dispatch_ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "token_hash": {
           "name": "token_hash",
           "type": "text",
@@ -2041,6 +2047,22 @@
         }
       },
       "indexes": {
+        "organization_invitations_dispatch_idx": {
+          "name": "organization_invitations_dispatch_idx",
+          "columns": [
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"organization_invitations\".\"dispatch_ciphertext\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "organization_invitations_organization_idx": {
           "name": "organization_invitations_organization_idx",
           "columns": [

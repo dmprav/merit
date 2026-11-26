@@ -336,8 +336,8 @@ the handwritten SQL for public IDs, deferred foreign keys, content checks, the
 outstanding-review index, the audit organization foreign key, and immutability
 triggers. Keep the search extensions and indexes, workspace row-security policies
 and helpers, the reviewer delivery, retry, and pending-message functions, the
-assistant conversation functions and access triggers, all with their restricted
-privileges.
+invitation outbox functions and cleanup trigger, and the assistant conversation
+functions and access triggers, all with their restricted privileges.
 Once deployed, keep applied migrations unchanged and add a migration for each change.
 `vp run @merit/db#db:check` checks migration metadata.
 

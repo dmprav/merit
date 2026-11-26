@@ -33,8 +33,7 @@ AES-GCM-encrypted copy of the token in the issuing transaction. The web server a
 worker use the existing payload key and bind the ciphertext to the invitation ID.
 An acknowledged start releases the database copy. Reconciliation retries an
 unconfirmed start under the same workflow ID and discards expired handoffs.
-Delivery, acceptance and revocation clear the envelope in their own transactions. Invitations issued before durable dispatch retain their
-original links and manual resend path.
+Delivery, acceptance and revocation clear the envelope in their own transactions.
 
 Activities read current facts, recheck authority and state, and record outcomes
 through the existing guards: delivery tokens, revisions, and the email provider's

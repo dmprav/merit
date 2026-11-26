@@ -352,11 +352,12 @@ describe("organization invitation workflow", () => {
     ).toEqual({ dispatch_ciphertext: null });
   });
 
-  it("discards obsolete handoffs and skips invitations issued before durable dispatch", async () => {
+  it("discards obsolete handoffs and skips invitations already handed to Temporal", async () => {
     const unsent = serviceWith(async () => false);
     const revoked = await inviteMember(unsent, "revoked@example.test");
     const expired = await inviteMember(unsent, "expired@example.test");
-    const legacy = await inviteMember(unsent, "legacy@example.test");
+    const acknowledged = serviceWith(async () => true, { timeoutMs: 0, intervalMs: 0 });
+    await inviteMember(acknowledged, "acknowledged@example.test");
     expect(
       await unsent.revokeMemberInvitation(owner, { ...workspace, invitationId: revoked }),
     ).toMatchObject({ status: "ok" });
@@ -371,10 +372,6 @@ describe("organization invitation workflow", () => {
     await database.client.query(
       "UPDATE organization_invitations SET expires_at = now() WHERE id = $1",
       [expired],
-    );
-    await database.client.query(
-      "UPDATE organization_invitations SET dispatch_ciphertext = NULL WHERE id = $1",
-      [legacy],
     );
     const outcome = await reconcileOrganizationInvitations({
       database: run,
