@@ -63,3 +63,8 @@
 .aside {
   display: contents;
 }
+
+/* A trailing quiet action ends with its text, or its glyph, on the content's edge. */
+.aside [data-variant="quiet"]:last-child {
+  margin-inline-end: var(--button-end-outdent);
+}

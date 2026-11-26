@@ -55,18 +55,29 @@ export const ConflictBanner = ({
           (keepMine || useSaved || latest) && (
             <Inline>
               {keepMine && (
-                <Button variant="quiet" isDisabled={isDisabled} onPress={keepMine.onPress}>
+                <Button
+                  variant="quiet"
+                  alignment="start"
+                  isDisabled={isDisabled}
+                  onPress={keepMine.onPress}
+                >
                   {keepMine.label}
                 </Button>
               )}
               {useSaved && (
-                <Button variant="quiet" isDisabled={isDisabled} onPress={useSaved.onPress}>
+                <Button
+                  variant="quiet"
+                  alignment={keepMine ? undefined : "start"}
+                  isDisabled={isDisabled}
+                  onPress={useSaved.onPress}
+                >
                   {useSaved.label}
                 </Button>
               )}
               {latest && (
                 <Button
                   variant="quiet"
+                  alignment={keepMine || useSaved ? undefined : "start"}
                   aria-expanded={showLatest}
                   onPress={() => setShowLatest((open) => !open)}
                 >

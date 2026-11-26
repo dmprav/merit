@@ -34,6 +34,8 @@ type LinkProps = Pick<
   variant?: "inline" | "standalone" | "row" | "primary" | "secondary" | "quiet";
   /** Button-shaped links only: large for a prominent entry point on a public page. */
   size?: "regular" | "large";
+  /** A quiet link at the start of a row, so its content aligns with the surrounding text like Button's start. */
+  alignment?: "default" | "start";
 };
 
 /**
@@ -41,7 +43,13 @@ type LinkProps = Pick<
  * adapter, such as TanStack Router's createLink. Links share Button's hover, press, and focus
  * treatments. Keep labels specific to their destination and announce when a link opens a new tab.
  */
-export const Link = ({ variant = "inline", size = "regular", children, ...props }: LinkProps) => {
+export const Link = ({
+  variant = "inline",
+  size = "regular",
+  alignment = "default",
+  children,
+  ...props
+}: LinkProps) => {
   if (variant === "row") {
     return (
       <a {...props} className={styles.row}>
@@ -67,6 +75,7 @@ export const Link = ({ variant = "inline", size = "regular", children, ...props 
       className={styles.button}
       data-variant={variant}
       data-size={size === "large" ? size : undefined}
+      data-alignment={variant === "quiet" && alignment === "start" ? alignment : undefined}
     >
       {children}
     </a>

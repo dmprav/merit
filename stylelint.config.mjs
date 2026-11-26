@@ -99,6 +99,13 @@ export default {
           [...typography, ...surfaces],
           { message: (property) => `Use @merit/ui components for "${property}" in feature styles` },
         ],
+        // An outdent that lines text up with an edge belongs to a shared component's alignment option.
+        "declaration-property-value-disallowed-list": [
+          {
+            "/^margin(-(inline(-(start|end))?|left|right))?$/": [/(^|[\s(*,])-[\d.]/],
+          },
+          { message: () => "Use a shared alignment option instead of a negative inline margin" },
+        ],
         // Shared components own their states and internals; features select their own elements.
         "selector-disallowed-list": [
           [

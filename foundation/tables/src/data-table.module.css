@@ -3,7 +3,12 @@
   min-width: 0;
 }
 
+/*
+ * Row padding is outdented, so the first column's text starts and the last column's text ends on
+ * the content edges while row hover and focus fills extend into the gutter.
+ */
 .scrollArea {
+  margin-inline: calc(-1 * var(--space-4));
   overflow-x: auto;
 }
 
@@ -118,7 +123,6 @@
 .emptyCell .message {
   margin: 0;
   padding-block: var(--space-4);
-  text-align: center;
 }
 
 .mobileSorting,

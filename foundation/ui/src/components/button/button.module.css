@@ -15,6 +15,11 @@
   text-align: center;
   overflow-wrap: anywhere;
   cursor: pointer;
+  /*
+   * How far a quiet button is outdented at the end of a row so its text, or its glyph when icon-only,
+   * meets the content edge. Patterns that place a trailing action reuse this one derivation.
+   */
+  --button-end-outdent: calc(-1 * var(--button-quiet-inset));
   transition:
     background-color var(--motion-fast),
     border-color var(--motion-fast),
@@ -121,6 +126,11 @@
   margin-inline-start: calc(-1 * var(--button-quiet-inset));
 }
 
+.button[data-variant="quiet"][data-alignment="end"] {
+  justify-self: end;
+  margin-inline-end: var(--button-end-outdent);
+}
+
 .button[data-alignment="fill"] {
   width: 100%;
   justify-content: flex-start;
@@ -129,8 +139,12 @@
 
 .button[data-icon-only] {
   width: var(--button-height);
+  /* An outdented button's own margin must not shrink the box it fits in. */
+  max-width: none;
   padding: 0;
   flex-shrink: 0;
+  /* The glyph sits centred in the button, so its inset is the button's width less the glyph's. */
+  --button-end-outdent: calc((1rem - var(--button-height)) / 2);
 }
 
 .button[data-size="large"] {
@@ -142,6 +156,7 @@
 .button[data-size="large"][data-icon-only] {
   width: var(--target-touch);
   padding: 0;
+  --button-end-outdent: calc((1rem - var(--target-touch)) / 2);
 }
 
 .button:is([data-focus-visible], a:focus-visible) {
@@ -193,6 +208,7 @@
 
   .button[data-icon-only] {
     width: var(--target-touch);
+    --button-end-outdent: calc((1rem - var(--target-touch)) / 2);
   }
 }
 

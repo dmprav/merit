@@ -73,6 +73,19 @@ whether it opens on hover or on press. Every scrolling region shares one scrollb
 platform overlays scrollbars, they stay overlaid and reserve no gutter. Components never
 style their own.
 
+## Optical alignment
+
+**Text starts and ends on the content edges.** Headings, body text, tab labels, table
+text, and the quiet actions around them share the same left and right edges. A control
+whose text or glyph is padded inside a hover or selection background is outdented by that
+padding when it sits at a leading or trailing edge, so its text or glyph meets the edge
+and its background extends into the gutter. Tabs, table rows, quiet text buttons
+(`alignment="start"` and `alignment="end"`), and a trailing icon button in a section header
+follow this rule. Buttons with a visible resting fill or border, such as primary and
+secondary, are never outdented: their box aligns to the edge. Features choose a shared
+alignment option rather than a negative margin, and a lint rule keeps hand-rolled outdents out
+of feature styles.
+
 ## Interaction cues
 
 **Keep focus visible alongside the control's existing state.** Tab through the

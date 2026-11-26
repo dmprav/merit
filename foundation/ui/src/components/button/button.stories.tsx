@@ -99,6 +99,23 @@ export const AlignedWithContent: Story = {
     </section>
   ),
 };
+export const AlignedAtEnd: Story = {
+  args: { variant: "quiet", alignment: "end", children: "All assessments" },
+  argTypes: { children: { control: false } },
+  render: (args) => (
+    <section className={localStyles.variant}>
+      <p>A quiet action at the end of a row puts its text on the content's trailing edge.</p>
+      <div className={localStyles.grid}>
+        <Button {...args} />
+      </div>
+      <div className={localStyles.grid}>
+        <Button {...args} iconOnly aria-label="Edit">
+          <Icon name="edit" />
+        </Button>
+      </div>
+    </section>
+  ),
+};
 export const FillingWidth: Story = {
   args: { variant: "secondary", alignment: "fill" },
   parameters: {

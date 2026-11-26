@@ -14,8 +14,14 @@
   border-bottom: 1px solid var(--border);
 }
 
+/*
+ * The tab and label padding is outdented, so the first label's text meets the content edge while
+ * its hover fill extends into the gutter. The rail keeps starting at the edge.
+ */
 .list {
+  --tab-outdent: calc(var(--space-1) + var(--space-2));
   display: flex;
+  margin-inline-start: calc(-1 * var(--tab-outdent));
   min-width: 0;
   flex: 1;
   gap: var(--space-1);
@@ -31,6 +37,7 @@
 }
 
 .tab {
+  position: relative;
   display: flex;
   min-height: var(--control-height);
   max-width: var(--tab-max-width);
@@ -46,8 +53,20 @@
   outline: none;
 }
 
+/* The indicator spans the label text, not the padding that is outdented into the gutter. */
+.tab::after {
+  content: "";
+  position: absolute;
+  inset-inline: var(--tab-outdent);
+  bottom: -2px;
+  height: 2px;
+}
+
+.tab[data-selected]::after {
+  background: var(--action);
+}
+
 .tab[data-selected] {
-  border-color: var(--action);
   color: var(--foreground);
 }
 
@@ -57,14 +76,22 @@
 }
 
 .label {
+  display: flex;
   min-width: 0;
+  align-items: center;
   border-radius: var(--control-radius);
   padding: var(--space-1) var(--space-2);
-  text-align: center;
-  overflow-wrap: anywhere;
   transition:
     background-color var(--motion-fast),
     color var(--motion-fast);
+}
+
+/* A long label stays on one line; the shared tooltip carries the full text when it is cut off. */
+.text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tab[data-hovered] .label {
@@ -79,6 +106,7 @@
 
 .count {
   display: inline-block;
+  flex-shrink: 0;
   min-width: 1.25rem;
   margin-inline-start: var(--space-1);
   border-radius: var(--space-1);
@@ -161,9 +189,7 @@
     /* A layout that scrolls the tabs along with their surroundings sets --tabs-panel-overflow. */
     overflow-y: var(--tabs-panel-overflow, auto);
     overscroll-behavior-y: contain;
-    scrollbar-gutter: stable;
-    padding: 0 max(8px, var(--tabs-panel-inset, 0px)) var(--space-6)
-      max(2px, var(--tabs-panel-inset, 0px));
+    padding: 0 var(--tabs-panel-inset, 0px) var(--space-6);
   }
 
   /* The space above the content scrolls away, so sticky content, such as a toolbar, meets the edge. */

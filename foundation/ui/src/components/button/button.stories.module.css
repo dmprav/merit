@@ -39,3 +39,7 @@
   padding: var(--space-4);
   background: var(--surface-muted);
 }
+
+.grid {
+  display: grid;
+}
