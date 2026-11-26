@@ -12,7 +12,7 @@ import { fundingRounds } from "@merit/rounds/schema";
 
 import type { ReviewerDraft } from "../../../domain/reviewer";
 import { provenanceColumns } from "../projections";
-import { readReviewerRecord } from "../reviewer-records";
+import { latestReviewerMessage, readReviewerRecord } from "../reviewer-records";
 import {
   reviewerDraftObservations,
   reviewerDrafts,
@@ -343,6 +343,18 @@ export const finishReviewerMessage = (
   status: "sent" | "failed",
 ) =>
   db.execute(sql`select public.merit_finish_reviewer_message(${id}, ${deliveryToken}, ${status})`);
+
+/**
+ * A manager's retry puts the failed submission notice back to `pending` with a fresh delivery
+ * token, in the command's transaction. The message keeps its ID, so the provider's idempotency
+ * key is unchanged, and the workflow's outcome is guarded by the new token.
+ */
+export const resetFailedSubmissionMessage = async (tx: Transaction, assignmentId: string) => {
+  const message = await latestReviewerMessage(tx, assignmentId, "submission");
+  if (message?.status === "failed") {
+    await tx.execute(sql`select public.merit_retry_reviewer_message(${message.id})`);
+  }
+};
 
 export const updateReviewerAssignment = (
   tx: Transaction,

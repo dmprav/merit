@@ -40,6 +40,7 @@ import {
   recordReviewerReceipt,
   queueReviewerInvitation,
   queueSubmissionMessage,
+  resetFailedSubmissionMessage,
   updateReviewerAssignment,
   writeReviewerDraft,
   updateParticipatingRequest,
@@ -559,7 +560,9 @@ const applyManagerAction = async (
     if (!queued) {
       return { status: "limited" } as const;
     }
-  } else if (request.action !== "retry_notification") {
+  } else if (request.action === "retry_notification") {
+    await resetFailedSubmissionMessage(tx, assignment.id);
+  } else {
     const changed = await changeReviewerParticipation(
       tx,
       assignment,

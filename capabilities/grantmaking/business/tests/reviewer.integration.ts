@@ -653,6 +653,7 @@ it.for([
 );
 
 it("preserves successful submission when delivery fails and retries only the notification", async ({
+  database,
   reviewerScenario: s,
 }) => {
   await s.respond("accept");
@@ -660,10 +661,23 @@ it("preserves successful submission when delivery fails and retries only the not
   s.setDeliveryFailure(true);
   expect(await s.submit()).toMatchObject({ status: "ok" });
   expect((await s.read()).assignment.notification).toBe("failed");
+  const failed = await database.client.query<{ id: string; delivery_token: string }>(
+    "SELECT id, delivery_token FROM reviewer_messages WHERE assignment_id = $1 AND kind = 'submission'",
+    [s.assignmentId],
+  );
+  expect(failed.rows).toHaveLength(1);
   s.setDeliveryFailure(false);
   await s.manage("retry_notification");
   expect((await s.read()).assignment.notification).toBe("sent");
   expect((await s.read()).assessment?.versions).toHaveLength(1);
+
+  // The retry reset the same message with a fresh delivery token, so its ID and idempotency key held.
+  const retried = await database.client.query<{ id: string; delivery_token: string }>(
+    "SELECT id, delivery_token FROM reviewer_messages WHERE assignment_id = $1 AND kind = 'submission'",
+    [s.assignmentId],
+  );
+  expect(retried.rows[0]?.id).toBe(failed.rows[0]?.id);
+  expect(retried.rows[0]?.delivery_token).not.toBe(failed.rows[0]?.delivery_token);
 });
 
 it("keeps a failed notice available for the manager when an amendment email is suppressed", async ({

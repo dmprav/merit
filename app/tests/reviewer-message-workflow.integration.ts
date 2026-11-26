@@ -188,11 +188,65 @@ const it = roundTest
         [assignmentId],
       );
 
+    /** A submitted assessment whose notice failed, so the manager has a notification to retry. */
+    const failedNotice = async () => {
+      const invited = await service.invite(actor, invitation);
+      assert(invited.status === "ok");
+      const assignmentId = invited.value.id;
+
+      const read = async () => {
+        const page = await service.read(sam, { assignmentId });
+        assert(page.status === "ok");
+        return page.value;
+      };
+
+      expect(
+        await service.respond(sam, {
+          assignmentId,
+          commandId: randomUUID(),
+          expectedRevision: (await read()).assignment.revision,
+          action: "accept",
+          note: "",
+        }),
+      ).toMatchObject({ status: "ok" });
+      const page = await read();
+      assert(page.draft);
+      expect(
+        await service.saveDraft(sam, {
+          assignmentId,
+          commandId: randomUUID(),
+          expectedDraftRevision: page.draft.revision,
+          draft: {
+            position: "Fund",
+            amount: "40.00",
+            reasoning: "Strong evidence",
+            observations: [],
+            note: "",
+          },
+        }),
+      ).toMatchObject({ status: "ok" });
+
+      behavior.fail = true;
+      mail.length = 0;
+      const submitted = await service.submit(sam, {
+        assignmentId,
+        commandId: randomUUID(),
+        expectedDraftRevision: (await read()).draft?.revision ?? 0,
+      });
+      expect(submitted).toMatchObject({ status: "ok" });
+      expect((await read()).assignment.notification).toBe("failed");
+      const noticeId = mail[0]?.id;
+      assert(noticeId);
+
+      return { assignmentId, noticeId, read };
+    };
+
     return {
       address,
       backdateMessages,
       background,
       database,
+      failedNotice,
       history,
       invitation,
       mail,
@@ -302,53 +356,18 @@ it("resends with a new message and its own workflow once the first one failed", 
 it("retries a failed submission notice in place, with the same message ID", async ({
   scenario: s,
 }) => {
-  const invited = await s.service.invite(actor, s.invitation);
-  assert(invited.status === "ok");
-  const assignmentId = invited.value.id;
+  const { assignmentId, noticeId } = await s.failedNotice();
 
-  const read = async () => {
-    const page = await s.service.read(sam, { assignmentId });
-    assert(page.status === "ok");
-    return page.value;
-  };
+  const token = async () =>
+    (
+      await s.database.client.query<{ delivery_token: string; status: string }>(
+        "SELECT delivery_token, status FROM reviewer_messages WHERE id = $1",
+        [noticeId],
+      )
+    ).rows[0];
 
-  expect(
-    await s.service.respond(sam, {
-      assignmentId,
-      commandId: randomUUID(),
-      expectedRevision: (await read()).assignment.revision,
-      action: "accept",
-      note: "",
-    }),
-  ).toMatchObject({ status: "ok" });
-  const page = await read();
-  assert(page.draft);
-  expect(
-    await s.service.saveDraft(sam, {
-      assignmentId,
-      commandId: randomUUID(),
-      expectedDraftRevision: page.draft.revision,
-      draft: {
-        position: "Fund",
-        amount: "40.00",
-        reasoning: "Strong evidence",
-        observations: [],
-        note: "",
-      },
-    }),
-  ).toMatchObject({ status: "ok" });
-
-  s.behavior.fail = true;
-  s.mail.length = 0;
-  const submitted = await s.service.submit(sam, {
-    assignmentId,
-    commandId: randomUUID(),
-    expectedDraftRevision: (await read()).draft?.revision ?? 0,
-  });
-  expect(submitted).toMatchObject({ status: "ok" });
-  expect((await read()).assignment.notification).toBe("failed");
-  const noticeId = s.mail[0]?.id;
-  assert(noticeId);
+  const before = await token();
+  expect(before?.status).toBe("failed");
 
   s.behavior.fail = false;
   s.mail.length = 0;
@@ -360,6 +379,24 @@ it("retries a failed submission notice in place, with the same message ID", asyn
     { id: noticeId, kind: "submission" },
   ]);
   expect(await s.status(noticeId)).toBe("sent");
+  // The retry reset the message to pending with a fresh token, under the same ID.
+  expect((await token())?.delivery_token).not.toBe(before?.delivery_token);
+});
+
+it("retries a manually retried notice through the window and records failed again", async ({
+  scenario: s,
+}) => {
+  const { assignmentId, noticeId } = await s.failedNotice();
+  s.behavior.fail = true;
+  s.mail.length = 0;
+  const retried = await s.manage(assignmentId, "retry_notification");
+
+  // The reset put the message back to pending, so the workflow retried it before failing it again.
+  assert(retried.status === "ok");
+  expect(retried.value.notification).toBe("failed");
+  expect(s.mail.length).toBeGreaterThan(1);
+  expect(new Set(s.mail.map(({ id }) => id))).toEqual(new Set([noticeId]));
+  expect(await s.status(noticeId)).toBe("failed");
 });
 
 it("starts a workflow for a message at most once and never resends a delivered one", async ({
