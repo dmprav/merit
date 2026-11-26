@@ -153,7 +153,10 @@ Servers and ephemeral databases are torn down automatically on exit or
 failure. Pass `--update` on host runs to delete the selected targets' previous screenshots for
 the selected viewports before checking; screenshots of other targets and viewports stay. A run
 locks its output directory until its report is written, so a second concurrent run against the
-same `--out` fails immediately; give concurrent runs separate `--out` directories. Running with
+same `--out` fails immediately; give concurrent runs separate `--out` directories. The lock is the
+[shared file lock](../../tooling/agents/file-lock.ts): a run reclaims a lock left by a run that has
+exited, even when its PID now belongs to another process, and a damaged lock that names no run, so
+an interrupted run never blocks later ones. Running with
 `--container` (or `--container --update`) delegates pixel-exact comparison to Docker Playwright,
 writing only the delegation `report.md` and `results.json` (with `containerExitCode`) under
 `--out` rather than host `screenshots/*.png`; Linux visual baselines live in

@@ -6,9 +6,9 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
-import type * as fs from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,8 +16,9 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, vi } from "vite-plus/test";
 
+import { acquireFileLock } from "../agents/file-lock.ts";
+import type * as fileLock from "../agents/file-lock.ts";
 import {
-  acquireOutputLock,
   acquireWithCleanup,
   allocateFreePort,
   buildContainerDelegationArgs,
@@ -75,35 +76,30 @@ let listedVisualSpecTitles: string[] | undefined;
 
 const visualSpecTitles = () => (listedVisualSpecTitles ??= listVisualSpecTitles());
 
-// Lets a test run another process's step just before ui-verify moves or removes a given path.
-const fsRace = vi.hoisted(() => ({
-  path: undefined as string | undefined,
-  run: undefined as (() => void) | undefined,
-}));
+// Lets a test observe the moment ui:verify releases its output lock.
+const outputLockRelease = vi.hoisted(() => ({ observe: undefined as (() => void) | undefined }));
 
-vi.mock("node:fs", async (importOriginal) => {
-  const actual = await importOriginal<typeof fs>();
-
-  const beforeTouching = (path: unknown) => {
-    if (fsRace.run && path === fsRace.path) {
-      const run = fsRace.run;
-      fsRace.run = undefined;
-      run();
-    }
-  };
-
+vi.mock("../agents/file-lock.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof fileLock>();
   return {
     ...actual,
-    renameSync: (...args: Parameters<typeof actual.renameSync>) => {
-      beforeTouching(args[0]);
-      return actual.renameSync(...args);
-    },
-    rmSync: (...args: Parameters<typeof actual.rmSync>) => {
-      beforeTouching(args[0]);
-      return actual.rmSync(...args);
+    acquireFileLock: async (...args: Parameters<typeof actual.acquireFileLock>) => {
+      const release = await actual.acquireFileLock(...args);
+      return () => {
+        outputLockRelease.observe?.();
+        release();
+      };
     },
   };
 });
+
+/** Runs ui:verify's quick container delegation against `outDir` with a succeeding container. */
+const runContainerDelegation = (outDir: string) =>
+  runUiVerify(parseCliArgs(["--container", "--out", outDir]), {
+    repoRoot: outDir,
+    runContainer: () => 0,
+    log: () => undefined,
+  });
 
 const baseStyle = (overrides: Partial<ElementStyleSnapshot> = {}): ElementStyleSnapshot => ({
   outlineStyle: "none",
@@ -927,64 +923,103 @@ describe("container delegation and proof reporting", () => {
     }
   });
 
-  it("refuses an output directory another live run holds and takes over a stale lock", async () => {
+  it("fails at once while another live run holds the output directory", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-lock-"));
+    const lockPath = join(tempDir, ".ui-verify.lock");
     try {
-      const release = acquireOutputLock(tempDir);
-      expect(() => acquireOutputLock(tempDir)).toThrow(/Another ui:verify run/);
+      const releaseOtherRun = await acquireFileLock(lockPath, { timeoutMs: 0 });
       writeFileSync(join(tempDir, "results.json"), "other run", "utf8");
-      await expect(
-        runUiVerify(parseCliArgs(["--container", "--out", tempDir]), {
-          repoRoot: tempDir,
-          runContainer: () => 0,
-          log: () => undefined,
-        }),
-      ).rejects.toThrow(/Another ui:verify run/);
-      expect(readFileSync(join(tempDir, "results.json"), "utf8")).toBe("other run");
-      release();
-      expect(existsSync(join(tempDir, ".ui-verify.lock"))).toBe(false);
 
-      // No process can have this pid, so the lock is stale.
-      writeFileSync(join(tempDir, ".ui-verify.lock"), "2147483646\n", "utf8");
-      const releaseStale = acquireOutputLock(tempDir);
-      expect(readFileSync(join(tempDir, ".ui-verify.lock"), "utf8").trim()).toBe(
-        String(process.pid),
+      await expect(runContainerDelegation(tempDir)).rejects.toThrow(
+        `Another ui:verify run (pid ${process.pid}) is writing to "${tempDir}". Wait for it to finish or pass a different --out directory.`,
       );
-      releaseStale();
+      expect(readFileSync(join(tempDir, "results.json"), "utf8")).toBe("other run");
 
-      // Another run replaces the stale lock after this run checked it but before it takes over.
-      const lockPath = join(tempDir, ".ui-verify.lock");
-      writeFileSync(lockPath, "2147483646\n", "utf8");
-      fsRace.path = lockPath;
-      fsRace.run = () => {
-        rmSync(lockPath);
-        writeFileSync(lockPath, "1\n", { encoding: "utf8", flag: "wx" });
-      };
-      expect(() => acquireOutputLock(tempDir)).toThrow(/Another ui:verify run \(pid 1\)/);
-      expect(readFileSync(lockPath, "utf8")).toBe("1\n");
-      expect(existsSync(`${lockPath}.${process.pid}`)).toBe(false);
+      releaseOtherRun();
+      const results = await runContainerDelegation(tempDir);
+      expect(results.containerExitCode).toBe(0);
+      expect(existsSync(lockPath)).toBe(false);
     } finally {
-      fsRace.run = undefined;
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
 
-  it("never takes over a lock whose owner has not written its PID yet", () => {
+  it("reclaims a damaged output lock that names no owner", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-lock-"));
     try {
       const lockPath = join(tempDir, ".ui-verify.lock");
-      // An empty record is what a run that creates the lock and then writes its PID leaves for
-      // the moment in between.
+      // Locks are published complete, so an empty one past the write grace was damaged.
       writeFileSync(lockPath, "", "utf8");
-      expect(() => acquireOutputLock(tempDir)).toThrow(/names no owning run/);
-      expect(readFileSync(lockPath, "utf8")).toBe("");
+      const longAgo = new Date(Date.now() - 60_000);
+      utimesSync(lockPath, longAgo, longAgo);
 
-      rmSync(lockPath);
-      const release = acquireOutputLock(tempDir);
-      expect(readFileSync(lockPath, "utf8")).toBe(`${process.pid}\n`);
-      release();
-      expect(readdirSync(tempDir)).toEqual([]);
+      const results = await runContainerDelegation(tempDir);
+
+      expect(results.containerExitCode).toBe(0);
+      expect(readdirSync(tempDir).toSorted()).toEqual(["report.md", "results.json"]);
     } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it.runIf(existsSync("/proc/self/stat"))(
+    "reclaims an output lock whose PID now belongs to a different process",
+    async () => {
+      const tempDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-lock-"));
+      try {
+        // A finished run's PID was reused by this live process, which started at another time.
+        const reusedPidLock = {
+          pid: process.pid,
+          token: "finished-run",
+          createdAt: Date.now(),
+          startTime: "earlier-boot:1",
+        };
+        writeFileSync(
+          join(tempDir, ".ui-verify.lock"),
+          `${JSON.stringify(reusedPidLock)}\n`,
+          "utf8",
+        );
+
+        const results = await runContainerDelegation(tempDir);
+
+        expect(results.containerExitCode).toBe(0);
+        expect(readdirSync(tempDir).toSorted()).toEqual(["report.md", "results.json"]);
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("releases the output lock before exiting on Ctrl+C", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-signal-"));
+    const outDir = join(tempDir, "out");
+    const lockPath = join(outDir, ".ui-verify.lock");
+    const listenersBefore = process.listeners("SIGINT");
+    const exits: Array<{ code: unknown; lockHeld: boolean }> = [];
+    const exit = vi.spyOn(process, "exit").mockImplementation((code) => {
+      exits.push({ code, lockHeld: existsSync(lockPath) });
+      return undefined as never;
+    });
+    try {
+      await runUiVerify(
+        { ...parseCliArgs(["--out", outDir]), routes: ["//evil.test/app"] },
+        {
+          repoRoot: tempDir,
+          log: (line) => {
+            if (line.startsWith("FAIL:")) {
+              // Ctrl+C arrives while the run is still holding its output directory.
+              const onSignal = process
+                .listeners("SIGINT")
+                .find((listener) => !listenersBefore.includes(listener));
+              onSignal?.("SIGINT");
+            }
+          },
+        },
+      );
+
+      await vi.waitFor(() => expect(exits).toEqual([{ code: 130, lockHeld: false }]));
+    } finally {
+      exit.mockRestore();
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
@@ -996,8 +1031,7 @@ describe("container delegation and proof reporting", () => {
     let listenersDuringTeardown: number | undefined;
     try {
       // Releasing the output lock is the last teardown step.
-      fsRace.path = join(outDir, ".ui-verify.lock");
-      fsRace.run = () => {
+      outputLockRelease.observe = () => {
         listenersDuringTeardown = process.listenerCount("SIGINT");
       };
       const results = await runUiVerify(
@@ -1010,7 +1044,7 @@ describe("container delegation and proof reporting", () => {
       expect(listenersDuringTeardown).toBe(listenersBefore + 1);
       expect(process.listenerCount("SIGINT")).toBe(listenersBefore);
     } finally {
-      fsRace.run = undefined;
+      outputLockRelease.observe = undefined;
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
