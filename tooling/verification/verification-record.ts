@@ -20,7 +20,8 @@ const GUIDE = "docs/guides/verification.md#record-verification";
 
 export type ChangedFile = { status: "added" | "modified" | "deleted"; path: string };
 
-export type RecordCheck = { exempt: string } | { exempt: null; errors: string[] };
+/** Outcome of a pull request check: an exemption reason, or the problems found. */
+export type CheckResult = { exempt: string } | { exempt: null; errors: string[] };
 
 export const recordPath = (prNumber: number) => `${RECORD_DIRECTORY}/${prNumber}.md`;
 
@@ -78,6 +79,12 @@ export const readChangedFiles = (repoRoot: string, diffRange: string): ChangedFi
     }),
   );
 
+/** Returns the pattern for the line that closes a code fence opened by `line`, or null. */
+export const codeFenceCloser = (line: string): RegExp | null => {
+  const opening = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+  return opening ? new RegExp(`^ {0,3}${opening[0]}{${opening.length},}\\s*$`) : null;
+};
+
 type Section = { heading: string; hasContent: boolean };
 
 /** Removes HTML comment text from a line, tracking comments that span lines. */
@@ -118,12 +125,12 @@ const recordSections = (content: string): Section[] => {
 
     const text = visibleText(line, inComment);
     inComment = text.inComment;
-    const opening = /^ {0,3}(`{3,}|~{3,})/.exec(text.visible)?.[1];
+    const closer = codeFenceCloser(text.visible);
     const heading = /^## +(.+?)\s*$/.exec(text.visible)?.[1];
-    if (opening) {
-      fence = new RegExp(`^ {0,3}${opening[0]}{${opening.length},}\\s*$`);
+    if (closer) {
+      fence = closer;
     }
-    if (heading && !opening) {
+    if (heading && !closer) {
       sections.push({ heading, hasContent: false });
     } else if (current && text.visible.trim()) {
       current.hasContent = true;
@@ -158,7 +165,7 @@ export const checkVerificationRecord = ({
   author: string;
   changedFiles: ChangedFile[];
   readRecord: (path: string) => string | undefined;
-}): RecordCheck => {
+}): CheckResult => {
   if (EXEMPT_AUTHORS.has(author)) {
     return { exempt: `${author} pull requests do not need a verification record.` };
   }

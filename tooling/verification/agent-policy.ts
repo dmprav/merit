@@ -3,7 +3,12 @@ import { appendFileSync } from "node:fs";
 import { matchesGlob, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { readChangedFiles, type ChangedFile } from "./verification-record.ts";
+import {
+  codeFenceCloser,
+  readChangedFiles,
+  type ChangedFile,
+  type CheckResult,
+} from "./verification-record.ts";
 
 export const AGENT_PR_LABEL = "agent:pr";
 export const ALLOW_PROTECTED_LABEL = "agent:allow-protected";
@@ -45,8 +50,6 @@ export type LinkedIssueApprovalRecord = {
   labels: string[];
   comments: IssueCommentRecord[];
 };
-
-export type AgentPolicyResult = { exempt: string } | { exempt: null; errors: string[] };
 
 // CI runs this file from a trusted copy beside verification-record.ts alone, so it keeps its own
 // copy of tooling/cli.ts's normalizeRepoPath.
@@ -94,9 +97,8 @@ const stripFencedCodeBlocks = (markdown: string): string => {
       }
       continue;
     }
-    const opening = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
-    if (opening) {
-      fence = new RegExp(`^ {0,3}${opening[0]}{${opening.length},}\\s*$`);
+    fence = codeFenceCloser(line);
+    if (fence) {
       continue;
     }
     kept.push(line);
@@ -217,7 +219,7 @@ export const checkAgentPolicy = ({
   isAgentPr: boolean;
   changedFiles: readonly ChangedFile[];
   linkedIssues: readonly LinkedIssueApprovalRecord[];
-}): AgentPolicyResult => {
+}): CheckResult => {
   if (!isAgentPr) {
     return { exempt: "Pull request is not labeled agent:pr." };
   }
