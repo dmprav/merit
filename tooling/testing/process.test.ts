@@ -17,7 +17,9 @@ describe.concurrent("runProcess", () => {
       { cwd, timeoutMs },
     );
 
-    expect(result).toEqual({ status: 3, stdout: "out", stderr: "err", output: "outerr" });
+    expect(result).toMatchObject({ status: 3, stdout: "out", stderr: "err" });
+    // The streams arrive through separate pipes, so either can reach the combined output first.
+    expect(["outerr", "errout"]).toContain(result.output);
   });
 
   test("runs in the given directory with the given environment", async () => {
