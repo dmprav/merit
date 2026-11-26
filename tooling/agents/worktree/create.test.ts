@@ -448,6 +448,38 @@ describe("createWorktree rollback", () => {
     expect(registry.worktrees.sibling).toBeDefined();
   });
 
+  test("keeps a record for worktree:clean when rollback cannot drop the database", async () => {
+    const repo = initTempRepo();
+
+    await expect(
+      createIn(
+        repo,
+        { slug: "drop-fail", dbMode: "required", doctor: true },
+        {
+          execCommand: failDoctor,
+          database: fakeDatabase({
+            isReachable: async () => true,
+            drop: async () => {
+              throw new Error("database is being accessed by other users");
+            },
+          }),
+        },
+      ),
+    ).rejects.toThrow(/doctor check failed.*could not drop database "merit_drop_fail"/);
+
+    expect(existsSync(join(repo, ".tmp/worktrees/drop-fail"))).toBe(false);
+    expect(listBranch(repo, "worktree/drop-fail")).toBe("");
+    const retained = readWorktreeRegistry(repo).worktrees["drop-fail"];
+    expect(retained).toMatchObject({ status: "cleaning", databaseCreated: true });
+    expect(retained?.ownerPid).toBeUndefined();
+
+    const dropped: string[] = [];
+    await expect(
+      cleanIn(repo, "drop-fail", { database: reachableDatabase(dropped) }),
+    ).resolves.toMatchObject({ registryRemoved: true });
+    expect(dropped).toEqual(["merit_drop_fail"]);
+  });
+
   test("removes a partial checkout and its new branch when git worktree add fails in a hook", async () => {
     const repo = initTempRepo();
     const markerFile = join(makeTempDir("merit-hook-marker-"), "post-checkout-ran.txt");

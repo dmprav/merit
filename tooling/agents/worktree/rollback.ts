@@ -48,7 +48,8 @@ const UNTOUCHED_CHECKOUT: CheckoutRollback = {
 /**
  * Decides what rollback does with the branch and registry record once the checkout is dealt with.
  * A checkout Git refused to remove keeps its branch and its record, with the recorded identity,
- * so `worktree:clean` can finish the job and still reject a replacement checkout.
+ * so `worktree:clean` can finish the job and still reject a replacement checkout. A database
+ * rollback created but could not drop also keeps the record, so `worktree:clean` can drop it.
  */
 export const decideRollbackCleanup = (
   progress: Pick<CreateProgress, "branchCreated" | "registryReserved" | "databaseCreated">,
@@ -56,10 +57,11 @@ export const decideRollbackCleanup = (
   databaseDropped: boolean,
 ): RollbackCleanup => {
   const deleteBranch = progress.branchCreated && !checkout.remains;
+  const databaseRemains = progress.databaseCreated && !databaseDropped;
   if (!progress.registryReserved) {
     return { deleteBranch, registry: { action: "none" } };
   }
-  if (!checkout.remains) {
+  if (!checkout.remains && !databaseRemains) {
     return { deleteBranch, registry: { action: "remove" } };
   }
   return {
@@ -67,7 +69,7 @@ export const decideRollbackCleanup = (
     registry: {
       action: "retain",
       partialRemoval: checkout.metadataRemoved,
-      databaseCreated: progress.databaseCreated && !databaseDropped,
+      databaseCreated: databaseRemains,
     },
   };
 };
@@ -76,11 +78,15 @@ const describeRemovalError = (removalError: unknown): string =>
   describeExecError(removalError) ||
   (typeof removalError === "string" ? removalError : "unknown removal error");
 
-/** Returns the error a failed create reports, naming any checkout rollback had to leave behind. */
+/**
+ * Returns the error a failed create reports, naming any checkout or database rollback had to
+ * leave behind.
+ */
 export const rollbackError = (
   error: unknown,
   checkoutPath: string,
   checkout: CheckoutRollback,
+  undroppedDatabase?: string,
 ): unknown => {
   if (checkout.removalError || checkout.remains) {
     const detail = checkout.removalError
@@ -94,6 +100,12 @@ export const rollbackError = (
   if (checkout.preserved) {
     return new Error(
       `${errorMessage(error)} (rollback preserved "${checkoutPath}" because its Git metadata does not show that this attempt created it)`,
+      { cause: error },
+    );
+  }
+  if (undroppedDatabase !== undefined) {
+    return new Error(
+      `${errorMessage(error)} (rollback could not drop database "${undroppedDatabase}"; its registry record is kept so \`vp run worktree:clean\` can drop it)`,
       { cause: error },
     );
   }
@@ -236,5 +248,7 @@ export const rollBackCreate = async (
     ignoreFailure(() => attempt.git.run(["branch", "-D", attempt.branch]));
   }
   await settleRegistryRecord(attempt, progress, cleanup.registry);
-  return rollbackError(error, progress.checkoutPath, checkout);
+  const undroppedDatabase =
+    progress.databaseCreated && !databaseDropped ? attempt.databaseName : undefined;
+  return rollbackError(error, progress.checkoutPath, checkout, undroppedDatabase);
 };
