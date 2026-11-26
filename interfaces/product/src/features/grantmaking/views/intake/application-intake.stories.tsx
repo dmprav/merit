@@ -135,8 +135,12 @@ export const StaffSummaryDuringPreparation: Story = {
 
 export const EditContactAndProjectDates: Story = {
   args: { state: "complete" },
+  beforeEach: () => {
+    mocked(editApplication).mockResolvedValueOnce({ status: "unavailable" });
+  },
   play: async ({ canvas, canvasElement, userEvent }) => {
     const body = within(canvasElement.ownerDocument.body);
+    const panel = within(canvas.getByRole("complementary", { name: "Application workspace" }));
     await userEvent.click(canvas.getByRole("button", { name: "Edit application details" }));
     const form = within(canvas.getByRole("form", { name: "Edit application details" }));
     await userEvent.click(await form.findByRole("button", { name: /Applicant contact/ }));
@@ -148,12 +152,23 @@ export const EditContactAndProjectDates: Story = {
     );
 
     await expect(mocked(editApplication)).not.toHaveBeenCalled();
+
+    await userEvent.click(form.getByRole("button", { name: "Save" }));
+
+    await expect(await form.findByRole("alert")).toHaveTextContent("changes are preserved");
     await expect(form.getByRole("textbox", { name: "Project dates" })).toHaveValue(
       "April–September 2027",
     );
-    await expect(form.getByRole("button", { name: /Applicant contact/ })).toHaveTextContent(
-      "Sam Morgan",
+
+    await userEvent.click(form.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(
+        canvas.queryByRole("form", { name: "Edit application details" }),
+      ).not.toBeInTheDocument(),
     );
+    await expect(panel.getByText("April–September 2027")).toBeVisible();
+    await expect(panel.getByText("Sam Morgan")).toBeVisible();
   },
 };
 

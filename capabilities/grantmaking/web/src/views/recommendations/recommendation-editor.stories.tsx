@@ -138,20 +138,15 @@ export const ResumeEditing: Story = {
   },
 };
 
-const failOnceSave = () => {
-  let failed = false;
-  return fn<PreviewProps["onSave"]>(async () => {
-    if (!failed) {
-      failed = true;
-      return { status: "unavailable" };
-    }
-    return null;
-  });
-};
+const failOnceSave = fn<PreviewProps["onSave"]>();
 
 export const SaveFailure: Story = {
   args: {
-    onSave: failOnceSave(),
+    onSave: failOnceSave,
+  },
+  beforeEach: () => {
+    failOnceSave.mockReset();
+    failOnceSave.mockResolvedValueOnce({ status: "unavailable" }).mockResolvedValue(null);
   },
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: /Edit recommendation for/ }));

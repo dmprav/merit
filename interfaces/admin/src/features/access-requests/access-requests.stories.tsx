@@ -118,6 +118,14 @@ export const MoreRequests: Story = {
     );
     await expect(canvas.getByText("leah@example.test")).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Load more requests" })).toBeEnabled();
+    await userEvent.click(canvas.getByRole("button", { name: "Load more requests" }));
+    await expect(await canvas.findByText("morgan@example.test")).toBeVisible();
+    await expect(canvas.getByRole("row", { name: /leah@example\.test/ })).toHaveTextContent(
+      "Reviewed",
+    );
+    await expect(
+      canvas.queryByRole("button", { name: "Load more requests" }),
+    ).not.toBeInTheDocument();
   },
 };
 export const AboutRequests: Story = {

@@ -271,20 +271,19 @@ export const LoadingKeepsResults: Story = {
   },
 };
 
-const failOnceSearch = (): Read => {
-  let failed = false;
-  return async () => {
-    if (!failed) {
-      failed = true;
-      throw new Error("Search is down");
-    }
-    return found([round("k7m2p9x4n6rt", "Harbour fund 2027")], [application("a1", "Boat repairs")]);
-  };
-};
+const failOnceSearch = fn<Read>();
 
 export const Failure: Story = {
   args: {
-    read: failOnceSearch(),
+    read: failOnceSearch,
+  },
+  beforeEach: () => {
+    failOnceSearch.mockReset();
+    failOnceSearch
+      .mockRejectedValueOnce(new Error("Search is down"))
+      .mockResolvedValue(
+        found([round("k7m2p9x4n6rt", "Harbour fund 2027")], [application("a1", "Boat repairs")]),
+      );
   },
   play: async ({ canvasElement }) => {
     const dialog = await search(canvasElement, "harbour");

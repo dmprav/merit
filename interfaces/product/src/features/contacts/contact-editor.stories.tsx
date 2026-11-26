@@ -124,5 +124,6 @@ export const ConcurrentChanges: Story = {
         within(context.canvasElement.ownerDocument.body).queryByRole("dialog"),
       ).not.toBeInTheDocument(),
     );
+    await expect(context.canvas.getByText("Community Kitchen")).toBeVisible();
   },
 };

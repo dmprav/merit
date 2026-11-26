@@ -92,27 +92,41 @@ export const InWorkspace: Story = {
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
-      <ApplicationShell
-        brand="Merit"
-        contextLabel="Alder Foundation"
-        openNavigationLabel="Open navigation"
-        closeNavigationLabel="Close navigation"
-        navigation={<a href="#main">Funding rounds</a>}
-        navigationLabel="Main navigation"
-        skipLabel="Skip to content"
+      <div
+        style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden" }}
       >
-        <ApplicationPage
-          width="full"
-          locationKey="toast"
-          breadcrumb={null}
-          breadcrumbLabel="Breadcrumb"
+        <section
+          aria-label="Story controls"
+          style={{
+            padding: "var(--space-2) var(--space-4)",
+            borderBottom: "1px solid var(--border)",
+          }}
         >
-          <Stack gap={4}>
-            <PageHeader title="Local Connections" />
-            <Story />
-          </Stack>
-        </ApplicationPage>
-      </ApplicationShell>
+          <Story />
+        </section>
+        <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+          <ApplicationShell
+            brand="Merit"
+            contextLabel="Alder Foundation"
+            openNavigationLabel="Open navigation"
+            closeNavigationLabel="Close navigation"
+            navigation={<a href="#main">Funding rounds</a>}
+            navigationLabel="Main navigation"
+            skipLabel="Skip to content"
+          >
+            <ApplicationPage
+              width="full"
+              locationKey="toast"
+              breadcrumb={null}
+              breadcrumbLabel="Breadcrumb"
+            >
+              <Stack gap={4}>
+                <PageHeader title="Local Connections" />
+              </Stack>
+            </ApplicationPage>
+          </ApplicationShell>
+        </div>
+      </div>
     ),
   ],
   play: async ({ canvasElement, userEvent }) => {

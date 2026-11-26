@@ -65,7 +65,10 @@ const extractMdxMeta = (filePath: string, source: string): MdxMeta => {
 };
 
 const stripCodeFromMdx = (source: string): string =>
-  source.replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]+`/g, "");
+  source
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/\[`([^`\n]+)`\]\(/g, "[$1](")
+    .replace(/`[^`\n]+`/g, "");
 
 const checkSentenceCase = (title: string): string | null => {
   for (const segment of title.split("/")) {
@@ -276,12 +279,15 @@ describe("Storybook catalog invariants", () => {
   });
 
   test("Storybook MDX links resolve to real docs/story IDs and avoid relative Markdown links", () => {
+    const byFile = new Map(csfEntries.map((entry) => [entry.file, entry]));
     const docsIds = new Set<string>();
     const storyIds = new Set<string>();
 
     for (const entry of csfEntries) {
       const title = entry.title!;
-      docsIds.add(toId(title, "docs"));
+      if (!entry.hasNoAutodocs) {
+        docsIds.add(toId(title, "docs"));
+      }
       for (const storyId of entry.storyIds) {
         storyIds.add(storyId);
       }
@@ -289,13 +295,18 @@ describe("Storybook catalog invariants", () => {
     for (const entry of mdxEntries) {
       if (entry.meta.kind === "standalone") {
         docsIds.add(toId(entry.meta.title, "docs"));
+      } else if (entry.meta.kind === "attached") {
+        const target = byFile.get(entry.meta.targetFile);
+        if (target?.title) {
+          docsIds.add(toId(target.title, "docs"));
+        }
       }
     }
 
     const brokenLinks: string[] = [];
     for (const entry of mdxEntries) {
       const prose = stripCodeFromMdx(entry.source);
-      for (const match of prose.matchAll(/\[[^\]]+\]\(([^)\s]+)\)/g)) {
+      for (const match of prose.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) {
         const href = match[1]!;
         if (href.startsWith("?path=")) {
           const clean = href.slice("?path=".length).split(/[&#]/, 1)[0]!;

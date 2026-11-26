@@ -160,9 +160,14 @@ export const InPreparation: Story = {
     tab: "reviews",
   },
 };
+const earlierRound = encodeRoundOverview({
+  ...exampleRound,
+  applications: [earlierRevised, ...exampleRound.applications.slice(1)],
+});
+
 export const EarlierManagerRecommendation: Story = {
   args: {
-    application: { ...round.applications[0]!, version: materialVersionSchema.parse(2) },
+    application: earlierRound.applications[0]!,
     intakeState: earlierIntakeState,
     tab: "reviews",
   },

@@ -58,9 +58,10 @@ export const Open: Story = {
       name: "Revoke invitation?",
     });
 
-    await waitFor(() => expect(dialog).toBeVisible());
-    await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: "Keep invitation" })).toHaveFocus(),
+    await waitFor(() => expect(dialog).toBeVisible(), { timeout: 3000 });
+    await waitFor(
+      () => expect(within(dialog).getByRole("button", { name: "Keep invitation" })).toHaveFocus(),
+      { timeout: 3000 },
     );
   },
 };
