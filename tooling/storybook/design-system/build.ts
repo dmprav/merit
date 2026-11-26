@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { parseCliArgs } from "../../cli.ts";
 import { REPO_ROOT } from "../../paths.ts";
 import { buildIcons, buildMark } from "./assets";
 import { buildDeclarations, buildLibrary } from "./bundle";
@@ -10,10 +11,22 @@ import { buildTokens, cssOnlyProperties, parseTokenMeta } from "./tokens";
 
 const here = import.meta.dirname;
 const foundations = path.join(REPO_ROOT, "foundation/ui/src/foundations");
-const output = path.resolve(process.argv[2] ?? path.join(here, "dist"));
-const project = path.join(output, "project");
-const components = path.join(project, "components");
 const cards = path.join(here, "content/cards");
+
+const USAGE = "Usage: build.ts [output-dir]";
+
+/**
+ * Reads the output directory, `dist` beside this script unless one is given. Options and extra
+ * directories are errors, so a forwarded flag or typo never becomes the directory the build empties.
+ */
+export const parseBuildArgs = (args: readonly string[]): string => {
+  const { positionals } = parseCliArgs(args, { options: {}, usage: USAGE, allowPositionals: true });
+  const [outDir, ...extra] = positionals;
+  if (extra.length > 0) {
+    throw new Error(`Expected at most one output directory, got ${positionals.length}.\n${USAGE}`);
+  }
+  return path.resolve(outDir ?? path.join(here, "dist"));
+};
 
 const git = (...args: string[]) =>
   execFileSync("git", args, { cwd: REPO_ROOT, encoding: "utf8" }).trim();
@@ -44,11 +57,13 @@ const themeSelectors = (css: string, themes: { id: string; selector: string }[])
     .slice(1)
     .reduce((text, theme) => text.replaceAll(theme.selector, `[data-theme="${theme.id}"]`), css);
 
-const main = async () => {
+const main = async (output: string) => {
   const relative = path.relative(output, here);
   if (relative === "" || !relative.startsWith("..")) {
     throw new Error(`Refusing to write to ${output}: it contains the design-system source.`);
   }
+  const project = path.join(output, "project");
+  const components = path.join(project, "components");
   await rm(output, { recursive: true, force: true });
   await mkdir(components, { recursive: true });
 
@@ -118,4 +133,6 @@ const main = async () => {
   console.log(`Design system written to ${project} (${names.length} cards).`);
 };
 
-await main();
+if (import.meta.main) {
+  await main(parseBuildArgs(process.argv.slice(2)));
+}
