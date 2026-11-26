@@ -88,28 +88,32 @@ export const rollbackError = (
   checkout: CheckoutRollback,
   undroppedDatabase?: string,
 ): unknown => {
+  const problems = [
+    checkoutRollbackProblem(checkoutPath, checkout),
+    undroppedDatabase === undefined
+      ? undefined
+      : `rollback could not drop database "${undroppedDatabase}"; its registry record is kept so \`vp run worktree:clean\` can drop it`,
+  ].filter((problem) => problem !== undefined);
+  return problems.length === 0
+    ? error
+    : new Error(`${errorMessage(error)} (${problems.join("; ")})`, { cause: error });
+};
+
+/** Describes what rollback left of the checkout, or undefined when it removed the checkout. */
+const checkoutRollbackProblem = (
+  checkoutPath: string,
+  checkout: CheckoutRollback,
+): string | undefined => {
   if (checkout.removalError || checkout.remains) {
     const detail = checkout.removalError
       ? describeRemovalError(checkout.removalError)
       : "directory still exists after removal";
-    return new Error(
-      `${errorMessage(error)} (rollback could not remove checkout at "${checkoutPath}": ${detail})`,
-      { cause: error },
-    );
+    return `rollback could not remove checkout at "${checkoutPath}": ${detail}`;
   }
   if (checkout.preserved) {
-    return new Error(
-      `${errorMessage(error)} (rollback preserved "${checkoutPath}" because its Git metadata does not show that this attempt created it)`,
-      { cause: error },
-    );
+    return `rollback preserved "${checkoutPath}" because its Git metadata does not show that this attempt created it`;
   }
-  if (undroppedDatabase !== undefined) {
-    return new Error(
-      `${errorMessage(error)} (rollback could not drop database "${undroppedDatabase}"; its registry record is kept so \`vp run worktree:clean\` can drop it)`,
-      { cause: error },
-    );
-  }
-  return error;
+  return undefined;
 };
 
 /** The parts of a create attempt that rollback needs to identify and undo its changes. */

@@ -87,6 +87,14 @@ describe("rollbackError", () => {
     });
   });
 
+  test("reports both failures when rollback can remove neither the checkout nor the database", () => {
+    const error = rollbackError(original, path, stuck, "merit_alpha");
+    expect(error).toMatchObject({
+      message: `doctor check failed (rollback could not remove checkout at "${path}": worktree is locked; rollback could not drop database "merit_alpha"; its registry record is kept so \`vp run worktree:clean\` can drop it)`,
+      cause: original,
+    });
+  });
+
   test("reports the original error when rollback removed everything", () => {
     expect(rollbackError(original, path, removed)).toBe(original);
   });
