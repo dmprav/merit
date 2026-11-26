@@ -447,6 +447,45 @@ describe("detectFocusVisualChange", () => {
     ).toEqual({ changed: true, reasons: ["self:border"] });
   });
 
+  it("counts a background color change only when the color paints before or after focus", () => {
+    const transparent = { backgroundColor: "rgba(0, 0, 0, 0)" };
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot({ self: baseStyle(transparent) }),
+        baseSnapshot({ self: baseStyle({ backgroundColor: "rgba(255, 0, 0, 0)" }) }),
+      ),
+    ).toEqual({ changed: false, reasons: [] });
+
+    const image = { backgroundImage: "linear-gradient(red, blue)" };
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot({ self: baseStyle({ ...transparent, ...image }) }),
+        baseSnapshot({ self: baseStyle({ ...image, backgroundColor: "transparent" }) }),
+      ),
+    ).toEqual({ changed: false, reasons: [] });
+
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot({ self: baseStyle(transparent) }),
+        baseSnapshot({ self: baseStyle({ backgroundColor: "rgb(15, 98, 254)" }) }),
+      ),
+    ).toEqual({ changed: true, reasons: ["self:background"] });
+
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot({ self: baseStyle({ backgroundColor: "rgb(15, 98, 254)" }) }),
+        baseSnapshot({ self: baseStyle(transparent) }),
+      ),
+    ).toEqual({ changed: true, reasons: ["self:background"] });
+
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot({ self: baseStyle(transparent) }),
+        baseSnapshot({ self: baseStyle({ ...transparent, ...image }) }),
+      ),
+    ).toEqual({ changed: true, reasons: ["self:background"] });
+  });
+
   it("counts a text-decoration thickness change only while a decoration line is painted", () => {
     expect(
       detectFocusVisualChange(

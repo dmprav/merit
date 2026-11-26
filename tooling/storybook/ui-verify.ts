@@ -688,9 +688,14 @@ const borderSidePaints = (style: ElementStyleSnapshot, side: BorderSide): boolea
 const hasVisibleBorder = (style: ElementStyleSnapshot): boolean =>
   BORDER_SIDES.some((side) => borderSidePaints(style, side));
 
+const backgroundColorPaints = (style: ElementStyleSnapshot): boolean =>
+  style.backgroundColor.trim() !== "" && !isTransparentColor(style.backgroundColor);
+
+const backgroundImagePaints = (style: ElementStyleSnapshot): boolean =>
+  style.backgroundImage.trim() !== "" && style.backgroundImage.trim().toLowerCase() !== "none";
+
 const hasVisibleBackground = (style: ElementStyleSnapshot): boolean =>
-  (style.backgroundColor.trim() !== "" && !isTransparentColor(style.backgroundColor)) ||
-  (style.backgroundImage.trim() !== "" && style.backgroundImage.trim().toLowerCase() !== "none");
+  backgroundColorPaints(style) || backgroundImagePaints(style);
 
 const hasVisibleOpacity = (opacity: string | undefined): boolean => {
   if (opacity === undefined || opacity === "") {
@@ -741,11 +746,14 @@ const compareStyleSnapshots = (
   if (borderChanged && (!isPseudo || hasVisibleBorder(focused))) {
     reasons.push(`${scope}:border`);
   }
-  if (
-    (unfocused.backgroundColor !== focused.backgroundColor ||
-      unfocused.backgroundImage !== focused.backgroundImage) &&
-    (!isPseudo || hasVisibleBackground(focused))
-  ) {
+  // Like a border side, a color or image change shows only when it paints before or after focus;
+  // two transparent colors differ as strings without drawing anything.
+  const backgroundChanged =
+    (unfocused.backgroundColor !== focused.backgroundColor &&
+      (backgroundColorPaints(unfocused) || backgroundColorPaints(focused))) ||
+    (unfocused.backgroundImage !== focused.backgroundImage &&
+      (backgroundImagePaints(unfocused) || backgroundImagePaints(focused)));
+  if (backgroundChanged && (!isPseudo || hasVisibleBackground(focused))) {
     reasons.push(`${scope}:background`);
   }
   // A thickness change paints nothing unless a decoration line is drawn.
