@@ -1063,6 +1063,121 @@ describe("runQueueCommand", () => {
     );
   });
 
+  /** One open agent PR, #221, as GitHub's REST API reports it, recording every write `next --apply` makes. */
+  const fakeAgentPrRepository = ({
+    draft = false,
+    updatedAt = new Date(NOW - 60_000).toISOString(),
+    stateComments = [] as IssueCommentRecord[],
+    checkRuns = [] as Array<{
+      id: number;
+      name: string;
+      status: string;
+      conclusion: string | null;
+    }>,
+  }) => {
+    const writes: string[] = [];
+    const client: Partial<GitHubRestClient> = {
+      listOpenIssues: (label) =>
+        label === "agent:pr"
+          ? [
+              {
+                number: 221,
+                state: "open",
+                title: "fix: guard",
+                body: "Closes #130",
+                labels: ["agent:pr"],
+                commentCount: stateComments.length,
+                isPullRequest: true,
+              },
+            ]
+          : [],
+      getPull: (number) => ({
+        number,
+        title: "fix: guard",
+        body: "Closes #130",
+        draft,
+        createdAt: new Date(NOW - 2 * CLAIM_TTL_MS).toISOString(),
+        updatedAt,
+        labels: ["agent:pr"],
+        headRefName: "claude/issue-130",
+        headSha: "abcdef1234",
+      }),
+      listIssueComments: () => stateComments,
+      listCommitChecks: () => ({ checkRuns, statuses: [] }),
+      listWorkflowRuns: () => [{ id: 77, attempt: 1, conclusion: "failure" }],
+      listReviewComments: () => [],
+      rerunFailedJobs: (runId) => {
+        writes.push(`rerun ${runId}`);
+      },
+      addLabels: (number, labels) => {
+        writes.push(`label ${number} ${labels.join(",")}`);
+      },
+      postIssueComment: (number, body) => {
+        writes.push(`comment ${number} ${body}`);
+      },
+    };
+    return { client, writes };
+  };
+
+  test("next --apply reruns a browser-only failure once and records the rerun in the PR state", () => {
+    const { client, writes } = fakeAgentPrRepository({
+      stateComments: [
+        {
+          authorAssociation: "OWNER",
+          body: formatAgentPrStateComment({ issueNumber: 130, shepherdRounds: 1, flakeReruns: 0 }),
+        },
+      ],
+      checkRuns: [
+        { id: 1, name: "verify", status: "completed", conclusion: "failure" },
+        { id: 2, name: "browser-desktop", status: "completed", conclusion: "failure" },
+        { id: 3, name: "unit", status: "completed", conclusion: "success" },
+      ],
+    });
+
+    const order: unknown = JSON.parse(
+      runQueueCommand(parseQueueArgs(["next", "--apply"]), deps(client)),
+    );
+
+    expect(order).toMatchObject({ kind: "rerun_flake", prNumber: 221, runId: 77 });
+    expect(writes).toEqual([
+      "rerun 77",
+      `comment 221 ${formatAgentPrStateComment({
+        issueNumber: 130,
+        shepherdRounds: 1,
+        lastHeadSha: "abcdef1234",
+        flakeReruns: 1,
+      })}`,
+    ]);
+  });
+
+  test("next --apply hands a stale draft to a human with a label and an explanation", () => {
+    const { client, writes } = fakeAgentPrRepository({
+      draft: true,
+      updatedAt: new Date(NOW - CLAIM_TTL_MS).toISOString(),
+    });
+
+    const order: unknown = JSON.parse(
+      runQueueCommand(parseQueueArgs(["next", "--apply"]), deps(client)),
+    );
+
+    expect(order).toMatchObject({ kind: "escalate", prNumber: 221 });
+    expect(writes).toEqual([
+      "label 221 agent:needs-human",
+      "comment 221 Escalating to human: Draft agent PR was not marked ready within 2 hours; needs human check or cleanup.",
+    ]);
+  });
+
+  test("next without --apply reports the order without writing", () => {
+    const { client, writes } = fakeAgentPrRepository({
+      draft: true,
+      updatedAt: new Date(NOW - CLAIM_TTL_MS).toISOString(),
+    });
+
+    runQueueCommand(parseQueueArgs(["next"]), deps(client));
+
+    expect(writes).toEqual([]);
+  });
+
   test("prints the issue command's document indented for agents to read", () => {
     const output = runQueueCommand(
       parseQueueArgs(["issue", "130"]),
