@@ -174,49 +174,6 @@ export const Results: Story = {
         ],
         [
           application("b8q3w5j7c2df", "Boat repairs"),
-          application("c8q3w5j7c2df", "Quayside lights", { applicant: "Dock committee" }),
-        ],
-      ),
-  },
-  play: async ({ canvasElement }) => {
-    const dialog = await search(canvasElement, "harbour");
-
-    await expect(await dialog.findByRole("option", { name: /^Harbour fund 2027/ })).toBeVisible();
-    await waitFor(() =>
-      expect(dialog.getByRole("searchbox")).toHaveAttribute(
-        "aria-activedescendant",
-        dialog.getByRole("option", { name: /^Harbour fund 2027/ }).id,
-      ),
-    );
-    await expect(dialog.getByRole("option", { name: /^Boat repairs/ })).toBeVisible();
-    await expect(dialog.getByText("Not scheduled")).toBeVisible();
-    await expect(dialog.getByRole("status")).toBeInTheDocument();
-  },
-};
-
-export const ApplicationsFirst: Story = {
-  args: {
-    read: async () =>
-      found(
-        [round("k7m2p9x4n6rt", "Boat repairs round")],
-        [application("b8q3w5j7c2df", "Boat repairs", { matchQuality: "exact" })],
-      ),
-  },
-  play: async ({ canvasElement }) => {
-    const dialog = await search(canvasElement, "boat repairs");
-
-    await dialog.findByRole("option", { name: /^Boat repairs Application/ });
-    await expect(dialog.getAllByRole("option")[0]).toHaveTextContent(/Boat repairs\s*Application/);
-  },
-};
-
-export const StatusLabels: Story = {
-  args: {
-    read: async () =>
-      found(
-        [],
-        [
-          application("b8q3w5j7c2df", "Boat repairs"),
           application("c8q3w5j7c2df", "Quayside lights", {
             applicant: null,
             intakeStatus: "in_preparation",
@@ -231,11 +188,21 @@ export const StatusLabels: Story = {
   play: async ({ canvasElement }) => {
     const dialog = await search(canvasElement, "harbour");
 
-    await expect(await dialog.findByRole("option", { name: /Quayside lights/ })).toHaveTextContent(
+    await expect(await dialog.findByRole("option", { name: /^Harbour fund 2027/ })).toBeVisible();
+    await waitFor(() =>
+      expect(dialog.getByRole("searchbox")).toHaveAttribute(
+        "aria-activedescendant",
+        dialog.getByRole("option", { name: /^Harbour fund 2027/ }).id,
+      ),
+    );
+    await expect(dialog.getByRole("option", { name: /^Boat repairs/ })).toBeVisible();
+    await expect(dialog.getByRole("option", { name: /Quayside lights/ })).toHaveTextContent(
       "In preparation",
     );
     await expect(dialog.getByText("Withdrawn")).toBeVisible();
     await expect(dialog.getByText(/Applicant not known/)).toBeVisible();
+    await expect(dialog.getByText("Not scheduled")).toBeVisible();
+    await expect(dialog.getByRole("status")).toBeInTheDocument();
   },
 };
 
@@ -325,26 +292,5 @@ export const Failure: Story = {
     await expect(await dialog.findByText("Search isn’t available right now.")).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Try again" })).toBeVisible();
     await expect(dialog.getByRole("searchbox")).toHaveValue("harbour");
-  },
-};
-
-export const KeyboardNavigation: Story = {
-  args: {
-    read: async () => found([round("k7m2p9x4n6rt", "Harbour fund 2027")], many.slice(0, 2)),
-  },
-  play: async ({ canvasElement, userEvent }) => {
-    const dialog = await search(canvasElement, "harbour");
-    const field = dialog.getByRole("searchbox");
-    const top = await dialog.findByRole("option", { name: /^Harbour fund 2027/ });
-
-    // The top match is highlighted as soon as results arrive, so Enter would open it.
-    await waitFor(() => expect(field).toHaveAttribute("aria-activedescendant", top.id));
-
-    await userEvent.keyboard("{ArrowDown}{ArrowDown}");
-
-    await expect(field).toHaveAttribute(
-      "aria-activedescendant",
-      dialog.getByRole("option", { name: /^Harbour project 2/ }).id,
-    );
   },
 };

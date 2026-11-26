@@ -441,7 +441,7 @@ export const FreeTextReply: Story = {
 };
 
 // The answer is still arriving when the play ends: the browser suite checks where the panel scrolls.
-export const FollowsStreamingToTheEnd: Story = {
+export const LongStreamingAnswer: Story = {
   args: { connect: longAnswer },
   play: async ({ canvasElement, userEvent }) => {
     const body = await ask(canvasElement, userEvent, "What changed in version 2?");
@@ -449,15 +449,7 @@ export const FollowsStreamingToTheEnd: Story = {
   },
 };
 
-export const LeavesTheScrollWhereThePersonPutIt: Story = {
-  args: { connect: longAnswer },
-  play: async ({ canvasElement, userEvent }) => {
-    const body = await ask(canvasElement, userEvent, "What changed in version 2?");
-    await body.findByText(/Paragraph 1\./);
-  },
-};
-
-export const FollowsWhatAppearsWhenTheRunSettles: Story = {
+export const MultiTurnWithSuggestions: Story = {
   play: async ({ canvasElement, userEvent }) => {
     await panel(canvasElement);
     const body = page(canvasElement);

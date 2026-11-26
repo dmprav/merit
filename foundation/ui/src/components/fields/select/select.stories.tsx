@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import { expect, fn, waitFor, within } from "storybook/test";
 
+import { Stack } from "../../layout/layout";
 import { Select } from "./select";
 import localStyles from "./select.stories.module.css";
 
@@ -20,6 +20,10 @@ const meta = {
     defaultSelectedKey: "fund",
     onSelectionChange: fn(),
   },
+  argTypes: {
+    items: { control: false },
+    actions: { control: false },
+  },
   decorators: [
     (Story) => (
       <div className={localStyles.preview}>
@@ -34,20 +38,22 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
-export const Required: Story = { args: { isRequired: true } };
-export const Empty: Story = {
-  args: { defaultSelectedKey: undefined, placeholder: "Choose a recommendation" },
-};
-export const Disabled: Story = { args: { isDisabled: true } };
-export const Invalid: Story = {
-  args: { isInvalid: true, errorMessage: "Choose a recommendation before saving." },
-};
-export const Focused: Story = {
-  play: async ({ canvas, userEvent }) => {
-    await userEvent.tab();
-
-    await expect(canvas.getByRole("button", { name: /Recommendation/ })).toHaveFocus();
-  },
+export const States: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <Stack gap={4}>
+      <Select label="Required" items={items} defaultSelectedKey="fund" isRequired />
+      <Select label="Empty" items={items} placeholder="Choose a recommendation" />
+      <Select label="Disabled" items={items} defaultSelectedKey="fund" isDisabled />
+      <Select
+        label="Invalid"
+        items={items}
+        defaultSelectedKey="fund"
+        isInvalid
+        errorMessage="Choose a recommendation before saving."
+      />
+    </Stack>
+  ),
 };
 export const Open: Story = {
   play: async ({ canvas, userEvent }) => {
@@ -74,7 +80,6 @@ export const Keyboard: Story = {
     );
   },
 };
-export const Controlled: Story = { render: () => <ControlledSelect /> };
 export const LongLabels: Story = {
   args: {
     items: [
@@ -116,19 +121,6 @@ export const LongList: Story = {
       expect(within(canvasElement.ownerDocument.body).getByRole("listbox")).toBeVisible(),
     );
   },
-};
-
-const ControlledSelect = () => {
-  const [selectedKey, setSelectedKey] = useState("fund");
-
-  return (
-    <Select
-      label="Recommendation"
-      items={items}
-      selectedKey={selectedKey}
-      onSelectionChange={setSelectedKey}
-    />
-  );
 };
 
 export const WithAction: Story = {

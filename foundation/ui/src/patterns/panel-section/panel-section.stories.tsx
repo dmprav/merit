@@ -104,14 +104,3 @@ export const SidePanel: Story = {
     await expect(details).toBeVisible();
   },
 };
-
-export const WithoutActions: Story = {
-  args: {
-    title: "Staff summary",
-    children: (
-      <Reading as="p" prose={false}>
-        12 group repair workshops, with 27 expressions of interest.
-      </Reading>
-    ),
-  },
-};

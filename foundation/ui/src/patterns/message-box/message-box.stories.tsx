@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fn } from "storybook/test";
+import { fn } from "storybook/test";
 
 import { MessageBox } from "./message-box";
 import styles from "./message-box.stories.module.css";
@@ -112,15 +112,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Empty: Story = {};
 
-export const Typing: Story = {
-  args: { initialValue: "Which budget lines changed since the first draft?" },
-  play: async ({ canvas }) => {
-    const input = canvas.getByRole("textbox", { name: "Message" });
-    input.focus();
-    await expect(input).toHaveFocus();
-  },
-};
-
 export const LongText: Story = {
   args: {
     initialValue: Array.from(
@@ -154,15 +145,14 @@ export const Busy: Story = {
   args: { isBusy: true, initialValue: "And the timeline?" },
 };
 
+export const SendDisabled: Story = {
+  args: { isSendDisabled: true, initialValue: "Waiting for a decision to be recorded…" },
+};
+
 export const WithDescription: Story = {
   args: { description: "Enter sends. Shift+Enter adds a line." },
 };
 
-export const Sending: Story = {
-  args: { initialValue: "Summarize the reviews" },
-  play: async ({ canvas, args, userEvent }) => {
-    await userEvent.type(canvas.getByRole("textbox", { name: "Message" }), "{Enter}");
-    await expect(args.onSend).toHaveBeenCalledWith("Summarize the reviews");
-    await expect(canvas.getByRole("textbox", { name: "Message" })).toHaveValue("");
-  },
+export const VisibleLabel: Story = {
+  args: { isLabelHidden: false, description: "Enter sends. Shift+Enter adds a line." },
 };

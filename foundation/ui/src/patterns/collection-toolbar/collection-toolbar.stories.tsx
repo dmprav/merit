@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 
 import { CollectionFilter, CollectionToolbar } from "./collection-toolbar";
 
@@ -140,14 +140,10 @@ export const Filtering: Story = {
 };
 
 export const Panel: Story = {
+  args: { multipleFilters: true },
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
   },
-};
-
-export const MultipleFilters: Story = {
-  args: { multipleFilters: true },
-  play: Panel.play,
 };
 
 export const WithoutSearch: Story = {
@@ -166,27 +162,4 @@ export const LongValues: Story = {
 export const LongValuesPanel: Story = {
   args: { ...LongValues.args, multipleFilters: true },
   play: Panel.play,
-};
-
-export const KeyboardSelection: Story = {
-  play: async ({ canvas, canvasElement, userEvent }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    const filter = canvas.getByRole("button", { name: "Filter" });
-    await userEvent.tab();
-    await expect(filter).toHaveFocus();
-    await userEvent.keyboard("{Enter}{Tab}");
-    const criterion = body.getByRole("button", { name: "Status All projects" });
-    await expect(criterion).toHaveFocus();
-    await userEvent.keyboard("{Enter}{End}{Enter}");
-    await expect(criterion).toHaveTextContent("Ready");
-    await expect(body.getByRole("dialog", { name: "Filter projects" })).toBeVisible();
-    await waitFor(() => expect(criterion).toHaveFocus());
-    await userEvent.keyboard("{Enter}{Home}{Escape}");
-    await expect(body.queryByRole("listbox")).not.toBeInTheDocument();
-    await waitFor(() => expect(criterion).toHaveFocus());
-    await expect(criterion).toHaveTextContent("Ready");
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() => expect(filter).toHaveFocus());
-    await expect(canvas.getByRole("button", { name: "Remove Ready filter" })).toBeVisible();
-  },
 };

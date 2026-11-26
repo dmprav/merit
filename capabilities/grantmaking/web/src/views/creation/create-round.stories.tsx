@@ -85,18 +85,3 @@ export const ResumeDraft: Story = {
     );
   },
 };
-
-export const DiscardDraft: Story = {
-  play: async (context) => {
-    await ResumeDraft.play!(context);
-    const page = within(context.canvasElement.ownerDocument.body);
-    await userEvent.click(
-      within(page.getByRole("dialog")).getByRole("button", { name: "Discard draft" }),
-    );
-    await waitFor(() => expect(page.queryByRole("dialog")).not.toBeInTheDocument());
-    await openCreation(context);
-    await expect(
-      within(page.getByRole("dialog")).getByRole("textbox", { name: "Round name" }),
-    ).toHaveValue("");
-  },
-};

@@ -42,7 +42,7 @@ const config: StorybookConfig = {
         "Features",
         [
           "Funding rounds",
-          ["List", "Create", "Overview", "Manage round", "Preparation form"],
+          ["List", "Create", "Overview", "Manage round"],
           "Applications",
           [
             "All applications",
@@ -59,7 +59,7 @@ const config: StorybookConfig = {
           ],
           "Activity",
           "Team",
-          ["Design guidance", "Manage team", "Members", "Invitations"],
+          ["Design guidance", "Manage team"],
           "Contacts",
           ["Directory", "Edit contact", "Contact picker"],
           "Workspace",

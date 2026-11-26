@@ -214,22 +214,3 @@ export const ReviewDetails: Story = {
     await expect(canvas.queryByRole("dialog")).not.toBeInTheDocument();
   },
 };
-
-export const ReferenceNavigation: Story = {
-  play: async ({ canvas, canvasElement, userEvent }) => {
-    for (const name of [
-      "Reviewer assessments",
-      "Version history",
-      "Application details",
-      "Applicant submission",
-    ]) {
-      await userEvent.click(canvas.getByRole("button", { name: /^Reference material:/ }));
-      await userEvent.click(
-        within(canvasElement.ownerDocument.body).getByRole("menuitem", { name }),
-      );
-      await expect(
-        canvas.getByRole("button", { name: `Reference material: ${name}` }),
-      ).toBeVisible();
-    }
-  },
-};

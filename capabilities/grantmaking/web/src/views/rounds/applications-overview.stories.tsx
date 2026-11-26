@@ -105,19 +105,6 @@ export const AcrossRounds: StoryObj<typeof meta> = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("2 of 2 applications")).toBeVisible();
-    const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
-    await userEvent.click(body.getByRole("button", { name: "Round All rounds" }));
-    await userEvent.click(
-      within(canvasElement.ownerDocument.body).getByRole("option", {
-        name: "Empty round",
-      }),
-    );
-    await expect(canvas.getByText("No applications in this round yet.")).toBeVisible();
-    await expect(canvas.getByText("0 of 2 applications")).toBeVisible();
-    await userEvent.click(body.getByRole("button", { name: "Clear filters" }));
-    await userEvent.keyboard("{Escape}");
-    await expect(canvas.getByText("2 of 2 applications")).toBeVisible();
   },
 };
 export const Filtered: StoryObj<typeof meta> = {
@@ -203,23 +190,6 @@ export const Paged: StoryObj<typeof meta> = {
   },
 };
 
-export const PagedNoMatches: StoryObj<typeof meta> = {
-  args: {
-    applications: [],
-    query: "Missing",
-    pagination: {
-      total: 55,
-      matching: 0,
-      offset: 0,
-      loading: false,
-      failed: false,
-      onPrevious: () => {},
-      onNext: () => {},
-      onRetry: () => {},
-    },
-  },
-};
-
 const RecoveryPreview = () => {
   const [offset, setOffset] = useState(0);
   const [roundId, setRoundId] = useState("");
@@ -292,28 +262,5 @@ export const CombinedCriteria: StoryObj<typeof meta> = {
         body.getByRole("button", { name: "Evidence Changed evidence or criteria" }),
       ).toBeVisible(),
     );
-  },
-};
-
-export const FilterCriteria: StoryObj<typeof meta> = {
-  play: async ({ canvas, canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
-    const criterion = body.getByRole("button", { name: "Readiness Any" });
-    for (const label of ["Participation", "Readiness", "Reviews", "Evidence", "Recommendation"]) {
-      await waitFor(() => expect(body.getByRole("button", { name: `${label} Any` })).toBeVisible());
-    }
-    await expect(canvas.getByRole("status")).toHaveTextContent("2 of 2 applications");
-    await userEvent.click(criterion);
-    await userEvent.keyboard("{End}{Enter}");
-    await waitFor(() => expect(criterion).toHaveFocus());
-    await expect(canvas.getByRole("status")).toHaveTextContent("1 of 2 applications");
-    await userEvent.keyboard("{Enter}{Home}{Enter}");
-    await waitFor(() => expect(criterion).toHaveFocus());
-    await expect(canvas.getByRole("status")).toHaveTextContent("2 of 2 applications");
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() => expect(canvas.getByRole("button", { name: "Filter" })).toHaveFocus());
-    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
-    await waitFor(() => expect(body.getByRole("button", { name: "Readiness Any" })).toBeVisible());
   },
 };

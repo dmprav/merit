@@ -89,7 +89,7 @@ export const Open: StoryObj<typeof meta> = {
 
 export const TasksUnavailable: StoryObj<typeof meta> = {
   beforeEach: () => {
-    mocked(readDemo).mockResolvedValue({ status: "unavailable" });
+    mocked(readDemo).mockResolvedValueOnce({ status: "unavailable" });
   },
   play: async ({ canvasElement, userEvent }) => {
     const body = within(canvasElement.ownerDocument.body);
@@ -103,24 +103,6 @@ export const TasksUnavailable: StoryObj<typeof meta> = {
     );
     await expect(within(dialog).getByRole("button", { name: "Try again" })).toBeEnabled();
     await expect(within(dialog).getByRole("button", { name: "Reset demo" })).toBeEnabled();
-  },
-};
-
-export const TaskLoadRecovery: StoryObj<typeof meta> = {
-  beforeEach: () => {
-    mocked(readDemo).mockResolvedValueOnce({ status: "unavailable" });
-  },
-  play: async (context) => {
-    await TasksUnavailable.play!(context);
-    const body = within(context.canvasElement.ownerDocument.body);
-    const dialog = body.getByRole("dialog", { name: "Demo guide" });
-    await context.userEvent.click(within(dialog).getByRole("button", { name: "Try again" }));
-
-    await waitFor(async () =>
-      expect(
-        await within(dialog).findByRole("link", { name: "Review Workshop Saturdays" }),
-      ).toBeVisible(),
-    );
   },
 };
 

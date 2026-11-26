@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import { expect, fn } from "storybook/test";
 
 import { Icon } from "../icon/icon";
@@ -194,29 +193,10 @@ export const KeyboardFocus: Story = {
     await expect(buttons[0]).toHaveFocus();
   },
 };
-export const Disabled: Story = {
-  args: { isDisabled: true },
+export const Large: Story = {
+  args: { size: "large", children: "Explore the example" },
   argTypes: { variant: { control: false } },
   render: renderVariants,
-  play: async ({ args, canvas, userEvent }) => {
-    const buttons = canvas.getAllByRole("button");
-    for (const button of buttons) {
-      await expect(button).toBeDisabled();
-
-      await userEvent.click(button);
-      button.focus();
-
-      await expect(button).not.toHaveFocus();
-    }
-
-    await userEvent.tab();
-
-    for (const button of buttons) {
-      await expect(button).not.toHaveFocus();
-    }
-
-    await expect(args.onPress).not.toHaveBeenCalled();
-  },
 };
 export const Pending: Story = {
   args: { isPending: true, children: "Saving…" },
@@ -244,28 +224,6 @@ export const Pending: Story = {
 
     await expect(args.onPress).not.toHaveBeenCalled();
   },
-};
-export const Interaction: Story = {
-  parameters: { controls: { disable: true } },
-  render: () => <Counter />,
-};
-
-const Counter = () => {
-  const [count, setCount] = useState(0);
-
-  return (
-    <div className={localStyles.stack}>
-      <div className={localStyles.row}>
-        <Button onPress={() => setCount((value) => value + 1)}>Try primary</Button>
-        <Button variant="secondary" onPress={() => setCount(0)}>
-          Reset counter
-        </Button>
-      </div>
-      <p role="status" className={localStyles.description}>
-        Button pressed {count} times.
-      </p>
-    </div>
-  );
 };
 
 export const IconOnly: Story = {

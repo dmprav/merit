@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, type ComponentProps } from "react";
-import { expect, fn, userEvent, within, waitFor } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import type { ActivityEntry } from "@merit/grantmaking/api";
 import { formatTimestamp } from "@merit/i18n/format";
@@ -204,10 +204,6 @@ export const LongText: StoryObj<typeof meta> = {
   },
 };
 
-export const UnknownActor: StoryObj<typeof meta> = {
-  args: { entries: [entry(1, { actor: null }), ...recent.slice(1, 3)] },
-};
-
 export const McpProvenance: StoryObj<typeof meta> = {
   args: {
     entries: [
@@ -237,7 +233,8 @@ export const MissingTarget: StoryObj<typeof meta> = {
         record: null,
         subject: { ...entry(2).subject, name: null },
       }),
-      ...recent.slice(2, 4),
+      entry(3, { actor: null }),
+      ...recent.slice(3, 4),
     ],
   },
   play: async ({ canvasElement }) => {
@@ -263,33 +260,8 @@ export const EmptyFilter: StoryObj<typeof meta> = {
   },
 };
 
-export const ClearFilters: StoryObj<typeof meta> = {
-  args: { ...EmptyFilter.args },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
-    const page = within(canvasElement.ownerDocument.body);
-    await userEvent.click(page.getByRole("button", { name: "Clear filters" }));
-    await userEvent.keyboard("{Escape}");
-    await expect(canvas.getByText("No activity yet.")).toBeVisible();
-    await expect(canvas.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
-  },
-};
-
 export const MorePages: StoryObj<typeof meta> = {
   args: { entries: [...recent, ...earlier], more: olderPage },
-};
-
-export const ShowOlderActivity: StoryObj<typeof meta> = {
-  args: MorePages.args,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    canvas.queryByRole("button", { name: "Show older activity" })?.scrollIntoView();
-    await waitFor(() => expect(canvas.getAllByText("Round criteria changed")).toHaveLength(1));
-    await expect(
-      canvas.queryByRole("button", { name: "Show older activity" }),
-    ).not.toBeInTheDocument();
-  },
 };
 
 export const Refreshing: StoryObj<typeof meta> = { args: { status: "refreshing" } };

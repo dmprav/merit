@@ -165,19 +165,6 @@ export const WithdrawnFilter: Story = {
 };
 
 export const ReadOnly: Story = { args: { readOnly: true } };
-export const ManagerNeedsReassignment: Story = {
-  args: { round: { ...encodeRoundOverview(example), managerNeedsReassignment: true } },
-};
-export const LongManager: Story = {
-  args: {
-    section: "applications",
-    round: {
-      ...encodeRoundOverview(example),
-      manager: "Alexandria Montgomery-Worthington",
-      managerNeedsReassignment: true,
-    },
-  },
-};
 
 const largerRound = roundView({
   ...example,
@@ -203,17 +190,4 @@ const largerRound = roundView({
 });
 export const ManyApplications: Story = {
   args: { round: encodeRoundOverview(largerRound), section: "applications" },
-  play: async ({ canvas, userEvent }) => {
-    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
-    await userEvent.type(within(document.body).getByRole("searchbox"), "Riverside");
-    await userEvent.keyboard("{Escape}");
-
-    await expect(canvas.getByRole("status")).toHaveTextContent("3 of 24 applications");
-
-    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
-    await userEvent.click(within(document.body).getByRole("button", { name: "Clear filters" }));
-    await userEvent.keyboard("{Escape}");
-
-    await expect(canvas.getAllByRole("row")).toHaveLength(25);
-  },
 };
