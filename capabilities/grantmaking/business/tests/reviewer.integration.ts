@@ -1520,7 +1520,7 @@ it("lists a pending submission notice under the submitting reviewer", async ({
   expect(page).toEqual([]);
 });
 
-it("keeps a committed reviewer message and answers when its outcome cannot be read", async ({
+it("answers a committed reviewer message when only the reads that wait for its outcome fail", async ({
   runtimeUrl,
   database,
   reviewerScenario: s,
@@ -1550,6 +1550,40 @@ it("keeps a committed reviewer message and answers when its outcome cannot be re
     value: { id: s.assignmentId },
   });
   expect(reported).toBe(1);
+  const message = await database.client.query<{ status: string }>(
+    "SELECT status FROM reviewer_messages WHERE id = $1",
+    [s.invitation.commandId],
+  );
+  expect(message.rows[0]?.status).toBe("pending");
+});
+it("keeps a committed reviewer message and fails the response, not the commit, while the database stays down", async ({
+  runtimeUrl,
+  database,
+  reviewerScenario: s,
+}) => {
+  await database.client.query("UPDATE reviewer_messages SET status = 'pending' WHERE id = $1", [
+    s.invitation.commandId,
+  ]);
+  let readsFail = false;
+  let reported = 0;
+  const service = createReviewerService({
+    database: (operation) =>
+      readsFail ? Promise.reject(new Error("database down")) : withDatabase(runtimeUrl, operation),
+    start: async () => {
+      readsFail = true;
+      return true;
+    },
+    wait: { timeoutMs: 50, intervalMs: 1 },
+    // Only reports: the database stays down, so the response itself cannot be read either.
+    onOutcomeError: () => {
+      reported += 1;
+    },
+  });
+
+  // The response is the manager's assignment row, which needs a read; no data is invented.
+  await expect(service.invite(actor, s.invitation)).rejects.toThrow("database down");
+  expect(reported).toBe(1);
+  readsFail = false;
   const message = await database.client.query<{ status: string }>(
     "SELECT status FROM reviewer_messages WHERE id = $1",
     [s.invitation.commandId],
