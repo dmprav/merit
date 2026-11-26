@@ -7,8 +7,7 @@ import { describeError, ensureSchedule, runWorker, type WorkerLogger } from "@me
 
 import { listenForWorkerReadiness } from "./readiness.ts";
 import { createWorkerRuntime } from "./runtime.ts";
-
-const reconcileEvery = 60_000;
+import { readReconcileIntervalMs } from "./task-queue.ts";
 
 const logger: WorkerLogger = {
   info: (message) => console.log(`[worker] ${message}`),
@@ -53,6 +52,7 @@ const scheduleRequestDeadlineMs = 10_000;
 
 let exitCode = 0;
 try {
+  const reconcileIntervalMs = readReconcileIntervalMs(env);
   // The development and preview commands set MERIT_LOCAL_WORKER; a deployed worker must not.
   const { config, client, activities, activityQueues, queues } = createWorkerRuntime(env);
   await runWorker(
@@ -78,7 +78,7 @@ try {
               scheduleId: queues.reconcileScheduleId,
               workflowType: "reconcile",
               taskQueue: queues.taskQueue,
-              everyMs: reconcileEvery,
+              everyMs: reconcileIntervalMs,
               workflowId: queues.reconcileScheduleId,
             }),
         );

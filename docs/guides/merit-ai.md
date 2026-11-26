@@ -21,8 +21,8 @@ beside the server to process queued work: each conversation with work to do runs
 workflow, `assistant-conversation:<id>`, and each worker process runs its turns, at most four at once; a second worker process adds its own four, and
 there is no shared cap. A
 `start`, `approve`, `decline`, `retry`, or `watch` of a running conversation wakes that workflow. A
-wake lost between commit and Temporal is recovered within a minute, because the worker's
-reconciliation Schedule wakes every running conversation. The worker reads `OPENAI_API_KEY` and
+wake lost between commit and Temporal is recovered on the next reconciliation sweep, which runs
+hourly by default and wakes every running conversation. The worker reads `OPENAI_API_KEY` and
 `MERIT_AI_MODEL` like the server; with no model configured nothing runs. A worker that stops
 mid-turn leaves the turn running in PostgreSQL, and another worker resumes it once the stopped
 step's lease expires. Closing a request or browser tab never stops a turn; `stop` does. `stop`,
