@@ -38,7 +38,7 @@ export type WorktreeRegistry = z.infer<typeof worktreeRegistrySchema>;
 
 export type RegistryLockOptions = Pick<
   FileLockOptions,
-  "timeoutMs" | "staleMs" | "initialDelayMs" | "maxDelayMs"
+  "timeoutMs" | "staleMs" | "initialDelayMs" | "maxDelayMs" | "onLockHeld"
 >;
 
 export const registryPathForRepo = (primaryRepoRoot: string): string =>

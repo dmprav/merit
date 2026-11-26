@@ -336,12 +336,9 @@ describe("createWorktree concurrency", () => {
     const created: string[] = [];
     const lockOptions = { initialDelayMs: 5, maxDelayMs: 15, timeoutMs: 5_000 };
 
-    const database = (onReachable = () => {}) =>
+    const database = () =>
       fakeDatabase({
-        isReachable: async () => {
-          onReachable();
-          return true;
-        },
+        isReachable: async () => true,
         ensure: async (name) => {
           created.push(name);
           return { created: true };
@@ -350,7 +347,7 @@ describe("createWorktree concurrency", () => {
 
     const alphaEnteredLock = createDeferred();
     const releaseAlphaLock = createDeferred();
-    const betaReadyForLock = createDeferred();
+    const betaBlockedOnLock = createDeferred();
     let alphaPaused = false;
     let betaEnteredLock = false;
 
@@ -381,17 +378,17 @@ describe("createWorktree concurrency", () => {
           betaEnteredLock = true;
           return true;
         },
-        database: database(() => betaReadyForLock.resolve()),
-        lockOptions,
+        database: database(),
+        lockOptions: { ...lockOptions, onLockHeld: () => betaBlockedOnLock.resolve() },
       },
     );
-    await betaReadyForLock.promise;
-    // Allow beta to reach the registry lock and find alpha holding it.
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(betaEnteredLock).toBe(false);
-
-    releaseAlphaLock.resolve();
+    try {
+      // Beta found alpha holding the registry lock, so it is contending for it.
+      await betaBlockedOnLock.promise;
+      expect(betaEnteredLock).toBe(false);
+    } finally {
+      releaseAlphaLock.resolve();
+    }
     const [alpha, beta] = await Promise.all([alphaPromise, betaPromise]);
 
     expect(betaEnteredLock).toBe(true);
