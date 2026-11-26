@@ -32,7 +32,7 @@ import { loadEnvLocalFiles } from "@merit/test-support/env";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
 import { getErrnoCode, isProcessAlive } from "../agents/file-lock.ts";
-import { errorMessage } from "../cli.ts";
+import { errorMessage, stripLeadingSeparator } from "../cli.ts";
 import { VISUAL_TARGETS } from "./visual-targets.ts";
 
 const REPO_ROOT = resolve(fileURLToPath(new URL("../../", import.meta.url)));
@@ -208,7 +208,7 @@ export type TargetCheckResult = z.infer<typeof targetCheckResultSchema>;
 export type UiVerifyResults = z.infer<typeof uiVerifyResultsSchema>;
 
 /** The default sweep: the Storybook visual baseline stories. */
-export const DEFAULT_STORYBOOK_TARGETS: readonly StoryTarget[] = VISUAL_TARGETS.map(
+const DEFAULT_STORYBOOK_TARGETS: readonly StoryTarget[] = VISUAL_TARGETS.map(
   ({ id, name, globals, fullPage }) => ({
     kind: "story",
     id,
@@ -292,7 +292,7 @@ export const normalizeRoutePattern = (raw: string): string => {
 };
 
 export const parseCliArgs = (rawArgs: readonly string[]): UiVerifyCliOptions => {
-  const args = rawArgs[0] === "--" ? rawArgs.slice(1) : [...rawArgs];
+  const args = stripLeadingSeparator(rawArgs);
   const stories: string[] = [];
   const routes: string[] = [];
   let mode: AppMode | undefined;
