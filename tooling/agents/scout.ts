@@ -14,6 +14,7 @@ export const SCOUT_STATE_ISSUE_NUMBER = 219;
 export const SCOUT_STATE_ISSUE_TITLE = "chore: agent scout state";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const STATE_MARKER_PATTERN = /<!--\s*merit-scout-state:\s*(\{[\s\S]*?\})\s*-->/;
+const STATE_MARKER_PREFIX_PATTERN = /<!--\s*merit-scout-state:/;
 const FALLOW_TIMEOUT_MS = 25_000;
 
 export const lensCursorSchema = z.object({
@@ -140,29 +141,64 @@ export const selectAutoLens = ({
   };
 };
 
-/** Parses each lens cursor independently so one corrupt entry cannot wipe sibling lenses. */
-export const parseScoutState = (issueBody: string): ScoutState => {
+export type ScoutStateRead =
+  | { kind: "absent" }
+  | { kind: "parsed"; state: ScoutState }
+  | { kind: "corrupt"; error: string };
+
+/**
+ * Reads the state marker from the state issue body. A marker that is missing reads as `absent`; one
+ * that is present but unreadable reads as `corrupt` so callers never mistake it for empty state.
+ * Lens cursors inside a readable marker are parsed independently, so one corrupt entry is dropped
+ * without wiping sibling lenses.
+ */
+export const parseScoutState = (issueBody: string): ScoutStateRead => {
   const match = STATE_MARKER_PATTERN.exec(issueBody);
   if (!match?.[1]) {
-    return {};
+    return STATE_MARKER_PREFIX_PATTERN.test(issueBody)
+      ? { kind: "corrupt", error: "the marker is not closed by a JSON object and -->" }
+      : { kind: "absent" };
   }
+  let raw: unknown;
   try {
-    const raw: unknown = JSON.parse(match[1]);
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-      return {};
-    }
-    const state: ScoutState = {};
-    for (const [key, value] of Object.entries(raw)) {
-      const lensResult = lensNameSchema.safeParse(key);
-      const cursorResult = lensCursorSchema.safeParse(value);
-      if (lensResult.success && cursorResult.success) {
-        state[lensResult.data] = cursorResult.data;
-      }
-    }
-    return state;
-  } catch {
-    return {};
+    raw = JSON.parse(match[1]);
+  } catch (error) {
+    return {
+      kind: "corrupt",
+      error: `invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+    };
   }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { kind: "corrupt", error: "the marker JSON is not an object" };
+  }
+  const state: ScoutState = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const lensResult = lensNameSchema.safeParse(key);
+    const cursorResult = lensCursorSchema.safeParse(value);
+    if (lensResult.success && cursorResult.success) {
+      state[lensResult.data] = cursorResult.data;
+    }
+  }
+  return { kind: "parsed", state };
+};
+
+export const describeCorruptScoutState = (issueNumber: number, error: string): string =>
+  `Scout state marker in issue #${issueNumber} is corrupt (${error}). ` +
+  `Repair the "<!-- merit-scout-state: {...} -->" marker with \`gh issue edit ${issueNumber}\` ` +
+  "so it holds one JSON object of lens cursors, or delete the marker to reset every lens.";
+
+/** Returns the recorded cursors for read-only use, warning instead of failing when the marker is corrupt. */
+export const scoutStateForReading = (
+  read: ScoutStateRead,
+  issueNumber: number,
+  warn: (message: string) => void,
+): ScoutState => {
+  if (read.kind === "corrupt") {
+    warn(
+      `Warning: ${describeCorruptScoutState(issueNumber, read.error)} Treating every lens as having no cursor.`,
+    );
+  }
+  return read.kind === "parsed" ? read.state : {};
 };
 
 export const formatScoutStateBody = (existingBody: string, state: ScoutState): string => {
@@ -172,6 +208,33 @@ export const formatScoutStateBody = (existingBody: string, state: ScoutState): s
   }
   const trimmed = existingBody.trimEnd();
   return `${trimmed}\n\n${marker}\n`;
+};
+
+/**
+ * Computes the state issue body that records the next cursor for `lens`, keeping every sibling lens
+ * cursor. Refuses before computing the cursor when the marker is corrupt, because rewriting it would
+ * erase the cursors it still holds.
+ */
+export const advanceScoutStateBody = ({
+  issueNumber,
+  issueBody,
+  lens,
+  nextCursor,
+}: {
+  issueNumber: number;
+  issueBody: string;
+  lens: ScoutLens;
+  nextCursor: (previous: LensCursor | undefined) => LensCursor;
+}): { body: string; cursor: LensCursor } => {
+  const read = parseScoutState(issueBody);
+  if (read.kind === "corrupt") {
+    throw new Error(
+      `Refusing to advance: ${describeCorruptScoutState(issueNumber, read.error)} Then rerun advance.`,
+    );
+  }
+  const state = read.kind === "parsed" ? read.state : {};
+  const cursor = nextCursor(state[lens]);
+  return { body: formatScoutStateBody(issueBody, { ...state, [lens]: cursor }), cursor };
 };
 
 export type RotationAxis = {
@@ -1251,7 +1314,11 @@ export const parseAdvanceLensFlag = (args: readonly string[]): ScoutLens => {
 
 const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") => {
   const stateIssue = fetchScoutStateIssue(repoRoot);
-  const state = parseScoutState(stateIssue.body);
+  const state = scoutStateForReading(
+    parseScoutState(stateIssue.body),
+    stateIssue.number,
+    console.error,
+  );
   const now = new Date();
   let lens: ScoutLens;
   if (requestedLens === "auto") {
@@ -1463,30 +1530,33 @@ export const parseAdvanceArgs = (args: readonly string[]): AdvanceOptions => {
 const runAdvanceCommand = (repoRoot: string, lens: ScoutLens, args: readonly string[]) => {
   const { commitSha, target, prNumber } = parseAdvanceArgs(args);
   const stateIssue = fetchScoutStateIssue(repoRoot);
-  const state = parseScoutState(stateIssue.body);
-  const resolvedSha = execFileSync("git", ["rev-parse", "--verify", `${commitSha}^{commit}`], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  }).trim();
-  const commitDate = execFileSync("git", ["show", "-s", "--format=%cI", resolvedSha], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  }).trim();
-  const lastPrNumber = prNumber ?? state[lens]?.lastPrNumber;
-  const lastRotationTarget = target ?? state[lens]?.lastRotationTarget;
-
-  const nextCursor = lensCursorSchema.parse({
-    lastCommitSha: resolvedSha,
-    lastCommitDate: commitDate,
-    ...(lastPrNumber !== undefined ? { lastPrNumber } : {}),
-    ...(lastRotationTarget ? { lastRotationTarget } : {}),
-    lastRunAt: new Date().toISOString(),
+  const { body, cursor } = advanceScoutStateBody({
+    issueNumber: stateIssue.number,
+    issueBody: stateIssue.body,
+    lens,
+    nextCursor: (previous) => {
+      const resolvedSha = execFileSync("git", ["rev-parse", "--verify", `${commitSha}^{commit}`], {
+        cwd: repoRoot,
+        encoding: "utf8",
+      }).trim();
+      const commitDate = execFileSync("git", ["show", "-s", "--format=%cI", resolvedSha], {
+        cwd: repoRoot,
+        encoding: "utf8",
+      }).trim();
+      const lastPrNumber = prNumber ?? previous?.lastPrNumber;
+      const lastRotationTarget = target ?? previous?.lastRotationTarget;
+      return lensCursorSchema.parse({
+        lastCommitSha: resolvedSha,
+        lastCommitDate: commitDate,
+        ...(lastPrNumber !== undefined ? { lastPrNumber } : {}),
+        ...(lastRotationTarget ? { lastRotationTarget } : {}),
+        lastRunAt: new Date().toISOString(),
+      });
+    },
   });
-  const nextState: ScoutState = { ...state, [lens]: nextCursor };
-  const nextBody = formatScoutStateBody(stateIssue.body, nextState);
 
-  runScoutGh(repoRoot, ["issue", "edit", String(stateIssue.number), "--body", nextBody]);
-  console.log(JSON.stringify({ status: "advanced", lens, cursor: nextCursor }));
+  runScoutGh(repoRoot, ["issue", "edit", String(stateIssue.number), "--body", body]);
+  console.log(JSON.stringify({ status: "advanced", lens, cursor }));
 };
 
 const runCli = () => {
