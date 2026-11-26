@@ -249,7 +249,7 @@ it("enables row-level security with at least one policy on every tenant-scoped t
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public'
-      AND c.relkind = 'r'
+      AND c.relkind IN ('r', 'p')
       AND (
         c.relname = 'organizations'
         OR EXISTS (
@@ -308,14 +308,39 @@ it("pins search_path and revokes PUBLIC execute on every SECURITY DEFINER functi
   expect(unsafeFunctions).toEqual([]);
 });
 
+// `memberships.version` is a 0-based optimistic revision counter; all other `version`
+// and `format_version` columns are 1-based version numbers (`> 0`).
+const ZERO_BASED_VERSION_TABLES = new Set(["memberships"]);
+
 it("enforces bounds on integer version/revision/position columns and keeps audit_events immutable", async ({
   database,
 }) => {
-  const uncheckedCounterColumns = await database.client.query<{
+  const counterColumns = await database.client.query<{
     table_name: string;
     column_name: string;
+    check_defs: string[];
   }>(`
-    SELECT c.relname AS table_name, a.attname AS column_name
+    SELECT
+      c.relname AS table_name,
+      a.attname AS column_name,
+      ARRAY(
+        SELECT pg_get_constraintdef(con.oid)
+        FROM pg_constraint con
+        WHERE con.conrelid = c.oid
+          AND con.contype = 'c'
+          AND a.attnum = ANY(con.conkey)
+        UNION ALL
+        SELECT pg_get_constraintdef(parent_check.oid)
+        FROM pg_constraint fk
+        JOIN LATERAL unnest(fk.conkey, fk.confkey) AS cols(child_attnum, parent_attnum)
+          ON cols.child_attnum = a.attnum
+        JOIN pg_constraint parent_check
+          ON parent_check.conrelid = fk.confrelid
+         AND parent_check.contype = 'c'
+         AND cols.parent_attnum = ANY(parent_check.conkey)
+        WHERE fk.conrelid = c.oid
+          AND fk.contype = 'f'
+      ) AS check_defs
     FROM pg_attribute a
     JOIN pg_class c ON c.oid = a.attrelid
     JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -327,27 +352,19 @@ it("enforces bounds on integer version/revision/position columns and keeps audit
       AND a.attnotnull
       AND t.typname IN ('int2', 'int4', 'int8')
       AND a.attname IN ('revision', 'version', 'position', 'format_version')
-      AND NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint con
-        WHERE con.conrelid = c.oid
-          AND con.contype = 'c'
-          AND a.attnum = ANY(con.conkey)
-      )
-      AND NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint fk
-        JOIN LATERAL unnest(fk.conkey, fk.confkey) AS cols(child_attnum, parent_attnum)
-          ON cols.child_attnum = a.attnum
-        JOIN pg_constraint parent_check
-          ON parent_check.conrelid = fk.confrelid
-         AND parent_check.contype = 'c'
-         AND cols.parent_attnum = ANY(parent_check.conkey)
-        WHERE fk.conrelid = c.oid
-          AND fk.contype = 'f'
-      )
     ORDER BY c.relname, a.attname
   `);
+
+  const uncheckedCounterColumns = counterColumns.rows.filter((row) => {
+    const requiresPositive =
+      row.column_name === "format_version" ||
+      (row.column_name === "version" && !ZERO_BASED_VERSION_TABLES.has(row.table_name));
+    const quotedCol = `"?\\b${row.column_name}\\b"?`;
+    const boundPattern = requiresPositive
+      ? new RegExp(`${quotedCol}\\s*>\\s*0`, "i")
+      : new RegExp(`${quotedCol}\\s*(?:>=\\s*0|>\\s*0)`, "i");
+    return !row.check_defs.some((def) => boundPattern.test(def));
+  });
 
   const auditImmutabilityTriggers = await database.client.query<{ trigger_name: string }>(`
     SELECT tg.tgname AS trigger_name
@@ -357,13 +374,14 @@ it("enforces bounds on integer version/revision/position columns and keeps audit
     WHERE n.nspname = 'public'
       AND c.relname = 'audit_events'
       AND NOT tg.tgisinternal
-      AND tg.tgenabled <> 'D'
+      AND tg.tgenabled IN ('O', 'A')
       AND (tg.tgtype & 2) <> 0
       AND (tg.tgtype & 8) <> 0
       AND (tg.tgtype & 16) <> 0
     ORDER BY tg.tgname
   `);
 
-  expect(uncheckedCounterColumns.rows).toEqual([]);
+  expect(counterColumns.rows.length).toBeGreaterThan(0);
+  expect(uncheckedCounterColumns).toEqual([]);
   expect(auditImmutabilityTriggers.rows.length).toBeGreaterThan(0);
 });
