@@ -154,6 +154,7 @@ export const RoundEditor = ({
   section,
 }: Props & { section: "purpose" | "criteria" | "budget" }) => {
   const { t } = useTranslation(["roundPreparation", "common"]);
+  const { money } = useFormat();
   const { round } = preparation;
   const draft = preparation.draftFor(section);
   const { criteriaImpact } = round;
@@ -210,7 +211,7 @@ export const RoundEditor = ({
           onCancel={preparation.close}
           onDiscard={() => preparation.discard(section)}
           inline={section === "purpose" || section === "criteria"}
-          onSave={async (draft) => preparationError(t, await preparation.saveDraft(draft))}
+          onSave={async (draft) => preparationError(t, await preparation.saveDraft(draft), money)}
         />
       )}
     </>
@@ -276,6 +277,7 @@ export const RoundTitle = ({
   preparation: Pick<PreparationEditing, "round" | "pending" | "renameRound" | "ready">;
 }) => {
   const { t } = useTranslation(["roundPreparation", "common"]);
+  const { money } = useFormat();
 
   return (
     <InlineName
@@ -286,7 +288,7 @@ export const RoundTitle = ({
       errorMessage={t("preparation.saveError")}
       isPreparing={!preparation.ready}
       isDisabled={preparation.pending}
-      onSave={async (title) => preparationError(t, await preparation.renameRound(title))}
+      onSave={async (title) => preparationError(t, await preparation.renameRound(title), money)}
     />
   );
 };
@@ -401,6 +403,7 @@ const QuickEditor = ({
   children: ReactNode;
 }) => {
   const { t } = useTranslation("roundPreparation");
+  const { money } = useFormat();
 
   return (
     <PickerPopover
@@ -430,7 +433,7 @@ const QuickEditor = ({
       )}
       {preparation.error && (
         <Notice tone="danger" role="alert">
-          {preparationError(t, preparation.error)}
+          {preparationError(t, preparation.error, money)}
         </Notice>
       )}
     </PickerPopover>
@@ -471,6 +474,7 @@ export const RoundActions = ({
 
 export const RoundDeleteConfirmation = ({ preparation }: Props) => {
   const { t } = useTranslation(["roundPreparation", "common"]);
+  const { money } = useFormat();
   if (preparation.round.applicationCount) {
     return null;
   }
@@ -486,7 +490,7 @@ export const RoundDeleteConfirmation = ({ preparation }: Props) => {
       isOpen={preparation.deleting}
       onOpenChange={preparation.setDeleting}
       isPending={preparation.pending}
-      error={preparationError(t, preparation.deleteError, "delete")}
+      error={preparationError(t, preparation.deleteError, money, "delete")}
       onConfirm={preparation.confirmDelete}
     />
   );
@@ -494,10 +498,11 @@ export const RoundDeleteConfirmation = ({ preparation }: Props) => {
 
 export const RoundFeedback = ({ preparation }: Props) => {
   const { t } = useTranslation("roundPreparation");
+  const { money } = useFormat();
   const { undo, feedback, refreshError } = preparation;
 
   const undoSave = async () => {
-    const failure = preparationError(t, await preparation.undoSave());
+    const failure = preparationError(t, await preparation.undoSave(), money);
     if (failure) {
       showToast({ tone: "danger", message: failure });
     }

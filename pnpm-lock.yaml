@@ -1152,9 +1152,6 @@ importers:
       '@merit/money':
         specifier: workspace:*
         version: link:../../../foundation/money
-      '@merit/recommendations':
-        specifier: workspace:*
-        version: link:../../recommendations/business
       '@merit/ui':
         specifier: workspace:*
         version: link:../../../foundation/ui

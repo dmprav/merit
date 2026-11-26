@@ -59,6 +59,7 @@ export const ApplicationWork = ({
               decisionAction={decision.action}
               editor={decision.editor ?? recommendation.editor}
               editorTitle={decision.editor ? t("section.title") : undefined}
+              editorJumpLabel={decision.editor ? t("editor.jumpTo") : undefined}
               editorCloseAction={
                 decision.editor ? decision.closeAction : recommendation.closeAction
               }

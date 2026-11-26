@@ -1,6 +1,6 @@
 import type { TFunction } from "i18next";
 
-import { decodeMoney, formatMoney } from "@merit/money";
+import { decodeMoney, type Money } from "@merit/money";
 import type { PreparationSaveError } from "@merit/rounds/api";
 
 import type { PreparationProblem } from "../../controllers/preparation/use-round-preparation";
@@ -8,6 +8,7 @@ import type { PreparationProblem } from "../../controllers/preparation/use-round
 export const preparationError = (
   t: TFunction<"roundPreparation">,
   failure: PreparationProblem | null,
+  money: (value: Money) => string,
   action: "save" | "delete" = "save",
 ): string | null => {
   if (!failure) {
@@ -33,7 +34,7 @@ export const preparationError = (
         invalid_round: "preparation.saveError",
       } as const satisfies Record<PreparationSaveError, string>;
       return t(errors[failure.error], {
-        committed: failure.committed ? formatMoney(decodeMoney(failure.committed), "en-IE") : "",
+        committed: failure.committed ? money(decodeMoney(failure.committed)) : "",
       });
     }
   }

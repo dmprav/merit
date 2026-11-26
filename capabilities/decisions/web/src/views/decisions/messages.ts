@@ -2,7 +2,7 @@ import type { TFunction } from "i18next";
 
 import type { DecisionUpdateError } from "@merit/decisions/api";
 import type { DecisionOutcome } from "@merit/decisions/domain";
-import { decodeMoney, formatMoney } from "@merit/money";
+import { decodeMoney, type Money } from "@merit/money";
 
 import type { DecisionFailure } from "../../contracts/decisions";
 
@@ -53,7 +53,11 @@ export const decisionError = (
   excess = "",
 ): string => t(decisionErrorKeys[code], { excess });
 
-export const decisionSaveError = (t: Translate, failure: DecisionFailure | null): string | null => {
+export const decisionSaveError = (
+  t: Translate,
+  failure: DecisionFailure | null,
+  money: (value: Money) => string,
+): string | null => {
   if (!failure) {
     return null;
   }
@@ -64,7 +68,7 @@ export const decisionSaveError = (t: Translate, failure: DecisionFailure | null)
       return decisionError(
         t,
         failure.error,
-        failure.excess ? formatMoney(decodeMoney(failure.excess), "en-IE") : "",
+        failure.excess ? money(decodeMoney(failure.excess)) : "",
       );
     case "not_found":
       return t("editor.accessLost");

@@ -49,6 +49,8 @@ type ApplicationViewProps = {
   decisionAction?: ReactNode;
   /** Names the open editor in the work pane; the recommendation unless another is open. */
   editorTitle?: string;
+  /** Labels the jump to the open editor; the recommendation's unless another is open. */
+  editorJumpLabel?: string;
   tab?: "evidence" | "reviews";
   onTabChange?: (tab: "evidence" | "reviews") => void;
 };
@@ -141,15 +143,11 @@ const ApplicationLayout = (props: ApplicationLayoutProps) => {
   return (
     <ReferenceWorkspace
       header={<ApplicationHeader {...props} />}
-      toWorkLabel={t(
+      toWorkLabel={
         editor
-          ? props.editorTitle
-            ? "workspace.toDecisionEditor"
-            : "workspace.toEditor"
-          : review.active
-            ? "workspace.toReviewTask"
-            : "workspace.toOverview",
-      )}
+          ? (props.editorJumpLabel ?? t("workspace.toEditor"))
+          : t(review.active ? "workspace.toReviewTask" : "workspace.toOverview")
+      }
       toReferenceLabel={t("workspace.browseReference")}
       after={
         <>

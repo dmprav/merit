@@ -20,7 +20,6 @@
     "@merit/grantmaking": "workspace:*",
     "@merit/i18n": "workspace:*",
     "@merit/money": "workspace:*",
-    "@merit/recommendations": "workspace:*",
     "@merit/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "i18next": "catalog:",

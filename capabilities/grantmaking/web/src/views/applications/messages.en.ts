@@ -15,7 +15,6 @@ export const applicationsMessages = {
     version: "Version {{version}}",
     viewHistory: "View version history",
     toEditor: "Go to recommendation",
-    toDecisionEditor: "Go to committee decision",
     toReviewTask: "Go to review task",
     toOverview: "Go to reviews and application details",
     reference: "Reference",

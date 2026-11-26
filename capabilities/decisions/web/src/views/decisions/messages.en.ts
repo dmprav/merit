@@ -13,11 +13,9 @@ export const decisionsMessages = {
     noAmount: "No funding committed",
     conditions: "Conditions",
     reason: "Reason",
-    outsideMerit: "Decided outside Merit and recorded here.",
     history: "Version history",
     version: "Version {{revision}}",
     changeExplanation: "Why it changed",
-    current: "Current",
   },
   outcome: {
     fund: "Fund",
@@ -30,9 +28,8 @@ export const decisionsMessages = {
     decline_summary: "Declined",
   },
   editor: {
-    title: "Committee decision",
+    jumpTo: "Go to committee decision",
     close: "Close decision",
-    viewReference: "View application & reviews",
     outcome: "Outcome",
     amount: "Amount",
     conditions: "Conditions",
@@ -62,9 +59,6 @@ export const decisionsMessages = {
     viewLatest: "View latest",
     hideLatest: "Hide latest",
     latestSaved: "Latest saved decision",
-    resume: "Resume editing",
-    notReady:
-      "Mark the application ready before funding it. You can record a deferral or decline while information is missing.",
   },
   comparison: {
     title: "Manager recommendation",
@@ -73,7 +67,6 @@ export const decisionsMessages = {
     fundWithCondition: "Fund with a condition",
     defer: "Defer",
     amount: "{{amount}} proposed",
-    noAmount: "No funding proposed",
   },
   budget: {
     preview: "Budget preview",
