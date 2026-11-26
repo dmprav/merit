@@ -78,13 +78,20 @@ with **only**:
 If implementation approaches 90 minutes before the pull request exists, renew
 issue ownership with
 `vpx tooling/agents/queue.ts claim <issue-number> --renew <runId>` so the 2-hour
-claim stays active until the PR is opened.
+claim stays active until the PR is opened. For multi-round or long-running
+proposal runs (optional for quick single-pass runs), log claim renewals,
+escalations, and major rulings in the local ledger
+(`vp run agent:ledger -- log --slug issue-<issue-number> --run-id <runId> ...`),
+and follow [handoff](../handoff/SKILL.md) if pausing or transferring across
+sessions (post only the compacted handoff summary to the issue via REST; keep
+raw `.tmp/ledgers/` TSV files local).
 
 If the builder stops with an unresolved ambiguity, an unplanned departure, or a
 request that requires lowering coverage thresholds or skipping a test
 ([coverage policy](../../../docs/guides/testing.md#coverage-policy-changes)):
 
-1. Escalate via
+1. Log the escalation decision in the local ledger when tracking a multi-step
+   run, then escalate via
    `vpx tooling/agents/queue.ts escalate <issue-number> --reason "<exact question and options>"`.
 2. Exit cleanly without committing or opening a pull request.
 
@@ -124,7 +131,10 @@ section in [review.md](../build-feature/review.md) checked) and confirm
 `git status --porcelain` is unchanged after review. After fixes beyond a few
 lines, run one more fresh reviewer round. **Stop after two rounds**; carry any
 non-blocking follow-up to the PR's **Follow-ups** section, or escalate if
-blocking.
+blocking. Record multi-round review triage rulings with
+`vp run agent:ledger -- log --slug issue-<issue-number> --run-id <runId> --phase review ...`
+so `vp run agent:ledger -- summary --slug issue-<issue-number>` informs
+`verifications/<pr-number>.md` and any [handoff](../handoff/SKILL.md).
 
 If subagents are unavailable in the current environment, reread the full diff
 from disk against [review.md](../build-feature/review.md) and note explicitly in

@@ -1,18 +1,14 @@
 import { execFileSync, type ExecFileSyncOptions } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
-  closeSync,
-  constants as fsConstants,
   existsSync,
   lstatSync,
   mkdirSync,
-  openSync,
   readFileSync,
   realpathSync,
   renameSync,
   rmSync,
   statSync,
-  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
@@ -31,6 +27,7 @@ import {
   isLocalPostgresReachable,
   loadPgClient,
 } from "../scripts/local-postgres.ts";
+import { type FileLockOptions, getErrnoCode, isProcessAlive, withFileLock } from "./file-lock.ts";
 
 export const WORKTREE_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const MAX_WORKTREE_SLUG_LENGTH = 48;
@@ -164,12 +161,10 @@ export type GitWorktreeEntry = {
   prunable?: boolean;
 };
 
-export type RegistryLockOptions = {
-  timeoutMs?: number;
-  staleMs?: number;
-  initialDelayMs?: number;
-  maxDelayMs?: number;
-};
+export type RegistryLockOptions = Pick<
+  FileLockOptions,
+  "timeoutMs" | "staleMs" | "initialDelayMs" | "maxDelayMs"
+>;
 
 export type WorktreeDeps = {
   execGit?: (cwd: string, args: readonly string[]) => string;
@@ -436,150 +431,21 @@ export const registryPathForRepo = (primaryRepoRoot: string): string =>
 export const registryLockPathForRepo = (primaryRepoRoot: string): string =>
   join(primaryRepoRoot, ".tmp", "worktrees", ".registry.lock");
 
-const DEFAULT_LOCK_TIMEOUT_MS = 15_000;
-const DEFAULT_LOCK_STALE_MS = 30_000;
-const DEFAULT_LOCK_INITIAL_DELAY_MS = 25;
-const DEFAULT_LOCK_MAX_DELAY_MS = 250;
-const LOCK_WRITE_GRACE_MS = 1_000;
-
-const lockMetadataSchema = z.object({
-  pid: z.number().int().positive(),
-  token: z.string().min(1),
-  createdAt: z.number().int().nonnegative(),
-});
-
-const getErrnoCode = (error: unknown): string | undefined => {
-  if (typeof error === "object" && error !== null && "code" in error) {
-    const { code } = error;
-    return typeof code === "string" ? code : undefined;
-  }
-  return undefined;
-};
-
-const isProcessAlive = (pid: number): boolean => {
-  if (!Number.isInteger(pid) || pid <= 0) {
-    return false;
-  }
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return getErrnoCode(error) === "EPERM";
-  }
-};
-
-const tryClearStaleLock = (lockPath: string, staleMs: number): boolean => {
-  let raw: string;
-  let mtimeMs: number;
-  try {
-    const stat = statSync(lockPath);
-    mtimeMs = stat.mtimeMs;
-    raw = readFileSync(lockPath, "utf8");
-  } catch {
-    return false;
-  }
-
-  const ageMs = Date.now() - mtimeMs;
-  const corruptGraceMs = Math.min(staleMs, LOCK_WRITE_GRACE_MS);
-  let stale = false;
-  if (raw.trim().length > 0) {
-    try {
-      const parsed = lockMetadataSchema.safeParse(JSON.parse(raw));
-      if (parsed.success) {
-        // Never expire valid lock metadata solely by age while its owner process is still alive.
-        stale = !isProcessAlive(parsed.data.pid);
-      } else {
-        stale = ageMs >= corruptGraceMs;
-      }
-    } catch {
-      stale = ageMs >= corruptGraceMs;
-    }
-  } else {
-    stale = ageMs >= corruptGraceMs;
-  }
-
-  if (!stale) {
-    return false;
-  }
-
-  try {
-    if (readFileSync(lockPath, "utf8") === raw) {
-      unlinkSync(lockPath);
-      return true;
-    }
-  } catch {
-    // Another process already removed or replaced it.
-  }
-  return false;
-};
-
-const sleep = (ms: number): Promise<void> =>
-  new Promise((resolveSleep) => {
-    setTimeout(resolveSleep, ms);
-  });
+const DEFAULT_WORKTREE_LOCK_INITIAL_DELAY_MS = 25;
+const DEFAULT_WORKTREE_LOCK_MAX_DELAY_MS = 250;
 
 export const withWorktreeRegistryLock = async <T>(
   primaryRepoRoot: string,
   operation: () => Promise<T> | T,
   options: RegistryLockOptions = {},
-): Promise<T> => {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS;
-  const staleMs = options.staleMs ?? DEFAULT_LOCK_STALE_MS;
-  const initialDelayMs = options.initialDelayMs ?? DEFAULT_LOCK_INITIAL_DELAY_MS;
-  const maxDelayMs = options.maxDelayMs ?? DEFAULT_LOCK_MAX_DELAY_MS;
-
-  const lockPath = registryLockPathForRepo(primaryRepoRoot);
-  mkdirSync(dirname(lockPath), { recursive: true });
-
-  const token = randomUUID();
-  const payload = `${JSON.stringify({ pid: process.pid, token, createdAt: Date.now() })}\n`;
-  const deadline = Date.now() + timeoutMs;
-  let delayMs = initialDelayMs;
-  let acquired = false;
-
-  while (!acquired) {
-    try {
-      const fd = openSync(
-        lockPath,
-        fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
-        0o600,
-      );
-      try {
-        writeFileSync(fd, payload, "utf8");
-      } finally {
-        closeSync(fd);
-      }
-      acquired = true;
-    } catch (error) {
-      if (getErrnoCode(error) !== "EEXIST") {
-        throw error;
-      }
-      if (tryClearStaleLock(lockPath, staleMs)) {
-        continue;
-      }
-      const remainingMs = deadline - Date.now();
-      if (remainingMs <= 0) {
-        throw new Error(
-          `Timed out waiting for worktree registry lock at "${lockPath}" after ${timeoutMs}ms.`,
-        );
-      }
-      await sleep(Math.min(delayMs, remainingMs));
-      delayMs = Math.min(delayMs * 2, maxDelayMs);
-    }
-  }
-
-  try {
-    return await operation();
-  } finally {
-    try {
-      if (readFileSync(lockPath, "utf8") === payload) {
-        unlinkSync(lockPath);
-      }
-    } catch {
-      // Lock file already removed.
-    }
-  }
-};
+): Promise<T> =>
+  withFileLock(registryLockPathForRepo(primaryRepoRoot), operation, {
+    label: "worktree registry",
+    timeoutMs: options.timeoutMs,
+    staleMs: options.staleMs,
+    initialDelayMs: options.initialDelayMs ?? DEFAULT_WORKTREE_LOCK_INITIAL_DELAY_MS,
+    maxDelayMs: options.maxDelayMs ?? DEFAULT_WORKTREE_LOCK_MAX_DELAY_MS,
+  });
 
 export const readWorktreeRegistry = (primaryRepoRoot: string): WorktreeRegistry => {
   const path = registryPathForRepo(primaryRepoRoot);

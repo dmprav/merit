@@ -126,7 +126,12 @@ The builder stops and returns a question instead of guessing when it meets a
 behavior choice the brief does not settle or a departure the brief does not
 approve. For each one, answer from the code and docs where they decide it, ask the
 requester otherwise, and update the brief. Then send the answer to the builder,
-or start a fresh one with the updated brief when the change is large.
+or start a fresh one with the updated brief when the change is large. Optional
+for short single-session builds, but for multi-round or multi-session builds
+record approved brief rulings in the local ledger
+(`vp run agent:ledger -- log --slug <slug> --run-id <run-id> --phase brief ...`)
+and follow [handoff](../handoff/SKILL.md) whenever work spans sessions or
+context windows.
 
 When the builder reports completion, check its work before review:
 
@@ -154,7 +159,10 @@ A review with no findings counts only if it shows what it checked: the precedent
 it read, the `mechanisms.ts` output, the screenshots it compared, and each
 rubric section. Confirm `git status --porcelain` is unchanged after review.
 Otherwise run it again. After fixes beyond a few lines, start another fresh
-reviewer. Stop after two rounds and carry what remains to **Follow-ups**.
+reviewer. Stop after two rounds and carry what remains to **Follow-ups**. For
+multi-round reviews, log triage rulings (`fix`, `reject`, or `ask`) with
+`vp run agent:ledger -- log --slug <slug> --run-id <run-id> --phase review ...`
+so `summary` feeds `verifications/<pr>.md` and any later handoff cleanly.
 
 ## 5. Hand off
 

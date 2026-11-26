@@ -49,7 +49,11 @@ before investigating so they can add what they know.
 
 Then test them in order. When a check fails unexpectedly, suspect the
 observation method before the system: the wrong fixture, a cached result
-(`vp run --last-details`), or a stale build.
+(`vp run --last-details`), or a stale build. Optional for quick
+single-hypothesis fixes, but when a diagnosis spans multiple hypotheses or
+attempts, record each ruled-out hypothesis in the local ledger so later runs do
+not repeat dead ends:
+`vp run agent:ledger -- log --slug <slug> --run-id <run-id> --phase diagnose --decision "Rule out <hypothesis>" --why "<observation>" --evidence "<command or file>" --result ruled-out`.
 
 ## 3. Instrument with a removable tag
 
@@ -87,6 +91,9 @@ that assumption directly.
    line. Nothing tagged may remain.
 4. Run the checks the [verification guide](../../../docs/guides/verification.md#verification)
    selects for the changed packages.
+5. For multi-attempt diagnoses, log the verified root cause and red/green
+   mutation check result via `vp run agent:ledger -- log --slug <slug> --run-id <run-id> --phase verify ...`
+   (and use [handoff](../handoff/SKILL.md) if the investigation spans sessions).
 
 Report the reproduction command, the root cause in one or two sentences, the
 hypotheses ruled out and how, and the red and green results.
