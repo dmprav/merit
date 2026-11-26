@@ -2,11 +2,20 @@ import { randomUUID } from "node:crypto";
 
 import { change, type Access, type AssistantRuntimeCatalog, type Stored } from "./access.server";
 import { disposition, nextAction } from "./dispatch.server";
-import { conversationState, recordReceipt } from "./state";
+import {
+  conversationState,
+  recordReceipt,
+  type ConversationState,
+  type DeliveryTicket,
+} from "./state";
 
 type DeliveryOutcome = Awaited<ReturnType<AssistantRuntimeCatalog["deliver"]>>;
 
-const deliveryOutcome = (row: Stored, attemptId: string, status: DeliveryOutcome) => {
+const deliveryOutcome = (
+  row: Stored,
+  attemptId: string,
+  status: Exclude<DeliveryOutcome, "pending">,
+) => {
   const state = conversationState.parse(row.state);
   const group = state.groups.find((item) =>
     item.actions.some((action) => action.deliveryAttempt?.id === attemptId),
@@ -32,7 +41,11 @@ const deliveryOutcome = (row: Stored, attemptId: string, status: DeliveryOutcome
     : change(state, row.status);
 };
 
-const recordDelivery = async (access: Access, attemptId: string, status: DeliveryOutcome) => {
+const recordDelivery = async (
+  access: Access,
+  attemptId: string,
+  status: Exclude<DeliveryOutcome, "pending">,
+) => {
   for (;;) {
     const row = await access.read();
     if (!row) {
@@ -51,35 +64,123 @@ const recordDelivery = async (access: Access, attemptId: string, status: Deliver
   }
 };
 
+/** Consecutive failed reads of a message before the delivery is recorded as failed. */
+const failedReadLimit = 10;
+
+type Attempt = { id: string; errors?: number };
+
+/**
+ * The action Stop left with a started delivery and no recorded outcome. Stop keeps its ticket and
+ * attempt, so the conversation can still record whether the email was sent.
+ */
+export const unsettledDelivery = (state: ConversationState) =>
+  state.groups
+    .flatMap((group) => group.actions)
+    .find((action) => action.status === "stopped" && action.delivery && action.deliveryAttempt);
+
+const ask = (access: Access, ticket: DeliveryTicket) =>
+  access
+    .catalog()
+    .deliver(ticket)
+    // A read that failed says nothing about the message; the next step asks again.
+    .catch(() => "error" as const);
+
+/** Save how many reads of the message failed in a row; zero clears the count. */
+const saveErrors = (access: Access, row: Stored, attemptId: string, errors: number) =>
+  access.locked(row, (state) => {
+    const saved = state.groups
+      .flatMap((group) => group.actions)
+      .find((item) => item.deliveryAttempt?.id === attemptId)?.deliveryAttempt;
+    if (saved) {
+      if (errors) {
+        saved.errors = errors;
+      } else {
+        delete saved.errors;
+      }
+    }
+    return change(state, row.status);
+  });
+
+/**
+ * Handle what the message answered: record a final status once, leave a pending one for the next
+ * wake, and give up on a message that cannot be read after repeated errors. Only consecutive
+ * errors count, so a pending answer clears them; a pending answer with none writes nothing.
+ */
+const record = async (
+  access: Access,
+  row: Stored,
+  attempt: Attempt,
+  outcome: DeliveryOutcome | "error",
+) => {
+  if (outcome === "pending") {
+    if (attempt.errors) {
+      await saveErrors(access, row, attempt.id, 0);
+      return "saved";
+    }
+    return "unchanged";
+  }
+  if (outcome !== "error") {
+    return (await recordDelivery(access, attempt.id, outcome)) ? "recorded" : "unchanged";
+  }
+  const errors = (attempt.errors ?? 0) + 1;
+  if (errors >= failedReadLimit) {
+    return (await recordDelivery(access, attempt.id, "failed")) ? "recorded" : "unchanged";
+  }
+  await saveErrors(access, row, attempt.id, errors);
+  return "saved";
+};
+
+/**
+ * Settle a delivery after Stop: ask where the message stands and record the outcome once it is
+ * final. This is all a stopped conversation does, so Stop never leaves the email unaccounted for.
+ */
+export const settleStopped = async (access: Access, row: Stored) => {
+  const action = unsettledDelivery(conversationState.parse(row.state));
+  if (!action?.delivery || !action.deliveryAttempt) {
+    return "unchanged";
+  }
+  return record(access, row, action.deliveryAttempt, await ask(access, action.delivery));
+};
+
+/**
+ * One delivery step. It never waits for the email: the reviewer-message workflow sends it, and
+ * each step asks where the message stands. `pending` answers `false` without writing, so the
+ * conversation waits for its next wake with the action still `delivering`; a final status is
+ * recorded once.
+ */
 export const deliverNext = async (access: Access, row: Stored) => {
+  const next = nextAction(conversationState.parse(row.state));
+  const existing = next?.action.deliveryAttempt;
+  if (existing && next.action.delivery) {
+    return (
+      (await record(access, row, existing, await ask(access, next.action.delivery))) === "recorded"
+    );
+  }
   const id = randomUUID();
   const claimed = await access.locked(row, (state) => {
-    const next = nextAction(state);
-    if (!next?.action.delivery || next.action.status !== "delivering") {
+    const pending = nextAction(state);
+    if (!pending?.action.delivery || pending.action.status !== "delivering") {
       throw new Error("No pending delivery.");
     }
-    next.action.deliveryAttempt = { id, until: Date.now() + 120_000 };
+    pending.action.deliveryAttempt = { id };
     return change(state, "running");
   });
   if (!claimed) {
     return false;
   }
-  const sent: { outcome?: Promise<DeliveryOutcome> } = {};
-  // A concurrent Stop or Delete can invalidate the durable claim before mail dispatch.
-  // Start the pool-backed outbox operation under this last gate, then release the chat lock.
+  const sent: { outcome?: ReturnType<typeof ask> } = {};
+  // A concurrent Stop or Delete can invalidate the durable claim before the message is touched.
+  // Start the pool-backed operation under this last gate, then release the chat lock.
   const dispatched = await access.locked(claimed, (state) => {
-    const next = nextAction(state);
-    if (!next?.action.delivery || next.action.deliveryAttempt?.id !== id) {
+    const pending = nextAction(state);
+    if (!pending?.action.delivery || pending.action.deliveryAttempt?.id !== id) {
       throw new Error("No claimed delivery.");
     }
-    sent.outcome = access
-      .catalog()
-      .deliver(next.action.delivery)
-      .catch(() => "failed" as const);
+    sent.outcome = ask(access, pending.action.delivery);
     return change(state, "running");
   });
   if (!dispatched || !sent.outcome) {
     return false;
   }
-  return recordDelivery(access, id, await sent.outcome);
+  return (await record(access, dispatched, { id }, await sent.outcome)) === "recorded";
 };

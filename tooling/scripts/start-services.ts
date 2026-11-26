@@ -52,4 +52,4 @@ execFileSync("docker", ["compose", "--file", "compose.yaml", "up", "-d", "--wait
   cwd,
   stdio: "inherit",
 });
-console.log("PostgreSQL, Mailpit, and file storage are running.");
+console.log("PostgreSQL, Mailpit, file storage, and Temporal are running.");

@@ -14,7 +14,9 @@ const sendRequest = (provider: "Mailpit" | "Resend", url: string | URL, options:
         response = await fetch(url, {
           ...options,
           redirect: "error",
-          signal: AbortSignal.timeout(10000),
+          // Shorter than the 10 s attempt of the delivery activity, so a request has ended
+          // before Temporal retries the attempt and two never overlap.
+          signal: AbortSignal.timeout(9000),
         });
       } catch (error) {
         span.setStatus({ code: SpanStatusCode.ERROR, message: "EmailDeliveryNetworkError" });

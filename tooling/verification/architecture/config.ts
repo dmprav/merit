@@ -73,6 +73,7 @@ const pureBusiness = {
   ...category("pure", ["test"]),
 };
 const serverImplementation = category("server", ["pure"]);
+const workflowModule = category("workflow");
 const infrastructure = category("{server,browser}", ["pure"]);
 
 // Upstream and sibling capabilities stay independent of downstream capabilities.
@@ -158,9 +159,41 @@ const serverImports: DependenciesPolicy[] = [
     anyBusiness("assembly"),
   ),
   permitServer(
-    { file: { path: "app/src/server/assistant/host.server.ts" } },
+    {
+      file: {
+        path: [
+          "app/src/server/assistant/host.server.ts",
+          "app/src/server/background-work.server.ts",
+          "app/src/worker/activities.ts",
+        ],
+      },
+    },
     "@merit/reviews/server",
     business("reviews", "assembly"),
+  ),
+  permitServer(
+    {
+      file: {
+        path: ["app/src/server/background-work.server.ts", "app/src/worker/activities.ts"],
+      },
+    },
+    "@merit/organizations/server",
+    business("organizations", "assembly"),
+  ),
+  // The worker bundles each capability's workflow module from its own entry.
+  permitServer(
+    { file: { path: "app/src/worker/workflows.workflow.ts" } },
+    "@merit/reviews/server/workflow",
+    { file: { path: "capabilities/reviews/business/src/server/reviewer-message.workflow.ts" } },
+  ),
+  permitServer(
+    { file: { path: "app/src/worker/workflows.workflow.ts" } },
+    "@merit/organizations/server/workflow",
+    {
+      file: {
+        path: "capabilities/organizations/business/src/server/organization-invitation.workflow.ts",
+      },
+    },
   ),
   permitServer(
     { file: { path: "app/src/server/assistant/{host,access}.server.ts" } },
@@ -343,6 +376,19 @@ const policies = [
     [category("{test,tooling}"), { element: { type: "tooling" } }],
     "Production code cannot depend on tests or tooling.",
   ),
+  // Workflow code replays deterministically in a sandbox: no Node.js, database, or server entries.
+  forbid(
+    workflowModule,
+    { module: { origin: ["external", "core"] } },
+    "Workflow code is deterministic and sandboxed. It may import only @temporalio/workflow and pure code.",
+    { source: "!@temporalio/workflow" },
+  ),
+  forbid(
+    workflowModule,
+    { module: { origin: "local" }, file: { categories: { noneOf: ["pure", "workflow"] } } },
+    "Workflow code is deterministic and sandboxed. It may import only @temporalio/workflow and pure code.",
+    { kind: "value" },
+  ),
   forbid(
     { element: { type: "!tooling" }, file: { categories: { noneOf: ["tooling"] } } },
     { module: { origin: "local" }, element: { path: "!{{ from.element.path }}" } },
@@ -415,8 +461,12 @@ export default defineConfig({
             "foundation/db/src/**",
             "foundation/auth/src/**",
             "foundation/telemetry/src/**",
+            "foundation/workflows/src/**",
+            "app/src/worker/**",
             "**/*.server.ts",
           ],
+          // Workflow modules run in Temporal's deterministic sandbox, not in Node.js.
+          workflow: ["**/*.workflow.ts"],
           browser: [
             "app/src/shell/**",
             "app/src/router.tsx",

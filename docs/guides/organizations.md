@@ -62,7 +62,8 @@ Revoke and resend before acceptance to check obsolete links. Wait one minute bef
 sending to the same recipient again; the [sending limits](../workflows/manage-team.md#invite-and-join)
 also apply locally and after failed delivery. To test sender failure,
 stop Mailpit with `docker compose stop mailpit`, create an organization, and check
-that its details show the sending failure. Start Mailpit again with
+that its details show unconfirmed sending while the worker retries, then the sending
+failure after about fifteen minutes. Start Mailpit again with
 `docker compose up -d mailpit`, then send another invitation from those details.
 Creation and sending have independent outcomes, so recovery does not create a
 second organization.

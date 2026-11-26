@@ -16,10 +16,11 @@ import type { Database } from "@merit/db";
 import { migrate } from "@merit/db/migrate";
 import { getFundingApplicationPage, getFundingRoundPage } from "@merit/grantmaking/server";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
-import { createOrganizationService } from "@merit/organizations/server";
+import { createInlineOrganizationService } from "@merit/organizations/server/testing";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
-import { createReviewerService, saveApplicationReview } from "@merit/reviews/server";
+import { saveApplicationReview } from "@merit/reviews/server";
 import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
+import { createInlineReviewerService } from "@merit/reviews/testing";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit/rounds/server";
 import { createTestDatabase } from "@merit/test-support/test-database";
@@ -379,7 +380,7 @@ const revoke = async (connection: Database) => {
 
   assert.isDefined(member);
 
-  const service = createOrganizationService({
+  const service = createInlineOrganizationService({
     revokeReviewAccess: revokeMembershipReviews,
     database: async (operation) => operation(connection),
     isOperator: async () => false,
@@ -530,7 +531,7 @@ it("allows independent application creates and rejects a competing cross-round r
 });
 
 const reviewerService = (connection: Database) =>
-  createReviewerService({
+  createInlineReviewerService({
     database: async (operation) => operation(connection),
     send: async () => {},
     reviewerUrl: (_, id) => `https://merit.test/work/${id}`,

@@ -1,7 +1,7 @@
 import { assert, expect, vi } from "vite-plus/test";
 
 import { withDatabase } from "@merit/db";
-import { createOrganizationService } from "@merit/organizations/server";
+import { createInlineOrganizationService } from "@merit/organizations/server/testing";
 import { workspaceTest as it } from "@merit/organizations/testing/workspace";
 
 const service = (connection: string, networkAddress: string | undefined = "192.0.2.1") => {
@@ -9,7 +9,7 @@ const service = (connection: string, networkAddress: string | undefined = "192.0
 
   return {
     sendInvitation,
-    operations: createOrganizationService({
+    operations: createInlineOrganizationService({
       revokeReviewAccess: async () => {},
       database: (operation) => withDatabase(connection, operation),
       isOperator: async (actor) => actor.userId === "dana",
