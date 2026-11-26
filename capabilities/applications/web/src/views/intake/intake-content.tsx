@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode, type Ref } from "react";
+import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ApplicationView as Application } from "@merit/grantmaking/api";
@@ -75,10 +75,18 @@ const IntakePresentation = ({
   const intakeTitle = useRef<HTMLSpanElement>(null);
   const intakeTriggers = useRef<Partial<Record<IntakeSection, HTMLButtonElement | null>>>({});
 
-  // Return focus to the closed section's trigger once React has committed it. An editor that
-  // saved closes after an await, so a frame requested at close time can still find the editor.
+  // Return focus to the closed section's trigger once React has committed it. An editor that saved
+  // closes only after its save and refresh finish, when the section may already be closed, so the
+  // request is state (it always commits a render) and names the last section that was open.
   const restoreSection = useRef<IntakeSection | null>(null);
+  const lastSection = useRef<IntakeSection | null>(null);
+  const [, setRestoreRequests] = useState(0);
   const editingSection = intakeEditing?.section;
+  useEffect(() => {
+    if (editingSection) {
+      lastSection.current = editingSection;
+    }
+  }, [editingSection]);
   useEffect(() => {
     if (!restoreSection.current || editingSection) {
       return;
@@ -96,7 +104,8 @@ const IntakePresentation = ({
   });
 
   const closeIntake = () => {
-    restoreSection.current = intakeEditing?.section ?? null;
+    restoreSection.current = intakeEditing?.section ?? lastSection.current;
+    setRestoreRequests((count) => count + 1);
     intakeEditing?.close();
   };
 
