@@ -591,8 +591,8 @@ jobs:
   browser-workspace:
     needs: [changes, build, static-checks]
     if: needs.changes.outputs.full_run == 'true' || needs.changes.outputs.run_app == 'true'
-    # Runs on the runner, not the Playwright container, so Compose can start the Temporal dev
-    # server with its arguments; service containers cannot take a command.
+    # Compose on the runner starts the Temporal dev server with its arguments, which service
+    # containers cannot take; the tests still run inside the pinned Playwright image.
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
@@ -613,20 +613,26 @@ jobs:
         with:
           download-build: "true"
 
-      - name: Install Playwright browsers
-        working-directory: app
-        run: ./node_modules/.bin/playwright install --with-deps chromium firefox webkit
-
       - name: Start Compose services (PostgreSQL, Mailpit, Temporal)
         run: docker compose up -d --wait postgres mailpit temporal
 
-      - name: Run persisted workspace browser tests
+      - name: Run persisted workspace browser tests in the pinned Playwright image
         env:
-          TMPDIR: ${{ runner.temp }}
-          MERIT_CI_REPORT_DIR: /tmp/ci-reports
+          PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
         run: |
-          mkdir -p "$MERIT_CI_REPORT_DIR"
-          vp run --no-cache @merit/app#test:workspace:all --shard=${{ matrix.shard }}
+          mkdir -p /tmp/ci-reports "$RUNNER_TEMP/home"
+          # The image supplies browsers and their system libraries; the pinned Node.js and the
+          # installed workspace come from the runner, and Compose services stay on loopback.
+          node_bin="$(dirname "$(node -p process.execPath)")"
+          node_root="$(dirname "$node_bin")"
+          docker run --rm --network host --ipc host --user "$(id -u):$(id -g)" \
+            -e CI -e HOME="$RUNNER_TEMP/home" -e TMPDIR="$RUNNER_TEMP" \
+            -e MERIT_CI_REPORT_DIR=/tmp/ci-reports \
+            -e PATH="$GITHUB_WORKSPACE/node_modules/.bin:$node_bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+            -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" -v "$RUNNER_TEMP:$RUNNER_TEMP" \
+            -v /tmp/ci-reports:/tmp/ci-reports -v "$node_root:$node_root:ro" \
+            -w "$GITHUB_WORKSPACE" "$PLAYWRIGHT_IMAGE" \
+            vp run --no-cache @merit/app#test:workspace:all --shard=${{ matrix.shard }}
 
       - name: Publish test summary
         if: always()
