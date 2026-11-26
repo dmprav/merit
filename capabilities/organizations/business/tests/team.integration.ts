@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 
-import { assert, beforeAll, afterAll, beforeEach, describe, expect, it } from "vite-plus/test";
+import { assert, beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { withDatabase } from "@merit/db";
 import { migrate } from "@merit/db/migrate";
 import type { InvitationMessage } from "@merit/organizations/api";
+import { createOrganizationService } from "@merit/organizations/server";
 import { createInlineOrganizationService } from "@merit/organizations/server/testing";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
@@ -527,6 +528,45 @@ describe("organization team", () => {
       administration: "administrator",
       role: "member",
     });
+  });
+
+  it("keeps a committed invitation and answers when the outcome cannot be read", async () => {
+    let readsFail = false;
+    const reported = vi.fn();
+    const flaky = createOrganizationService({
+      revokeReviewAccess: async () => {},
+      database: (operation) =>
+        readsFail
+          ? Promise.reject(new Error("database down"))
+          : withDatabase(runtimeUrl, operation),
+      isOperator: async () => false,
+      verifiedEmails: async (actor) => [`${actor.userId}@example.test`],
+      // The workflow starts after the commit; from here on the request's own reads fail.
+      start: async () => {
+        readsFail = true;
+        return true;
+      },
+      wait: { timeoutMs: 50, intervalMs: 1 },
+      onOutcomeError: reported,
+    });
+    const requestId = randomUUID();
+
+    expect(
+      await flaky.inviteMember(
+        { userId: "owner" },
+        {
+          ...input,
+          requestId,
+          email: "late@example.test",
+          administration: "none",
+          role: "program_manager",
+        },
+      ),
+    ).toEqual({ status: "ok", value: { invitationId: requestId } });
+
+    expect(reported).toHaveBeenCalledOnce();
+    readsFail = false;
+    expect((await team()).invitations.map((item) => item.email)).toContain("late@example.test");
   });
 
   it("recovers failed email delivery and replaces one invitation without revoking others", async () => {

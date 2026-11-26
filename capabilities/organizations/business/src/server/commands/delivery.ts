@@ -42,6 +42,8 @@ export type InvitationActivityDependencies = DatabaseAccess & {
 export type InvitationDeliveryDependencies = DatabaseAccess & {
   start: (work: InvitationWork) => Promise<boolean>;
   wait?: OutcomeWait;
+  /** Told when reading the outcome fails; the request still answers `pending`. */
+  onOutcomeError?: () => void;
 };
 
 // The token's hash alone opens its invitation and the organization's name, with no member
@@ -91,13 +93,16 @@ export const deliverInvitation = async (
   if (!started) {
     return "pending";
   }
+  // The invitation is committed and the workflow delivers it: a failing read must not fail the request.
   const outcome = await waitForOutcome(async () => {
     const row = await readCurrent(dependencies.database, work);
     if (!row || !awaitingEmail(row)) {
       return "unavailable" as const;
     }
     return row.invitation.delivery === "pending" ? undefined : row.invitation.delivery;
-  }, dependencies.wait);
+  }, dependencies.wait).catch(() => {
+    dependencies.onOutcomeError?.();
+  });
   return outcome ?? "pending";
 };
 

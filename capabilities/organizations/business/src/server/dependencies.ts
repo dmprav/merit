@@ -32,5 +32,10 @@ export type Dependencies = {
   start: (work: InvitationWork) => Promise<boolean>;
   /** How long a request waits for the first delivery outcome. Tests inject short durations. */
   wait?: OutcomeWait;
+  /**
+   * Called when reading the outcome fails after the invitation committed. The request still
+   * answers `pending`: the workflow keeps delivering, and the administrator sees the stored status.
+   */
+  onOutcomeError?: () => void;
   networkAddress?: string;
 };

@@ -29,6 +29,7 @@ import {
 } from "@merit/reviews/server/integrations";
 import { createRoundsService } from "@merit/rounds/server";
 import { instrumentService } from "@merit/telemetry";
+import { reportError } from "@merit/telemetry/errors";
 import type { OutcomeWait } from "@merit/workflows/outcome";
 
 import type { EmailSender } from "./email-delivery.server";
@@ -84,6 +85,13 @@ export const organizationInvitationDelivery = ({
   invitationUrl: (token: string) => new URL(productLinks.invitation(token), invitationOrigin).href,
   sendInvitation: (message: InvitationMessage) => sendInvitationEmail(message, sendEmail),
 });
+
+/** Telemetry sees the operation only: the cause of a failed read can carry record details. */
+const reportInvitationOutcomeError = () =>
+  reportError(new Error("A delivery outcome could not be read."), {
+    surface: "server",
+    operation: "organization-invitation.outcome",
+  });
 
 export const createApplicationServices = ({
   database,
@@ -148,6 +156,7 @@ export const createApplicationServices = ({
       networkAddress,
       start: startOrganizationInvitation,
       wait: deliveryWait,
+      onOutcomeError: reportInvitationOutcomeError,
     }),
   );
 
