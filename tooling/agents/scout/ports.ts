@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { createGitHubIssueCliClient, type GitHubIssueCliClient } from "../github.ts";
+import { createGitHubIssueClient, type GitHubIssueClient } from "../github.ts";
 import { createFallowPort, type FallowPort } from "./fallow-reports.ts";
 import { createGitPort, type GitPort } from "./git.ts";
 
-export type IssuePort = Pick<GitHubIssueCliClient, "viewIssue" | "listIssues" | "editIssueBody">;
+export type IssuePort = Pick<GitHubIssueClient, "viewIssue" | "listIssues" | "editIssueBody">;
 
 /** Everything a scout run reads from or writes to outside its own process. */
 export type ScoutPorts = {
@@ -21,7 +21,7 @@ export type ScoutPorts = {
 
 export const createScoutPorts = (repoRoot: string): ScoutPorts => ({
   git: createGitPort(repoRoot),
-  issues: createGitHubIssueCliClient({ repoRoot }),
+  issues: createGitHubIssueClient({ repoRoot }),
   fallow: createFallowPort(repoRoot),
   readFile: (repoPath) => readFileSync(resolve(repoRoot, repoPath), "utf8"),
   now: () => new Date(),

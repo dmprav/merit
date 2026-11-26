@@ -1,11 +1,16 @@
-import { describe, expect, test } from "vite-plus/test";
+import { execFileSync } from "node:child_process";
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { AGENT_LABELS } from "../verification/agent-policy.ts";
 import {
   createGhExec,
-  createGitHubIssueCliClient,
+  createGitHubIssueClient,
   createGitHubRestClient,
-  ISSUE_LIST_LIMIT,
   parseGitHubRemote,
   resolveRepoIdentity,
   resolveScoutGhEnv,
@@ -25,6 +30,59 @@ const fakeGh = (respond: (args: readonly string[]) => unknown = () => undefined)
   };
 
   return { calls, exec };
+};
+
+const tempDirs: string[] = [];
+
+const createTempDir = (prefix: string): string => {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+};
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  for (const dir of tempDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/**
+ * Puts a real `gh` executable on a PATH that records each call's argv and `GH_TOKEN` and prints
+ * `response` as JSON, so a client can be tested with its default process runner.
+ */
+const createFakeGhFixture = (response: unknown) => {
+  const dir = createTempDir("merit-github-");
+  const payloadPath = join(dir, "response.json");
+  const capturePath = join(dir, "captures.jsonl");
+  writeFileSync(payloadPath, JSON.stringify(response), "utf8");
+  writeFileSync(capturePath, "", "utf8");
+  writeFileSync(
+    join(dir, "gh"),
+    [
+      "#!/usr/bin/env node",
+      'const { appendFileSync, readFileSync } = require("node:fs");',
+      `appendFileSync(${JSON.stringify(capturePath)}, JSON.stringify({ argv: process.argv.slice(2), token: process.env.GH_TOKEN ?? null }) + "\\n");`,
+      `process.stdout.write(readFileSync(${JSON.stringify(payloadPath)}, "utf8"));`,
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  chmodSync(join(dir, "gh"), 0o755);
+
+  return {
+    dir,
+    env: (extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
+      ...process.env,
+      ...extra,
+      PATH: `${dir}:${process.env.PATH ?? ""}`,
+    }),
+    readCaptures: (): Array<{ argv: string[]; token: string | null }> =>
+      readFileSync(capturePath, "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as { argv: string[]; token: string | null }),
+  };
 };
 
 const endpointOf = (args: readonly string[]) => args.find((arg) => arg.startsWith("repos/")) ?? "";
@@ -131,7 +189,7 @@ describe("GitHub REST client", () => {
       true,
     ]);
     expect(endpointOf(calls.at(-1) ?? [])).toBe(
-      "repos/dmprav/merit/issues?state=open&labels=agent:pr&per_page=100",
+      "repos/dmprav/merit/issues?state=open&per_page=100&labels=agent%3Apr",
     );
     expect(client.getIssue(120)).toMatchObject({
       body: "",
@@ -205,6 +263,13 @@ describe("GitHub REST client", () => {
 });
 
 describe("repository identity", () => {
+  const createRepoWithOrigin = (origin: string) => {
+    const repoDir = createTempDir("merit-repo-identity-");
+    execFileSync("git", ["init", "-q"], { cwd: repoDir });
+    execFileSync("git", ["remote", "add", "origin", origin], { cwd: repoDir });
+    return repoDir;
+  };
+
   test("parses GitHub owner/repo from SSH, HTTPS, and cloud proxy remote URLs", () => {
     expect(parseGitHubRemote("git@github.com:dmprav/merit.git")).toEqual(repo);
     expect(parseGitHubRemote("https://github.com/dmprav/merit.git")).toEqual(repo);
@@ -212,10 +277,43 @@ describe("repository identity", () => {
     expect(parseGitHubRemote("https://example.com/not-a-repo")).toBeNull();
   });
 
-  test("prefers GITHUB_REPOSITORY over the origin remote", () => {
-    expect(resolveRepoIdentity("/nonexistent", { GITHUB_REPOSITORY: "dmprav/merit" })).toEqual(
-      repo,
-    );
+  test("resolves the repository with GH_REPO, then GITHUB_REPOSITORY, then the origin remote", () => {
+    const repoDir = createRepoWithOrigin("https://github.com/fork-owner/merit.git");
+
+    expect(
+      resolveRepoIdentity(repoDir, {
+        GH_REPO: "github.com/dmprav/merit",
+        GITHUB_REPOSITORY: "o/r",
+      }),
+    ).toEqual(repo);
+    expect(
+      resolveRepoIdentity(repoDir, { GH_REPO: "   ", GITHUB_REPOSITORY: "ci-owner/merit" }),
+    ).toEqual({ owner: "ci-owner", name: "merit" });
+    expect(resolveRepoIdentity(repoDir, {})).toEqual({ owner: "fork-owner", name: "merit" });
+  });
+
+  test("reads GH_REPO as OWNER/REPO, HOST/OWNER/REPO, or a GitHub URL and rejects anything else", () => {
+    for (const spec of [
+      "dmprav/merit",
+      "github.com/dmprav/merit.git",
+      "https://github.com/dmprav/merit.git",
+    ]) {
+      expect(resolveRepoIdentity("/nonexistent", { GH_REPO: spec })).toEqual(repo);
+    }
+    for (const spec of ["https://only-one", "not a repo", "a/b/c/d", "invalid-spec"]) {
+      expect(() => resolveRepoIdentity("/nonexistent", { GH_REPO: spec })).toThrow(
+        /Invalid GH_REPO/,
+      );
+    }
+  });
+
+  test("reads the repository on the first request, so building a client touches neither git nor gh", () => {
+    const { calls, exec } = fakeGh(() => [[]]);
+    const client = createGitHubIssueClient({ repoRoot: "/nonexistent", env: {}, exec });
+
+    expect(calls).toEqual([]);
+    expect(() => client.listIssues({ state: "open" })).toThrow();
+    expect(calls).toEqual([]);
   });
 });
 
@@ -238,14 +336,16 @@ describe("gh credentials", () => {
     expect(withScoutToken.GH_TOKEN).toBe("injected-integration-token");
   });
 
-  test("runs gh in the repository with scout credentials for scout and ambient ones for the queue", () => {
+  test("runs gh in the repository with a large output buffer and scout or ambient credentials", () => {
     const runs: Array<{ file: string; args: readonly string[]; cwd: string; token?: string }> = [];
+    const buffers: number[] = [];
 
     const execFile = (
       file: string,
       args: readonly string[],
-      options: { cwd: string; env?: NodeJS.ProcessEnv },
+      options: { cwd: string; maxBuffer: number; env?: NodeJS.ProcessEnv },
     ) => {
+      buffers.push(options.maxBuffer);
       runs.push({
         file,
         args,
@@ -257,114 +357,150 @@ describe("gh credentials", () => {
 
     const env = { GH_TOKEN: "injected", [SCOUT_GH_TOKEN_ENV]: "scout" };
 
-    expect(createGhExec({ repoRoot: "/repo", auth: "scout", env, execFile })(["issue"])).toBe("ok");
+    expect(createGhExec({ repoRoot: "/repo", auth: "scout", env, execFile })(["api"])).toBe("ok");
     createGhExec({ repoRoot: "/repo", auth: "ambient", env, execFile })(["api"]);
 
     expect(runs).toEqual([
-      { file: "gh", args: ["issue"], cwd: "/repo", token: "scout" },
+      { file: "gh", args: ["api"], cwd: "/repo", token: "scout" },
       { file: "gh", args: ["api"], cwd: "/repo" },
+    ]);
+    expect(buffers.every((bytes) => bytes > 1024 * 1024)).toBe(true);
+  });
+
+  test("files issues with MERIT_SCOUT_GH_TOKEN when it is set, else with the runner's own token", () => {
+    const fixture = createFakeGhFixture({
+      html_url: "https://github.com/dmprav/merit/issues/9",
+      labels: [],
+    });
+    const runnerEnv = fixture.env({ GH_REPO: "dmprav/merit", GH_TOKEN: "runner-token" });
+
+    createGitHubIssueClient({
+      repoRoot: fixture.dir,
+      env: { ...runnerEnv, [SCOUT_GH_TOKEN_ENV]: "scout-token" },
+    }).createIssue({ title: "t", body: "b", labels: [] });
+    createGitHubIssueClient({ repoRoot: fixture.dir, env: runnerEnv }).createIssue({
+      title: "t",
+      body: "b",
+      labels: [],
+    });
+
+    expect(fixture.readCaptures().map((capture) => capture.token)).toEqual([
+      "scout-token",
+      "runner-token",
     ]);
   });
 
-  const recordGhEnvs = (response: string) => {
-    const envs: Array<NodeJS.ProcessEnv | undefined> = [];
+  test("sends queue requests with the runner's own credentials even when a scout token is set", () => {
+    const fixture = createFakeGhFixture("");
+    vi.stubEnv("PATH", fixture.env().PATH);
+    vi.stubEnv("GH_TOKEN", "runner-token");
+    vi.stubEnv(SCOUT_GH_TOKEN_ENV, "scout-token");
 
-    const execFile = (
-      _file: string,
-      _args: readonly string[],
-      options: { env?: NodeJS.ProcessEnv },
-    ) => {
-      envs.push(options.env);
-      return response;
-    };
+    createGitHubRestClient({ repoRoot: fixture.dir, repo }).rerunFailedJobs(9);
 
-    return { envs, execFile };
-  };
-
-  const clientEnv = { GH_TOKEN: "injected", [SCOUT_GH_TOKEN_ENV]: "scout-token" };
-
-  test("files issues with the scout token by default", () => {
-    const { envs, execFile } = recordGhEnvs("https://github.com/dmprav/merit/issues/9\n");
-    const client = createGitHubIssueCliClient({ repoRoot: "/repo", env: clientEnv, execFile });
-
-    client.createIssue({ title: "t", body: "b", labels: [] });
-
-    expect(envs).toHaveLength(1);
-    expect(envs[0]?.GH_TOKEN).toBe("scout-token");
-  });
-
-  test("sends REST requests with the ambient credentials by default", () => {
-    const { envs, execFile } = recordGhEnvs("");
-    const client = createGitHubRestClient({ repoRoot: "/repo", repo, env: clientEnv, execFile });
-
-    client.rerunFailedJobs(9);
-
-    expect(envs).toEqual([undefined]);
+    expect(fixture.readCaptures()).toEqual([
+      {
+        argv: ["api", "repos/dmprav/merit/actions/runs/9/rerun-failed-jobs", "-X", "POST"],
+        token: "runner-token",
+      },
+    ]);
   });
 });
 
-describe("GitHub issue CLI client", () => {
-  test("lists issues with a named limit and normalizes missing bodies, labels, and comments", () => {
-    const { calls, exec } = fakeGh(() => [
-      {
-        number: 7,
-        title: "Rejected idea",
-        state: "CLOSED",
-        labels: [{ name: AGENT_LABELS.wontfix }],
-        comments: [{ authorAssociation: "OWNER", body: "Not now." }],
-      },
-    ]);
-    const client = createGitHubIssueCliClient({ repoRoot: "/repo", exec });
+/** Answers issue requests like GitHub REST: list pages, comment pages, one issue, or a created issue. */
+const respondToIssueRequests = (args: readonly string[]): unknown => {
+  const endpoint = endpointOf(args);
+  if (endpoint.includes("/comments?")) {
+    return [[{ body: "Not now.", author_association: "OWNER" }]];
+  }
+  if (endpoint.includes("/issues?")) {
+    return [
+      [
+        restIssue(7, { state: "closed", labels: [{ name: AGENT_LABELS.wontfix }], comments: 1 }),
+        restIssue(8, { state: "closed", labels: [], comments: 0 }),
+      ],
+      [restIssue(9, { pull_request: {} })],
+    ];
+  }
+  if (args.includes("POST")) {
+    return {
+      html_url: "https://github.com/dmprav/merit/issues/400",
+      labels: [{ name: "Agent:Ready" }, { name: "type:maintenance" }],
+    };
+  }
+  return restIssue(219, { title: "chore: agent scout state", body: "state" });
+};
+
+describe("GitHub issue client", () => {
+  test("sends every scout and proposal operation as a gh api REST request, never GraphQL", () => {
+    const { calls, exec } = fakeGh(respondToIssueRequests);
+    const client = createGitHubIssueClient({ repoRoot: "/repo", repo, exec });
+
+    client.listIssues({ state: "closed", label: AGENT_LABELS.wontfix, withComments: true });
+    client.viewIssue(219);
+    client.editIssueBody(219, "state");
+    client.createIssue({ title: "T", body: "B", labels: [AGENT_LABELS.ready] });
+
+    expect(calls).toHaveLength(5);
+    for (const args of calls) {
+      expect(args[0]).toBe("api");
+      expect(endpointOf(args)).toMatch(/^repos\/dmprav\/merit\//);
+      expect(args).not.toContain("graphql");
+    }
+  });
+
+  test("pages through every issue, drops pull requests, and fetches comments only where they exist", () => {
+    const { calls, exec } = fakeGh(respondToIssueRequests);
+    const client = createGitHubIssueClient({ repoRoot: "/repo", repo, exec });
 
     expect(
       client.listIssues({ state: "closed", label: AGENT_LABELS.wontfix, withComments: true }),
     ).toEqual([
       {
         number: 7,
-        title: "Rejected idea",
+        title: "Issue 7",
         state: "CLOSED",
         body: "",
         labels: ["wontfix"],
-        comments: [{ authorAssociation: "OWNER", body: "Not now." }],
+        comments: [{ body: "Not now.", authorAssociation: "OWNER" }],
       },
+      { number: 8, title: "Issue 8", state: "CLOSED", body: "", labels: [], comments: [] },
     ]);
-    client.listIssues({ state: "open" });
+    expect(client.listIssues({ state: "open" }).map((issue) => issue.comments)).toEqual([[], []]);
 
     expect(calls).toEqual([
       [
-        "issue",
-        "list",
-        "--state",
-        "closed",
-        "--label",
-        "wontfix",
-        "--limit",
-        String(ISSUE_LIST_LIMIT),
-        "--json",
-        "number,title,state,labels,body,comments",
+        "api",
+        "--paginate",
+        "--slurp",
+        "repos/dmprav/merit/issues?state=closed&per_page=100&labels=wontfix",
       ],
-      [
-        "issue",
-        "list",
-        "--state",
-        "open",
-        "--limit",
-        String(ISSUE_LIST_LIMIT),
-        "--json",
-        "number,title,state,labels,body",
-      ],
+      ["api", "--paginate", "--slurp", "repos/dmprav/merit/issues/7/comments?per_page=100"],
+      ["api", "--paginate", "--slurp", "repos/dmprav/merit/issues?state=open&per_page=100"],
     ]);
   });
 
-  test("files an issue with every label and returns its trimmed URL", () => {
-    const calls: string[][] = [];
-    const client = createGitHubIssueCliClient({
-      repoRoot: "/repo",
-      exec: (args) => {
-        calls.push([...args]);
-        return "https://github.com/dmprav/merit/issues/9\n";
-      },
+  test("reads and rewrites the scout state issue with GET and PATCH", () => {
+    const { calls, exec } = fakeGh(respondToIssueRequests);
+    const client = createGitHubIssueClient({ repoRoot: "/repo", repo, exec });
+
+    expect(client.viewIssue(219)).toEqual({
+      number: 219,
+      state: "OPEN",
+      title: "chore: agent scout state",
+      body: "state",
     });
+    client.editIssueBody(219, "next = state");
+
+    expect(calls).toEqual([
+      ["api", "repos/dmprav/merit/issues/219"],
+      ["api", "repos/dmprav/merit/issues/219", "-X", "PATCH", "-f", "body=next = state"],
+    ]);
+  });
+
+  test("files an issue with every label as a POST form field and returns its URL", () => {
+    const { calls, exec } = fakeGh(respondToIssueRequests);
+    const client = createGitHubIssueClient({ repoRoot: "/repo", repo, exec });
 
     expect(
       client.createIssue({
@@ -372,23 +508,82 @@ describe("GitHub issue CLI client", () => {
         body: "B",
         labels: [AGENT_LABELS.ready, AGENT_LABELS.maintenance],
       }),
-    ).toBe("https://github.com/dmprav/merit/issues/9");
-    client.editIssueBody(219, "state");
+    ).toBe("https://github.com/dmprav/merit/issues/400");
 
     expect(calls).toEqual([
       [
-        "issue",
-        "create",
-        "--title",
-        "T",
-        "--body",
-        "B",
-        "--label",
-        "agent:ready",
-        "--label",
-        "type:maintenance",
+        "api",
+        "repos/dmprav/merit/issues",
+        "-X",
+        "POST",
+        "-f",
+        "title=T",
+        "-f",
+        "body=B",
+        "-f",
+        "labels[]=agent:ready",
+        "-f",
+        "labels[]=type:maintenance",
       ],
-      ["issue", "edit", "219", "--body", "state"],
     ]);
+  });
+
+  test("fails with the created issue's URL when GitHub silently drops a requested label", () => {
+    const { exec } = fakeGh(() => ({
+      html_url: "https://github.com/dmprav/merit/issues/401",
+      labels: [{ name: "type:maintenance" }],
+    }));
+    const client = createGitHubIssueClient({ repoRoot: "/repo", repo, exec });
+
+    expect(() =>
+      client.createIssue({
+        title: "T",
+        body: "B",
+        labels: [AGENT_LABELS.proposed, AGENT_LABELS.design, AGENT_LABELS.maintenance],
+      }),
+    ).toThrow(
+      "Issue created at https://github.com/dmprav/merit/issues/401, but GitHub did not apply requested label(s): agent:proposed, agent:design.",
+    );
+  });
+
+  test("reads issue pages larger than Node's 1 MiB default output buffer", () => {
+    const largeBody = "x".repeat(400_000);
+    const fixture = createFakeGhFixture([
+      [1, 2, 3, 4].map((number) => restIssue(number, { state: "closed", body: largeBody })),
+    ]);
+    const client = createGitHubIssueClient({ repoRoot: fixture.dir, repo, env: fixture.env() });
+
+    const issues = client.listIssues({ state: "closed" });
+
+    expect(issues).toHaveLength(4);
+    expect(issues[0]?.body).toHaveLength(400_000);
+  });
+});
+
+describe("GitHub transport guard", () => {
+  const agentsDirectory = fileURLToPath(new URL(".", import.meta.url));
+  const githubCallers = [
+    "github.ts",
+    "proposal.ts",
+    "queue.ts",
+    "scout.ts",
+    ...readdirSync(join(agentsDirectory, "scout"))
+      .filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
+      .map((file) => `scout/${file}`),
+  ];
+
+  const sourceOf = (file: string) => readFileSync(join(agentsDirectory, file), "utf8");
+
+  test("keeps gh behind github.ts and forbids GraphQL or gh issue, pr, and repo commands", () => {
+    expect(githubCallers).toContain("scout/commands.ts");
+    for (const file of githubCallers) {
+      const source = sourceOf(file);
+      expect(source, file).not.toMatch(/\(\s*"gh",\s*\[\s*"(?:pr|issue|repo)"/);
+      expect(source, file).not.toMatch(/["'`]graphql["'`/]/);
+      if (file !== "github.ts") {
+        expect(source, file).not.toMatch(/["']gh["']/);
+      }
+    }
+    expect(sourceOf("github.ts")).not.toMatch(/\bexec\(\[\s*(?!"api")/);
   });
 });

@@ -13,7 +13,7 @@ import {
   classifyChangedPaths,
   type MechanismClassification,
 } from "../verification/architecture/mechanisms.ts";
-import { createGitHubIssueCliClient, type GitHubIssueCliClient } from "./github.ts";
+import { createGitHubIssueClient, type GitHubIssueClient } from "./github.ts";
 
 export const SCOUT_LENSES = [
   "docs",
@@ -394,11 +394,11 @@ export const renderProposalMarkdown = (
   ].join("\n");
 };
 
-const countOpenProposedIssues = (client: Pick<GitHubIssueCliClient, "listIssues">): number =>
+const countOpenProposedIssues = (client: Pick<GitHubIssueClient, "listIssues">): number =>
   client.listIssues({ state: "open", label: AGENT_LABELS.proposed }).length;
 
 const listExistingIssues = (
-  client: Pick<GitHubIssueCliClient, "listIssues">,
+  client: Pick<GitHubIssueClient, "listIssues">,
 ): ExistingIssueSummary[] => {
   const byNumber = new Map<number, ExistingIssueSummary>();
   for (const issue of [
@@ -470,7 +470,7 @@ export type ProposalOutcome =
  * proposal would exceed the open-proposal cap, or an existing issue already covers it.
  */
 export const fileProposal = (
-  client: Pick<GitHubIssueCliClient, "listIssues" | "createIssue">,
+  client: Pick<GitHubIssueClient, "listIssues" | "createIssue">,
   proposal: ProposalInput,
   { dryRun, tier2Only }: { dryRun: boolean; tier2Only: boolean },
 ): ProposalOutcome => {
@@ -513,7 +513,7 @@ const runCli = () => {
   const rawInput = filePath ? readFileSync(filePath, "utf8") : readFileSync(0, "utf8");
   const proposal = proposalInputSchema.parse(JSON.parse(rawInput));
 
-  const client = createGitHubIssueCliClient({ repoRoot: REPO_ROOT });
+  const client = createGitHubIssueClient({ repoRoot: REPO_ROOT });
   const outcome = fileProposal(client, proposal, { dryRun, tier2Only });
   console.log(
     outcome.status === "dry_run" ? JSON.stringify(outcome, null, 2) : JSON.stringify(outcome),

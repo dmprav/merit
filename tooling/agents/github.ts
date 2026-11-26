@@ -16,14 +16,17 @@ export type GhAuth = "ambient" | "scout";
 type ExecFile = (
   file: string,
   args: readonly string[],
-  options: { cwd: string; encoding: "utf8"; env?: NodeJS.ProcessEnv },
+  options: { cwd: string; encoding: "utf8"; maxBuffer: number; env?: NodeJS.ProcessEnv },
 ) => string;
 
 /** How a client's default `gh` runner reads the environment and spawns `gh`; tests replace both. */
 type GhProcess = { env?: NodeJS.ProcessEnv; execFile?: ExecFile };
 
-/** Issue list queries return at most this many issues; `gh issue list` does not page beyond it. */
-export const ISSUE_LIST_LIMIT = 200;
+/** Paginated REST requests ask for GitHub's largest page; `gh api --paginate` follows every page. */
+const REST_PAGE_SIZE = 100;
+
+/** Paginated responses with long issue bodies exceed Node's 1 MiB default output buffer. */
+const GH_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
 
 export const SCOUT_GH_TOKEN_ENV = "MERIT_SCOUT_GH_TOKEN";
 
@@ -51,11 +54,11 @@ export const createGhExec = ({
   env?: NodeJS.ProcessEnv;
   execFile?: ExecFile;
 }): GhExec => {
+  const options = { cwd: repoRoot, encoding: "utf8", maxBuffer: GH_MAX_BUFFER_BYTES } as const;
   if (auth === "ambient") {
-    return (args) => execFile("gh", args, { cwd: repoRoot, encoding: "utf8" });
+    return (args) => execFile("gh", args, options);
   }
-  return (args) =>
-    execFile("gh", args, { cwd: repoRoot, encoding: "utf8", env: resolveScoutGhEnv(env) });
+  return (args) => execFile("gh", args, { ...options, env: resolveScoutGhEnv(env) });
 };
 
 export type RepoIdentity = {
@@ -81,18 +84,22 @@ export const parseGitHubRemote = (remoteUrl: string): RepoIdentity | null => {
   return null;
 };
 
-/** Reads the repository from `GITHUB_REPOSITORY` in Actions, otherwise from the `origin` remote. */
-export const resolveRepoIdentity = (
-  repoRoot: string,
-  env: NodeJS.ProcessEnv = process.env,
-): RepoIdentity => {
-  const envRepo = env.GITHUB_REPOSITORY;
-  if (envRepo && /^[^/]+\/[^/]+$/.test(envRepo)) {
-    const [owner, name] = envRepo.split("/");
-    if (owner && name) {
-      return { owner, name };
-    }
+/** Parses `[HOST/]OWNER/REPO` (the documented `GH_REPO` format) or a GitHub remote URL. */
+const parseGitHubRepoSpec = (spec: string): RepoIdentity | null => {
+  const trimmed = spec.trim().replace(/\.git$/, "");
+  const fromRemote = parseGitHubRemote(trimmed);
+  if (fromRemote) {
+    return fromRemote;
   }
+  const segments = trimmed.split("/");
+  const isRepoPath =
+    (segments.length === 2 || segments.length === 3) &&
+    segments.every((segment) => segment.length > 0 && !/[\s:]/.test(segment));
+  const [owner, name] = segments.slice(-2);
+  return isRepoPath && owner && name ? { owner, name } : null;
+};
+
+const repoFromOrigin = (repoRoot: string): RepoIdentity => {
   const remoteUrl = execFileSync("git", ["remote", "get-url", "origin"], {
     cwd: repoRoot,
     encoding: "utf8",
@@ -102,6 +109,29 @@ export const resolveRepoIdentity = (
     throw new Error(`Could not determine GitHub owner/repo from origin remote "${remoteUrl}".`);
   }
   return parsed;
+};
+
+/**
+ * Reads the repository the way `gh` does: `GH_REPO` first, then `GITHUB_REPOSITORY` in Actions,
+ * otherwise the `origin` remote.
+ */
+export const resolveRepoIdentity = (
+  repoRoot: string,
+  env: NodeJS.ProcessEnv = process.env,
+): RepoIdentity => {
+  const ghRepo = env.GH_REPO?.trim();
+  if (ghRepo) {
+    const parsed = parseGitHubRepoSpec(ghRepo);
+    if (!parsed) {
+      throw new Error(`Invalid GH_REPO "${ghRepo}"; expected [HOST/]OWNER/REPO.`);
+    }
+    return parsed;
+  }
+  const [owner, name] =
+    env.GITHUB_REPOSITORY?.trim()
+      .match(/^([^/\s]+)\/([^/\s]+)$/)
+      ?.slice(1) ?? [];
+  return owner && name ? { owner, name } : repoFromOrigin(repoRoot);
 };
 
 export type RestCheckRun = {
@@ -271,18 +301,23 @@ const toRestPull = (pr: z.output<typeof restPullSchema>): RestPull => ({
 
 /** The repository and the `gh api` requests every REST operation builds on. */
 type RestContext = {
-  repo: RepoIdentity;
-  /** The `repos/<owner>/<name>` path prefix of every endpoint. */
-  base: string;
+  /** The repository, resolved on first use so a client can be built before it is needed. */
+  repo: () => RepoIdentity;
+  /** Prefixes `path` with the repository's `repos/<owner>/<name>` endpoint. */
+  endpoint: (path: string) => string;
   /** Runs one request and returns its parsed JSON, or null for an empty response. */
   api: (args: readonly string[]) => unknown;
   /** Fetches every page of `endpoint`, validating each page against `pageSchema`. */
   paginate: <T extends z.ZodType>(endpoint: string, pageSchema: T) => z.output<T>[];
-  /** Posts `fields` as `-f` form fields to `endpoint`. */
-  post: (endpoint: string, fields?: readonly string[]) => unknown;
+  /** Sends `fields` as `-f` form fields to `endpoint` with the given method. */
+  send: (method: "POST" | "PATCH", endpoint: string, fields?: readonly string[]) => unknown;
 };
 
-const createRestContext = (repo: RepoIdentity, exec: GhExec): RestContext => {
+const createRestContext = (resolveRepo: () => RepoIdentity, exec: GhExec): RestContext => {
+  let resolved: RepoIdentity | undefined;
+
+  const repo = () => (resolved ??= resolveRepo());
+
   const api = (args: readonly string[]): unknown => {
     const raw = exec(["api", ...args]);
     return raw.trim() ? JSON.parse(raw) : null;
@@ -290,63 +325,90 @@ const createRestContext = (repo: RepoIdentity, exec: GhExec): RestContext => {
 
   return {
     repo,
-    base: `repos/${repo.owner}/${repo.name}`,
+    endpoint: (path) => `repos/${repo().owner}/${repo().name}/${path}`,
     api,
     paginate: (endpoint, pageSchema) =>
       z.array(pageSchema).parse(api(["--paginate", "--slurp", endpoint])),
-    post: (endpoint, fields = []) =>
-      api([endpoint, "-X", "POST", ...fields.flatMap((field) => ["-f", field])]),
+    send: (method, endpoint, fields = []) =>
+      api([endpoint, "-X", method, ...fields.flatMap((field) => ["-f", field])]),
   };
 };
 
-const restIssueOperations = ({ base, api, paginate, post }: RestContext) => ({
-  getIssue: (number: number): RestIssue =>
-    toRestIssue(restIssueSchema.parse(api([`${base}/issues/${number}`]))),
+type IssueState = "open" | "closed";
+
+/** Lists issues and pull requests in `state`, optionally only those carrying `label`. */
+const listRestIssues = (
+  { endpoint, paginate }: RestContext,
+  { state, label }: { state: IssueState; label?: AgentLabel },
+): RestIssue[] => {
+  const query = new URLSearchParams({ state, per_page: String(REST_PAGE_SIZE) });
+  if (label) {
+    query.set("labels", label);
+  }
+  return paginate(endpoint(`issues?${query.toString()}`), z.array(restIssueSchema)).flatMap(
+    (page) => page.map(toRestIssue),
+  );
+};
+
+const getRestIssue = ({ endpoint, api }: RestContext, number: number): RestIssue =>
+  toRestIssue(restIssueSchema.parse(api([endpoint(`issues/${number}`)])));
+
+const listRestIssueComments = (
+  { endpoint, paginate }: RestContext,
+  number: number,
+): IssueCommentRecord[] =>
+  paginate(
+    endpoint(`issues/${number}/comments?per_page=${REST_PAGE_SIZE}`),
+    z.array(restCommentSchema),
+  )
+    .flat()
+    .map((comment) => ({
+      body: comment.body ?? "",
+      authorAssociation: comment.author_association,
+    }));
+
+const restIssueOperations = (context: RestContext) => ({
+  getIssue: (number: number): RestIssue => getRestIssue(context, number),
 
   /** Lists open issues and pull requests carrying `label`; pull requests have `isPullRequest`. */
   listOpenIssues: (label: AgentLabel): RestIssue[] =>
-    paginate(
-      `${base}/issues?state=open&labels=${label}&per_page=100`,
-      z.array(restIssueSchema),
-    ).flatMap((page) => page.map(toRestIssue)),
+    listRestIssues(context, { state: "open", label }),
 
   listIssueComments: (number: number): IssueCommentRecord[] =>
-    paginate(`${base}/issues/${number}/comments?per_page=100`, z.array(restCommentSchema))
-      .flat()
-      .map((comment) => ({
-        body: comment.body ?? "",
-        authorAssociation: comment.author_association,
-      })),
+    listRestIssueComments(context, number),
 
   postIssueComment: (number: number, body: string) => {
-    post(`${base}/issues/${number}/comments`, [`body=${body}`]);
+    context.send("POST", context.endpoint(`issues/${number}/comments`), [`body=${body}`]);
   },
 
   addLabels: (number: number, labels: readonly AgentLabel[]) => {
-    post(
-      `${base}/issues/${number}/labels`,
+    context.send(
+      "POST",
+      context.endpoint(`issues/${number}/labels`),
       labels.map((label) => `labels[]=${label}`),
     );
   },
 });
 
-const restPullOperations = ({ repo, base, api, paginate, post }: RestContext) => ({
+const restPullOperations = ({ repo, endpoint, api, paginate, send }: RestContext) => ({
   getPull: (number: number): RestPull =>
-    toRestPull(restPullSchema.parse(api([`${base}/pulls/${number}`]))),
+    toRestPull(restPullSchema.parse(api([endpoint(`pulls/${number}`)]))),
 
   listReviewComments: (prNumber: number): RestPullReviewComment[] =>
     paginate(
-      `${base}/pulls/${prNumber}/comments?per_page=100`,
+      endpoint(`pulls/${prNumber}/comments?per_page=${REST_PAGE_SIZE}`),
       z.array(restPullReviewCommentSchema),
     ).flat(),
 
   /** Returns the first open pull request from `head` into `base`, if any. */
-  findOpenPull: ({ head, base: baseRef }: { head: string; base: string }) =>
+  findOpenPull: ({ head, base }: { head: string; base: string }) =>
     z
       .array(restOpenedPullSchema)
       .parse(
         api([
-          `${base}/pulls?state=open&head=${encodeURIComponent(`${repo.owner}:${head}`)}&base=${encodeURIComponent(baseRef)}&per_page=10`,
+          endpoint(
+            `pulls?state=open&head=${encodeURIComponent(`${repo().owner}:${head}`)}&base=${encodeURIComponent(base)}&per_page=10`,
+          ),
         ]),
       )
       .map(toOpenedPull)[0] ?? null,
@@ -354,7 +416,7 @@ const restPullOperations = ({ repo, base, api, paginate, post }: RestContext) =>
   createPull: (pull: { title: string; head: string; base: string; body: string }) =>
     toOpenedPull(
       restOpenedPullSchema.parse(
-        post(`${base}/pulls`, [
+        send("POST", endpoint("pulls"), [
           `title=${pull.title}`,
           `head=${pull.head}`,
           `base=${pull.base}`,
@@ -364,19 +426,19 @@ const restPullOperations = ({ repo, base, api, paginate, post }: RestContext) =>
     ),
 
   replyToReviewComment: (prNumber: number, commentId: number, body: string) => {
-    post(`${base}/pulls/${prNumber}/comments/${commentId}/replies`, [`body=${body}`]);
+    send("POST", endpoint(`pulls/${prNumber}/comments/${commentId}/replies`), [`body=${body}`]);
   },
 });
 
-const restCheckOperations = ({ base, api, paginate, post }: RestContext) => ({
+const restCheckOperations = ({ endpoint, api, paginate, send }: RestContext) => ({
   /** Lists every check run and commit status reported for `sha`, including superseded reruns. */
   listCommitChecks: (sha: string): { checkRuns: RestCheckRun[]; statuses: RestCommitStatus[] } => ({
     checkRuns: paginate(
-      `${base}/commits/${sha}/check-runs?per_page=100`,
+      endpoint(`commits/${sha}/check-runs?per_page=${REST_PAGE_SIZE}`),
       restCheckRunsPageSchema,
     ).flatMap((page) => page.check_runs),
     statuses: paginate(
-      `${base}/commits/${sha}/status?per_page=100`,
+      endpoint(`commits/${sha}/status?per_page=${REST_PAGE_SIZE}`),
       restCommitStatusPageSchema,
     ).flatMap((page) => page.statuses),
   }),
@@ -386,7 +448,9 @@ const restCheckOperations = ({ base, api, paginate, post }: RestContext) => ({
     restWorkflowRunsSchema
       .parse(
         api([
-          `${base}/actions/workflows/${workflowFile}/runs?head_sha=${encodeURIComponent(headSha)}&per_page=10`,
+          endpoint(
+            `actions/workflows/${workflowFile}/runs?head_sha=${encodeURIComponent(headSha)}&per_page=10`,
+          ),
         ]),
       )
       .workflow_runs.map((run) => ({
@@ -396,9 +460,26 @@ const restCheckOperations = ({ base, api, paginate, post }: RestContext) => ({
       })),
 
   rerunFailedJobs: (runId: number) => {
-    post(`${base}/actions/runs/${runId}/rerun-failed-jobs`);
+    send("POST", endpoint(`actions/runs/${runId}/rerun-failed-jobs`));
   },
 });
+
+/** How a client finds its repository and runs `gh`; tests replace any of them. */
+type ClientOptions = GhProcess & {
+  repoRoot: string;
+  /** Defaults to `GH_REPO`, `GITHUB_REPOSITORY`, or the `origin` remote, read on first request. */
+  repo?: RepoIdentity;
+  exec?: GhExec;
+};
+
+const createClientContext = (
+  { repoRoot, repo, env, execFile, exec }: ClientOptions,
+  auth: GhAuth,
+): RestContext =>
+  createRestContext(
+    () => repo ?? resolveRepoIdentity(repoRoot, env),
+    exec ?? createGhExec({ repoRoot, auth, env, execFile }),
+  );
 
 /**
  * Reads and writes issues and pull requests through the GitHub REST API with ambient credentials.
@@ -407,20 +488,9 @@ const restCheckOperations = ({ base, api, paginate, post }: RestContext) => ({
  */
 export type GitHubRestClient = ReturnType<typeof createGitHubRestClient>;
 
-export const createGitHubRestClient = ({
-  repoRoot,
-  repo = resolveRepoIdentity(repoRoot),
-  env,
-  execFile,
-  exec = createGhExec({ repoRoot, auth: "ambient", env, execFile }),
-}: GhProcess & {
-  repoRoot: string;
-  repo?: RepoIdentity;
-  exec?: GhExec;
-}) => {
-  const context = createRestContext(repo, exec);
+export const createGitHubRestClient = (options: ClientOptions) => {
+  const context = createClientContext(options, "ambient");
   return {
-    repo,
     ...restIssueOperations(context),
     ...restPullOperations(context),
     ...restCheckOperations(context),
@@ -437,104 +507,94 @@ export type IssueListItem = {
 };
 
 export type IssueListQuery = {
-  state: "open" | "closed";
+  state: IssueState;
   label?: AgentLabel;
-  /** Also fetches each issue's comments, which `gh` otherwise leaves out. */
+  /** Also fetches the comments of each issue that has any, which the issue list leaves out. */
   withComments?: boolean;
 };
 
-const issueListSchema = z.array(
-  z.object({
-    number: z.number(),
-    title: z.string(),
-    state: z.enum(["OPEN", "CLOSED"]),
-    body: z.string().default(""),
-    labels: z.array(restLabelSchema),
-    comments: z
-      .array(
-        z.object({
-          authorAssociation: z.string().default(""),
-          body: z.string().default(""),
-        }),
-      )
-      .default([]),
-  }),
-);
-
-const issueViewSchema = z.object({
-  number: z.number(),
-  state: z.string(),
-  title: z.string(),
-  body: z.string(),
+const restCreatedIssueSchema = z.object({
+  html_url: z.string(),
+  labels: z.array(restLabelSchema).default([]),
 });
 
-const listIssuesWithGh = (
-  exec: GhExec,
-  { state, label, withComments = false }: IssueListQuery,
-): IssueListItem[] => {
-  const fields = ["number", "title", "state", "labels", "body"];
-  if (withComments) {
-    fields.push("comments");
-  }
-  const raw = exec([
-    "issue",
-    "list",
-    "--state",
-    state,
-    ...(label ? ["--label", label] : []),
-    "--limit",
-    String(ISSUE_LIST_LIMIT),
-    "--json",
-    fields.join(","),
-  ]);
-  return issueListSchema.parse(JSON.parse(raw)).map((issue) => ({
-    ...issue,
-    labels: labelNames(issue.labels),
-  }));
+/** Returns any requested labels missing from GitHub's created-issue response (case-insensitive). */
+const findMissingAppliedLabels = (
+  requestedLabels: readonly string[],
+  appliedLabels: readonly { name: string }[],
+): string[] => {
+  const applied = new Set(appliedLabels.map((label) => label.name.toLowerCase()));
+  return requestedLabels.filter((label) => !applied.has(label.toLowerCase()));
 };
 
-const createIssueWithGh = (
-  exec: GhExec,
+const upperCaseState = (state: string): "OPEN" | "CLOSED" =>
+  state.toUpperCase() === "CLOSED" ? "CLOSED" : "OPEN";
+
+const listIssuesOnly = (
+  context: RestContext,
+  { state, label, withComments = false }: IssueListQuery,
+): IssueListItem[] =>
+  listRestIssues(context, { state, label })
+    .filter((issue) => !issue.isPullRequest)
+    .map((issue) => ({
+      number: issue.number,
+      title: issue.title,
+      state: upperCaseState(issue.state),
+      body: issue.body,
+      labels: issue.labels,
+      comments:
+        withComments && issue.commentCount > 0 ? listRestIssueComments(context, issue.number) : [],
+    }));
+
+/** Files an issue and returns its URL, failing when GitHub drops a requested label. */
+const createRestIssue = (
+  { endpoint, send }: RestContext,
   { title, body, labels }: { title: string; body: string; labels: readonly string[] },
-): string =>
-  exec([
-    "issue",
-    "create",
-    "--title",
-    title,
-    "--body",
-    body,
-    ...labels.flatMap((label) => ["--label", label]),
-  ]).trim();
+): string => {
+  const created = restCreatedIssueSchema.parse(
+    send("POST", endpoint("issues"), [
+      `title=${title}`,
+      `body=${body}`,
+      ...labels.map((label) => `labels[]=${label}`),
+    ]),
+  );
+  const missingLabels = findMissingAppliedLabels(labels, created.labels);
+  if (missingLabels.length > 0) {
+    throw new Error(
+      `Issue created at ${created.html_url}, but GitHub did not apply requested label(s): ${missingLabels.join(", ")}. Check token permissions and apply the missing labels manually.`,
+    );
+  }
+  return created.html_url;
+};
 
 /**
- * Reads and files issues with `gh issue`, authenticated with `MERIT_SCOUT_GH_TOKEN` when it is set
- * so scout and proposal runs can write issues where the default token cannot.
+ * Reads and files issues for scout and proposal runs through the GitHub REST API, like
+ * `GitHubRestClient`, but authenticated with `MERIT_SCOUT_GH_TOKEN` when it is set so they can
+ * write issues where the runner's default token cannot.
  */
-export type GitHubIssueCliClient = ReturnType<typeof createGitHubIssueCliClient>;
+export type GitHubIssueClient = ReturnType<typeof createGitHubIssueClient>;
 
-export const createGitHubIssueCliClient = ({
-  repoRoot,
-  env,
-  execFile,
-  exec = createGhExec({ repoRoot, auth: "scout", env, execFile }),
-}: GhProcess & {
-  repoRoot: string;
-  exec?: GhExec;
-}) => ({
-  /** Lists up to `ISSUE_LIST_LIMIT` issues in `state`, optionally only those carrying `label`. */
-  listIssues: (query: IssueListQuery): IssueListItem[] => listIssuesWithGh(exec, query),
+export const createGitHubIssueClient = (options: ClientOptions) => {
+  const context = createClientContext(options, "scout");
+  return {
+    /** Lists every issue in `state`, optionally only those carrying `label`; never pull requests. */
+    listIssues: (query: IssueListQuery): IssueListItem[] => listIssuesOnly(context, query),
 
-  viewIssue: (number: number) =>
-    issueViewSchema.parse(
-      JSON.parse(exec(["issue", "view", String(number), "--json", "number,state,title,body"])),
-    ),
+    viewIssue: (number: number) => {
+      const issue = getRestIssue(context, number);
+      return {
+        number: issue.number,
+        state: issue.state.toUpperCase(),
+        title: issue.title,
+        body: issue.body,
+      };
+    },
 
-  editIssueBody: (number: number, body: string) => {
-    exec(["issue", "edit", String(number), "--body", body]);
-  },
+    editIssueBody: (number: number, body: string) => {
+      context.send("PATCH", context.endpoint(`issues/${number}`), [`body=${body}`]);
+    },
 
-  /** Files an issue and returns its URL. */
-  createIssue: (issue: { title: string; body: string; labels: readonly string[] }): string =>
-    createIssueWithGh(exec, issue),
-});
+    createIssue: (issue: { title: string; body: string; labels: readonly string[] }): string =>
+      createRestIssue(context, issue),
+  };
+};
