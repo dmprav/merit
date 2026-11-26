@@ -1,10 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import react from "@vitejs/plugin-react";
 import { build, type Plugin, type PluginOption } from "vite-plus";
 
+import { errorMessage } from "../../cli.ts";
 import { reactCompilerOptions } from "../../react-compiler";
 
 const root = path.resolve(import.meta.dirname, "../../..");
@@ -156,6 +159,9 @@ const exportedFiles = async () => [
 ];
 
 const declarationFiles = async (directory: string): Promise<string[]> => {
+  if (!existsSync(directory)) {
+    return [];
+  }
   const entries = await readdir(directory, { withFileTypes: true, recursive: true });
   return entries
     .filter((entry) => entry.isFile() && entry.name.endsWith(".d.ts"))
@@ -163,8 +169,51 @@ const declarationFiles = async (directory: string): Promise<string[]> => {
     .sort();
 };
 
+const compileDeclarations = (config: string) => {
+  execFileSync(path.join(root, "node_modules/.bin/vp"), ["exec", "tsc", "-p", config], {
+    cwd: uiPackage,
+    stdio: "pipe",
+  });
+};
+
+/** What a child process wrote to one stream; empty for a process that never started. */
+const streamText = (value: unknown): string =>
+  typeof value === "string" || Buffer.isBuffer(value) ? value.toString().trim() : "";
+
+/** The compiler's own explanation of a failed run: its diagnostics, else the process error. */
+const describeCompileFailure = (error: unknown): string => {
+  if (typeof error === "object" && error !== null) {
+    const output = [
+      "stdout" in error ? streamText(error.stdout) : "",
+      "stderr" in error ? streamText(error.stderr) : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    if (output) {
+      return output;
+    }
+  }
+  return errorMessage(error);
+};
+
 /** Emits declarations for the exported modules and joins them into one documentation file. */
-export const buildDeclarations = async (outFile: string, scratch: string) => {
+export const buildDeclarations = async (
+  outFile: string,
+  { compile = compileDeclarations }: { compile?: (config: string) => void } = {},
+) => {
+  const scratch = await mkdtemp(path.join(tmpdir(), "merit-ds-"));
+  try {
+    await writeDeclarations(outFile, scratch, compile);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+};
+
+const writeDeclarations = async (
+  outFile: string,
+  scratch: string,
+  compile: (config: string) => void,
+) => {
   const config = path.join(scratch, "tsconfig.json");
   const declarations = path.join(scratch, "declarations");
   await writeFile(
@@ -189,18 +238,19 @@ export const buildDeclarations = async (outFile: string, scratch: string) => {
       files: await exportedFiles(),
     }),
   );
+  let compileFailure: unknown;
   try {
     // Declaration emit succeeds despite type errors outside the exported surface; the library's own typecheck owns those.
-    execFileSync(path.join(root, "node_modules/.bin/vp"), ["exec", "tsc", "-p", config], {
-      cwd: uiPackage,
-      stdio: "pipe",
-    });
-  } catch {
-    // tsc exits non-zero on diagnostics but still writes declarations; an empty result fails below.
+    compile(config);
+  } catch (error) {
+    // tsc exits non-zero on diagnostics but still writes declarations; the failure matters only when it wrote none.
+    compileFailure = error;
   }
   const files = await declarationFiles(declarations);
   if (files.length === 0) {
-    throw new Error("TypeScript emitted no declarations.");
+    const reason =
+      compileFailure === undefined ? "" : `: ${describeCompileFailure(compileFailure)}`;
+    throw new Error(`TypeScript emitted no declarations${reason}`, { cause: compileFailure });
   }
   const sections = await Promise.all(
     files.map(async (file) => {
@@ -215,5 +265,4 @@ export const buildDeclarations = async (outFile: string, scratch: string) => {
     outFile,
     `// Merit — declarations generated from @merit/ui, @merit/forms and @merit/tables. Documentation only; every export lives on window.${namespace}.\n// Wrap rendered trees in <${namespace}.Provider> for shared messages and en-GB formatting.\nexport declare const Provider: (props: { children: import("react").ReactNode }) => import("react").JSX.Element;\n${sections.join("")}`,
   );
-  await rm(scratch, { recursive: true, force: true });
 };

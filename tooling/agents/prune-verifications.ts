@@ -237,7 +237,6 @@ const runCli = () => {
   );
 };
 
-const entryPath = process.argv[1];
-if (entryPath && resolve(entryPath) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   runCli();
 }

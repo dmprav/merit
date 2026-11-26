@@ -1,10 +1,10 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
+import { normalizeRepoPath, readFlagValue } from "../cli.ts";
 import {
   ALLOW_PROTECTED_LABEL,
   findProtectedPaths,
@@ -14,6 +14,13 @@ import {
   classifyChangedPaths,
   type MechanismClassification,
 } from "../verification/architecture/mechanisms.ts";
+import {
+  getRepoIdentity,
+  ghApiJson,
+  listRestIssues,
+  restLabelSchema,
+  type RepoIdentity,
+} from "./github-rest.ts";
 
 export const SCOUT_LENSES = [
   "docs",
@@ -122,10 +129,8 @@ export type DuplicateCheckResult =
   | { duplicate: true; matchedIssue: ExistingIssueSummary; reason: string }
   | { duplicate: false };
 
-const normalizePath = (value: string) => value.replaceAll("\\", "/").replace(/^\.\//, "");
-
 export const sliceForPath = (filePath: string): string => {
-  const normalized = normalizePath(filePath);
+  const normalized = normalizeRepoPath(filePath);
   const parts = normalized.split("/");
   if (
     (parts[0] === "capabilities" || parts[0] === "foundation" || parts[0] === "interfaces") &&
@@ -137,7 +142,7 @@ export const sliceForPath = (filePath: string): string => {
 };
 
 export const isTier1DocPath = (filePath: string): boolean => {
-  const normalized = normalizePath(filePath);
+  const normalized = normalizeRepoPath(filePath);
   return !GLOB_CHAR_PATTERN.test(normalized) && TIER1_DOC_PATTERN.test(normalized);
 };
 
@@ -153,7 +158,7 @@ export const classifyProposalTier = ({
   ambiguous: boolean;
   kind?: ProposalKind;
 }): ProposalTierClassification => {
-  const normalizedPaths = [...new Set(paths.map(normalizePath))];
+  const normalizedPaths = [...new Set(paths.map(normalizeRepoPath))];
   const protectedPaths = findProtectedPaths(normalizedPaths);
   const mechanisms = classifyChangedPaths({ paths: normalizedPaths });
   const slices = [...new Set(normalizedPaths.map(sliceForPath))].sort();
@@ -244,7 +249,7 @@ export const findDuplicateProposal = (
 ): DuplicateCheckResult => {
   const normalizedTitle = proposal.title.trim().toLowerCase();
   const titleTokens = tokenize(proposal.title);
-  const proposalPaths = new Set(proposal.paths.map(normalizePath));
+  const proposalPaths = new Set(proposal.paths.map(normalizeRepoPath));
 
   for (const issue of existingIssues) {
     const isRelevant =
@@ -264,7 +269,7 @@ export const findDuplicateProposal = (
 
     const similarity = jaccard(titleTokens, tokenize(issue.title));
     const markerMeta = issue.body ? parseProposalMarker(issue.body) : null;
-    const existingPaths = (markerMeta?.paths ?? []).map(normalizePath);
+    const existingPaths = (markerMeta?.paths ?? []).map(normalizeRepoPath);
     const sharedPathCount = existingPaths.filter((filePath) => proposalPaths.has(filePath)).length;
     const sharesPath = sharedPathCount > 0;
     if (similarity >= 0.6 && (sharesPath || existingPaths.length === 0)) {
@@ -294,7 +299,7 @@ export const renderProposalMarkdown = (
   proposal: ProposalInput,
   classification: ProposalTierClassification,
 ): string => {
-  const normalizedPaths = [...new Set(proposal.paths.map(normalizePath))];
+  const normalizedPaths = [...new Set(proposal.paths.map(normalizeRepoPath))];
   const mechanismSummary =
     classification.mechanisms.matched.length > 0
       ? classification.mechanisms.matched.map((entry) => entry.mechanism.id).join(", ")
@@ -375,15 +380,19 @@ export const renderProposalMarkdown = (
   ].join("\n");
 };
 
-const ghIssuesSchema = z.array(
-  z.object({
-    number: z.number(),
-    title: z.string(),
-    state: z.enum(["OPEN", "CLOSED"]),
-    body: z.string().optional(),
-    labels: z.array(z.object({ name: z.string() })),
-  }),
-);
+const restCreatedIssueSchema = z.object({
+  html_url: z.string(),
+  labels: z.array(restLabelSchema).default([]),
+});
+
+/** Returns any requested labels missing from GitHub's created-issue response (case-insensitive). */
+export const findMissingAppliedLabels = (
+  requestedLabels: readonly string[],
+  appliedLabels: readonly { name: string }[],
+): string[] => {
+  const applied = new Set(appliedLabels.map((label) => label.name.toLowerCase()));
+  return requestedLabels.filter((label) => !applied.has(label.toLowerCase()));
+};
 
 export const SCOUT_GH_TOKEN_ENV = "MERIT_SCOUT_GH_TOKEN";
 
@@ -399,49 +408,38 @@ export const resolveScoutGhEnv = (env: NodeJS.ProcessEnv = process.env): NodeJS.
   };
 };
 
-export const runScoutGh = (repoRoot: string, args: readonly string[]): string =>
-  execFileSync("gh", args, { cwd: repoRoot, encoding: "utf8", env: resolveScoutGhEnv() });
-
-const queryIssues = (repoRoot: string, extraArgs: readonly string[]): ExistingIssueSummary[] => {
-  const raw = runScoutGh(repoRoot, [
-    "issue",
-    "list",
-    "--limit",
-    "200",
-    "--json",
-    "number,title,state,labels,body",
-    ...extraArgs,
-  ]);
-  return ghIssuesSchema.parse(JSON.parse(raw)).map((issue) => ({
+const queryIssues = (
+  repoRoot: string,
+  repo: RepoIdentity,
+  options: { state: "open" | "closed"; labels?: readonly string[] },
+): ExistingIssueSummary[] =>
+  listRestIssues({
+    repoRoot,
+    repo,
+    state: options.state,
+    labels: options.labels,
+    env: resolveScoutGhEnv(),
+  }).map((issue) => ({
     number: issue.number,
     title: issue.title,
-    state: issue.state,
-    body: issue.body,
+    state: issue.state.toUpperCase() === "CLOSED" ? "CLOSED" : "OPEN",
+    body: issue.body ?? "",
     labels: issue.labels.map((label) => label.name),
   }));
-};
 
-const countOpenProposedIssues = (repoRoot: string): number =>
-  queryIssues(repoRoot, ["--state", "open", "--label", "agent:proposed"]).length;
+const countOpenProposedIssues = (repoRoot: string, repo: RepoIdentity): number =>
+  queryIssues(repoRoot, repo, { state: "open", labels: ["agent:proposed"] }).length;
 
-const listExistingIssues = (repoRoot: string): ExistingIssueSummary[] => {
+const listExistingIssues = (repoRoot: string, repo: RepoIdentity): ExistingIssueSummary[] => {
   const byNumber = new Map<number, ExistingIssueSummary>();
   for (const issue of [
-    ...queryIssues(repoRoot, ["--state", "open"]),
-    ...queryIssues(repoRoot, ["--state", "closed", "--label", "wontfix"]),
-    ...queryIssues(repoRoot, ["--state", "closed", "--label", "duplicate"]),
+    ...queryIssues(repoRoot, repo, { state: "open" }),
+    ...queryIssues(repoRoot, repo, { state: "closed", labels: ["wontfix"] }),
+    ...queryIssues(repoRoot, repo, { state: "closed", labels: ["duplicate"] }),
   ]) {
     byNumber.set(issue.number, issue);
   }
   return [...byNumber.values()];
-};
-
-const readFlagValue = (args: readonly string[], flag: string): string | null => {
-  const index = args.indexOf(flag);
-  if (index === -1) {
-    return null;
-  }
-  return args[index + 1] ?? null;
 };
 
 const runCli = () => {
@@ -489,8 +487,10 @@ const runCli = () => {
     return;
   }
 
+  const repo = getRepoIdentity(repoRoot);
+
   if (classification.targetLabel === "agent:proposed") {
-    const openProposedCount = countOpenProposedIssues(repoRoot);
+    const openProposedCount = countOpenProposedIssues(repoRoot, repo);
     if (isProposalCapReached(openProposedCount)) {
       console.log(
         JSON.stringify({
@@ -503,7 +503,7 @@ const runCli = () => {
     }
   }
 
-  const existingIssues = listExistingIssues(repoRoot);
+  const existingIssues = listExistingIssues(repoRoot, repo);
   const dup = findDuplicateProposal(proposal, existingIssues);
   if (dup.duplicate) {
     console.log(
@@ -516,15 +516,32 @@ const runCli = () => {
     return;
   }
 
-  const ghArgs = ["issue", "create", "--title", proposal.title, "--body", markdown];
-  for (const label of labels) {
-    ghArgs.push("--label", label);
+  const created = restCreatedIssueSchema.parse(
+    ghApiJson(
+      repoRoot,
+      [
+        `repos/${repo.owner}/${repo.name}/issues`,
+        "-X",
+        "POST",
+        "-f",
+        `title=${proposal.title}`,
+        "-f",
+        `body=${markdown}`,
+        ...labels.flatMap((label) => ["-f", `labels[]=${label}`]),
+      ],
+      resolveScoutGhEnv(),
+    ),
+  );
+  const missingLabels = findMissingAppliedLabels(labels, created.labels);
+  if (missingLabels.length > 0) {
+    throw new Error(
+      `Issue created at ${created.html_url}, but GitHub did not apply requested label(s): ${missingLabels.join(", ")}. Check token permissions and apply the missing labels manually.`,
+    );
   }
-  const url = runScoutGh(repoRoot, ghArgs).trim();
   console.log(
     JSON.stringify({
       status: "created",
-      url,
+      url: created.html_url,
       kind: proposal.kind,
       tier: classification.tier,
       targetLabel: classification.targetLabel,
@@ -533,7 +550,6 @@ const runCli = () => {
   );
 };
 
-const entryPath = process.argv[1];
-if (entryPath && resolve(entryPath) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   runCli();
 }

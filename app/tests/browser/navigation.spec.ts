@@ -11,6 +11,7 @@ import { createFundingRound } from "@merit/rounds/server";
 import { settleAnimations } from "@merit/test-support/browser";
 import { openNavigation, closeNavigation } from "@merit/test-support/browser/navigation";
 
+import { workspaceOrigin } from "./ports.ts";
 import { test, expect } from "./workspace-test.ts";
 
 /**
@@ -248,9 +249,7 @@ test(
   "workspace and administration share accessible desktop and compact navigation",
   { tag: "@cross-browser" },
   async ({ page, context }, testInfo) => {
-    await context.addCookies([
-      { name: "merit-local-person", value: "dana", url: "http://127.0.0.1:3002" },
-    ]);
+    await context.addCookies([{ name: "merit-local-person", value: "dana", url: workspaceOrigin }]);
     await page.goto("/app/alder/rounds");
 
     await expect(page.getByRole("main")).toBeFocused();
@@ -303,7 +302,7 @@ test(
     await expect(page.getByRole("dialog")).toHaveCount(0);
 
     await context.addCookies([
-      { name: "merit-local-person", value: "operator", url: "http://127.0.0.1:3002" },
+      { name: "merit-local-person", value: "operator", url: workspaceOrigin },
     ]);
     await page.goto("/app");
 
@@ -379,7 +378,7 @@ test(
     await expect(page.getByRole("heading", { name: "Funding rounds", exact: true })).toBeVisible();
 
     await context.addCookies([
-      { name: "merit-local-person", value: "operator", url: "http://127.0.0.1:3002" },
+      { name: "merit-local-person", value: "operator", url: workspaceOrigin },
     ]);
     await page.reload();
 
@@ -404,7 +403,7 @@ test(
     await expect(page.getByRole("heading", { name: "Organizations", exact: true })).toBeVisible();
 
     await context.addCookies([
-      { name: "merit-local-person", value: "manager", url: "http://127.0.0.1:3002" },
+      { name: "merit-local-person", value: "manager", url: workspaceOrigin },
     ]);
     await page.reload();
 
@@ -838,7 +837,7 @@ test("personal pins stay under their object type and survive reloads @cross-brow
   await expect(page).toHaveURL(/\/app\/alder\/contacts$/);
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
   await context.addCookies([
-    { name: "merit-local-person", value: "operator", url: "http://127.0.0.1:3002" },
+    { name: "merit-local-person", value: "operator", url: workspaceOrigin },
   ]);
   await page.goto("/admin/organizations");
   await expect(page.getByRole("main")).toBeFocused();

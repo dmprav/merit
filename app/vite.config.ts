@@ -1,10 +1,21 @@
+import { resolve } from "node:path";
+
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, lazyPlugins, type ViteDevServer } from "vite-plus";
 
+import { loadEnvLocalFiles, readPort } from "@merit/test-support/env";
+
 import { reactCompilerOptions } from "../tooling/react-compiler";
 import { localWorkspace } from "./local-workspace.config";
 import { routes } from "./routes";
+
+loadEnvLocalFiles([
+  resolve(import.meta.dirname, ".env.local"),
+  resolve(import.meta.dirname, "../.env.local"),
+]);
+
+const devPort = readPort(process.env.MERIT_DEV_PORT, 3000);
 
 // Vite handles SIGTERM and the quit shortcut. Route Ctrl+C through the same close hooks.
 const closeOnInterrupt = (server: Pick<ViteDevServer, "httpServer" | "close" | "config">) => {
@@ -36,8 +47,7 @@ const run = {
     build: ["vp build", "tsc --noEmit"],
     test: "vp test --config vitest.config.ts",
     preview: {
-      command:
-        "env MERIT_LOCAL_PREVIEW=1 vpx scripts/with-worker.ts vp preview --host localhost --port 3000 --strictPort",
+      command: `env MERIT_LOCAL_PREVIEW=1 vpx scripts/with-worker.ts vp preview --host localhost --port ${devPort} --strictPort`,
       cache: false,
     },
     "demo:cleanup": { command: "vpx scripts/clean-demos.ts", cache: false },
@@ -136,7 +146,7 @@ export default defineConfig({
     react({ compiler: reactCompilerOptions }),
   ]),
   ssr: { noExternal: ["zod"] },
-  server: { port: 3000, strictPort: true },
+  server: { port: devPort, strictPort: true },
   environments: {
     client: { optimizeDeps: { include: clientDependencies } },
   },

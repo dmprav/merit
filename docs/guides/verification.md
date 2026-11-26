@@ -294,7 +294,8 @@ choosing where a change belongs.
 
 Integration tests create and remove isolated PostgreSQL databases. Set
 `TEST_DATABASE_URL` for another test server; use a dedicated development server
-where the test role may create databases.
+where the test role may create databases and roles, because tests that connect as
+the runtime role create one.
 
 Workflow integration tests run against the Compose Temporal service, on task queues and
 workflow IDs of their own; start it with `vp run services:start`. No test downloads a

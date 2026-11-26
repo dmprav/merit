@@ -49,7 +49,11 @@ before investigating so they can add what they know.
 
 Then test them in order. When a check fails unexpectedly, suspect the
 observation method before the system: the wrong fixture, a cached result
-(`vp run --last-details`), or a stale build.
+(`vp run --last-details`), or a stale build. Optional for quick
+single-hypothesis fixes, but when a diagnosis spans multiple hypotheses or
+attempts, record each ruled-out hypothesis in the local ledger so later runs do
+not repeat dead ends:
+`vp run agent:ledger -- log --slug <slug> --run-id <run-id> --phase diagnose --decision "Rule out <hypothesis>" --why "<observation>" --evidence "<command or file>" --result ruled-out`.
 
 ## 3. Instrument with a removable tag
 
@@ -69,14 +73,27 @@ that assumption directly.
 ## 5. Prove and clean up
 
 1. Run the reproduction and confirm it passes.
-2. Confirm it fails without the fix: set aside only the non-test changes, run the
-   reproduction, and see the assertion fail on the wrong value. Restore the fix.
+2. Confirm it fails without the fix: either test in an isolated worktree
+   (`vp run worktree:create <slug> --base <rev>` checks out the committed
+   revision `<rev>` containing the regression—not always `origin/main`, such as
+   when a feature branch introduced it—without uncommitted changes; `--base`
+   resolves against the primary repository, so pass a branch name or full commit
+   SHA from `git rev-parse HEAD` run in the diagnosed checkout rather than
+   literal `HEAD` from a linked worktree; copy the reproduction test and any new
+   test-only fixtures or helpers it imports (not the production fix) into the
+   worktree, run the check, then run `vp run worktree:clean <slug>`) or set
+   aside only the non-test changes, run the reproduction, and see the assertion
+   fail on the wrong value before restoring the fix. Use `vp run worktree:list`
+   to inspect active worktrees.
    This is the [focused mutation check](../../../docs/guides/testing.md#focused-mutation-checks)
    applied to the fix itself.
 3. Search for the tag (`git grep -n 'DEBUG-a4f2'`) and remove every instrumented
    line. Nothing tagged may remain.
 4. Run the checks the [verification guide](../../../docs/guides/verification.md#verification)
    selects for the changed packages.
+5. For multi-attempt diagnoses, log the verified root cause and red/green
+   mutation check result via `vp run agent:ledger -- log --slug <slug> --run-id <run-id> --phase verify ...`
+   (and use [handoff](../handoff/SKILL.md) if the investigation spans sessions).
 
 Report the reproduction command, the root cause in one or two sentences, the
 hypotheses ruled out and how, and the red and green results.

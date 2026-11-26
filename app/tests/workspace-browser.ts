@@ -1,13 +1,21 @@
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { drizzle } from "drizzle-orm/node-postgres";
 
 import { migrate } from "@merit/db/migrate";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
+import { loadEnvLocalFiles } from "@merit/test-support/env";
 import { createTestDatabase } from "@merit/test-support/test-database";
 import { createWorkflowClient, readTemporalConfig } from "@merit/workflows/client";
+
+import { workspaceOrigin } from "./browser/ports.ts";
+
+loadEnvLocalFiles([
+  resolve(import.meta.dirname, "../.env.local"),
+  resolve(import.meta.dirname, "../../.env.local"),
+]);
 
 const database = await createTestDatabase();
 const output = join(
@@ -43,7 +51,7 @@ try {
         MERIT_WORKSPACE_TEST_DATABASE_URL: database.connectionString,
         ...work,
         // Only the worker reads it; the web server keeps the origin it serves.
-        MERIT_WORKER_APP_ORIGIN: "http://127.0.0.1:3002",
+        MERIT_WORKER_APP_ORIGIN: workspaceOrigin,
       },
     },
   );

@@ -112,10 +112,14 @@ export default defineConfig({
       "agent:scout": { command: "vpx tooling/agents/scout.ts", cache: false },
       "agent:proposal": { command: "vpx tooling/agents/proposal.ts", cache: false },
       "agent:queue": { command: "vpx tooling/agents/queue.ts", cache: false },
+      "agent:ledger": { command: "vpx tooling/agents/ledger.ts", cache: false },
       "agent:prune-verifications": {
         command: "node tooling/agents/prune-verifications.ts",
         cache: false,
       },
+      "worktree:create": { command: "vpx tooling/agents/worktree.ts create", cache: false },
+      "worktree:clean": { command: "vpx tooling/agents/worktree.ts clean", cache: false },
+      "worktree:list": { command: "vpx tooling/agents/worktree.ts list", cache: false },
       "db:reset": { command: "vpx tooling/scripts/reset-db.ts", cache: false },
       "services:start": { command: "vpx tooling/scripts/start-services.ts", cache: false },
       "test:browser:tooling": "vp run @merit/test-support#test:browser",
@@ -132,6 +136,7 @@ export default defineConfig({
         command: "vpx tooling/storybook/run-visual-container.ts",
         cache: false,
       },
+      "ui:verify": { command: "vpx tooling/storybook/ui-verify.ts", cache: false },
       "check:code": { command: "vp check --deny-warnings", cache: { output: [] } },
       "check:react-compiler": {
         command: "vpx tooling/verification/react-compiler.ts",
@@ -142,7 +147,7 @@ export default defineConfig({
       "test:hooks": { command: "vp test tooling/verification/hooks.test.ts", cache: false },
       "test:agents": {
         command:
-          "vp test tooling/agents/proposal.test.ts tooling/agents/scout.test.ts tooling/agents/queue.test.ts tooling/agents/prune-verifications.test.ts",
+          "vp test tooling/cli.test.ts tooling/agents/github-rest.test.ts tooling/agents/proposal.test.ts tooling/agents/scout.test.ts tooling/agents/queue.test.ts tooling/agents/file-lock.test.ts tooling/agents/ledger.test.ts tooling/agents/prune-verifications.test.ts tooling/agents/worktree.test.ts tooling/storybook/ui-verify.test.ts",
         cache: false,
       },
       "test:ci": {
@@ -198,7 +203,7 @@ export default defineConfig({
       "test:docs": { command: "vp test tooling/verification/docs.test.ts", cache: false },
       "test:design-system": {
         command:
-          "vp test tooling/storybook/design-system/tokens.test.ts tooling/storybook/design-system/fonts.test.ts",
+          "vp test tooling/storybook/design-system/tokens.test.ts tooling/storybook/design-system/fonts.test.ts tooling/storybook/design-system/bundle.test.ts",
         cache: false,
       },
       "test:react-compiler": {

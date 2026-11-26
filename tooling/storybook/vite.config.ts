@@ -1,12 +1,18 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 
+import { loadRepoEnvLocal, readPort } from "@merit/test-support/env";
+
 import { reactCompilerOptions } from "../react-compiler";
+
+loadRepoEnvLocal();
+
+const storybookDevPort = readPort(process.env.MERIT_STORYBOOK_DEV_PORT, 6006);
 
 export default defineConfig({
   run: {
     tasks: {
-      dev: { command: "storybook dev -p 6006", cache: false },
+      dev: { command: `storybook dev -p ${storybookDevPort}`, cache: false },
       test: "vp test --run --config vitest.config.ts",
       "test:watch": {
         command: "vp test --watch --config vitest.config.ts",

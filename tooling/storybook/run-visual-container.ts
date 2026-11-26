@@ -110,7 +110,7 @@ const buildContainerCommand = (
     "fi",
     'export PATH="/work/.tools/node_modules/.bin:$PATH"',
     "find /work -mindepth 1 -depth ! -path '/work/.run.lock' ! -path '/work/.tools' ! -path '/work/.tools/*' ! -path '/work/.deps-hash' ! -path '*/node_modules' ! -path '*/node_modules/*' -delete 2>/dev/null || true",
-    "tar -C /src --exclude='./.git' --exclude='./node_modules' --exclude='*/node_modules' --exclude='./tooling/storybook/dist' --exclude='./tooling/storybook/node_modules/.cache' -cf - . | tar -C /work -xf -",
+    "tar -C /src --exclude='./.git' --exclude='./.tmp' --exclude='./.claude/worktrees' --exclude='./node_modules' --exclude='*/node_modules' --exclude='./tooling/storybook/dist' --exclude='./tooling/storybook/node_modules/.cache' -cf - . | tar -C /work -xf -",
     "cd /work",
     "lock_hash=\"$( { sha256sum pnpm-lock.yaml pnpm-workspace.yaml; find . -maxdepth 4 -name package.json -not -path '*/node_modules/*' | sort | xargs sha256sum; } | sha256sum | awk '{print $1}' )\"",
     'if [ ! -d /work/node_modules ] || [ "$(cat /work/.deps-hash 2>/dev/null || true)" != "$lock_hash" ]; then',

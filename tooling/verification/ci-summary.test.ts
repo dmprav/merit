@@ -8,6 +8,7 @@ import {
   collectCiSummaries,
   formatDuration,
   formatSummaryMarkdown,
+  parseCiSummaryArgs,
   summarizePlaywrightReport,
   summarizeVitestReport,
 } from "./ci-summary";
@@ -221,5 +222,23 @@ test("reports Playwright startup errors when no test suites executed and escapes
   expect(markdown).toContain("| Demo\\\\browser\\|shard | 0 | 1 | 0 | 0 | 1.2s |");
   expect(markdown).toContain(
     "- **FAILED** Runner setup failure: Error: Timed out waiting 120000ms from config.webServer.",
+  );
+});
+
+test("reads the title and the Vitest report name in either order", () => {
+  expect(parseCiSummaryArgs(["Package tests", "--scan-vitest", ".vitest-report.json"])).toEqual({
+    title: "Package tests",
+    scanVitestFilename: ".vitest-report.json",
+  });
+  expect(parseCiSummaryArgs(["--scan-vitest", ".vitest-report.json", "Package tests"])).toEqual({
+    title: "Package tests",
+    scanVitestFilename: ".vitest-report.json",
+  });
+  expect(parseCiSummaryArgs([])).toEqual({ title: "Verification" });
+});
+
+test("rejects --scan-vitest without a report name instead of using the flag as the title", () => {
+  expect(() => parseCiSummaryArgs(["Package tests", "--scan-vitest"])).toThrow(
+    "--scan-vitest requires a value.",
   );
 });

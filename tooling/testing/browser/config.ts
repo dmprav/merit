@@ -8,8 +8,8 @@ import {
   type ReporterDescription,
 } from "@playwright/test";
 
-const desktopViewport = { width: 1440, height: 1000 };
-const mobileOptions = {
+export const desktopViewport = { width: 1440, height: 1000 };
+export const mobileOptions = {
   viewport: { width: 390, height: 844 },
   isMobile: true,
   hasTouch: true,

@@ -41,7 +41,7 @@ catalog:
   "@tanstack/react-query-devtools": 5.107.1
   "@tanstack/react-router-ssr-query": 1.167.3
   "@tanstack/react-devtools": 0.10.15
-  "@tanstack/react-router-devtools": 1.167.3
+  "@tanstack/react-router-devtools": 1.167.4
   "@internationalized/date": 3.12.4
   storybook: 11.0.0-beta.3
   "@storybook/react-vite": 11.0.0-beta.3
@@ -119,7 +119,7 @@ overrides:
   # https://github.com/advisories/GHSA-3g3m-2fjr-6pw4
   "glob@>=9.0.0 <=14.0.1": 14.0.6
   # https://github.com/advisories/GHSA-g3hv-75wg-m249
-  "minimatch@>=7.0.0 <11.0.1": 11.0.5
+  "minimatch@>=7.0.0 <11.0.1": 11.0.9
   "@esbuild-kit/core-utils>esbuild": 0.28.2
 peerDependencyRules:
   allowAny:

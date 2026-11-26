@@ -7,7 +7,7 @@ Build coherent capabilities that help people understand evidence and carry out g
 - **Domain & precedents:** Follow [domain-driven design](docs/foundations/architecture.md#model-grant-work-explicitly). Before substantive edits, name your reference implementation, what you will reuse or extend, and which behavior stays consistent.
 - **Principles:** Read the matching card in [engineering principles](docs/foundations/principles.md) when triggered; cite a principle only when it changed a decision.
 - **Enforcement ladder:** Escalate recurring mistakes up **architecture -> types -> lint or CI -> tests -> documentation**. Check [rule enforcement](docs/guides/verification-tooling.md#rule-enforcement) for static checks (`check:code`, `architecture`, `code-health`, `test:stories`, `check:css`, `check:docs`, `check:security`) and prose rules.
-- **Workflow skills:** Read and follow the matching skill in `.agents/skills/` (`build-feature`, `fix-bug`, `diagnose`, `grill`, `implement-proposal`).
+- **Workflow skills:** Read and follow the matching skill in `.agents/skills/` (`build-feature`, `fix-bug`, `diagnose`, `drive-merit`, `grill`, `handoff`, `implement-proposal`).
 
 ## Complete the change
 
@@ -18,4 +18,4 @@ Build coherent capabilities that help people understand evidence and carry out g
 ## Agent delegation
 
 - Route bulk reading and exploration to subagents with file pointers and concise briefs.
-- Give mutating reviewers and parallel workers separate git worktrees; start review-fix rounds and retries in a fresh subagent rather than a bloated context.
+- Give mutating reviewers and parallel workers separate git worktrees (`vp run worktree:create`); for multi-round or multi-session work, record decisions with `vp run agent:ledger` and transfer context with `handoff`, starting review-fix rounds and retries in a fresh subagent rather than a bloated context.

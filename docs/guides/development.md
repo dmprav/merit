@@ -182,8 +182,8 @@ ordinary development, stop the server and run `vp run dev`.
 The default Compose setup uses an owner connection for migration and seeding and
 a restricted login for the running server. For another local database, set
 `DATABASE_URL` separately for those commands using the corresponding credentials
-in the [deployment guide](deployment.md#check-runtime-privileges). The [reset command](#local-database-recovery) always uses
-the repository's Compose database.
+in the [deployment guide](deployment.md#check-runtime-privileges). The [reset command](#local-database-recovery) ignores
+remote URLs and resets only the local Compose database.
 
 Clerk keys, if present, are ignored for web identity in this mode. Protected MCP
 still requires real OAuth. Local mode is available only in the development server.
@@ -246,6 +246,77 @@ Keep coverage-report exclusions and build outputs with their owning task.
 The [verification guide](verification.md) explains cache behavior and the
 ordering of required checks.
 
+### Isolated worktrees
+
+To work on a branch in parallel without port or database collisions, create an
+isolated worktree under `.tmp/worktrees/<slug>` instead of running manual
+`git worktree` commands or stashing work in progress:
+
+```sh
+vp run worktree:create feat-example
+vp run worktree:list
+vp run worktree:clean feat-example
+```
+
+`worktree:create` branches from `origin/main` (or `main` if no remote exists),
+allocates collision-free local ports (`MERIT_DEV_PORT`, `MERIT_APP_PORT`,
+`MERIT_WORKSPACE_PORT`, `MERIT_STORYBOOK_DEV_PORT`, `MERIT_STORYBOOK_PORT`),
+avoiding the defaults, any ports set in the `.env.local` or `app/.env.local` of
+the primary checkout or any linked worktree, and the ports of every registered
+worktree that still exists, including one moved with `git worktree move`, and
+a dedicated `merit_<slug>` database on the shared Compose PostgreSQL instance,
+writes `.env.local` in the worktree, installs dependencies from the local pnpm
+store, and activates `.vite-hooks` via `vp config --no-agent`. Pass `--base`,
+`--branch`, `--dir`, `--with-db`, `--no-db`, `--doctor`, or `--json` as needed.
+In default auto mode, database creation is skipped with a warning if Compose
+PostgreSQL is not running; start services with `vp run services:start` and pass
+`--with-db` when a database is required. If database creation was skipped, run
+`vp run db:reset` inside the worktree once Compose is running to create,
+migrate, and seed its database—`db:migrate` connects to the target database and
+does not create it. An exported shell `DATABASE_URL` takes precedence over
+`.env.local` for `db:reset`, `db:migrate`, and `db:seed`, so before running any
+of them check `echo "$DATABASE_URL"`, run `unset DATABASE_URL` if it is set,
+and confirm the worktree's `.env.local` names its own `merit_<slug>` database on
+`127.0.0.1:55432`; inside a worktree, `db:reset` refuses to run while an
+exported value differs from the worktree's `.env.local` database or while
+`.env.local` sets no `DATABASE_URL`, but `db:migrate` and `db:seed` do not
+check. `db:reset` drops `merit_<slug>` first if it already exists,
+such as one left by an earlier worktree with the same slug, which deletes its
+data. If that database holds data you need and was created from the current
+schema baseline, keep it and run `vp run @merit/db#db:migrate` followed by
+`vp run @merit/app#db:seed` instead. Migrations and the seed do not upgrade a
+database from before the baseline (see
+[Local database recovery](#local-database-recovery)), so preserve such data
+separately, for example with `pg_dump`, before creating a fresh database.
+When the database was created during `worktree:create`, run
+`vp run db:reset` or `vp run @merit/db#db:migrate` followed by
+`vp run @merit/app#db:seed` inside the worktree to initialize its schema and
+seed data, after the same `DATABASE_URL` check.
+
+`worktree:clean` idempotently force-removes the checkout directory, prunes stale
+worktrees, drops its dedicated database (refusing to touch `merit` or
+`postgres`), and deletes the worktree branch with `git branch -D` unless
+`--keep-branch` is passed. Force-removing the checkout discards uncommitted
+changes and `git branch -D` discards unmerged commits (`--keep-branch` preserves
+the branch, not uncommitted files). `worktree:create` stores a per-checkout
+token in the worktree's Git metadata. `worktree:clean` refuses to clean a
+checkout that `git worktree move` relocated, before dropping its database, and
+names its new path so you can move it back; it also refuses a directory that no
+longer holds the registered checkout (such as a replacement checkout at the same
+path), that contains another worktree, or that Git refuses to remove, such as a
+locked worktree. If `worktree:create` fails after creating the checkout and Git
+refuses to remove it, the checkout and its registry record stay for
+`worktree:clean <slug>` once the cause is fixed. If a `worktree:create` process
+exits before finishing, `worktree:clean <slug>` removes what it left behind.
+If Git removed a custom `--dir` checkout's `.git` but not its files,
+`worktree:clean` does not delete that directory outside `.tmp/worktrees/`
+itself: check it, delete it, and rerun `vp run worktree:clean <slug>`. If
+PostgreSQL is stopped when running `worktree:clean`, the database drop is skipped; start services with
+`vp run services:start` and rerun `vp run worktree:clean <slug>` before reusing
+the slug. If the first run used `--keep-branch`, pass it again: the retry no
+longer has the registry record and otherwise deletes the default
+`worktree/<slug>` branch.
+
 ## Schema changes
 
 Follow the [database schema guide](database.md) when designing or altering
@@ -283,10 +354,21 @@ To replace the disposable local Compose database, stop the development server an
 vp run db:reset
 ```
 
-This deletes all stored Compose data, restarts the Compose services, waits for
-readiness, applies migrations, and seeds fresh Alder and Birch workspaces. It
-ignores `DATABASE_URL` and uses the Compose database at `127.0.0.1:55432/merit`.
-The command stops if any step fails.
+In the primary checkout (when `DATABASE_URL` is unset or targets the default
+`merit` database), `db:reset` removes the local Compose PostgreSQL and SeaweedFS
+volumes—deleting any sibling worktree databases on the same Compose
+project—restarts the Compose services, waits for readiness, applies migrations,
+and seeds fresh Alder and Birch workspaces. When `DATABASE_URL` is validated as
+a non-default database on the local Compose PostgreSQL instance
+(`127.0.0.1:55432` or `localhost:55432`, such as a worktree's `merit_<slug>`
+database from `.env.local`), `db:reset` drops, recreates, migrates, and seeds
+only that single database without restarting Compose or removing volumes.
+Non-local `DATABASE_URL` values are never modified: the primary checkout ignores
+them and resets the local Compose volumes, while a linked worktree stops with an
+error instead of falling back to volume deletion. A local `DATABASE_URL` whose
+`host`, `hostaddr`, `port`, or `user` query parameters redirect the connection,
+or whose database name is not a lowercase identifier after a single leading
+slash, stops with an error in either checkout. The command stops if any step fails.
 
 Restart the development server afterward. Repeat the
 [Clerk user-linking step](#configure-real-sign-in) if using real sign-in;

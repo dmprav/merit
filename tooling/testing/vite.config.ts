@@ -18,10 +18,26 @@ export default defineConfig({
   },
   test: {
     allowOnly: false,
-    environment: "jsdom",
-    testTimeout: componentTestTimeout,
-    environmentOptions: { jsdom: { url: "http://localhost:3000/" } },
-    include: ["ui/**/*.test.ts"],
-    setupFiles: ["./ui/setup-workspace.ts"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "node",
+          environment: "node",
+          include: ["*.test.ts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "ui",
+          environment: "jsdom",
+          testTimeout: componentTestTimeout,
+          environmentOptions: { jsdom: { url: "http://localhost:3000/" } },
+          include: ["ui/**/*.test.ts"],
+          setupFiles: ["./ui/setup-workspace.ts"],
+        },
+      },
+    ],
   },
 });

@@ -70,6 +70,7 @@ Choose checks for the behavior you changed:
 | Storybook layout, docs, and visual regression           | `vp run test:browser:stories`                       |
 | Application navigation and browser behavior             | `vp run test:browser:app`                           |
 | Shared browser checks, Storybook, and application flows | `vp run test:browser`                               |
+| Deterministic UI sweep, a11y, focus, and screenshots    | `vp run ui:verify`                                  |
 | Storybook configuration or packaging                    | `vp run @merit/storybook#build`                     |
 
 Run the suite belonging to the changed code. Capability component tests and
@@ -116,16 +117,62 @@ full suites and visual baselines; the `:all` commands also run representative
 `@cross-browser` checks in Firefox and desktop and mobile WebKit. Story test-addon
 runs remain in Chromium.
 
+### Deterministic CLI verification (`ui:verify`)
+
+For repeatable screenshot, accessibility, overflow, error, and keyboard focus checks on
+Storybook stories or live routes without managing servers manually, run `vp run ui:verify`
+(see the [drive-merit skill](../../.agents/skills/drive-merit/SKILL.md) for user-POV feature
+maps and persona workflows):
+
+```sh
+# Curated Storybook sweep (desktop 1440x1000 + mobile 390x844, Postgres-free)
+vp run ui:verify
+
+# Targeted stories (substring or glob, e.g. components-button*)
+vp run ui:verify --story components-button--overview,patterns-form-dialog--with-context
+
+# Live app routes (isolated ephemeral database + app server; one mode per run).
+# Start PostgreSQL first so the run can create its ephemeral database.
+vp run services:start
+vp run ui:verify --route /demo --viewport both --json
+vp run ui:verify --route /app/alder/rounds --viewport both --json
+```
+
+Every host run (without `--container`) starts isolated servers on ephemeral ports, checks zero
+WCAG 2 A/AA/2.1AA violations, zero horizontal overflow, zero console/page errors, and visible
+keyboard `Tab` focus changes (each stop must be painted, with no `opacity: 0` on it or an
+ancestor, and must differ from the page with nothing focused and with the next stop focused,
+so a stop removed from the document as focus leaves it fails;
+focus that enters a cross-origin frame or navigates to a new document fails as incomplete), then writes deterministic proof artifacts to `.tmp/ui-verify/`
+(override with `--out <dir>`): `report.md`, Zod-validated `results.json`, and
+`screenshots/*.png`. A route that redirects, such as to sign-in, is checked where it lands:
+`results.json` records that page as `url` beside the requested `requestedUrl`, and `report.md` shows it after the requested route, in full when it is on another origin.
+When a target fails before its checks run, such as on an HTTP error, `results.json` records the
+`error` and `report.md` marks its axe, overflow, and focus checks as not checked.
+Servers and ephemeral databases are torn down automatically on exit or
+failure. Pass `--update` on host runs to delete the selected targets' previous screenshots for
+the selected viewports before checking; screenshots of other targets and viewports stay. A run
+locks its output directory until its report is written, so a second concurrent run against the
+same `--out` fails immediately; give concurrent runs separate `--out` directories. Running with
+`--container` (or `--container --update`) delegates pixel-exact comparison to Docker Playwright,
+writing only the delegation `report.md` and `results.json` (with `containerExitCode`) under
+`--out` rather than host `screenshots/*.png`; Linux visual baselines live in
+`tooling/storybook/snapshots/` and container diffs appear in Playwright's container output.
+
 ### Review visual changes
 
 The [visual suite](../../tooling/storybook/tests/browser/visual.spec.ts) compares a small set of
 focus, dialog, field, table, recommendation, and open workspace-switcher screenshots.
-Baselines live in `tooling/storybook/snapshots` and standardize on Linux snapshots
+[`visual-targets.ts`](../../tooling/storybook/visual-targets.ts) lists those stories once;
+the suite registers a test for each, and `ui:verify` checks the same stories by default.
+Add or remove a baseline there. Baselines live in `tooling/storybook/snapshots` and standardize on Linux snapshots
 matching the Ubuntu 24.04 PR workflow. Run visual comparisons and baseline updates
 inside the pinned Playwright container so macOS and Linux development environments
 produce identical pixels:
 
 ```sh
+vp run ui:verify --container
+# Equivalent direct container runner:
 vp run test:browser:stories:container
 ```
 
@@ -133,8 +180,8 @@ To accept an intentional visual change, update the Linux baselines through the c
 and rerun the comparison cleanly:
 
 ```sh
-vp run test:browser:stories:container -- --update-snapshots
-vp run test:browser:stories:container
+vp run ui:verify --container --update
+vp run ui:verify --container
 ```
 
 On native Ubuntu 24.04 hosts with the locked browser version installed (`pnpm --filter @merit/test-support exec playwright install --with-deps chromium firefox webkit`), `vp run test:browser:stories:all visual.spec.ts --project desktop --project mobile` also runs directly without Docker. Append `--update-snapshots` only when preparing an intentional baseline update, then rerun without it.

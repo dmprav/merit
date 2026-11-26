@@ -15,10 +15,17 @@ const logger: WorkerLogger = {
   error: (message) => console.error(`[worker] ${message}`),
 };
 
-// The web server loads app/.env.local through Vite; the worker has no Vite, so it reads the same file.
-const localEnvironment = fileURLToPath(new URL("../../.env.local", import.meta.url));
-if (existsSync(localEnvironment)) {
-  process.loadEnvFile(localEnvironment);
+// The web server loads app/.env.local and the root .env.local through Vite; the worker has no
+// Vite, so it reads the same files, with the app file taking precedence.
+for (const file of ["../../.env.local", "../../../.env.local"]) {
+  const localEnvironment = fileURLToPath(new URL(file, import.meta.url));
+  if (existsSync(localEnvironment)) {
+    process.loadEnvFile(localEnvironment);
+  }
+}
+// Locally, email links follow the development port when no origin is configured.
+if (env.MERIT_LOCAL_WORKER === "1" && !env.APP_ORIGIN && env.MERIT_DEV_PORT) {
+  env.APP_ORIGIN = `http://localhost:${env.MERIT_DEV_PORT}`;
 }
 
 const stop = new AbortController();

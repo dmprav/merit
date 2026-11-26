@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -6,12 +5,26 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
+import { readFlagValue, readIntegerFlag } from "../cli.ts";
 import {
   extractLinkedIssueNumbers,
   TRUSTED_AUTHOR_ASSOCIATIONS,
   type IssueCommentRecord,
 } from "../verification/agent-policy.ts";
+import {
+  fetchRestIssueComments,
+  getRepoIdentity,
+  ghApiJson,
+  ghApiPaginatedArray,
+  listRestIssues,
+  parseGitHubRemote,
+  restIssueItemSchema,
+  restLabelSchema,
+  type RepoIdentity,
+} from "./github-rest.ts";
 import { DESIGN_PROPOSAL_LABEL } from "./proposal.ts";
+
+export { parseGitHubRemote };
 
 export const MAX_OPEN_AGENT_PRS = 2;
 export const MAX_SHEPHERD_ROUNDS = 2;
@@ -112,11 +125,6 @@ export type ReadyIssueCandidate = {
   comments: IssueCommentRecord[];
 };
 
-export type RepoIdentity = {
-  owner: string;
-  name: string;
-};
-
 export type QueueWorkOrder =
   | {
       kind: "rerun_flake";
@@ -156,24 +164,6 @@ export type QueueWorkOrder =
       reason: "wip_limit_reached" | "no_work" | "waiting_for_checks";
       openAgentPrCount: number;
     };
-
-/** Parses GitHub owner/repo from HTTPS, SSH, or cloud-proxy git remote URLs without invoking GraphQL. */
-export const parseGitHubRemote = (remoteUrl: string): RepoIdentity | null => {
-  const trimmed = remoteUrl.trim().replace(/\.git$/, "");
-  const sshMatch = /^git@github\.com:([^/]+)\/([^/]+)$/.exec(trimmed);
-  if (sshMatch?.[1] && sshMatch[2]) {
-    return { owner: sshMatch[1], name: sshMatch[2] };
-  }
-  const httpsMatch = /^https?:\/\/(?:[^@]+@)?github\.com\/([^/]+)\/([^/]+)$/.exec(trimmed);
-  if (httpsMatch?.[1] && httpsMatch[2]) {
-    return { owner: httpsMatch[1], name: httpsMatch[2] };
-  }
-  const proxyMatch = /^https?:\/\/[^/]+\/git\/([^/]+)\/([^/]+)$/.exec(trimmed);
-  if (proxyMatch?.[1] && proxyMatch[2]) {
-    return { owner: proxyMatch[1], name: proxyMatch[2] };
-  }
-  return null;
-};
 
 export const parseClaimMarker = (commentBody: string): ClaimMarker | null => {
   const match = CLAIM_MARKER_PATTERN.exec(commentBody);
@@ -561,23 +551,6 @@ export const selectNextWork = ({
   };
 };
 
-const restLabelSchema = z.object({ name: z.string() });
-
-const restCommentSchema = z.object({
-  body: z.string().nullable().default(""),
-  author_association: z.string().default(""),
-});
-
-const restIssueItemSchema = z.object({
-  number: z.number(),
-  state: z.string(),
-  title: z.string(),
-  body: z.string().nullable().default(""),
-  labels: z.array(restLabelSchema),
-  comments: z.number().default(0),
-  pull_request: z.unknown().optional(),
-});
-
 const restPullDetailSchema = z.object({
   number: z.number(),
   title: z.string(),
@@ -638,55 +611,6 @@ const restCreatedPrSchema = z.object({
   html_url: z.string(),
   head: z.object({ ref: z.string() }),
 });
-
-const ghApiJson = (repoRoot: string, args: readonly string[]): unknown => {
-  const raw = execFileSync("gh", ["api", ...args], { cwd: repoRoot, encoding: "utf8" });
-  return raw.trim() ? JSON.parse(raw) : null;
-};
-
-const ghApiPaginatedArray = <T>(
-  repoRoot: string,
-  endpoint: string,
-  itemSchema: z.ZodType<T>,
-): T[] => {
-  const pages = z
-    .array(z.array(itemSchema))
-    .parse(ghApiJson(repoRoot, ["--paginate", "--slurp", endpoint]));
-  return pages.flat();
-};
-
-const getRepoIdentity = (repoRoot: string): RepoIdentity => {
-  const envRepo = process.env.GITHUB_REPOSITORY;
-  if (envRepo && /^[^/]+\/[^/]+$/.test(envRepo)) {
-    const [owner, name] = envRepo.split("/");
-    if (owner && name) {
-      return { owner, name };
-    }
-  }
-  const remoteUrl = execFileSync("git", ["remote", "get-url", "origin"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  }).trim();
-  const parsed = parseGitHubRemote(remoteUrl);
-  if (!parsed) {
-    throw new Error(`Could not determine GitHub owner/repo from origin remote "${remoteUrl}".`);
-  }
-  return parsed;
-};
-
-const fetchIssueComments = (
-  repoRoot: string,
-  repo: RepoIdentity,
-  number: number,
-): IssueCommentRecord[] =>
-  ghApiPaginatedArray(
-    repoRoot,
-    `repos/${repo.owner}/${repo.name}/issues/${number}/comments?per_page=100`,
-    restCommentSchema,
-  ).map((comment) => ({
-    body: comment.body ?? "",
-    authorAssociation: comment.author_association,
-  }));
 
 const fetchUnaddressedThreads = (
   repoRoot: string,
@@ -755,7 +679,7 @@ const fetchOpenAgentPrs = (repoRoot: string, repo: RepoIdentity): OpenAgentPr[] 
     const pr = restPullDetailSchema.parse(
       ghApiJson(repoRoot, [`repos/${repo.owner}/${repo.name}/pulls/${item.number}`]),
     );
-    const comments = fetchIssueComments(repoRoot, repo, pr.number);
+    const comments = fetchRestIssueComments(repoRoot, repo, pr.number);
     const checks = fetchCommitChecks(repoRoot, repo, pr.head.sha);
     const { hasPending, onlyBrowserFailures } = inspectPrChecks(checks);
     const failedVerifyRun =
@@ -781,21 +705,13 @@ const fetchOpenAgentPrs = (repoRoot: string, repo: RepoIdentity): OpenAgentPr[] 
   });
 };
 
-const fetchReadyIssues = (repoRoot: string, repo: RepoIdentity): ReadyIssueCandidate[] => {
-  const items = ghApiPaginatedArray(
-    repoRoot,
-    `repos/${repo.owner}/${repo.name}/issues?state=open&labels=agent:ready&per_page=100`,
-    restIssueItemSchema,
-  );
-  return items
-    .filter((item) => item.pull_request === undefined)
-    .map((item) => ({
-      number: item.number,
-      title: item.title,
-      labels: item.labels.map((label) => label.name),
-      comments: item.comments > 0 ? fetchIssueComments(repoRoot, repo, item.number) : [],
-    }));
-};
+const fetchReadyIssues = (repoRoot: string, repo: RepoIdentity): ReadyIssueCandidate[] =>
+  listRestIssues({ repoRoot, repo, state: "open", labels: ["agent:ready"] }).map((item) => ({
+    number: item.number,
+    title: item.title,
+    labels: item.labels.map((label) => label.name),
+    comments: item.comments > 0 ? fetchRestIssueComments(repoRoot, repo, item.number) : [],
+  }));
 
 const postIssueComment = (repoRoot: string, repo: RepoIdentity, number: number, body: string) => {
   ghApiJson(repoRoot, [
@@ -822,12 +738,36 @@ const addIssueLabels = (
   ]);
 };
 
-const readFlagValue = (args: readonly string[], flag: string): string | null => {
-  const index = args.indexOf(flag);
-  if (index === -1) {
-    return null;
+const RECORD_SHEPHERD_USAGE =
+  "Usage: queue.ts record-shepherd <pr-number> --round <n> [--sha <sha>] [--issue <n>] [--flake-reruns <n>] [--if-uninitialized]";
+
+export type RecordShepherdOptions = {
+  prNumber: number;
+  round: number;
+  sha?: string;
+  issueNumber?: number;
+  flakeReruns?: number;
+  ifUninitialized: boolean;
+};
+
+/** Validates `record-shepherd` arguments before any GitHub call, so bad input records nothing. */
+export const parseRecordShepherdArgs = (args: readonly string[]): RecordShepherdOptions => {
+  const prNumber = Number(args[0]);
+  const round = readIntegerFlag(args, "--round", 0);
+  if (!/^[1-9]\d*$/.test(args[0] ?? "") || round === null) {
+    throw new Error(RECORD_SHEPHERD_USAGE);
   }
-  return args[index + 1] ?? null;
+  const sha = readFlagValue(args, "--sha");
+  const issueNumber = readIntegerFlag(args, "--issue", 1);
+  const flakeReruns = readIntegerFlag(args, "--flake-reruns", 0);
+  return {
+    prNumber,
+    round,
+    ...(sha !== null ? { sha } : {}),
+    ...(issueNumber !== null ? { issueNumber } : {}),
+    ...(flakeReruns !== null ? { flakeReruns } : {}),
+    ifUninitialized: args.includes("--if-uninitialized"),
+  };
 };
 
 const applyQueueOrder = (repoRoot: string, repo: RepoIdentity, order: QueueWorkOrder) => {
@@ -876,7 +816,7 @@ const runCli = () => {
     const issue = restIssueItemSchema.parse(
       ghApiJson(repoRoot, [`repos/${repo.owner}/${repo.name}/issues/${issueNumber}`]),
     );
-    const comments = issue.comments > 0 ? fetchIssueComments(repoRoot, repo, issueNumber) : [];
+    const comments = issue.comments > 0 ? fetchRestIssueComments(repoRoot, repo, issueNumber) : [];
     console.log(
       JSON.stringify(
         {
@@ -902,7 +842,7 @@ const runCli = () => {
     }
     const now = Date.now();
     const existingOwner = findEarliestActiveClaimRunId(
-      fetchIssueComments(repoRoot, repo, issueNumber),
+      fetchRestIssueComments(repoRoot, repo, issueNumber),
       now,
     );
     if (renewRunId !== null) {
@@ -930,7 +870,7 @@ const runCli = () => {
     postIssueComment(repoRoot, repo, issueNumber, formatClaimComment(claim));
 
     const winnerAfterWrite = findEarliestActiveClaimRunId(
-      fetchIssueComments(repoRoot, repo, issueNumber),
+      fetchRestIssueComments(repoRoot, repo, issueNumber),
       Date.now(),
     );
     if (winnerAfterWrite !== claim.runId) {
@@ -1022,28 +962,18 @@ const runCli = () => {
   }
 
   if (command === "record-shepherd") {
-    const prNumber = Number.parseInt(rest[0] ?? "", 10);
-    const round = Number.parseInt(readFlagValue(rest, "--round") ?? "", 10);
-    const sha = readFlagValue(rest, "--sha") ?? undefined;
-    const issueRaw = readFlagValue(rest, "--issue");
-    const flakeRaw = readFlagValue(rest, "--flake-reruns");
-    const ifUninitialized = rest.includes("--if-uninitialized");
-    if (!Number.isInteger(prNumber) || prNumber <= 0) {
-      throw new Error(
-        "Usage: queue.ts record-shepherd <pr-number> --round <n> [--sha <sha>] [--issue <n>] [--flake-reruns <n>] [--if-uninitialized]",
-      );
-    }
-    const comments = fetchIssueComments(repoRoot, repo, prNumber);
+    const { prNumber, ifUninitialized, ...updates } = parseRecordShepherdArgs(rest);
+    const comments = fetchRestIssueComments(repoRoot, repo, prNumber);
     const previous = parseAgentPrState(comments);
     if (ifUninitialized && hasAgentPrState(comments)) {
       console.log(JSON.stringify({ status: "already_initialized", prNumber, state: previous }));
       return;
     }
     const state = mergeAgentPrState(previous, {
-      shepherdRounds: round,
-      ...(flakeRaw !== null ? { flakeReruns: Number.parseInt(flakeRaw, 10) } : {}),
-      ...(sha ? { lastHeadSha: sha } : {}),
-      ...(issueRaw !== null ? { issueNumber: Number.parseInt(issueRaw, 10) } : {}),
+      shepherdRounds: updates.round,
+      ...(updates.flakeReruns !== undefined ? { flakeReruns: updates.flakeReruns } : {}),
+      ...(updates.sha ? { lastHeadSha: updates.sha } : {}),
+      ...(updates.issueNumber !== undefined ? { issueNumber: updates.issueNumber } : {}),
     });
     postIssueComment(repoRoot, repo, prNumber, formatAgentPrStateComment(state));
     console.log(JSON.stringify({ status: "recorded", prNumber, state }));
@@ -1089,7 +1019,6 @@ const runCli = () => {
   );
 };
 
-const entryPath = process.argv[1];
-if (entryPath && resolve(entryPath) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   runCli();
 }
