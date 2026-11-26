@@ -12,7 +12,6 @@
   /* The footer edge follows how far the popover's list has scrolled. */
   timeline-scope: --popover-list;
   --edge-timeline: --popover-list;
-  z-index: 50;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -31,7 +30,7 @@
  */
 .scroller {
   min-height: 0;
-  max-height: min(19rem, var(--available-height, 19rem));
+  max-height: 19rem;
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-timeline: --popover-list block;

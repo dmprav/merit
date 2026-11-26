@@ -214,6 +214,47 @@ const SearchResults = ({
     </ListBox>
   );
 
+/** A message replaces the results; otherwise the grouped results show. */
+const PaletteBody = ({
+  message,
+  ...results
+}: Pick<SearchPaletteProps, "message" | "groups" | "resultsId" | "onOpen"> & {
+  label: string;
+  busy: boolean;
+}) => (message ? <div className={styles.message}>{message}</div> : <SearchResults {...results} />);
+
+/**
+ * The top match is highlighted as results arrive; the keyboard bar waits for the first key press
+ * that moves it, and starts over with each new set of results. Escape dismisses when asked to.
+ */
+const usePaletteRoot = ({
+  resultsId,
+  onEscape,
+  busy,
+}: Pick<SearchPaletteProps, "resultsId" | "onEscape"> & { busy: boolean }) => {
+  const [navigated, setNavigated] = useState<{ resultsId: SearchPaletteProps["resultsId"] } | null>(
+    null,
+  );
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      setNavigated({ resultsId });
+    }
+    if (onEscape && event.key === "Escape" && !event.nativeEvent.isComposing) {
+      event.stopPropagation();
+      onEscape();
+    }
+  };
+
+  const hasNavigated = navigated !== null && navigated.resultsId === resultsId;
+  return {
+    "data-busy": busy || undefined,
+    "aria-busy": busy || undefined,
+    "data-navigated": hasNavigated || undefined,
+    onKeyDownCapture: onKeyDown,
+  };
+};
+
 /**
  * A search field above links and actions, optionally grouped. The field keeps focus. The top
  * match is highlighted when settled results arrive, Up and Down move the highlight through every
@@ -239,32 +280,10 @@ export const SearchPalette = ({
   onOpen,
   onEscape,
 }: SearchPaletteProps) => {
-  const pending = busy || undefined;
-  // The top match is highlighted as results arrive; the keyboard bar waits for the first key press
-  // that moves it, and starts over with each new set of results.
-  const [navigated, setNavigated] = useState<{ resultsId: string | number | undefined } | null>(
-    null,
-  );
-  const hasNavigated = navigated !== null && navigated.resultsId === resultsId;
-
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      setNavigated({ resultsId });
-    }
-    if (onEscape && event.key === "Escape" && !event.nativeEvent.isComposing) {
-      event.stopPropagation();
-      onEscape();
-    }
-  };
+  const rootProps = usePaletteRoot({ resultsId, onEscape, busy });
 
   return (
-    <div
-      className={styles.palette}
-      data-busy={pending}
-      data-navigated={hasNavigated || undefined}
-      aria-busy={pending}
-      onKeyDownCapture={onKeyDown}
-    >
+    <div className={styles.palette} {...rootProps}>
       <Autocomplete inputValue={value} onInputChange={onValueChange} disableAutoFocusFirst>
         <SearchField aria-label={label} className={styles.field} autoFocus>
           <IconBase name="search" className={styles.icon} />
@@ -276,17 +295,14 @@ export const SearchPalette = ({
           />
         </SearchField>
         <div className={styles.progress} aria-hidden="true" />
-        {message ? (
-          <div className={styles.message}>{message}</div>
-        ) : (
-          <SearchResults
-            label={resultsLabel}
-            groups={groups}
-            resultsId={resultsId}
-            busy={busy}
-            onOpen={onOpen}
-          />
-        )}
+        <PaletteBody
+          message={message}
+          label={resultsLabel}
+          groups={groups}
+          resultsId={resultsId}
+          busy={busy}
+          onOpen={onOpen}
+        />
       </Autocomplete>
       <PaletteFooter feedback={feedback} keyboardHelp={keyboardHelp} />
       <StatusMessage message={announcement} eventId={announcementId} />

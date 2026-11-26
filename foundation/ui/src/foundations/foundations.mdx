@@ -82,7 +82,7 @@ no movement, which reduced-motion preferences skip. Each sits 6px from its trigg
 the constants in `popover.ts`, not by a number in the component. A list that scrolls
 inside a popover uses the shared scroller: the surface has no padding, so the scroller's
 padding keeps rows clear of its scrollbar, and the list is cut partway through a row so it
-visibly continues. A divider inside a popover runs edge to edge. Components choose these by
+visibly continues. A divider inside a popover runs edge to edge: `--popover-inset` is how far rows sit from the edge, and `--popover-gutter` is the padding of a padded parent, which dividers bleed through. Components choose these by
 class; stylelint rejects a popover that restyles its own shadow.
 
 ## Interaction cues
