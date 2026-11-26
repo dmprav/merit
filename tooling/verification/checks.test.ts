@@ -116,12 +116,25 @@ it.each([
   30_000,
 );
 
+it("enforces the code-line limit in repository tooling", () => {
+  withSource(
+    "length.ts",
+    countedFunction(81),
+    (path) => {
+      const result = run(["lint", "--format", "json", path]);
+      expect(
+        lintResult.parse(JSON.parse(result.stdout)).diagnostics.map(({ code }) => code),
+      ).toContain("eslint(max-lines-per-function)");
+    },
+    "tooling/verification",
+  );
+}, 30_000);
+
 it.each([
   ["length.test.ts", "interfaces/product/src"],
   ["length.stories.tsx", "interfaces/product/src"],
   ["length.story-fixtures.tsx", "interfaces/product/src"],
   ["length.ts", "app/tests"],
-  ["length.ts", "tooling/verification"],
 ])(
   "excludes function length for %s in %s",
   (name, area) => {
