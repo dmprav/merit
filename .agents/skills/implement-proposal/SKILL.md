@@ -94,7 +94,10 @@ When the builder finishes, verify before review:
   approved `paths` (plus the verification record added in step 5).
 - Every command in the brief's **Verification** passes (including full package
   test commands so coverage thresholds execute).
-- For UI changes, inspect screenshots beside the named precedent per
+- For UI changes, run `vp run ui:verify` with `--story` or `--route` selecting
+  both the changed UI and its named precedent (not only the unfiltered default
+  curated sweep; see [drive-merit](../drive-merit/SKILL.md)), then inspect
+  `<out>/report.md` and screenshots beside the precedent per
   [UI verification](../../../docs/guides/ui-verification.md#verification).
 
 ## 4. Review independently
@@ -102,8 +105,8 @@ When the builder finishes, verify before review:
 Start a fresh, read-only
 [feature-reviewer](../../../.claude/agents/feature-reviewer.md) subagent with
 **only** the brief (plus any trusted maintainer steering overrides from step
-1.4), `origin/main`, and (for UI) its own screenshot directory. Do not pass the
-builder's report, reasoning, or screenshots.
+1.4), `origin/main`, and (for UI) its own `vp run ui:verify --out <dir>`
+screenshot directory. Do not pass the builder's report, reasoning, or screenshots.
 
 Triage every finding:
 

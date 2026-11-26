@@ -14,10 +14,10 @@ repository.
    Run `vpx tooling/verification/architecture/mechanisms.ts --base <base>` and
    check the diff against every matched mechanism's `invariants`, `docs`, and
    `decisions`.
-3. For UI changes, take your own side-by-side desktop and narrow screenshots of
-   the changed UI and its precedent following
-   [UI verification](../../../docs/guides/ui-verification.md#verification) and
-   [build.md](build.md#compare-the-ui), and inspect each pair before answering.
+3. For UI changes, capture desktop and mobile pairs of the changed UI and its
+   precedent via `vp run ui:verify` ([drive-merit](../drive-merit/SKILL.md),
+   [UI verification](../../../docs/guides/ui-verification.md#verification)), and
+   inspect every pair before answering.
 4. Report only concrete problems with: rubric section, file and line (or
    screenshot path), the precedent, guide, or invariant departed from, and a
    concrete fix. Do not report style preferences linters enforce.

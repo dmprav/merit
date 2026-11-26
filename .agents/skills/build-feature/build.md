@@ -52,18 +52,28 @@ uncommitted but in place.
 
 ## Compare the UI
 
-For UI changes, follow [UI verification](../../../docs/guides/ui-verification.md#verification).
-Screenshot the new UI and its precedent in the same states, at the same viewport
-and theme, at desktop and narrow widths, into the directory you were given. With
-Storybook running (`vp run storybook`):
+For UI changes, follow [UI verification](../../../docs/guides/ui-verification.md#verification)
+and [drive-merit](../drive-merit/SKILL.md). Capture the new UI and its precedent in the same
+states across desktop (`1440x1000`) and mobile (`390x844`) into the directory you were given
+with `vp run ui:verify` (which manages isolated Storybook or app servers, axe/overflow/error
+checks, keyboard focus traversal, and proof artifacts). For interaction-dependent states
+(open menus, dialogs, validation, editing), capture Storybook stories whose `play()` function
+renders that state or drive the flow interactively via `drive-merit` rather than relying on
+idle initial renders:
 
 ```sh
-pnpm --filter @merit/test-support exec playwright screenshot --viewport-size=1280,800 \
-  "http://localhost:6006/iframe.html?id=<story-id>&viewMode=story" <dir>/<name>-desktop.png
+vp run ui:verify --story <story-id>,<precedent-story-id> --out <dir>
+# Or verify a changed route and its precedent in the same app mode:
+vp run ui:verify --route <changed-route>,<precedent-route> --mode <demo|workspace> --out <dir>
+# When routes use different modes, capture each with its mode into its own --out dir:
+vp run ui:verify --route <changed-route> --mode <demo|workspace> --out <dir>/changed
+vp run ui:verify --route <precedent-route> --mode <demo|workspace> --out <dir>/precedent
 ```
 
-Look at each pair and correct every difference the brief does not explain before
-reporting. Screenshots you did not inspect do not count as verification.
+Inspect `<dir>/report.md` and every captured pair under `<dir>/screenshots/` (for split runs,
+both `<dir>/changed/report.md` and `<dir>/precedent/report.md`, pairing screenshots across their
+`screenshots/` folders), and correct every difference the brief does not explain before reporting. Screenshots you did not inspect
+do not count as verification.
 
 ## Report
 

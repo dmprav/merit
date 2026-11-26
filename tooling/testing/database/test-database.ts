@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { Client } from "pg";
 
+import { migrate as migrateDatabase } from "@merit/db/migrate";
 import { grantRuntimePrivileges } from "@merit/db/runtime-grants";
 
 import { loadRepoEnvLocal } from "../env.ts";
@@ -26,12 +27,14 @@ export const createTestDatabase = async () => {
   const client = new Client({ connectionString: url.href, connectionTimeoutMillis: 5000 });
 
   const role = name + "_runtime";
-  let runtimeCreated = false;
+  let runtimeCreationStarted = false;
+
+  const migrate = () => migrateDatabase(client);
 
   const createRuntimeConnection = async () => {
     const password = randomUUID();
+    runtimeCreationStarted = true;
     await client.query(`CREATE ROLE "${role}" LOGIN NOBYPASSRLS PASSWORD '${password}'`);
-    runtimeCreated = true;
     await grantRuntimePrivileges(client, role);
     const runtime = new URL(url);
     runtime.username = role;
@@ -42,9 +45,12 @@ export const createTestDatabase = async () => {
   const dispose = async () => {
     try {
       await client.end();
+      // FORCE ends this database's sessions, so an interrupted CREATE ROLE has committed or rolled
+      // back by now; drop the role even when its creation was never acknowledged. Skip it when
+      // creation never started, because DROP ROLE needs CREATEROLE even when the role is absent.
       await admin.query(`DROP DATABASE "${name}" WITH (FORCE)`);
-      if (runtimeCreated) {
-        await admin.query(`DROP ROLE "${role}"`);
+      if (runtimeCreationStarted) {
+        await admin.query(`DROP ROLE IF EXISTS "${role}"`);
       }
     } finally {
       await admin.end();
@@ -53,7 +59,7 @@ export const createTestDatabase = async () => {
 
   try {
     await client.connect();
-    return { client, connectionString: url.href, createRuntimeConnection, dispose };
+    return { client, connectionString: url.href, migrate, createRuntimeConnection, dispose };
   } catch (error) {
     await dispose();
     throw error;

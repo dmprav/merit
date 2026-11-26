@@ -249,7 +249,9 @@ Read [documentation guide](../../docs/guides/documentation.md) and
   - descriptions of code, commands, screens, or options that no longer exist;
   - documents without a distinct reader task (merge into the owning page);
   - detail that types, config, stories, or examples already explain;
-  - empty or redundant docs (propose removal + inbound link updates).
+  - empty or redundant docs (propose removal + inbound link updates);
+  - user-POV feature map drift in [drive-merit/features](../skills/drive-merit/SKILL.md#feature-maps-user-pov)
+    when new routes, workflows, or primary ARIA handles change.
 - **Bundle slice-wide cleanups:** Bundle all concrete doc drift, duplication,
   and pruning in the audited area into **one cohesive proposal**. Skip if only
   a 1–2 line wording tweak was found unless it actively misleads callers into

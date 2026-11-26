@@ -294,7 +294,8 @@ choosing where a change belongs.
 
 Integration tests create and remove isolated PostgreSQL databases. Set
 `TEST_DATABASE_URL` for another test server; use a dedicated development server
-where the test role may create databases.
+where the test role may create databases and roles, because tests that connect as
+the runtime role create one.
 
 Build the application before running integration tests. They substitute identities to
 exercise persisted operations and access; browser workspace checks use local mode
