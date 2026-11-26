@@ -8,7 +8,15 @@ import { z } from "zod";
 import { errorMessage, normalizeRepoPath, readFlagValue, readIntegerFlag } from "../cli.ts";
 import { parseProposalMarker, TRUSTED_AUTHOR_ASSOCIATIONS } from "../verification/agent-policy.ts";
 import { classifyChangedPaths } from "../verification/architecture/mechanisms.ts";
-import { MAX_OPEN_PROPOSALS, runScoutGh, SCOUT_LENSES, type ScoutLens } from "./proposal.ts";
+import {
+  fetchRestIssueComments,
+  getRepoIdentity,
+  ghApiJson,
+  listRestIssues,
+  restIssueItemSchema,
+  type RepoIdentity,
+} from "./github-rest.ts";
+import { MAX_OPEN_PROPOSALS, resolveScoutGhEnv, SCOUT_LENSES, type ScoutLens } from "./proposal.ts";
 
 export const SCOUT_STATE_ISSUE_NUMBER = 219;
 export const SCOUT_STATE_ISSUE_TITLE = "chore: agent scout state";
@@ -1178,45 +1186,25 @@ export const buildScoutContext = ({
   };
 };
 
-const ghStateIssueSchema = z.object({
-  number: z.number(),
-  state: z.string(),
-  title: z.string(),
-  body: z.string(),
-});
-
-const ghIssueListSchema = z.array(
-  z.object({
-    number: z.number(),
-    title: z.string(),
-    body: z.string().optional(),
-    labels: z.array(z.object({ name: z.string() })),
-    comments: z
-      .array(
-        z.object({
-          authorAssociation: z.string().optional(),
-          body: z.string().optional(),
-        }),
-      )
-      .optional(),
-  }),
-);
-
-const fetchScoutStateIssue = (repoRoot: string) => {
-  const raw = runScoutGh(repoRoot, [
-    "issue",
-    "view",
-    String(SCOUT_STATE_ISSUE_NUMBER),
-    "--json",
-    "number,state,title,body",
-  ]);
-  const issue = ghStateIssueSchema.parse(JSON.parse(raw));
-  if (issue.state !== "OPEN" || issue.title !== SCOUT_STATE_ISSUE_TITLE) {
+const fetchScoutStateIssue = (repoRoot: string, repo: RepoIdentity) => {
+  const issue = restIssueItemSchema.parse(
+    ghApiJson(
+      repoRoot,
+      [`repos/${repo.owner}/${repo.name}/issues/${SCOUT_STATE_ISSUE_NUMBER}`],
+      resolveScoutGhEnv(),
+    ),
+  );
+  if (issue.state.toUpperCase() !== "OPEN" || issue.title !== SCOUT_STATE_ISSUE_TITLE) {
     throw new Error(
-      `Pinned scout state issue #${SCOUT_STATE_ISSUE_NUMBER} must be OPEN and titled "${SCOUT_STATE_ISSUE_TITLE}" (got ${issue.state}: "${issue.title}").`,
+      `Pinned scout state issue #${SCOUT_STATE_ISSUE_NUMBER} must be OPEN and titled "${SCOUT_STATE_ISSUE_TITLE}" (got ${issue.state.toUpperCase()}: "${issue.title}").`,
     );
   }
-  return issue;
+  return {
+    number: issue.number,
+    state: issue.state.toUpperCase(),
+    title: issue.title,
+    body: issue.body ?? "",
+  };
 };
 
 const isCommitAncestor = (repoRoot: string, sha: string, ref: string): boolean => {
@@ -1250,7 +1238,9 @@ export const parseAdvanceLensFlag = (args: readonly string[]): ScoutLens => {
 };
 
 const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") => {
-  const stateIssue = fetchScoutStateIssue(repoRoot);
+  const repo = getRepoIdentity(repoRoot);
+  const scoutEnv = resolveScoutGhEnv();
+  const stateIssue = fetchScoutStateIssue(repoRoot, repo);
   const state = parseScoutState(stateIssue.body);
   const now = new Date();
   let lens: ScoutLens;
@@ -1282,22 +1272,13 @@ const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") 
     encoding: "utf8",
   }).trim();
 
-  const openProposedCount = ghIssueListSchema.parse(
-    JSON.parse(
-      runScoutGh(repoRoot, [
-        "issue",
-        "list",
-        "--state",
-        "open",
-        "--label",
-        "agent:proposed",
-        "--limit",
-        "200",
-        "--json",
-        "number,title,labels",
-      ]),
-    ),
-  ).length;
+  const openProposedCount = listRestIssues({
+    repoRoot,
+    repo,
+    state: "open",
+    labels: ["agent:proposed"],
+    env: scoutEnv,
+  }).length;
 
   if (openProposedCount >= MAX_OPEN_PROPOSALS) {
     console.log(
@@ -1321,44 +1302,24 @@ const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") 
     return;
   }
 
-  const rawOpenIssues = ghIssueListSchema.parse(
-    JSON.parse(
-      runScoutGh(repoRoot, [
-        "issue",
-        "list",
-        "--state",
-        "open",
-        "--limit",
-        "200",
-        "--json",
-        "number,title,labels,body",
-      ]),
-    ),
-  );
+  const rawOpenIssues = listRestIssues({ repoRoot, repo, state: "open", env: scoutEnv });
   const openIssues = rawOpenIssues.map((issue) => ({
     number: issue.number,
     title: issue.title,
     labels: issue.labels.map((label) => label.name),
   }));
 
-  const rawWontfixIssues = ghIssueListSchema.parse(
-    JSON.parse(
-      runScoutGh(repoRoot, [
-        "issue",
-        "list",
-        "--state",
-        "closed",
-        "--label",
-        "wontfix",
-        "--limit",
-        "200",
-        "--json",
-        "number,title,labels,body,comments",
-      ]),
-    ),
-  );
+  const rawWontfixIssues = listRestIssues({
+    repoRoot,
+    repo,
+    state: "closed",
+    labels: ["wontfix"],
+    env: scoutEnv,
+  });
   const wontfixIssues = rawWontfixIssues.map((issue) => {
-    const reason = extractLatestTrustedRejectionReason(issue.comments);
+    const comments =
+      issue.comments > 0 ? fetchRestIssueComments(repoRoot, repo, issue.number, scoutEnv) : [];
+    const reason = extractLatestTrustedRejectionReason(comments);
     return {
       number: issue.number,
       title: issue.title,
@@ -1412,7 +1373,12 @@ const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") 
       ? collectUnreadVerifications(trackedFiles, cursor?.lastPrNumber)
       : [];
 
-  const trackedPathsByIssue = buildTrackedPathsIndex([...rawOpenIssues, ...rawWontfixIssues]);
+  const trackedPathsByIssue = buildTrackedPathsIndex(
+    [...rawOpenIssues, ...rawWontfixIssues].map((issue) => ({
+      number: issue.number,
+      body: issue.body ?? "",
+    })),
+  );
   const telemetry =
     lens === "architecture" || lens === "simplification"
       ? collectStructuralTelemetry({
@@ -1462,7 +1428,8 @@ export const parseAdvanceArgs = (args: readonly string[]): AdvanceOptions => {
 
 const runAdvanceCommand = (repoRoot: string, lens: ScoutLens, args: readonly string[]) => {
   const { commitSha, target, prNumber } = parseAdvanceArgs(args);
-  const stateIssue = fetchScoutStateIssue(repoRoot);
+  const repo = getRepoIdentity(repoRoot);
+  const stateIssue = fetchScoutStateIssue(repoRoot, repo);
   const state = parseScoutState(stateIssue.body);
   const resolvedSha = execFileSync("git", ["rev-parse", "--verify", `${commitSha}^{commit}`], {
     cwd: repoRoot,
@@ -1485,7 +1452,17 @@ const runAdvanceCommand = (repoRoot: string, lens: ScoutLens, args: readonly str
   const nextState: ScoutState = { ...state, [lens]: nextCursor };
   const nextBody = formatScoutStateBody(stateIssue.body, nextState);
 
-  runScoutGh(repoRoot, ["issue", "edit", String(stateIssue.number), "--body", nextBody]);
+  ghApiJson(
+    repoRoot,
+    [
+      `repos/${repo.owner}/${repo.name}/issues/${stateIssue.number}`,
+      "-X",
+      "PATCH",
+      "-f",
+      `body=${nextBody}`,
+    ],
+    resolveScoutGhEnv(),
+  );
   console.log(JSON.stringify({ status: "advanced", lens, cursor: nextCursor }));
 };
 

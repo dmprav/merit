@@ -206,15 +206,28 @@ describe("proposal", () => {
     expect(withScoutToken.GH_TOKEN).toBe("injected-integration-token");
   });
 
-  test("routes every gh CLI invocation in proposal.ts and scout.ts through runScoutGh", () => {
+  test("routes all GitHub operations in proposal.ts, scout.ts, and queue.ts through REST-only github-rest.ts", () => {
+    const githubRestSource = readFileSync(
+      fileURLToPath(new URL("./github-rest.ts", import.meta.url)),
+      "utf8",
+    );
     const proposalSource = readFileSync(
       fileURLToPath(new URL("./proposal.ts", import.meta.url)),
       "utf8",
     );
     const scoutSource = readFileSync(fileURLToPath(new URL("./scout.ts", import.meta.url)), "utf8");
+    const queueSource = readFileSync(fileURLToPath(new URL("./queue.ts", import.meta.url)), "utf8");
 
-    expect(proposalSource.match(/execFileSync\("gh"/g)).toHaveLength(1);
+    // Only github-rest.ts invokes `gh`, and only via `gh api` (no GraphQL or `gh pr/issue/repo`).
+    expect(githubRestSource.match(/execFileSync\("gh"/g)).toHaveLength(1);
+    expect(githubRestSource).toContain('execFileSync("gh", ["api", ...args]');
+    for (const source of [githubRestSource, proposalSource, scoutSource, queueSource]) {
+      expect(source).not.toMatch(/execFileSync\("gh",\s*\[\s*"(?:pr|issue|repo)"/);
+      expect(source).not.toContain('"graphql"');
+    }
+    expect(proposalSource).not.toMatch(/execFileSync\("gh"/);
     expect(scoutSource).not.toMatch(/execFileSync\("gh"/);
+    expect(queueSource).not.toMatch(/execFileSync\("gh"/);
   });
 
   test("classifies design proposals as Tier 2 and renders structured sequencing details instead of an implementer brief", () => {
