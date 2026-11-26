@@ -34,7 +34,7 @@ short screens stack the panes and link between them.
   their rule at rest because they continue the application top bar's line; footers show their edge
   only while content continues below.
 - `WorkPane` holds the task. Its header is always present: it shows the `title`, or the
-  pane's `label` when there is none, and holds state actions,
+  pane's `label` when there is none, and holds state actions (shown only with a `title`, since an idle pane has no task to act on),
   such as closing an editor or starting an amendment. `titleMeta` keeps compact
   facts about the task beside the title, such as a due-date `Badge` and an info
   control whose popover explains who asked and who can read the work. `footer` keeps status and

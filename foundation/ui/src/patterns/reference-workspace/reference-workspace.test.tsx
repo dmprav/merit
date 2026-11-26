@@ -85,6 +85,32 @@ it("shows a header bar on every pane, with the label as the work pane's title wh
   ).not.toBeNull();
 });
 
+it("shows title actions only while the work pane has a title", () => {
+  const { rerender } = render(
+    <ReferenceWorkspace>
+      <WorkPane label="Review task" titleActions={<button>Close review task</button>}>
+        <p>Overview</p>
+      </WorkPane>
+    </ReferenceWorkspace>,
+  );
+
+  expect(screen.queryByRole("button", { name: "Close review task" })).not.toBeInTheDocument();
+
+  rerender(
+    <ReferenceWorkspace>
+      <WorkPane
+        label="Review task"
+        title="Record assessment"
+        titleActions={<button>Close review task</button>}
+      >
+        <p>Editor</p>
+      </WorkPane>
+    </ReferenceWorkspace>,
+  );
+
+  expect(screen.getByRole("button", { name: "Close review task" })).toBeVisible();
+});
+
 it("titles a reference pane without a toolbar with its label", () => {
   render(
     <ReferenceWorkspace>

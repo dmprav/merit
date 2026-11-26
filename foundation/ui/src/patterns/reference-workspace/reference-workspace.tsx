@@ -145,6 +145,7 @@ export const WorkPane = ({
   titleRef?: Ref<HTMLHeadingElement>;
   /** Compact status beside the title, such as a due-date badge and a control that explains it. */
   titleMeta?: ReactNode;
+  /** Shown only with a `title`: without a task there is nothing to close or amend. */
   titleActions?: ReactNode;
   footer?: ReactNode;
   fill?: boolean;
@@ -161,7 +162,7 @@ export const WorkPane = ({
             <Icon name="ascending" />
           </a>
         )}
-        <FrameBar actions={titleActions}>
+        <FrameBar actions={title ? titleActions : undefined}>
           <FrameTitle plain title={title || label} titleRef={titleRef} focusable meta={titleMeta} />
         </FrameBar>
         {fill ? (

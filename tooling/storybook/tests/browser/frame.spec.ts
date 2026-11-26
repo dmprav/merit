@@ -219,3 +219,15 @@ test.describe("titled surfaces share one frame", () => {
     });
   }
 });
+
+test("an idle work pane has no task actions", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(
+    "/iframe.html?id=features-applications-manage-reviews--assessment-details&viewMode=story",
+  );
+  await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+
+  await expect(page.locator('[data-frame="pane"] [data-dialog-header]')).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Close review task" })).toHaveCount(0);
+});

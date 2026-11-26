@@ -48,6 +48,7 @@ export const FramedDialog = ({
     {...props}
     isDismissDisabled={isDismissDisabled}
     frame={frame}
+    scrollsWhole
     classNames={{
       overlay: frame === "end" ? styles.sidePanelOverlay : styles.centeredOverlay,
       modal:

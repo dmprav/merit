@@ -73,6 +73,30 @@ test.describe("companion panel layout", () => {
     });
   }
 
+  test("keeps the sheet's header and footer in view on a short viewport", async ({ page }) => {
+    await page.setViewportSize({ width: 844, height: 390 });
+    await open(page, "patterns-application-shell--assistant-panel-scrolling");
+
+    const sheet = page.getByRole("dialog", { name: "Assistant" });
+    const body = sheet.getByRole("region", { name: "Assistant" });
+    const header = sheet.locator("[data-dialog-header]");
+    const footer = sheet.locator("[data-frame-footer]");
+    await expect(sheet).toBeVisible();
+    // Only the body scrolls: the sheet itself does not, unlike a centered dialog or side panel.
+    await expect(sheet).not.toHaveCSS("overflow-y", "auto");
+    await expect(body).toHaveCSS("overflow-y", "auto");
+    await body.evaluate((node) => {
+      node.scrollTop = 0;
+    });
+    await body.evaluate((node) => {
+      node.scrollTop = 200;
+    });
+    await expect.poll(() => body.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+    await expect(header).toBeInViewport({ ratio: 1 });
+    await expect(footer).toBeInViewport({ ratio: 1 });
+    expect(await sheet.evaluate((node) => node.scrollTop)).toBe(0);
+  });
+
   for (const [from, to, close] of [
     [1440, 1280, "Escape"],
     [1440, 1280, "Close"],

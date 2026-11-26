@@ -43,6 +43,7 @@ export const ModalFrame = ({
   isKeyboardDismissDisabled,
   classNames,
   frame,
+  scrollsWhole = false,
   "aria-label": ariaLabel,
   "aria-describedby": descriptionId,
   children,
@@ -51,6 +52,8 @@ export const ModalFrame = ({
   classNames: { overlay?: string; modal?: string; dialog?: string };
   /** Titled frames take the shared frame anatomy, including the short-viewport scrolling fallback. */
   frame?: Extract<FramePlacement, "center" | "end">;
+  /** The whole frame scrolls below 30rem of viewport height; leave off where the footer must stay in view. */
+  scrollsWhole?: boolean;
   /** Names a frame without a visible heading. */
   "aria-label"?: string;
   children: (close: () => void) => ReactNode;
@@ -78,6 +81,7 @@ export const ModalFrame = ({
           <Modal className={classNames.modal}>
             <Dialog
               {...root}
+              data-frame-scrolls={scrollsWhole || undefined}
               aria-label={ariaLabel}
               aria-describedby={descriptionId}
               data-modal-dialog={frame}

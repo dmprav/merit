@@ -166,7 +166,7 @@
 }
 
 .footer[data-framed] {
-  padding: var(--space-4) var(--frame-gutter);
+  padding: var(--space-4) var(--frame-gutter, 0px);
 }
 
 .feedback {
@@ -186,25 +186,26 @@
   position: sticky;
   bottom: calc(-1 * var(--frame-sticky-inset, 0px));
   z-index: 2;
-  margin-inline: calc(-1 * var(--frame-gutter));
+  margin-inline: calc(-1 * var(--frame-gutter, 0px));
 }
 
 /*
  * A short viewport has no room to keep a heading and actions beside a reading space, so the
  * whole centered dialog or side panel scrolls, with its header and footer flowing with the content.
+ * Surfaces that promise a persistent footer, such as the assistant sheet, do not opt in.
  */
 @media (max-height: 30rem) {
-  .frame:is([data-frame="center"], [data-frame="end"]) {
+  .frame[data-frame-scrolls] {
     overflow-y: auto;
     scroll-padding-block: var(--space-2);
   }
 
-  .frame:is([data-frame="center"], [data-frame="end"]) > *,
-  .frame:is([data-frame="center"], [data-frame="end"]) .content {
+  .frame[data-frame-scrolls] > *,
+  .frame[data-frame-scrolls] .content {
     flex: none;
   }
 
-  .frame:is([data-frame="center"], [data-frame="end"]) .body {
+  .frame[data-frame-scrolls] .body {
     overflow: visible;
   }
 }
