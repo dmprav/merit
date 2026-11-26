@@ -117,7 +117,9 @@ export const parseNumstatZ = (raw: string): NumstatEntry[] => {
     if (!token) {
       continue;
     }
-    const [addRaw, delRaw, inlinePath = ""] = token.split("\t");
+    // Only the two counts are tab-separated; a path read with -z may itself contain tabs.
+    const [addRaw, delRaw, ...pathParts] = token.split("\t");
+    const inlinePath = pathParts.join("\t");
     // Rename/copy entries place old and new paths in the following two NUL-delimited tokens.
     const path = inlinePath || tokens[index + 1] || tokens[index] || "";
     index += inlinePath ? 0 : 2;

@@ -30,6 +30,12 @@ describe("pr-review-packet", () => {
     ]);
   });
 
+  test("keeps tabs inside numstat paths", () => {
+    expect(parseNumstatZ(["1\t0\tsrc/example\tcase.test.ts", ""].join("\0"))).toEqual([
+      { path: "src/example\tcase.test.ts", additions: 1, deletions: 0 },
+    ]);
+  });
+
   test("splits SQL statements across dollar-quoted function bodies and comments", () => {
     const sql = `
       -- Leading comment with ; semicolon
