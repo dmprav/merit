@@ -1,4 +1,4 @@
-import { useRef, type ReactNode, type Ref } from "react";
+import { useEffect, useRef, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ApplicationView as Application } from "@merit/grantmaking/api";
@@ -75,16 +75,29 @@ const IntakePresentation = ({
   const intakeTitle = useRef<HTMLSpanElement>(null);
   const intakeTriggers = useRef<Partial<Record<IntakeSection, HTMLButtonElement | null>>>({});
 
-  const closeIntake = () => {
-    const previous = intakeEditing?.section;
-    intakeEditing?.close();
-    requestAnimationFrame(() => {
+  // Return focus to the closed section's trigger once React has committed it. An editor that
+  // saved closes after an await, so a frame requested at close time can still find the editor.
+  const restoreSection = useRef<IntakeSection | null>(null);
+  const editingSection = intakeEditing?.section;
+  useEffect(() => {
+    if (!restoreSection.current || editingSection) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      const previous = restoreSection.current;
+      restoreSection.current = null;
       if (previous === "title") {
         intakeTitle.current?.focus();
       } else if (previous) {
         intakeTriggers.current[previous]?.focus();
       }
     });
+    return () => cancelAnimationFrame(frame);
+  });
+
+  const closeIntake = () => {
+    restoreSection.current = intakeEditing?.section ?? null;
+    intakeEditing?.close();
   };
 
   const overview = (

@@ -377,6 +377,30 @@ it("edits the summary inline with the standard field and preserves contact detai
   );
 });
 
+it("returns focus to the section's edit button after its editor saves and closes", async () => {
+  const { user, calls } = renderIntake();
+  await user.click(await screen.findByRole("button", { name: "Edit summary" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Staff summary" }), {
+    target: { value: "Updated staff interpretation." },
+  });
+  // A frame may run before React commits the edit button that replaces the editor.
+  const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    callback(0);
+    return 0;
+  });
+  try {
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(calls).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: "Staff summary" })).not.toBeInTheDocument(),
+    );
+  } finally {
+    frame.mockRestore();
+  }
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Edit summary" })).toHaveFocus());
+});
+
 it("brings a newly started revision into view from application management", async () => {
   const { user } = renderIntake();
   await user.click(await screen.findByRole("button", { name: "Application actions" }));
