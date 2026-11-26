@@ -312,35 +312,109 @@ it("pins search_path and revokes PUBLIC execute on every SECURITY DEFINER functi
 // and `format_version` columns are 1-based version numbers (`> 0`).
 const ZERO_BASED_VERSION_TABLES = new Set(["memberships"]);
 
+const stripOuterParens = (expr: string): string => {
+  let current = expr.trim();
+  while (current.startsWith("(") && current.endsWith(")")) {
+    let depth = 0;
+    let wrapsWhole = true;
+    for (let i = 0; i < current.length; i += 1) {
+      const ch = current[i];
+      if (ch === "(") {
+        depth += 1;
+      } else if (ch === ")") {
+        depth -= 1;
+        if (depth === 0 && i < current.length - 1) {
+          wrapsWhole = false;
+          break;
+        }
+      }
+    }
+    if (!wrapsWhole) {
+      break;
+    }
+    current = current.slice(1, -1).trim();
+  }
+  return current;
+};
+
+const splitTopLevelAnd = (expr: string): string[] => {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < expr.length; i += 1) {
+    const ch = expr[i];
+    if (ch === "(") {
+      depth += 1;
+    } else if (ch === ")") {
+      depth -= 1;
+    } else if (depth === 0 && /^\s+AND\s+/iu.test(expr.slice(i))) {
+      parts.push(expr.slice(start, i).trim());
+      const match = /^\s+AND\s+/iu.exec(expr.slice(i));
+      i += (match?.[0].length ?? 1) - 1;
+      start = i + 1;
+    }
+  }
+  parts.push(expr.slice(start).trim());
+  return parts;
+};
+
+const satisfiesLowerBound = (column: string, checkDef: string, requiresPositive: boolean) => {
+  const withoutPrefix = checkDef.replace(/^CHECK\s*/iu, "").trim();
+  const body = stripOuterParens(withoutPrefix);
+  const quotedCol = `"?${column}"?`;
+  const boundPattern = requiresPositive
+    ? new RegExp(`^${quotedCol}\\s*>\\s*0$`, "iu")
+    : new RegExp(`^${quotedCol}\\s*(?:>=\\s*0|>\\s*0)$`, "iu");
+  return splitTopLevelAnd(body).some((conjunct) => boundPattern.test(stripOuterParens(conjunct)));
+};
+
 it("enforces bounds on integer version/revision/position columns and keeps audit_events immutable", async ({
   database,
 }) => {
+  // Regression check: an OR clause cannot satisfy a lower bound.
+  expect(satisfiesLowerBound("version", "CHECK (((version > 0) OR (version = 0)))", true)).toBe(
+    false,
+  );
+  expect(satisfiesLowerBound("version", "CHECK (((version > 0) AND (version < 100)))", true)).toBe(
+    true,
+  );
+
   const counterColumns = await database.client.query<{
     table_name: string;
     column_name: string;
-    check_defs: string[];
+    checks: Array<{ column: string; def: string }>;
   }>(`
     SELECT
       c.relname AS table_name,
       a.attname AS column_name,
-      ARRAY(
-        SELECT pg_get_constraintdef(con.oid)
-        FROM pg_constraint con
-        WHERE con.conrelid = c.oid
-          AND con.contype = 'c'
-          AND a.attnum = ANY(con.conkey)
-        UNION ALL
-        SELECT pg_get_constraintdef(parent_check.oid)
-        FROM pg_constraint fk
-        JOIN LATERAL unnest(fk.conkey, fk.confkey) AS cols(child_attnum, parent_attnum)
-          ON cols.child_attnum = a.attnum
-        JOIN pg_constraint parent_check
-          ON parent_check.conrelid = fk.confrelid
-         AND parent_check.contype = 'c'
-         AND cols.parent_attnum = ANY(parent_check.conkey)
-        WHERE fk.conrelid = c.oid
-          AND fk.contype = 'f'
-      ) AS check_defs
+      coalesce(
+        (
+          SELECT jsonb_agg(entry)
+          FROM (
+            SELECT jsonb_build_object('column', a.attname, 'def', pg_get_constraintdef(con.oid)) AS entry
+            FROM pg_constraint con
+            WHERE con.conrelid = c.oid
+              AND con.contype = 'c'
+              AND a.attnum = ANY(con.conkey)
+            UNION ALL
+            SELECT jsonb_build_object('column', pa.attname, 'def', pg_get_constraintdef(parent_check.oid)) AS entry
+            FROM pg_constraint fk
+            JOIN LATERAL unnest(fk.conkey, fk.confkey) AS cols(child_attnum, parent_attnum)
+              ON cols.child_attnum = a.attnum
+            JOIN pg_attribute pa
+              ON pa.attrelid = fk.confrelid
+             AND pa.attnum = cols.parent_attnum
+             AND NOT pa.attisdropped
+            JOIN pg_constraint parent_check
+              ON parent_check.conrelid = fk.confrelid
+             AND parent_check.contype = 'c'
+             AND cols.parent_attnum = ANY(parent_check.conkey)
+            WHERE fk.conrelid = c.oid
+              AND fk.contype = 'f'
+          ) entries
+        ),
+        '[]'::jsonb
+      ) AS checks
     FROM pg_attribute a
     JOIN pg_class c ON c.oid = a.attrelid
     JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -359,11 +433,9 @@ it("enforces bounds on integer version/revision/position columns and keeps audit
     const requiresPositive =
       row.column_name === "format_version" ||
       (row.column_name === "version" && !ZERO_BASED_VERSION_TABLES.has(row.table_name));
-    const quotedCol = `"?\\b${row.column_name}\\b"?`;
-    const boundPattern = requiresPositive
-      ? new RegExp(`${quotedCol}\\s*>\\s*0`, "i")
-      : new RegExp(`${quotedCol}\\s*(?:>=\\s*0|>\\s*0)`, "i");
-    return !row.check_defs.some((def) => boundPattern.test(def));
+    return !row.checks.some((check) =>
+      satisfiesLowerBound(check.column, check.def, requiresPositive),
+    );
   });
 
   const auditImmutabilityTriggers = await database.client.query<{ trigger_name: string }>(`
