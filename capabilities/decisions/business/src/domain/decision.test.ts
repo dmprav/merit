@@ -145,10 +145,15 @@ it("requires an explanation for a change to an existing decision", () => {
 });
 
 it("treats a save that changes nothing as a no-op, with or without an explanation", () => {
-  expect(prepareDecision(fund, fund, recordedAt)).toEqual({ ok: true, unchanged: true });
+  expect(prepareDecision(fund, fund, recordedAt)).toEqual({
+    ok: true,
+    unchanged: true,
+    current: fund,
+  });
   expect(prepareDecision(fund, { ...fund, changeExplanation: "Re-saved." }, recordedAt)).toEqual({
     ok: true,
     unchanged: true,
+    current: fund,
   });
 });
 

@@ -77,6 +77,7 @@ const seedExampleApplication = async (
     contactId: application.contactId ? (contactIds.get(application.contactId) ?? null) : null,
   };
   const exampleDecision = exampleDecisions[application.id];
+  const seededAt = new Date();
   const earlierMaterial =
     application.id === "A3" ? originalWorkshopMaterial(example, content) : undefined;
   const saved = await insertExampleApplication(db, {
@@ -84,7 +85,13 @@ const seedExampleApplication = async (
     roundId,
     position,
     snapshot: content,
-    decision: exampleDecision && encodeDecision(exampleDecision),
+    decision:
+      exampleDecision &&
+      encodeDecision({
+        ...exampleDecision,
+        decisionDate: seededAt.toISOString().slice(0, 10),
+        recordedAt: seededAt.toISOString(),
+      }),
     revision: earlierMaterial ? 1 : 0,
     recordedByUserId: authorUserId,
     earlierMaterial: earlierMaterial

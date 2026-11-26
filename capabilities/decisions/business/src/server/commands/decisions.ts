@@ -67,11 +67,8 @@ export const recordCommitteeDecision = async (
     }
 
     const { round } = row;
-    if (prepared.unchanged && row.current) {
-      return unchanged(row, row.current);
-    }
     if (prepared.unchanged) {
-      return { status: "invalid", error: "invalid_decision" } as const;
+      return unchanged(row, prepared.current);
     }
 
     const next = prepared.decision;

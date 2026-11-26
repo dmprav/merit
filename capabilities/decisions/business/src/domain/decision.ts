@@ -133,10 +133,11 @@ export const parseDecision = (input: unknown, recordedAt: string) => {
 
 /**
  * Checks a save against the current decision. A change to an existing decision needs an
- * explanation; an unchanged save needs none because it records nothing.
+ * explanation; an unchanged save needs none because it records nothing, and returns the
+ * current version it leaves as it is.
  */
-export const prepareDecision = (
-  current: DecisionContent | null,
+export const prepareDecision = <Current extends DecisionContent>(
+  current: Current | null,
   input: unknown,
   recordedAt: string,
 ) => {
@@ -146,7 +147,7 @@ export const prepareDecision = (
   }
   const { changeExplanation, ...content } = parsed.decision;
   if (current && sameDecision(current, content)) {
-    return { ok: true, unchanged: true } as const;
+    return { ok: true, unchanged: true, current } as const;
   }
   if (current && changeExplanation === undefined) {
     return {
