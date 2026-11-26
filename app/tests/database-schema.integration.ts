@@ -1,4 +1,4 @@
-import { expect } from "vite-plus/test";
+import { expect, test } from "vite-plus/test";
 
 import { databaseTest as it } from "@merit/test-support/database";
 
@@ -312,6 +312,25 @@ it("pins search_path and revokes PUBLIC execute on every SECURITY DEFINER functi
 // and `format_version` columns are 1-based version numbers (`> 0`).
 const ZERO_BASED_VERSION_TABLES = new Set(["memberships"]);
 
+const skipSqlQuoted = (expr: string, index: number): number => {
+  const quote = expr[index];
+  if (quote !== "'" && quote !== '"') {
+    return index;
+  }
+  let i = index + 1;
+  while (i < expr.length) {
+    if (expr[i] === quote) {
+      if (expr[i + 1] === quote) {
+        i += 2;
+        continue;
+      }
+      return i;
+    }
+    i += 1;
+  }
+  return expr.length - 1;
+};
+
 const stripOuterParens = (expr: string): string => {
   let current = expr.trim();
   while (current.startsWith("(") && current.endsWith(")")) {
@@ -319,6 +338,10 @@ const stripOuterParens = (expr: string): string => {
     let wrapsWhole = true;
     for (let i = 0; i < current.length; i += 1) {
       const ch = current[i];
+      if (ch === "'" || ch === '"') {
+        i = skipSqlQuoted(current, i);
+        continue;
+      }
       if (ch === "(") {
         depth += 1;
       } else if (ch === ")") {
@@ -343,6 +366,10 @@ const splitTopLevelAnd = (expr: string): string[] => {
   let start = 0;
   for (let i = 0; i < expr.length; i += 1) {
     const ch = expr[i];
+    if (ch === "'" || ch === '"') {
+      i = skipSqlQuoted(expr, i);
+      continue;
+    }
     if (ch === "(") {
       depth += 1;
     } else if (ch === ")") {
@@ -368,17 +395,21 @@ const satisfiesLowerBound = (column: string, checkDef: string, requiresPositive:
   return splitTopLevelAnd(body).some((conjunct) => boundPattern.test(stripOuterParens(conjunct)));
 };
 
-it("enforces bounds on integer version/revision/position columns and keeps audit_events immutable", async ({
-  database,
-}) => {
-  // Regression check: an OR clause cannot satisfy a lower bound.
+test("recognizes top-level lower bounds while rejecting OR bypasses and ignoring quoted parens", () => {
   expect(satisfiesLowerBound("version", "CHECK (((version > 0) OR (version = 0)))", true)).toBe(
     false,
   );
   expect(satisfiesLowerBound("version", "CHECK (((version > 0) AND (version < 100)))", true)).toBe(
     true,
   );
+  expect(
+    satisfiesLowerBound("position", `CHECK (((label <> '('::text) AND ("position" >= 0)))`, false),
+  ).toBe(true);
+});
 
+it("enforces bounds on integer version/revision/position columns and keeps audit_events immutable", async ({
+  database,
+}) => {
   const counterColumns = await database.client.query<{
     table_name: string;
     column_name: string;
@@ -411,6 +442,17 @@ it("enforces bounds on integer version/revision/position columns and keeps audit
              AND cols.parent_attnum = ANY(parent_check.conkey)
             WHERE fk.conrelid = c.oid
               AND fk.contype = 'f'
+              AND (
+                fk.confmatchtype = 'f'
+                OR NOT EXISTS (
+                  SELECT 1
+                  FROM pg_attribute sibling
+                  WHERE sibling.attrelid = fk.conrelid
+                    AND sibling.attnum = ANY(fk.conkey)
+                    AND NOT sibling.attisdropped
+                    AND NOT sibling.attnotnull
+                )
+              )
           ) entries
         ),
         '[]'::jsonb
