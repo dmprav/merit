@@ -67,7 +67,8 @@ Choose checks for the behavior you changed:
 | Shared form behavior                                    | `vp run @merit/forms#test`                          |
 | Story rendering, interaction, accessibility             | `vp run test:stories`                               |
 | Story tests while editing                               | `vp run test:stories:watch`                         |
-| Storybook layout, docs, and visual regression           | `vp run test:browser:stories`                       |
+| Storybook layout, docs, and interactions                | `vp run test:browser:stories`                       |
+| Storybook visual regression                             | `vp run test:browser:stories:container`             |
 | Application navigation and browser behavior             | `vp run test:browser:app`                           |
 | Shared browser checks, Storybook, and application flows | `vp run test:browser`                               |
 | Deterministic UI sweep, a11y, focus, and screenshots    | `vp run ui:verify`                                  |
@@ -183,8 +184,6 @@ and rerun the comparison cleanly:
 vp run ui:verify --container --update
 vp run ui:verify --container
 ```
-
-On native Ubuntu 24.04 hosts with the locked browser version installed (`pnpm --filter @merit/test-support exec playwright install --with-deps chromium firefox webkit`), `vp run test:browser:stories:all visual.spec.ts --project desktop --project mobile` also runs directly without Docker. Append `--update-snapshots` only when preparing an intentional baseline update, then rerun without it.
 
 Review a new baseline against the established reference before accepting it;
 screenshots detect later changes but cannot judge whether the initial design fits.
