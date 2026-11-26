@@ -90,13 +90,17 @@ const isShadowLayerVisible = (layer: string): boolean => {
   return offsetX !== 0 || offsetY !== 0 || blur > 0 || spread > 0;
 };
 
-const hasVisibleBoxShadow = (boxShadow: string): boolean => {
+/** The shadow's layers that paint something, in order. */
+const paintedShadowLayers = (boxShadow: string): string[] => {
   const trimmed = boxShadow.trim();
   if (!trimmed || trimmed.toLowerCase() === "none") {
-    return false;
+    return [];
   }
-  return splitTopLevelCommas(trimmed).some(isShadowLayerVisible);
+  return splitTopLevelCommas(trimmed).filter(isShadowLayerVisible);
 };
+
+const hasVisibleBoxShadow = (boxShadow: string): boolean =>
+  paintedShadowLayers(boxShadow).length > 0;
 
 const hasVisibleOutline = (style: ElementStyleSnapshot): boolean =>
   style.outlineStyle !== "none" &&
@@ -156,8 +160,14 @@ const outlineChanged: FocusCueRule["changed"] = (unfocused, focused) =>
     unfocused.outlineColor !== focused.outlineColor ||
     unfocused.outlineOffset !== focused.outlineOffset);
 
-const boxShadowChanged: FocusCueRule["changed"] = (unfocused, focused) =>
-  focused.boxShadow !== unfocused.boxShadow && hasVisibleBoxShadow(focused.boxShadow);
+// Only layers that paint can show a change; a transparent layer can change without drawing anything.
+const boxShadowChanged: FocusCueRule["changed"] = (unfocused, focused) => {
+  const focusedLayers = paintedShadowLayers(focused.boxShadow);
+  return (
+    focusedLayers.length > 0 &&
+    focusedLayers.join(", ") !== paintedShadowLayers(unfocused.boxShadow).join(", ")
+  );
+};
 
 // A side's change shows only when that side paints before or after it; a zero-width or
 // transparent border can change color without drawing anything.

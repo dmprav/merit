@@ -341,6 +341,26 @@ describe("detectFocusVisualChange", () => {
         ).toEqual({ changed: true, reasons: ["self:box-shadow"] });
       }
     });
+
+    it("rejects a change confined to a transparent layer beside an unchanged visible ring", () => {
+      const ring = "rgb(15, 98, 254) 0px 0px 0px 2px";
+      expect(
+        detectFocusVisualChange(
+          shadowed(`${ring}, rgba(0, 0, 0, 0) 0px 0px 0px 2px`),
+          shadowed(`${ring}, rgba(0, 0, 0, 0) 0px 0px 0px 6px`),
+        ),
+      ).toEqual(unchanged);
+    });
+
+    it("accepts a visible ring added beside an unchanged one", () => {
+      const ring = "rgb(15, 98, 254) 0px 0px 0px 2px";
+      expect(
+        detectFocusVisualChange(
+          shadowed(ring),
+          shadowed(`${ring}, rgb(255, 255, 255) 0px 0px 0px 4px`),
+        ),
+      ).toEqual({ changed: true, reasons: ["self:box-shadow"] });
+    });
   });
 });
 
