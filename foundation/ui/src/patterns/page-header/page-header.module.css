@@ -1,37 +1,39 @@
 .header {
-  /* The title's first line sets where the actions centre, with or without a kicker above it. */
-  --title-line: calc(var(--text-page) * 1.3);
-  --kicker-line: calc(var(--text-meta) * 1.5);
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-4);
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title actions"
+    "description description";
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
   padding-bottom: var(--space-7);
   flex-shrink: 0;
 }
 
-.context {
-  flex: 1 1 16rem;
-  min-width: 0;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  min-height: var(--title-line);
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  min-width: 0;
-  max-width: 100%;
+/* The kicker has its own row, so the actions sit beside the title whether or not one is there. */
+.header:has(.kicker) {
+  grid-template-areas:
+    "kicker kicker"
+    "title actions"
+    "description description";
 }
 
 .titleRow {
+  grid-area: title;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-3);
-  margin-bottom: var(--space-2);
+}
+
+.actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .title {
@@ -44,27 +46,36 @@
 }
 
 .kicker {
+  grid-area: kicker;
   font-size: var(--text-meta);
   letter-spacing: 0.07em;
   text-transform: uppercase;
   line-height: 1.5;
   color: var(--muted);
-  margin-bottom: var(--space-2);
 }
 
 .description {
+  grid-area: description;
   font-size: var(--text-caption);
   color: var(--muted);
 }
 
-/* The actions sit beside the title row, so a kicker above it moves them down with the title. */
-.header:has(.kicker) .actions {
-  margin-top: calc(var(--kicker-line) + var(--space-2));
-}
-
 @media (max-width: 600px) {
-  .header {
-    --title-line: calc(var(--text-page-compact) * 1.3);
+  .header,
+  .header:has(.kicker) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: none;
+  }
+
+  /* On narrow screens the actions wrap below the context, one header gap down. */
+  .header > * {
+    grid-area: auto;
+  }
+
+  .actions {
+    /* With the row gap, one header gap (space-4) below the context. */
+    margin-top: var(--space-2);
+    justify-self: start;
   }
 
   .title {
@@ -73,7 +84,6 @@
 }
 
 .header[data-density="compact"] {
-  --title-line: calc(var(--text-page-compact) * 1.4);
   padding-bottom: var(--space-6);
 }
 

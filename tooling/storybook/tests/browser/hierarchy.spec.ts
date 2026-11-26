@@ -21,10 +21,15 @@ test("headings step down by level and stay larger than the prose they introduce"
     page.getByRole("heading", { level: 3, name: "Community need" }),
   );
   const minor = await fontSize(page.getByRole("heading", { level: 4, name: "Evidence" }));
-  const prose = await fontSize(page.getByText("How clearly the proposal shows who it serves."));
   expect(section).toBeGreaterThan(subsection);
   expect(subsection).toBeGreaterThan(minor);
-  expect(section).toBeGreaterThan(prose);
+
+  // A section heading outranks the reading prose it introduces.
+  await open(page, "patterns-page-composition--standard");
+  const purpose = page.getByRole("region", { name: "Purpose", exact: true });
+  expect(await fontSize(purpose.getByRole("heading"))).toBeGreaterThan(
+    await fontSize(purpose.getByRole("paragraph")),
+  );
 
   await open(page, "features-funding-rounds-overview--example");
   const criteria = await fontSize(
@@ -41,12 +46,9 @@ test("headings step down by level and stay larger than the prose they introduce"
 
 test("quiet pane headings read in the foreground colour", async ({ page }) => {
   await open(page, "patterns-panel-section--side-panel");
-  const colours = await page.getByRole("heading").evaluateAll((headings) =>
-    headings.map((heading) => ({
-      colour: getComputedStyle(heading).color,
-      foreground: getComputedStyle(document.documentElement).getPropertyValue("--foreground"),
-    })),
-  );
+  const colours = await page
+    .getByRole("heading")
+    .evaluateAll((headings) => headings.map((heading) => getComputedStyle(heading).color));
   expect(colours.length).toBeGreaterThan(1);
   const probe = await page.evaluate(() => {
     const element = document.createElement("span");
@@ -56,8 +58,69 @@ test("quiet pane headings read in the foreground colour", async ({ page }) => {
     element.remove();
     return colour;
   });
-  for (const { colour } of colours) {
+  for (const colour of colours) {
     expect(colour).toBe(probe);
+  }
+});
+
+test("quiet pane headings are no lighter than the first text under them", async ({ page }) => {
+  for (const story of [
+    "features-applications-committee-decision--summary-with-history",
+    "features-applications-recommendation--default",
+  ]) {
+    await open(page, story);
+    const pairs = await page
+      .locator("#storybook-root section[aria-labelledby]")
+      .evaluateAll((sections) =>
+        sections.flatMap((section) => {
+          const heading = document.getElementById(section.getAttribute("aria-labelledby")!);
+          const text = [...section.querySelectorAll<HTMLElement>("*")].find(
+            (node) =>
+              !heading?.contains(node) &&
+              !node.closest("button") &&
+              node.children.length === 0 &&
+              node.textContent?.trim() &&
+              !(heading!.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_PRECEDING),
+          );
+          return heading && text
+            ? [
+                {
+                  name: heading.textContent,
+                  heading: Number(getComputedStyle(heading).fontWeight),
+                  text: Number(getComputedStyle(text).fontWeight),
+                },
+              ]
+            : [];
+        }),
+      );
+    expect(pairs.length, story).toBeGreaterThan(0);
+    for (const pair of pairs) {
+      expect(pair.heading, `${story}: ${pair.name}`).toBeGreaterThanOrEqual(pair.text);
+    }
+  }
+});
+
+test("no subsection heading in a work pane or dialog body outsizes the frame title", async ({
+  page,
+}) => {
+  for (const story of [
+    "features-applications-review-an-assigned-application--writing",
+    "features-applications-manage-reviews--criterion-notes",
+  ]) {
+    await open(page, story);
+    const sizes = await page.evaluate(() => {
+      const size = (node: Element) => Number.parseFloat(getComputedStyle(node).fontSize);
+
+      const titles = [...document.querySelectorAll("[data-dialog-header] h2")].map(size);
+      const bodies = [...document.querySelectorAll("[data-frame-body] :is(h3, h4, h5)")].map(
+        (heading) => ({ name: heading.textContent, size: size(heading) }),
+      );
+      return { title: Math.min(...titles), bodies };
+    });
+    expect(sizes.bodies.length, story).toBeGreaterThan(0);
+    for (const heading of sizes.bodies) {
+      expect(heading.size, `${story}: ${heading.name}`).toBeLessThanOrEqual(sizes.title);
+    }
   }
 });
 
@@ -88,43 +151,64 @@ test("consecutive sections are separated by the section spacing", async ({ page 
     expect(gap).toBeCloseTo(space, 0);
   }
 
+  // The page's sections follow the token: moving it moves them.
   await open(page, "patterns-page-composition--standard");
-  const [purpose, applications] = await Promise.all([
-    page.getByRole("region", { name: "Purpose", exact: true }).boundingBox(),
-    page.getByRole("region", { name: "Applications 3", exact: true }).boundingBox(),
-  ]);
-  expect(applications!.y - (purpose!.y + purpose!.height)).toBeCloseTo(space, 0);
+
+  const pageGap = async () => {
+    const [purpose, applications] = await Promise.all([
+      page.getByRole("region", { name: "Purpose", exact: true }).boundingBox(),
+      page.getByRole("region", { name: "Applications 3", exact: true }).boundingBox(),
+    ]);
+    return applications!.y - (purpose!.y + purpose!.height);
+  };
+
+  expect(await pageGap()).toBeCloseTo(space, 0);
+  await page.addStyleTag({ content: ":root { --space-section: 40px; }" });
+  expect(await pageGap()).toBeCloseTo(40, 0);
 });
 
-/** Centres of the title's first line and of the page actions, measured in the page. */
+/** Centres of the title's first line and of the page actions, and the header's context and gap. */
 const measure = () => {
   const title = document.querySelector("#storybook-root h1")!;
   const style = getComputedStyle(title);
-  const lineHeight = Number.parseFloat(style.lineHeight);
   const top = title.getBoundingClientRect().top + Number.parseFloat(style.paddingTop);
   const actions = document.querySelector("[data-page-actions]")!.getBoundingClientRect();
-  return { title: top + lineHeight / 2, actions: actions.top + actions.height / 2 };
+  const header = document.querySelector("#storybook-root header")!;
+  const context = (
+    header.querySelector("[class*=description]") ?? title.parentElement!
+  ).getBoundingClientRect();
+  return {
+    title: top + Number.parseFloat(style.lineHeight) / 2,
+    actions: actions.top + actions.height / 2,
+    below: actions.top - context.bottom,
+    beside: actions.left > title.getBoundingClientRect().right,
+  };
 };
 
-test("page actions centre on the title's first line, with and without a kicker", async ({
-  page,
-}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop", "Actions wrap below the title on narrow screens.");
-
+test("page actions centre on the title, with and without a kicker", async ({ page }, testInfo) => {
+  const narrow = testInfo.project.name !== "desktop";
   for (const story of [
     "patterns-page-composition--standard",
     "patterns-page-composition--overview",
+    "patterns-page-composition--without-kicker",
   ]) {
     await open(page, story);
     const centres = await page.evaluate(measure);
-    expect(Math.abs(centres.actions - centres.title), story).toBeLessThanOrEqual(2);
+    if (narrow) {
+      // Wrapped actions sit one header gap below the context, with no dead space.
+      const gap = await page.evaluate(() => {
+        const probe = document.createElement("div");
+        probe.style.height = "var(--space-4)";
+        document.body.append(probe);
+        const height = probe.getBoundingClientRect().height;
+        probe.remove();
+        return height;
+      });
+      expect(centres.below, story).toBeCloseTo(gap, 0);
+    } else {
+      expect(Math.abs(centres.actions - centres.title), story).toBeLessThanOrEqual(2);
+    }
   }
-
-  // Without a kicker.
-  await open(page, "patterns-page-composition--long-title");
-  await page.evaluate(() => document.querySelector("#storybook-root header p")?.remove());
-  const noKicker = await page.evaluate(measure);
-  expect(Math.abs(noKicker.actions - noKicker.title)).toBeLessThanOrEqual(2);
 });
 
 test("a stacked description list keeps each label nearer its own value", async ({ page }) => {

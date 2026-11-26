@@ -23,6 +23,7 @@ type PageLayoutArgs = {
   width?: "standard" | "full";
   density?: "comfortable" | "compact";
   title?: string;
+  kicker?: string;
   stackedPlacement?: "before" | "after";
 };
 
@@ -93,10 +94,14 @@ export const SectionHeaders: Story = {
       </section>
       <section className={styles.section} aria-labelledby="criteria-title">
         <SectionHeader id="criteria-title" title="Assessment criteria" />
-        <SectionHeader level={3} title="Community need" />
-        <p className={styles.description}>How clearly the proposal shows who it serves.</p>
-        <SectionHeader level={4} title="Evidence" />
-        <p className={styles.description}>Survey results and letters of support.</p>
+        <div className={styles.subsection}>
+          <SectionHeader level={3} title="Community need" />
+          <Reading as="p">How clearly the proposal shows who it serves.</Reading>
+        </div>
+        <div className={styles.subsection}>
+          <SectionHeader level={4} title="Evidence" />
+          <Reading as="p">Survey results and letters of support.</Reading>
+        </div>
       </section>
       <section
         className={`${styles.section} ${styles.narrow}`}
@@ -117,6 +122,7 @@ const renderPageLayout = ({
   width = "standard",
   density = "comfortable",
   title = "Local Connections",
+  kicker = "Funding round",
 }: PageCompositionStoryArgs) => (
   <ApplicationPage
     width={width}
@@ -132,7 +138,7 @@ const renderPageLayout = ({
     <PageHeader
       title={title}
       density={density}
-      kicker="Funding round"
+      kicker={kicker}
       status={<Badge>In preparation</Badge>}
       description="Prepare the evidence and recommendations for committee."
       actions={
@@ -185,6 +191,7 @@ const pageLayoutStory = (args: PageLayoutArgs): Story => ({
 export const Standard: Story = pageLayoutStory({});
 export const FullWidth: Story = pageLayoutStory({ width: "full" });
 export const Compact: Story = pageLayoutStory({ density: "compact" });
+export const WithoutKicker: Story = pageLayoutStory({ kicker: "" });
 export const LongTitle: Story = pageLayoutStory({
   title: "Community partnerships for arts, education and neighbourhood development",
 });

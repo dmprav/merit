@@ -7,6 +7,10 @@
   color: var(--muted);
 }
 
+.subsection {
+  margin-top: var(--space-5);
+}
+
 .notice {
   margin-top: var(--space-6);
 }
