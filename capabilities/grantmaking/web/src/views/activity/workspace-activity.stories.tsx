@@ -84,14 +84,14 @@ const olderPage: ActivityEntry[] = [
   entry(20, { record: neighbour }),
   entry(21),
   entry(22, { action: "round.criteria_changed", record: localRound }),
-  entry(23, { action: "round.created", record: localRound }),
-  entry(24, { action: "decision.recorded", record: workshop }),
-  entry(25, {
+  entry(23, {
     action: "decision.amended",
     record: workshop,
     provenance: { interface: "mcp", clientId: "grant-assistant" },
     reason: "A later committee meeting reduced the award until the venue is confirmed.",
   }),
+  entry(24, { action: "decision.recorded", record: workshop }),
+  entry(25, { action: "round.created", record: localRound }),
 ];
 
 const Preview = ({

@@ -81,8 +81,14 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const Example: Story = {};
-export const Applications: Story = { args: { section: "applications" } };
+/** The example round's decisions, which the encoded overview does not carry: Neighbour Table is funded in full. */
+const exampleDecisionArgs = {
+  decisions: { A1: { outcome: "Fund" } },
+  committedEuros: 24000,
+} as const;
+
+export const Example: Story = { args: exampleDecisionArgs };
+export const Applications: Story = { args: { ...exampleDecisionArgs, section: "applications" } };
 /** The committee's decision sits beside the recommendation; the budget summary shows committed funding. */
 export const Decisions: Story = {
   args: {
