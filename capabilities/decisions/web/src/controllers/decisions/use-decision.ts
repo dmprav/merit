@@ -10,6 +10,7 @@ export type DecisionConflict = "record_changed";
 export const useDecision = (applicationKey: string, data: DecisionData) => {
   const { drafts, conflicts, resolveConflict, setDraft, ready } = useDecisionDrafts();
   const [saved, setSaved] = useState(0);
+  const [unchanged, setUnchanged] = useState(0);
   const [draftReset, setDraftReset] = useState(0);
   const draft = drafts[applicationKey];
   const baseline = { expectedRevision: data.revision };
@@ -22,7 +23,8 @@ export const useDecision = (applicationKey: string, data: DecisionData) => {
     try {
       const response = await data.save(value, draft?.baseline ?? baseline);
       if (response.status === "ok") {
-        setSaved((count) => count + 1);
+        // Saving what is already recorded adds no version, so it is not reported as a record.
+        (response.recorded ? setSaved : setUnchanged)((count) => count + 1);
         return null;
       }
       return response;
@@ -37,6 +39,7 @@ export const useDecision = (applicationKey: string, data: DecisionData) => {
     conflict,
     draftReset,
     saved,
+    unchanged,
     save,
     updateDraft: (value: DecisionDraft | undefined) => setDraft(applicationKey, value, baseline),
     keepDraft: () => {

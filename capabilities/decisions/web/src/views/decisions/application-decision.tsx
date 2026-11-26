@@ -27,9 +27,20 @@ export const ApplicationDecision = ({
   children,
 }: ApplicationDecisionProps) => {
   const { t } = useTranslation("committeeDecisions");
-  const { draft, conflict, draftReset, saved, save, updateDraft, keepDraft, loadLatest, ready } =
-    useDecision(applicationKey, data);
+  const {
+    draft,
+    conflict,
+    draftReset,
+    saved,
+    unchanged,
+    save,
+    updateDraft,
+    keepDraft,
+    loadLatest,
+    ready,
+  } = useDecision(applicationKey, data);
   useEventToast(saved, { tone: "success", message: t("editor.saved") });
+  useEventToast(unchanged, { tone: "neutral", message: t("editor.unchanged") });
 
   return (
     <DecisionEditor

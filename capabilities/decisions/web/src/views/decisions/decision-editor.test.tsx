@@ -342,6 +342,57 @@ it("warns that funding needs a round budget", async () => {
   expect(screen.getByText("This round has no budget. Set one before funding.")).toBeVisible();
 });
 
+it("says once that the round has no budget after a save is refused for it", async () => {
+  const user = userEvent.setup();
+  const onSave = vi.fn<ComponentProps<typeof DecisionEditor>["onSave"]>(async () => ({
+    status: "invalid",
+    error: "budget_required",
+    budget: null,
+    committed: { minorUnits: "0", currency: "EUR" },
+    excess: null,
+  }));
+  render(
+    <Editable
+      round={{
+        ...decisionRound,
+        budget: null,
+        totals: { ...decisionRound.totals, available: null, committed: fromMinorUnits(0n) },
+      }}
+      onSave={onSave}
+    />,
+    { wrapper: GrantmakingMessagesProvider },
+  );
+  await user.click(screen.getByRole("button", { name: /Record decision for/ }));
+  await user.clear(screen.getByRole("textbox", { name: "Amount" }));
+  await user.type(screen.getByRole("textbox", { name: "Amount" }), "100");
+  expect(screen.getAllByText(/This round has no budget/)).toHaveLength(1);
+
+  await fill(user, {
+    Conditions: "Secure match funding.",
+    Reason: "Strong plan.",
+    "Decided by": "Committee",
+  });
+  await user.type(screen.getByRole("textbox", { name: /Decision date/ }), "2026-01-18");
+  await user.click(screen.getByRole("button", { name: "Save decision" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(/Set a budget before recording/);
+  expect(screen.getAllByText(/This round has no budget/)).toHaveLength(1);
+});
+
+it("saves an unchanged decision without asking why it changed", async () => {
+  const user = userEvent.setup();
+  const onSave = vi.fn<ComponentProps<typeof DecisionEditor>["onSave"]>(async () => null);
+  render(<Editable versions={oneVersion} onSave={onSave} />, {
+    wrapper: GrantmakingMessagesProvider,
+  });
+  await user.click(screen.getByRole("button", { name: /Change decision for/ }));
+  await user.click(screen.getByRole("button", { name: "Save decision" }));
+
+  await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+  expect(onSave.mock.calls.at(0)?.at(0)).not.toHaveProperty("changeExplanation");
+  expect(screen.queryByText("Explain why the decision is changing.")).not.toBeInTheDocument();
+});
+
 it("explains withdrawn applications left out of the committed total", async () => {
   const user = userEvent.setup();
   render(

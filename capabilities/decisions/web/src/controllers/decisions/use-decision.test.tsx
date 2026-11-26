@@ -80,7 +80,9 @@ it.each<DecisionFailure>([
 
 it("keeps a thrown save retryable and records success only after commitment", async () => {
   const { result, save } = setup();
-  save.mockRejectedValueOnce(new Error("Offline")).mockResolvedValueOnce({ status: "ok" });
+  save
+    .mockRejectedValueOnce(new Error("Offline"))
+    .mockResolvedValueOnce({ status: "ok", recorded: true });
 
   await act(async () =>
     expect(await result.current.save(decision)).toEqual({ status: "unavailable" }),
@@ -90,9 +92,19 @@ it("keeps a thrown save retryable and records success only after commitment", as
   expect(result.current.saved).toBe(1);
 });
 
+it("reports a save that changed nothing apart from a recorded decision", async () => {
+  const { result, save } = setup();
+  save.mockResolvedValue({ status: "ok", recorded: false });
+
+  await act(async () => expect(await result.current.save(decision)).toBeNull());
+
+  expect(result.current.saved).toBe(0);
+  expect(result.current.unchanged).toBe(1);
+});
+
 it("saves without a retained draft against the current revision", async () => {
   const { result, save } = setup({ drafts: {}, revision: 4 });
-  save.mockResolvedValue({ status: "ok" });
+  save.mockResolvedValue({ status: "ok", recorded: true });
 
   await act(async () => expect(await result.current.save(decision)).toBeNull());
 

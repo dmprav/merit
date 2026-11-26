@@ -43,7 +43,12 @@ import { useDecisionEditor } from "../../controllers/decisions/use-decision-edit
 import localStyles from "./decision-editor.module.css";
 import { DecisionSummary } from "./decision-summary";
 import { decisionFormSchema } from "./form-schema";
-import { decisionOutcomeKeys, decisionSaveError, recommendationPositionKeys } from "./messages";
+import {
+  decisionError,
+  decisionOutcomeKeys,
+  decisionSaveError,
+  recommendationPositionKeys,
+} from "./messages";
 
 const zero = fromMinorUnits(0n);
 
@@ -301,7 +306,7 @@ const DecisionForm = ({
   const { t } = useTranslation(["committeeDecisions", "common"]);
   const { money } = useFormat();
   const amending = versions.length > 0;
-  const formSchema = decisionFormSchema(t, amending);
+  const formSchema = decisionFormSchema(t, versions[0]?.decision ?? null);
 
   const { form, submission } = useForm({
     defaultValues: initialDraft,
@@ -354,7 +359,13 @@ const DecisionForm = ({
         <RecommendationComparison application={application} />
         <OutcomeFields form={form} />
         <JustificationFields form={form} amending={amending} />
-        <DecisionBudget form={form} round={round} versions={versions} />
+        <DecisionBudget
+          form={form}
+          round={round}
+          versions={versions}
+          // The save error already says the round has no budget; say it once.
+          isBudgetErrorShown={submission.error === decisionError(t, "budget_required")}
+        />
         <Text as="p" variant="caption">
           {t("editor.recordedByNote")}
         </Text>
@@ -535,7 +546,11 @@ const DecisionBudget = ({
   form,
   round,
   versions,
-}: Pick<DecisionFormProps, "round" | "versions"> & { form: DecisionFormModel }) => {
+  isBudgetErrorShown,
+}: Pick<DecisionFormProps, "round" | "versions"> & {
+  form: DecisionFormModel;
+  isBudgetErrorShown: boolean;
+}) => {
   const { t } = useTranslation(["committeeDecisions", "common"]);
   const { money } = useFormat();
   const current = versions[0]?.decision ?? null;
@@ -588,7 +603,7 @@ const DecisionBudget = ({
                       amount={available === null ? "—" : money(available)}
                     />
                   )}
-                  {noBudget && (
+                  {noBudget && !isBudgetErrorShown && (
                     <Text as="p" variant="attention">
                       {t("budget.noBudget")}
                     </Text>

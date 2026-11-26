@@ -36,7 +36,8 @@ it.
 
 Every outcome can change, including a final one. A correction and a later meeting's
 decision after a deferral are both new versions with an explanation. Saving without
-changing the outcome, amount, conditions, reason, Decided by, or date records nothing.
+changing the outcome, amount, conditions, reason, Decided by, or date records nothing, asks
+for no explanation, and closes the editor with **No changes to record**.
 
 A manager recommendation is not required. A decision never changes the recommendation, and
 the recommendation stays editable afterwards.
@@ -87,7 +88,7 @@ history, newest first. **Record decision** and **Change decision** open an in-pa
 that starts from the current decision or, for the first one, from the manager recommendation's
 position and amount (Fund with a condition becomes Fund with conditions). The editor shows
 the recommendation for comparison and previews the committed and available funding, or the
-excess, before saving. It asks for a change explanation only once a decision exists. A
+excess, before saving. It asks for a change explanation only when a saved decision is being changed. A
 withdrawn application shows its decision without an edit action.
 
 A draft is kept in this browser like a recommendation draft. If the decision changed while it

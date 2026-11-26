@@ -34,7 +34,7 @@ export type DecisionData = {
   save: (
     value: DecisionInput,
     baseline: DecisionBaseline,
-  ) => Promise<{ status: "ok" } | DecisionFailure>;
+  ) => Promise<{ status: "ok"; recorded: boolean } | DecisionFailure>;
 };
 
 /** The editable fields as the person types them. */

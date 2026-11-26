@@ -214,6 +214,7 @@ export const AmendWithExplanation: Story = {
 
     await expect(canvas.getByLabelText(/Reason/)).toHaveValue(firstDecision.reason);
     await expect(canvas.getByLabelText(/changing this decision/)).toBeVisible();
+    await userEvent.type(canvas.getByLabelText(/Reason/), " Revised.");
     await userEvent.click(canvas.getByRole("button", { name: "Save decision" }));
     await expect(canvas.getByLabelText(/changing this decision/)).toHaveAccessibleDescription(
       /Explain why the decision is changing\./,
@@ -274,6 +275,10 @@ export const NoBudget: Story = {
     await expect(await canvas.findByRole("alert")).toHaveTextContent(
       "This round has no budget. Set a budget before recording funding.",
     );
+    // The save error says it, so the preview does not repeat it.
+    await expect(
+      canvas.queryByText("This round has no budget. Set one before funding."),
+    ).not.toBeInTheDocument();
   },
 };
 
