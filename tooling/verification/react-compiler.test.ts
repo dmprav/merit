@@ -76,11 +76,11 @@ it("fails when it finds no files to check", async () => {
 });
 
 // Compiles every component in the checkout in a child process, which outlasts the default timeout.
-// The child's own timeout stays below the test's, so a stalled child is killed and the fixture
-// is still removed.
+// Node runs the script itself, with no package-manager wrapper in between, so the child's timeout
+// (below the test's) kills the compiler process and the fixture is still removed.
 it("checks the repository from any working directory", async () => {
   await withFixture({}, async (dir) => {
-    const result = await runProcess("pnpm", ["exec", "vpx", script], {
+    const result = await runProcess(process.execPath, [script], {
       cwd: dir,
       timeoutMs: 25_000,
       env: { ...process.env, MERIT_TASK_CACHE: "off" },
