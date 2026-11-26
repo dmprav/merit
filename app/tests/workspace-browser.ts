@@ -17,6 +17,9 @@ loadEnvLocalFiles([
   resolve(import.meta.dirname, "../../.env.local"),
 ]);
 
+/** How long cleanup waits for Temporal to delete the Schedule. */
+const scheduleDeleteDeadlineMs = 5000;
+
 const database = await createTestDatabase();
 const output = join(
   tmpdir(),
@@ -62,11 +65,16 @@ try {
   process.exitCode = result.status ?? 1;
 } finally {
   // The worker's Schedule outlives it, and would keep firing on a queue nothing polls.
+  const client = createWorkflowClient(readTemporalConfig(process.env, { local: true }));
   try {
-    const client = createWorkflowClient(readTemporalConfig(process.env, { local: true }));
-    await client.schedule.getHandle(work.MERIT_RECONCILE_SCHEDULE_ID).delete();
+    // A server that accepts the connection and stops answering must not keep cleanup from the
+    // database disposal below, so the request has a deadline.
+    await client.connection.withDeadline(Date.now() + scheduleDeleteDeadlineMs, () =>
+      client.schedule.getHandle(work.MERIT_RECONCILE_SCHEDULE_ID).delete(),
+    );
   } catch {
-    // Temporal was not reached or the worker never created the Schedule.
+    // Temporal was not reached, did not answer in time, or the worker never created the Schedule.
   }
+  await client.connection.close().catch(() => undefined);
   await database.dispose();
 }

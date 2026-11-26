@@ -1,17 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-import { afterAll, assert, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
+import { afterAll, assert, beforeAll, describe, expect } from "vite-plus/test";
 
 import { withDatabase, type Database } from "@merit/db";
-import { migrate } from "@merit/db/migrate";
 import type { InvitationMessage } from "@merit/organizations/api";
 import {
   createInvitationActivities,
   createOrganizationService,
   type InvitationWork,
 } from "@merit/organizations/server";
-import { createTestDatabase } from "@merit/test-support/test-database";
+import { databaseTest } from "@merit/test-support/database";
+import type { createTestDatabase } from "@merit/test-support/test-database";
 import {
   readTestTemporalConfig,
   startTestWorker,
@@ -37,6 +37,7 @@ const timing = {
 };
 const wait = { timeoutMs: 8000, intervalMs: 50 };
 
+// The database fixture owns the test database and disposes it; the scenario fixture publishes it here.
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let run: <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
 let worker: TestWorker;
@@ -107,10 +108,7 @@ const inviteMember = async (service = serviceWith(), email = "waiting@example.te
 };
 
 beforeAll(async () => {
-  database = await createTestDatabase();
-  await migrate(database.client);
-  const runtime = await database.createRuntimeConnection();
-  run = (operation) => withDatabase(runtime, operation);
+  // The activities reach the database of the running test through `run`.
   const activities = createActivities({
     database: (operation) => run(operation),
     reviewerMessages: {
@@ -137,33 +135,37 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await worker.stop();
-  await database.dispose();
 });
 
-beforeEach(async () => {
-  await database.client.query("TRUNCATE organizations, app_users CASCADE");
-  await database.client.query(
-    "INSERT INTO app_users(id, clerk_user_id, name) SELECT value, value, value FROM unnest($1::text[]) value",
-    [["operator", "owner"]],
-  );
-  mail = [];
-  works = [];
-  sendingFails = false;
+const it = databaseTest
+  .extend("runtime", { scope: "file" }, async ({ database: owned }) =>
+    owned.createRuntimeConnection(),
+  )
+  .extend("scenario", { auto: true }, async ({ database: owned, runtime }) => {
+    database = owned;
+    run = (operation) => withDatabase(runtime, operation);
+    await database.client.query(
+      "INSERT INTO app_users(id, clerk_user_id, name) SELECT value, value, value FROM unnest($1::text[]) value",
+      [["operator", "owner"]],
+    );
+    mail = [];
+    works = [];
+    sendingFails = false;
 
-  // Provisioning is the first invitation: the operator creates the organization, the owner joins.
-  const created = await serviceWith().create(operator, {
-    requestId: randomUUID(),
-    name: "Community group",
-    slug: "team",
-    email: "owner@example.test",
+    // Provisioning is the first invitation: the operator creates the organization, the owner joins.
+    const created = await serviceWith().create(operator, {
+      requestId: randomUUID(),
+      name: "Community group",
+      slug: "team",
+      email: "owner@example.test",
+    });
+    assert(created.status === "ok");
+    expect(await serviceWith().accept(owner, { token: tokenOf(mail.at(-1)) })).toMatchObject({
+      status: "ok",
+    });
+    mail = [];
+    works = [];
   });
-  assert(created.status === "ok");
-  expect(await serviceWith().accept(owner, { token: tokenOf(mail.at(-1)) })).toMatchObject({
-    status: "ok",
-  });
-  mail = [];
-  works = [];
-});
 
 describe("organization invitation workflow", () => {
   it("delivers a committed provisioning invitation and records the outcome", async () => {

@@ -26,8 +26,11 @@ Business changes and their audit records still commit together before any work
 starts. Workflows start after commit with an identifier derived from the
 committed record, such as the message, invitation, or turn ID, so starting the
 same work twice cannot duplicate it. A reconciliation pass starts workflows for
-committed work that has none. When Temporal is unavailable, requests still
-commit, and their work starts once it returns.
+committed reviewer messages and Merit AI turns that have none. When Temporal is
+unavailable, requests still commit, and their work starts once it returns. Organization
+invitations are the exception: PostgreSQL stores only the token's hash, so
+reconciliation cannot start their workflows. An invitation whose start was lost stays
+unconfirmed until an administrator resends it.
 
 Activities read current facts, recheck authority and state, and record outcomes
 through the existing guards: delivery tokens, revisions, and the email provider's
@@ -45,8 +48,9 @@ before each attempt.
 
 Workflow inputs and activity results contain record identifiers only. Activities
 read everything else from PostgreSQL under current permissions. The sole
-exception is the raw organization-invitation token, which exists only until its
-email is sent; it travels in a payload encrypted with a server-held key. Grant
+exception is the raw organization-invitation token, which travels in a payload
+encrypted with a server-held key. Sending the email does not remove it: Temporal
+history keeps the encrypted token for the namespace's retention period. Grant
 content, email addresses, rendered messages, and AI conversations never enter
 Temporal history.
 
