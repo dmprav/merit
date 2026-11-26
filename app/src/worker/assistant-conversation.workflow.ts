@@ -23,6 +23,11 @@ const defaultTiming: AssistantTiming = {
   stepsPerRun: 100,
 };
 
+type StepResult =
+  | Awaited<ReturnType<AssistantActivities["advanceAssistantConversation"]>>
+  | "cancelled"
+  | "failed";
+
 // A workflow cannot import server code at run time, so the name repeats `assistantWakeSignal`.
 const wake = defineSignal("wake");
 const cancelTurn = defineSignal("cancelTurn");
@@ -49,61 +54,63 @@ export const assistantConversation = async (input: AssistantConversationInput) =
     heartbeatTimeout: timing.heartbeatTimeoutMs,
     retry: { maximumAttempts: 1 },
   });
-  let woken = false;
+  const conversation = {
+    userId: input.userId,
+    workspaceSlug: input.workspaceSlug,
+    conversationId: input.conversationId,
+  };
+  const state: { woken: boolean; cancelled: boolean; step?: CancellationScope } = {
+    woken: false,
+    cancelled: false,
+  };
   setHandler(wake, () => {
-    woken = true;
+    state.woken = true;
   });
   // Stop, delete and withdrawn consent cancel the step in flight, so its model request ends
   // within a heartbeat instead of running to its timeout. The next step finds the new state.
-  let step: CancellationScope | undefined;
-  let cancelled = false;
   setHandler(cancelTurn, () => {
-    cancelled = true;
-    woken = true;
-    step?.cancel();
+    state.cancelled = true;
+    state.woken = true;
+    state.step?.cancel();
   });
+
+  const runStep = async (): Promise<StepResult> => {
+    state.step = new CancellationScope({ cancellable: true });
+    try {
+      return await state.step.run(() => advanceAssistantConversation(conversation));
+    } catch (error) {
+      if (!isCancellation(error)) {
+        return "failed";
+      }
+      // Only the step was cancelled: look at the conversation again right away.
+      if (state.cancelled && !CancellationScope.current().consideredCancelled) {
+        return "cancelled";
+      }
+      throw error;
+    } finally {
+      state.step = undefined;
+    }
+  };
 
   let failures = 0;
   let idle = timing.idleInitialMs;
   for (let steps = 0; steps < timing.stepsPerRun; steps += 1) {
-    woken = false;
-    cancelled = false;
-    let outcome: Awaited<ReturnType<typeof advanceAssistantConversation>> = "waiting";
-    try {
-      step = new CancellationScope({ cancellable: true });
-      outcome = await step.run(() =>
-        advanceAssistantConversation({
-          userId: input.userId,
-          workspaceSlug: input.workspaceSlug,
-          conversationId: input.conversationId,
-        }),
-      );
-      failures = 0;
-    } catch (error) {
-      if (isCancellation(error) && cancelled && !CancellationScope.current().consideredCancelled) {
-        // Only the step was cancelled: look at the conversation again right away.
-        idle = timing.idleInitialMs;
-        continue;
-      }
-      if (isCancellation(error)) {
-        throw error;
-      }
-      failures += 1;
-      if (failures >= timing.maxFailures) {
-        return "unavailable";
-      }
-    } finally {
-      step = undefined;
+    state.woken = false;
+    state.cancelled = false;
+    const result = await runStep();
+    failures = result === "failed" ? failures + 1 : result === "cancelled" ? failures : 0;
+    if (failures >= timing.maxFailures) {
+      return "unavailable";
     }
     // A wake that arrived during the step may follow a change the step did not see.
-    if (outcome === "finished" && !woken) {
+    if (result === "finished" && !state.woken) {
       return "finished";
     }
-    if (outcome === "progressed" || woken) {
+    if (result === "progressed" || result === "cancelled" || state.woken) {
       idle = timing.idleInitialMs;
       continue;
     }
-    await condition(() => woken, idle);
+    await condition(() => state.woken, idle);
     idle = Math.min(idle * 2, timing.idleMaxMs);
   }
   return continueAsNew<typeof assistantConversation>(input);
