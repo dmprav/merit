@@ -1216,6 +1216,220 @@
       },
       "isRLSEnabled": false
     },
+    "public.committee_decision_versions": {
+      "name": "committee_decision_versions",
+      "schema": "",
+      "columns": {
+        "case_id": {
+          "name": "case_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_minor_units": {
+          "name": "amount_minor_units",
+          "type": "numeric(30, 0)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_currency": {
+          "name": "amount_currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'EUR'"
+        },
+        "conditions": {
+          "name": "conditions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decided_by": {
+          "name": "decided_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decision_date": {
+          "name": "decision_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "change_explanation": {
+          "name": "change_explanation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "material_version": {
+          "name": "material_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_name": {
+          "name": "actor_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provenance_interface": {
+          "name": "provenance_interface",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provenance_client_id": {
+          "name": "provenance_client_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "committee_decision_versions_material_idx": {
+          "name": "committee_decision_versions_material_idx",
+          "columns": [
+            {
+              "expression": "case_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "material_version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "committee_decision_versions_actor_user_idx": {
+          "name": "committee_decision_versions_actor_user_idx",
+          "columns": [
+            {
+              "expression": "actor_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "committee_decision_versions_case_id_application_cases_id_fk": {
+          "name": "committee_decision_versions_case_id_application_cases_id_fk",
+          "tableFrom": "committee_decision_versions",
+          "tableTo": "application_cases",
+          "columnsFrom": ["case_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "committee_decision_versions_actor_user_id_app_users_id_fk": {
+          "name": "committee_decision_versions_actor_user_id_app_users_id_fk",
+          "tableFrom": "committee_decision_versions",
+          "tableTo": "app_users",
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "committee_decision_versions_case_id_material_version_material_versions_case_id_version_fk": {
+          "name": "committee_decision_versions_case_id_material_version_material_versions_case_id_version_fk",
+          "tableFrom": "committee_decision_versions",
+          "tableTo": "material_versions",
+          "columnsFrom": ["case_id", "material_version"],
+          "columnsTo": ["case_id", "version"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "committee_decision_versions_case_id_revision_pk": {
+          "name": "committee_decision_versions_case_id_revision_pk",
+          "columns": ["case_id", "revision"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "committee_decision_version_positive": {
+          "name": "committee_decision_version_positive",
+          "value": "\"committee_decision_versions\".\"revision\" > 0"
+        },
+        "committee_decision_outcome_check": {
+          "name": "committee_decision_outcome_check",
+          "value": "\"committee_decision_versions\".\"outcome\" IN ('Fund', 'Fund with conditions', 'Defer', 'Decline')"
+        },
+        "committee_decision_amount_check": {
+          "name": "committee_decision_amount_check",
+          "value": "\"committee_decision_versions\".\"amount_minor_units\" >= 0 AND \"committee_decision_versions\".\"amount_currency\" = 'EUR' AND ((\"committee_decision_versions\".\"outcome\" IN ('Defer', 'Decline') AND \"committee_decision_versions\".\"amount_minor_units\" = 0) OR (\"committee_decision_versions\".\"outcome\" IN ('Fund', 'Fund with conditions') AND \"committee_decision_versions\".\"amount_minor_units\" > 0))"
+        },
+        "committee_decision_conditions_check": {
+          "name": "committee_decision_conditions_check",
+          "value": "(\"committee_decision_versions\".\"outcome\" = 'Fund with conditions') = (\"committee_decision_versions\".\"conditions\" IS NOT NULL AND length(btrim(\"committee_decision_versions\".\"conditions\")) > 0)"
+        },
+        "committee_decision_reason_check": {
+          "name": "committee_decision_reason_check",
+          "value": "length(btrim(\"committee_decision_versions\".\"reason\")) > 0"
+        },
+        "committee_decision_decided_by_check": {
+          "name": "committee_decision_decided_by_check",
+          "value": "length(btrim(\"committee_decision_versions\".\"decided_by\")) > 0"
+        },
+        "committee_decision_explanation_check": {
+          "name": "committee_decision_explanation_check",
+          "value": "(\"committee_decision_versions\".\"revision\" = 1) = (\"committee_decision_versions\".\"change_explanation\" IS NULL) AND (\"committee_decision_versions\".\"change_explanation\" IS NULL OR length(btrim(\"committee_decision_versions\".\"change_explanation\")) > 0)"
+        },
+        "committee_decision_provenance_check": {
+          "name": "committee_decision_provenance_check",
+          "value": "(\"committee_decision_versions\".\"provenance_interface\" IS NULL AND \"committee_decision_versions\".\"provenance_client_id\" IS NULL) OR (\"committee_decision_versions\".\"provenance_interface\" = 'web' AND \"committee_decision_versions\".\"provenance_client_id\" IS NULL) OR (\"committee_decision_versions\".\"provenance_interface\" = 'mcp' AND \"committee_decision_versions\".\"provenance_client_id\" IS NOT NULL AND length(\"committee_decision_versions\".\"provenance_client_id\") > 0)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.grant_navigation_pins": {
       "name": "grant_navigation_pins",
       "schema": "",
