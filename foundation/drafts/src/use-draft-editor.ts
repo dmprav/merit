@@ -26,7 +26,10 @@ export const useDraftEditor = <Draft, Input, Failure>({
   const [isSaving, setIsSaving] = useState(false);
   // The latest draft, so cleanup after an awaited close sees writing entered since.
   const latestDraft = useRef(draft);
-  latestDraft.current = draft;
+
+  useLayoutEffect(() => {
+    latestDraft.current = draft;
+  }, [draft]);
 
   useLayoutEffect(() => {
     if (isOpen && ready && !draft) {
