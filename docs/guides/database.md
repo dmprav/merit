@@ -74,7 +74,10 @@ revision are indexed or constrained relational columns.
 Automated schema checks in
 [database schema tests](../../app/tests/database-schema.integration.ts) inspect a
 migrated database through `pg_catalog` to enforce primary keys, covering foreign-key
-indexes, and SQL `CHECK` constraints on enum-like columns. Run both:
+indexes, SQL `CHECK` constraints on enum-like, currency, money minor-unit, and
+counter columns, row-level security policies on tenant-scoped tables, `search_path`
+and `PUBLIC` execute hardening on `SECURITY DEFINER` functions, and the
+`audit_events` immutability trigger. Run both:
 
 ```sh
 vp run @merit/db#db:check
