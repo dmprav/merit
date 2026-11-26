@@ -126,6 +126,18 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
   );
   expect(reviewPacketWorkflow).toContain("persist-credentials: false");
   expect(reviewPacketWorkflow).toContain("fetch-depth: 0");
+  // The screenshot job runs git inside the Playwright container, where the checkout belongs to
+  // the runner's user rather than root, so it must trust the workspace before any git call.
+  const trustWorkspace = 'git config --global --add safe.directory "$GITHUB_WORKSPACE"';
+  const screenshotsJob = reviewPacketWorkflow.slice(
+    reviewPacketWorkflow.indexOf("\n  ui-screenshots:"),
+    reviewPacketWorkflow.indexOf("\n  cleanup-screenshots:"),
+  );
+  expect(screenshotsJob).toContain("container: mcr.microsoft.com/playwright:");
+  expect(screenshotsJob).toContain(trustWorkspace);
+  expect(screenshotsJob.indexOf(trustWorkspace)).toBeLessThan(
+    screenshotsJob.indexOf("Set up workspace"),
+  );
   const pruneWorkflow = await readFile(
     `${repoRoot}/.github/workflows/prune-verifications.yml`,
     "utf8",
