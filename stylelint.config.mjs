@@ -35,11 +35,14 @@ const surfaces = [
 
 // One value: a word, or a function call with one level of nested parentheses.
 const token = String.raw`(?:[^\s()]*\((?:[^()]|\([^()]*\))*\)|[^\s()]+)`;
-const negative = String.raw`(?:-[\d.]|calc\(\s*(?:-|0(?:px)?\s*-))`;
+const negative = String.raw`(?:-[\d.]|calc\((?:\s*-|\s*0(?:px)?\s*-|(?:[^()]|\([^()]*\))*\*\s*-[\d.]))`;
 
 /** Matches a value whose token at the given position is negative, such as `-8px` or `calc(0px - var(--x))`. */
 const negativeValue = (position) =>
   new RegExp(String.raw`^(?:${token}\s+){${position}}${negative}`);
+
+/** A single negative value, which a shorthand applies to every side. */
+const negativeEverywhere = new RegExp(String.raw`^(?=${negative})${token}$`);
 
 /** @type {import("stylelint").Config} */
 export default {
@@ -112,7 +115,7 @@ export default {
           {
             "/^margin-(inline(-(start|end))?|left|right)$/": [negativeValue(0), negativeValue(1)],
             // The shorthand's second and fourth values are its inline sides.
-            "/^margin$/": [negativeValue(1), negativeValue(3)],
+            "/^margin$/": [negativeEverywhere, negativeValue(1), negativeValue(3)],
           },
           { message: () => "Use a shared alignment option instead of a negative inline margin" },
         ],

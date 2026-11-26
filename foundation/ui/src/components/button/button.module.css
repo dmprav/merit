@@ -16,8 +16,15 @@
   overflow-wrap: anywhere;
   cursor: pointer;
   /*
-   * How far a quiet button is outdented at the end of a row so its text, or its glyph when icon-only,
-   * meets the content edge. Patterns that place a trailing action reuse this one derivation.
+   * Where the glyph of an icon-only button sits inside its box, on either side. It follows the
+   * button's width, so touch and large buttons differ. Patterns that line a glyph up with an edge
+   * outdent by this amount.
+   */
+  --button-icon-inset: calc((var(--button-height) - 1rem) / 2);
+  /*
+   * How far a quiet button is shifted at the end of a row so its text, or its glyph when icon-only,
+   * meets the content edge. The shift is positional, so the button's own width is unchanged and its
+   * label never wraps. Patterns that place a trailing action reuse this one derivation.
    */
   --button-end-outdent: calc(-1 * var(--button-quiet-inset));
   transition:
@@ -128,7 +135,8 @@
 
 .button[data-variant="quiet"][data-alignment="end"] {
   justify-self: end;
-  margin-inline-end: var(--button-end-outdent);
+  position: relative;
+  inset-inline-start: calc(-1 * var(--button-end-outdent));
 }
 
 .button[data-alignment="fill"] {
@@ -139,15 +147,13 @@
 
 .button[data-icon-only] {
   width: var(--button-height);
-  /* An outdented button's own margin must not shrink the box it fits in. */
-  max-width: none;
   padding: 0;
   flex-shrink: 0;
-  /* The glyph sits centred in the button, so its inset is the button's width less the glyph's. */
-  --button-end-outdent: calc((1rem - var(--button-height)) / 2);
+  --button-end-outdent: calc(-1 * var(--button-icon-inset));
 }
 
 .button[data-size="large"] {
+  --button-icon-inset: calc((var(--target-touch) - 1rem) / 2);
   min-height: var(--target-touch);
   padding: var(--space-2) var(--space-5);
   font-size: var(--text-body);
@@ -156,7 +162,6 @@
 .button[data-size="large"][data-icon-only] {
   width: var(--target-touch);
   padding: 0;
-  --button-end-outdent: calc((1rem - var(--target-touch)) / 2);
 }
 
 .button:is([data-focus-visible], a:focus-visible) {
@@ -208,7 +213,7 @@
 
   .button[data-icon-only] {
     width: var(--target-touch);
-    --button-end-outdent: calc((1rem - var(--target-touch)) / 2);
+    --button-icon-inset: calc((var(--target-touch) - 1rem) / 2);
   }
 }
 

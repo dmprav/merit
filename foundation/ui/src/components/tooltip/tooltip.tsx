@@ -8,6 +8,7 @@ import {
   type TooltipProps as AriaTooltipProps,
 } from "react-aria-components/Tooltip";
 
+import { TOOLTIP_CLOSE_DELAY, TOOLTIP_OPEN_DELAY } from "./tooltip-base";
 import styles from "./tooltip.module.css";
 
 type TooltipProps = {
@@ -86,7 +87,11 @@ export const Tooltip = ({
   isDisabled = false,
   customTrigger = false,
 }: TooltipProps) => (
-  <TooltipTrigger delay={350} closeDelay={150} isDisabled={isDisabled}>
+  <TooltipTrigger
+    delay={TOOLTIP_OPEN_DELAY}
+    closeDelay={TOOLTIP_CLOSE_DELAY}
+    isDisabled={isDisabled}
+  >
     {customTrigger ? <Focusable>{children}</Focusable> : children}
     <TooltipOverlayGuard />
     <AriaTooltip className={styles.tooltip} placement={placement} offset={6}>

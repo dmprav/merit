@@ -15,7 +15,7 @@
 
 /* The filter glyph lines up with the collection's leading edge, as text would. */
 .toolbar > :first-child {
-  margin-inline-start: calc((16px - var(--button-height)) / 2);
+  margin-inline-start: calc(-1 * var(--button-icon-inset));
 }
 
 .filters {

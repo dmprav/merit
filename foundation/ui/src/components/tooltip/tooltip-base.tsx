@@ -3,15 +3,18 @@ import { Tooltip as AriaTooltip, TooltipTrigger } from "react-aria-components/To
 
 import styles from "./tooltip.module.css";
 
-// The same timing as Tooltip, so hovering a cut-off label waits like any other hint.
-const OPEN_DELAY = 350;
-const CLOSE_DELAY = 150;
+/** The timing every hint shares, so hovering a cut-off label waits like any other. */
+export const TOOLTIP_OPEN_DELAY = 350;
+export const TOOLTIP_CLOSE_DELAY = 150;
 
 const useDelayed = (value: boolean) => {
   const [delayed, setDelayed] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDelayed(value), value ? OPEN_DELAY : CLOSE_DELAY);
+    const timer = setTimeout(
+      () => setDelayed(value),
+      value ? TOOLTIP_OPEN_DELAY : TOOLTIP_CLOSE_DELAY,
+    );
     return () => clearTimeout(timer);
   }, [value]);
 

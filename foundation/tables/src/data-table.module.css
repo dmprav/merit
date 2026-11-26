@@ -66,6 +66,20 @@
   inset-inline-end: var(--space-4);
 }
 
+/* A quiet text control leading a cell starts its text where the cell's text starts. */
+.table
+  td:not([data-row-actions])
+  > .cellContent
+  > [data-variant="quiet"]:first-child:not([data-icon-only]) {
+  margin-inline-start: calc(-1 * var(--button-quiet-inset));
+}
+
+/* A row's trailing icon button ends with its glyph on the content edge. */
+.table [data-row-actions] [data-variant="quiet"][data-icon-only]:last-child {
+  position: relative;
+  inset-inline-start: calc(-1 * var(--button-end-outdent));
+}
+
 .table [data-align="end"] {
   text-align: right;
   font-variant-numeric: tabular-nums;

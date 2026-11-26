@@ -46,9 +46,13 @@
   display: flex;
   gap: var(--space-1);
   margin-block-start: var(--space-1);
-  margin-inline-start: calc((1rem - var(--button-height)) / 2);
   --button-quiet-foreground: var(--muted);
   transition: opacity var(--motion-fast);
+}
+
+/* The first icon's glyph meets the text edge; the inset is the button's own. */
+.actions > :first-child {
+  margin-inline-start: calc(-1 * var(--button-icon-inset));
 }
 
 .message:not(:last-child):not(:hover, :focus-within) .actions {

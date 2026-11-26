@@ -62,11 +62,7 @@ const ContactApplicationsCell = ({
       isOpen={open}
       onOpenChange={setOpen}
       title={t("applicationsFor", { person: contact.name || contact.email })}
-      trigger={
-        <Button variant="quiet" alignment="start">
-          {t("applicationCount", { count: titles.length })}
-        </Button>
-      }
+      trigger={<Button variant="quiet">{t("applicationCount", { count: titles.length })}</Button>}
     >
       <DialogContent>
         <RemotePagedContent source={contact.applicationsSource} entries={[]} active={open}>

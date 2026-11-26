@@ -39,6 +39,12 @@ const edges = (target: Locator) =>
     return { left, right, top, height };
   });
 
+const centre = (target: Locator) =>
+  target.evaluate((node) => {
+    const { top, height } = node.getBoundingClientRect();
+    return top + height / 2;
+  });
+
 const open = async (page: Page, story: string) => {
   await page.goto(`/iframe.html?id=${story}&viewMode=story`);
   await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
@@ -66,6 +72,11 @@ for (const story of tabStories) {
     const panel = page.getByRole("tabpanel").first();
     const content = await textEdges(panel);
     expect(content.start).toBeCloseTo(rail.left, 0);
+    const panelEnd = await panel.evaluate(
+      (node) =>
+        node.getBoundingClientRect().right - Number.parseFloat(getComputedStyle(node).paddingRight),
+    );
+    expect(panelEnd).toBeCloseTo(rail.right, 0);
     // Outdented content never makes the panel scroll sideways or clips its fills.
     // Only a panel that scrolls can scroll sideways; the page check below covers the rest.
     expect(
@@ -155,11 +166,15 @@ test("long tab labels stay on one line, with the full label as the accessible na
 test("tabs with counts keep the count beside a truncated label", async ({ page }) => {
   await open(page, "components-tabs--counts");
   const tab = page.getByRole("tab", { name: "Applications awaiting assessment 12345" });
-  const box = await edges(tab);
-  const count = await edges(page.getByText("12345"));
+  const label = tab.locator("span span").first();
+  expect(await label.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
 
-  expect(count.right).toBeLessThanOrEqual(box.right);
-  expect(count.height).toBeLessThan(box.height);
+  const count = await centre(page.getByText("12345"));
+  const text = await centre(label);
+  expect(Math.abs(count - text)).toBeLessThanOrEqual(1);
+  expect((await edges(page.getByText("12345"))).right).toBeLessThanOrEqual(
+    (await edges(tab)).right,
+  );
 });
 
 test("the data table's first column starts on the heading's edge", async ({ page }) => {
@@ -284,4 +299,148 @@ test("message box chips start where the input text starts", async ({ page }) => 
   const chip = await edges(page.locator("[data-chip]").first());
 
   expect(chip.left).toBeCloseTo(start, 0);
+});
+
+/**
+ * Every action in a section header or panel section: one line tall, and the trailing quiet one
+ * ending on the row's edge.
+ */
+const headerActions = (page: Page) =>
+  page.evaluate(() => {
+    const textEnd = (node: Element) => {
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      let end = Number.NEGATIVE_INFINITY;
+      for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+        if (text.textContent?.trim()) {
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          end = Math.max(end, ...[...range.getClientRects()].map((rect) => rect.right));
+        }
+      }
+
+      return end;
+    };
+
+    // One line of text between the button's own padding and border, or its minimum height.
+    const singleLine = (button: HTMLElement) => {
+      const style = getComputedStyle(button);
+      const lines =
+        Number.parseFloat(style.lineHeight) +
+        Number.parseFloat(style.paddingTop) +
+        Number.parseFloat(style.paddingBottom) +
+        Number.parseFloat(style.borderTopWidth) +
+        Number.parseFloat(style.borderBottomWidth);
+      return Math.max(Number.parseFloat(style.minHeight), lines);
+    };
+
+    const asides = [...document.querySelectorAll("[data-header-actions]")];
+    return asides.flatMap((aside) => {
+      const buttons = [...aside.querySelectorAll<HTMLElement>("button, a")].filter(
+        (button) => button.getClientRects().length > 0,
+      );
+      const edge = aside.parentElement!.getBoundingClientRect().right;
+      return buttons.map((button) => {
+        const box = button.getBoundingClientRect();
+        const trailing = button === buttons[buttons.length - 1];
+        const quiet = button.dataset.variant === "quiet";
+        const glyph = button.dataset.iconOnly ? button.querySelector("svg") : null;
+        return {
+          name: button.textContent?.trim() || button.getAttribute("aria-label") || "",
+          height: box.height,
+          single: singleLine(button),
+          // Only a trailing quiet action is outdented to the edge.
+          end:
+            trailing && quiet
+              ? glyph
+                ? glyph.getBoundingClientRect().right
+                : textEnd(button)
+              : null,
+          edge,
+        };
+      });
+    });
+  });
+
+for (const story of [
+  "features-applications-application-detail--evidence",
+  "features-applications-manage-reviews--changed-application",
+  "features-applications-manage-reviews--adding-request",
+  "features-applications-recommendation--default",
+]) {
+  test(`header actions in ${story} stay on one line and end on the edge`, async ({ page }) => {
+    await open(page, story);
+    const actions = await headerActions(page);
+
+    expect(actions.length).toBeGreaterThan(0);
+    for (const action of actions) {
+      expect(action.height, action.name).toBeLessThanOrEqual(action.single + 1);
+      if (action.end !== null) {
+        expect(action.end, action.name).toBeCloseTo(action.edge, 0);
+      }
+    }
+  });
+}
+
+test("no header or panel action wraps in any feature or pattern story", async ({
+  browser,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Sets its own viewport sizes.");
+  test.setTimeout(900_000);
+  const response = await browser.newContext();
+  const index = (await (
+    await response.request.get(`${testInfo.project.use.baseURL}/index.json`)
+  ).json()) as { entries: Record<string, { id: string; type: string }> };
+  const stories = Object.values(index.entries)
+    .filter((entry) => entry.type === "story" && /^(features|patterns)-/.test(entry.id))
+    .map((entry) => entry.id);
+  await response.close();
+
+  const wrapped: string[] = [];
+  for (const width of [1440, 390]) {
+    let context = await browser.newContext({ viewport: { width, height: 900 } });
+    let page = await context.newPage();
+    for (const [position, story] of stories.entries()) {
+      // A long sweep outlives a single page, so each batch of stories gets a fresh one.
+      if (position > 0 && position % 40 === 0) {
+        await context.close();
+        context = await browser.newContext({ viewport: { width, height: 900 } });
+        page = await context.newPage();
+      }
+      await page.goto(`${testInfo.project.use.baseURL}/iframe.html?id=${story}&viewMode=story`);
+      await page
+        .locator("#storybook-root")
+        .waitFor({ state: "attached", timeout: 15_000 })
+        .catch(() => {});
+      await page.waitForTimeout(150).catch(() => {});
+      for (const action of await headerActions(page).catch(() => [])) {
+        if (action.height > action.single + 1) {
+          wrapped.push(`${story} @${width}: ${action.name} is ${action.height}px`);
+        }
+      }
+    }
+    await context.close();
+  }
+
+  expect(wrapped).toEqual([]);
+});
+
+test("a table's trailing row action ends its glyph on the content edge", async ({ page }) => {
+  await open(page, "features-team-manage-team--owner");
+  const end = (await edges(page.getByRole("tablist").locator(".."))).right;
+  const glyph = page.locator("[data-row-actions] button svg").first();
+
+  expect((await glyphEdges(glyph)).end).toBeCloseTo(end, 0);
+});
+
+test("the collection filter's glyph starts on the content edge", async ({ page }) => {
+  await open(page, "features-contacts-directory--overview");
+  const heading = await textEdges(page.getByRole("heading", { level: 1 }));
+  const glyph = await glyphEdges(
+    page
+      .getByRole("button", { name: /filter/i })
+      .first()
+      .locator("svg"),
+  );
+
+  expect(glyph.start).toBeCloseTo(heading.start, 0);
 });
