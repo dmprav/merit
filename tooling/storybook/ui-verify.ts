@@ -1647,15 +1647,16 @@ export const checkKeyboardFocusTraversal = async (
     const baselines = [stop.unfocused, stop.cleanUnfocused].filter(
       (baseline): baseline is FocusVisualSnapshot => baseline !== undefined,
     );
-    if (baselines.length > 0) {
-      if (baselines.some((baseline) => !detectFocusVisualChange(baseline, stop.focused).changed)) {
-        reasons.push("no visible focus indicator change compared to unfocused state");
-      }
+    // Both baselines are skipped only for a control that left the document, and its focused
+    // styles alone cannot show that they differ from its unfocused state.
+    if (baselines.length === 0) {
+      reasons.push(
+        "no unfocused baseline: the control left the document after losing focus, so its focus indicator could not be compared",
+      );
     } else if (
-      !hasVisibleOutline(stop.focused.self) &&
-      !hasVisibleBoxShadow(stop.focused.self.boxShadow)
+      baselines.some((baseline) => !detectFocusVisualChange(baseline, stop.focused).changed)
     ) {
-      reasons.push("no visible focus indicator detected");
+      reasons.push("no visible focus indicator change compared to unfocused state");
     }
 
     if (reasons.length > 0) {

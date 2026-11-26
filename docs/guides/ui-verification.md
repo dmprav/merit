@@ -141,7 +141,8 @@ vp run ui:verify --route /app/alder/rounds --viewport both --json
 Every host run (without `--container`) starts isolated servers on ephemeral ports, checks zero
 WCAG 2 A/AA/2.1AA violations, zero horizontal overflow, zero console/page errors, and visible
 keyboard `Tab` focus changes (each stop must be painted, with no `opacity: 0` on it or an
-ancestor, and must differ from the page with nothing focused and with the next stop focused;
+ancestor, and must differ from the page with nothing focused and with the next stop focused,
+so a stop removed from the document as focus leaves it fails;
 focus that enters a cross-origin frame or navigates to a new document fails as incomplete), then writes deterministic proof artifacts to `.tmp/ui-verify/`
 (override with `--out <dir>`): `report.md`, Zod-validated `results.json`, and
 `screenshots/*.png`. A route that redirects, such as to sign-in, is checked where it lands:

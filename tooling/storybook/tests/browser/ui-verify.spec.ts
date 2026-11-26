@@ -856,6 +856,33 @@ test.describe("live Chromium checker failure detection", () => {
     ]);
   });
 
+  test("fails a stop that leaves the document on blur instead of passing it on its focused styles alone", async ({
+    newContext,
+  }) => {
+    const context = await newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    await page.setContent(
+      `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Removed on blur</title><style>
+        body { background: #fff; color: #111; }
+        button { padding: 8px 14px; background: #fff; color: #111; border: 1px solid #333; }
+        button:focus-visible, .outlined { outline: 2px solid #0f62fe; outline-offset: 2px; }
+      </style></head><body><main><h1>Removed on blur</h1>
+        <button type="button">First</button>
+        <button class="outlined" type="button">Removed on blur</button>
+        <button type="button">Last</button>
+      </main><script>
+        document.querySelector(".outlined").addEventListener("blur", (event) => event.currentTarget.remove());
+      </script></body></html>`,
+    );
+    const focus = await checkKeyboardFocusTraversal(page);
+    expect(focus.stopsChecked).toBe(3);
+    expect(focus.failures).toHaveLength(1);
+    expect(focus.failures[0]?.element).toContain("Removed on blur");
+    expect(focus.failures[0]?.reasons).toEqual([
+      "no unfocused baseline: the control left the document after losing focus, so its focus indicator could not be compared",
+    ]);
+  });
+
   test("traverses controls inside same-origin frames and reports cross-origin frames as incomplete", async ({
     newContext,
   }) => {
