@@ -262,9 +262,11 @@ describe("ledger helpers", () => {
       decision: "-remove dead branch",
       evidence: "--reslut=ok",
     });
-    expect(() => parseLogArgs(["--slug", "feat-one", "--bogus", "1"])).toThrow(/Unknown argument/);
+    expect(() => parseLogArgs(["--slug", "feat-one", "--bogus", "1"])).toThrow(
+      /Unknown option '--bogus'/,
+    );
     expect(() => parseLogArgs(["--slug", "feat-one", "--json=true"])).toThrow(
-      /--json does not accept a value/,
+      /Option '--json' does not take an argument/,
     );
 
     expect(parseTailArgs(["--slug", "feat-one"])).toEqual({
@@ -279,10 +281,14 @@ describe("ledger helpers", () => {
       limit: 5,
       json: true,
     });
-    expect(() => parseTailArgs(["--slug", "feat-one", "--limit", "0"])).toThrow(/Invalid --limit/);
-    expect(() => parseTailArgs(["--slug", "feat-one", "--limit", "-3"])).toThrow(/Invalid --limit/);
+    expect(() => parseTailArgs(["--slug", "feat-one", "--limit", "0"])).toThrow(
+      /--limit must be a whole number of at least 1/,
+    );
+    expect(() => parseTailArgs(["--slug", "feat-one", "--limit", "-3"])).toThrow(
+      /--limit must be a whole number of at least 1/,
+    );
     expect(() => parseTailArgs(["--slug", "feat-one", "--limit", "10abc"])).toThrow(
-      /Invalid --limit/,
+      /--limit must be a whole number of at least 1/,
     );
 
     expect(parseSummaryArgs(["--slug", "feat-one", "--json"])).toEqual({
@@ -474,10 +480,12 @@ describe("ledger lifecycle, resume markers, and validation", () => {
     });
 
     const summary = summarizeLedger({ slug: "auth-migration", repoRoot: repo });
-    expect(summary.decisions.some((line) => line.includes("Picked up from handoff artifact"))).toBe(
+    expect(summary.decisions.some((entry) => entry.why === "Picked up from handoff artifact")).toBe(
       false,
     );
-    expect(summary.decisions.some((line) => line.includes("[build] start"))).toBe(true);
+    expect(
+      summary.decisions.some((entry) => entry.phase === "build" && entry.decision === "start"),
+    ).toBe(true);
 
     const all = readLedgerEntries(first.file);
     expect(all.exists).toBe(true);
@@ -754,13 +762,17 @@ describe("ledger lifecycle, resume markers, and validation", () => {
     expect(summary.resultCounts).toEqual({ done: 2, pass: 3, started: 1 });
     expect(summary.latestEntries).toHaveLength(SUMMARY_LATEST_LIMIT);
     expect(summary.decisions).toHaveLength(6); // Excludes synthetic resume/start marker
-    expect(summary.decisions[0]).toBe("[build] Decision 1 — Reason 1");
-    expect(summary.decisions[5]).toBe("[verify] Decision 6 — Reason 6 (pass) [evidence: check-6]");
+    expect(summary.decisions[0]).toMatchObject({ phase: "build", decision: "Decision 1" });
+    expect(summary.decisions[5]).toMatchObject({ phase: "verify", decision: "Decision 6" });
 
     const formattedSummary = formatSummaryOutput(summary);
     expect(formattedSummary).toContain("runs (2): run-a");
     expect(formattedSummary).toContain("phases:  build=3, resume=1, verify=3");
-    expect(formattedSummary).toContain("- [verify] Decision 6 — Reason 6");
+    expect(formattedSummary).toContain("\n    - [build] Decision 1 — Reason 1\n");
+    expect(formattedSummary).toContain(
+      "\n    - [verify] Decision 6 — Reason 6 (pass) [evidence: check-6]",
+    );
+    expect(formattedSummary).not.toContain("[resume]");
   });
 
   test("preserves __proto__ labels as own enumerable properties in summary counts and JSON", async () => {
@@ -1163,5 +1175,25 @@ describe("ledger concurrency and locking", () => {
     const ledgerDir = join(repo, ".tmp", "ledgers");
     expect(readdirSync(ledgerDir).sort()).toEqual([".ledger-locks", "symlink-shared.tsv"]);
     expect(readdirSync(join(ledgerDir, ".ledger-locks"))).toEqual([]);
+  });
+
+  test("canonicalizes --file paths beneath dangling or looping directory symlinks", () => {
+    const repo = makeTempDir();
+    symlinkSync(join(repo, "ledgers", "later"), join(repo, "alias"));
+    symlinkSync("alias", join(repo, "relative-alias"));
+    symlinkSync(join(repo, "loop-b"), join(repo, "loop-a"));
+    symlinkSync(join(repo, "loop-a"), join(repo, "loop-b"));
+
+    // The missing segments below a dangling directory symlink are kept under its target.
+    expect(resolveLedgerFilePath({ file: "alias/task/run.tsv", cwd: repo })).toBe(
+      join(repo, "ledgers", "later", "task", "run.tsv"),
+    );
+    expect(resolveLedgerFilePath({ file: "relative-alias/run.tsv", cwd: repo })).toBe(
+      join(repo, "ledgers", "later", "run.tsv"),
+    );
+    // A symlink cycle stops after the hop limit and keeps the path as given.
+    expect(resolveLedgerFilePath({ file: "loop-a/run.tsv", cwd: repo })).toBe(
+      join(repo, "loop-a", "run.tsv"),
+    );
   });
 });

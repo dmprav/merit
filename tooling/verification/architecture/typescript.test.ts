@@ -10,12 +10,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { expect, it } from "vite-plus/test";
 import { z } from "zod";
 
-const root = fileURLToPath(new URL("../../../", import.meta.url));
+import { REPO_ROOT } from "../../paths.ts";
 
 const compilerFiles = (capability: string, config = join(capability, "tsconfig.json")) => {
   const compiler = join(capability, "node_modules/typescript/bin/tsc");
@@ -24,7 +23,7 @@ const compilerFiles = (capability: string, config = join(capability, "tsconfig.j
 
   const tsc = (option: string, project: string) => {
     const result = spawnSync(process.execPath, [compiler, option, "-p", project], {
-      cwd: root,
+      cwd: REPO_ROOT,
       encoding: "utf8",
       timeout: 30_000,
     });
@@ -60,13 +59,13 @@ const compilerFiles = (capability: string, config = join(capability, "tsconfig.j
 const interfaceSources = (files: string[]) =>
   files.filter((file) =>
     ["app", "interfaces"].some((directory) =>
-      file.startsWith(`${realpathSync(join(root, directory))}${sep}`),
+      file.startsWith(`${realpathSync(join(REPO_ROOT, directory))}${sep}`),
     ),
   );
 
-const webCapabilities = readdirSync(join(root, "capabilities"), { withFileTypes: true })
+const webCapabilities = readdirSync(join(REPO_ROOT, "capabilities"), { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
-  .map((entry) => join(root, "capabilities", entry.name, "web"))
+  .map((entry) => join(REPO_ROOT, "capabilities", entry.name, "web"))
   .filter((directory) => existsSync(join(directory, "tsconfig.json")));
 
 it.each(webCapabilities)(
@@ -85,11 +84,11 @@ it.each(webCapabilities)(
 it.each(["include", "reference"] as const)(
   "detects an interface source explicitly included through a capability tsconfig %s",
   (kind) => {
-    const capability = join(root, "capabilities/grantmaking/web");
+    const capability = join(REPO_ROOT, "capabilities/grantmaking/web");
     const directory = mkdtempSync(join(tmpdir(), "merit-source-probe-"));
     const config = join(directory, "tsconfig.json");
     const forbidden = realpathSync(
-      join(root, "interfaces/product/src/shared/workspace-location.ts"),
+      join(REPO_ROOT, "interfaces/product/src/shared/workspace-location.ts"),
     );
     const included = {
       extends: join(capability, "tsconfig.json"),
@@ -99,7 +98,7 @@ it.each(["include", "reference"] as const)(
         noEmit: false,
         emitDeclarationOnly: true,
         declaration: true,
-        rootDir: root,
+        rootDir: REPO_ROOT,
       },
     };
 

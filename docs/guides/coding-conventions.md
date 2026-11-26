@@ -68,9 +68,9 @@ with a 100-line allowance for all functions in JSX and TSX files. Keep logic in
 focused hooks and helpers even where that file-based allowance applies.
 Blank lines and comment-only lines do not count;
 nested functions and JSX remain part of their enclosing function's length.
-Immediately invoked functions are checked too. Generated code, tests, stories,
-fixtures, mocks, and repository tooling (`tooling/`) are excluded from this size
-rule.
+Immediately invoked functions are checked too, and repository tooling
+(`tooling/`) follows the same limit. Generated code, tests, stories, fixtures,
+and mocks are excluded from this size rule.
 
 Run `vp run check:code` to enforce the limit. Extract meaningful responsibilities
 into local helpers, components, or hooks while preserving state lifetimes, failure
@@ -90,9 +90,10 @@ independent control-flow paths. These are review triggers, not design goals:
 extract a meaningful responsibility, simplify repeated decisions, or flatten
 control flow while preserving the behavior and its verification.
 
-The [Fallow configuration](../../.fallowrc.jsonc) owns these limits. Generated
-code, tests, stories, fixtures, mocks, and repository tooling (`tooling/`) are
-excluded from this production check; their existing lint and test requirements still apply.
+The [Fallow configuration](../../.fallowrc.jsonc) owns these limits, and
+repository tooling (`tooling/`) is checked like product code. Generated code,
+tests, stories, fixtures, and mocks are excluded from this production check; their
+existing lint and test requirements still apply.
 Function length, file length, parameter count, and coverage-derived risk scores
 do not determine whether this check passes.
 

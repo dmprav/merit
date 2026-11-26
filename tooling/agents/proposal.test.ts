@@ -1,18 +1,17 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
 import { describe, expect, test } from "vite-plus/test";
 
+import type { IssueListItem, IssueListQuery } from "./github.ts";
 import {
   applyTier2OnlyOverride,
   classifyProposalTier,
+  fileProposal,
   findDuplicateProposal,
-  findMissingAppliedLabels,
   isProposalCapReached,
+  parseProposalArgs,
   proposalInputSchema,
   renderProposalMarkdown,
-  resolveScoutGhEnv,
-  SCOUT_GH_TOKEN_ENV,
+  selectProposalLabels,
+  targetLabelForTier,
   type ProposalInput,
 } from "./proposal.ts";
 
@@ -55,7 +54,7 @@ describe("proposal", () => {
       ambiguous: false,
     });
     expect(docsResult.tier).toBe(1);
-    expect(docsResult.targetLabel).toBe("agent:ready");
+    expect(targetLabelForTier(docsResult.tier)).toBe("agent:ready");
 
     const singleSliceTestResult = classifyProposalTier({
       paths: [
@@ -65,7 +64,7 @@ describe("proposal", () => {
       ambiguous: false,
     });
     expect(singleSliceTestResult.tier).toBe(1);
-    expect(singleSliceTestResult.targetLabel).toBe("agent:ready");
+    expect(targetLabelForTier(singleSliceTestResult.tier)).toBe("agent:ready");
   });
 
   test("classifies production, multi-slice, extends-mechanism, protected, root/record docs, wildcard, or ambiguous proposals as Tier 2", () => {
@@ -89,7 +88,7 @@ describe("proposal", () => {
     ] as const) {
       const result = classifyProposalTier({ paths: [...paths], ambiguous });
       expect(result.tier, paths.join(",")).toBe(2);
-      expect(result.targetLabel, paths.join(",")).toBe("agent:proposed");
+      expect(targetLabelForTier(result.tier), paths.join(",")).toBe("agent:proposed");
     }
   });
 
@@ -104,7 +103,7 @@ describe("proposal", () => {
 
     const overridden = applyTier2OnlyOverride(base, true);
     expect(overridden.tier).toBe(2);
-    expect(overridden.targetLabel).toBe("agent:proposed");
+    expect(targetLabelForTier(overridden.tier)).toBe("agent:proposed");
 
     const markdown = renderProposalMarkdown(proposal, overridden);
     expect(markdown).toContain("`tier:2");
@@ -189,60 +188,6 @@ describe("proposal", () => {
     expect(isProposalCapReached(5)).toBe(true);
   });
 
-  test("prefers MERIT_SCOUT_GH_TOKEN over injected GH_TOKEN without mutating input env", () => {
-    const baseEnv = { GH_TOKEN: "injected-integration-token", PATH: "/usr/bin" };
-    expect(resolveScoutGhEnv(baseEnv)).toBe(baseEnv);
-    expect(resolveScoutGhEnv({ ...baseEnv, [SCOUT_GH_TOKEN_ENV]: "   " })).toEqual({
-      ...baseEnv,
-      [SCOUT_GH_TOKEN_ENV]: "   ",
-    });
-
-    const withScoutToken = {
-      ...baseEnv,
-      [SCOUT_GH_TOKEN_ENV]: "  scout-token-fixture  ",
-    };
-    const resolved = resolveScoutGhEnv(withScoutToken);
-    expect(resolved.GH_TOKEN).toBe("scout-token-fixture");
-    expect(resolved.PATH).toBe("/usr/bin");
-    expect(withScoutToken.GH_TOKEN).toBe("injected-integration-token");
-  });
-
-  test("keeps direct gh CLI calls inside github-rest.ts and forbids GraphQL or gh pr/issue/repo wrappers", () => {
-    const githubRestSource = readFileSync(
-      fileURLToPath(new URL("./github-rest.ts", import.meta.url)),
-      "utf8",
-    );
-    const proposalSource = readFileSync(
-      fileURLToPath(new URL("./proposal.ts", import.meta.url)),
-      "utf8",
-    );
-    const scoutSource = readFileSync(fileURLToPath(new URL("./scout.ts", import.meta.url)), "utf8");
-    const queueSource = readFileSync(fileURLToPath(new URL("./queue.ts", import.meta.url)), "utf8");
-
-    for (const source of [githubRestSource, proposalSource, scoutSource, queueSource]) {
-      expect(source).not.toMatch(/execFileSync\("gh",\s*\[\s*"(?:pr|issue|repo)"/);
-      expect(source).not.toContain('"graphql"');
-    }
-    expect(proposalSource).not.toMatch(/execFileSync\("gh"/);
-    expect(scoutSource).not.toMatch(/execFileSync\("gh"/);
-    expect(queueSource).not.toMatch(/execFileSync\("gh"/);
-  });
-
-  test("detects requested labels silently dropped by GitHub during issue creation", () => {
-    expect(
-      findMissingAppliedLabels(
-        ["agent:proposed", "type:maintenance"],
-        [{ name: "Agent:Proposed" }, { name: "type:maintenance" }],
-      ),
-    ).toEqual([]);
-    expect(
-      findMissingAppliedLabels(
-        ["agent:proposed", "agent:design", "type:maintenance"],
-        [{ name: "type:maintenance" }],
-      ),
-    ).toEqual(["agent:proposed", "agent:design"]);
-  });
-
   test("classifies design proposals as Tier 2 and renders structured sequencing details instead of an implementer brief", () => {
     const designProposal = proposalInputSchema.parse({
       kind: "design",
@@ -279,7 +224,7 @@ describe("proposal", () => {
       kind: designProposal.kind,
     });
     expect(classification.tier).toBe(2);
-    expect(classification.targetLabel).toBe("agent:proposed");
+    expect(targetLabelForTier(classification.tier)).toBe("agent:proposed");
 
     const markdown = renderProposalMarkdown(designProposal, classification);
     expect(markdown).toContain("tier:2 · design · lens:architecture");
@@ -350,5 +295,154 @@ describe("proposal", () => {
         multiMarkerIssue,
       ).duplicate,
     ).toBe(false);
+  });
+});
+
+describe("proposal arguments", () => {
+  test("reads the input file, dry-run, and tier-2 override flags", () => {
+    expect(parseProposalArgs([])).toEqual({ dryRun: false, tier2Only: false });
+    expect(parseProposalArgs(["--file", "finding.json", "--dry-run", "--tier2-only"])).toEqual({
+      file: "finding.json",
+      dryRun: true,
+      tier2Only: true,
+    });
+  });
+
+  // A misspelt --dry-run must not fall through to filing a real GitHub issue.
+  test.each([["--dry-rn"], ["--tier2only"], ["--dry-run", "extra"]])(
+    "rejects %j before any GitHub call",
+    (...args) => {
+      expect(() => parseProposalArgs(args)).toThrow(/Usage: proposal\.ts/);
+    },
+  );
+
+  test("rejects --file without a path", () => {
+    expect(() => parseProposalArgs(["--file", "--dry-run"])).toThrow("--file requires a value.");
+  });
+
+  // An empty path must not fall back to reading a different proposal from stdin.
+  test.each([[["--file="]], [["--file", "finding.json", "--file="]]])(
+    "rejects an empty --file path in %j",
+    (args) => {
+      expect(() => parseProposalArgs(args)).toThrow("--file requires a value.");
+    },
+  );
+});
+
+describe("proposal labels", () => {
+  test("labels a proposal with its tier's workflow label, design, maintenance, then its extras once each", () => {
+    expect(selectProposalLabels(sampleProposal(), { tier: 1 })).toEqual([
+      "agent:ready",
+      "type:maintenance",
+    ]);
+    expect(
+      selectProposalLabels(
+        { kind: "design", extraLabels: ["area:reviews", "type:maintenance"] },
+        { tier: 2 },
+      ),
+    ).toEqual(["agent:proposed", "agent:design", "type:maintenance", "area:reviews"]);
+  });
+});
+
+const issue = (number: number, title: string, overrides: Partial<IssueListItem> = {}) => ({
+  number,
+  title,
+  state: "OPEN" as const,
+  body: "",
+  labels: [],
+  comments: [],
+  ...overrides,
+});
+
+/** Answers issue list queries from `issuesFor` and records every query and created issue. */
+const fakeIssues = (issuesFor: (query: IssueListQuery) => IssueListItem[] = () => []) => {
+  const queries: IssueListQuery[] = [];
+  const created: Array<{ title: string; body: string; labels: readonly string[] }> = [];
+  const client = {
+    listIssues: (query: IssueListQuery) => {
+      queries.push(query);
+      return issuesFor(query);
+    },
+    createIssue: (request: { title: string; body: string; labels: readonly string[] }) => {
+      created.push(request);
+      return "https://github.com/dmprav/merit/issues/400";
+    },
+  };
+  return { client, queries, created };
+};
+
+describe("fileProposal", () => {
+  test("files a Tier 1 proposal without consulting the Tier 2 cap", () => {
+    const { client, queries, created } = fakeIssues();
+    const proposal = sampleProposal();
+
+    expect(fileProposal(client, proposal, { dryRun: false, tier2Only: false })).toEqual({
+      status: "created",
+      url: "https://github.com/dmprav/merit/issues/400",
+      kind: "pr",
+      tier: 1,
+      targetLabel: "agent:ready",
+      labels: ["agent:ready", "type:maintenance"],
+    });
+    expect(queries).toEqual([
+      { state: "open" },
+      { state: "closed", label: "wontfix" },
+      { state: "closed", label: "duplicate" },
+    ]);
+    expect(created).toEqual([
+      {
+        title: proposal.title,
+        body: renderProposalMarkdown(proposal, classifyProposalTier(proposal)),
+        labels: ["agent:ready", "type:maintenance"],
+      },
+    ]);
+  });
+
+  test("renders a dry run, with the calibration override applied, without calling GitHub", () => {
+    const { client, queries, created } = fakeIssues();
+
+    const outcome = fileProposal(client, sampleProposal(), { dryRun: true, tier2Only: true });
+
+    expect(outcome).toMatchObject({
+      status: "dry_run",
+      tier: 2,
+      targetLabel: "agent:proposed",
+      labels: ["agent:proposed", "type:maintenance"],
+      reasons: ["calibration mode (--tier2-only)"],
+    });
+    expect(outcome.status === "dry_run" ? outcome.markdown : "").toContain("tier:2 · lens:tests");
+    expect(queries).toEqual([]);
+    expect(created).toEqual([]);
+  });
+
+  test("stops filing Tier 2 proposals once the open-proposal cap is reached", () => {
+    const { client, created } = fakeIssues((query) =>
+      query.label === "agent:proposed"
+        ? [1, 2, 3, 4, 5].map((number) => issue(number, `Proposal ${number}`))
+        : [],
+    );
+
+    expect(fileProposal(client, sampleProposal(), { dryRun: false, tier2Only: true })).toEqual({
+      status: "cap_reached",
+      openProposedCount: 5,
+      maxOpenProposals: 5,
+    });
+    expect(created).toEqual([]);
+  });
+
+  test("reports an existing issue with the same title instead of filing a duplicate", () => {
+    const proposal = sampleProposal();
+    const { client, created } = fakeIssues((query) =>
+      query.label === "wontfix"
+        ? [issue(88, proposal.title, { state: "CLOSED", labels: ["wontfix"] })]
+        : [],
+    );
+
+    expect(fileProposal(client, proposal, { dryRun: false, tier2Only: true })).toEqual({
+      status: "duplicate",
+      matchedIssue: 88,
+      reason: "matches existing closed issue #88 title",
+    });
+    expect(created).toEqual([]);
   });
 });

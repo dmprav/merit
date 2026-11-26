@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { REPO_ROOT } from "./paths.ts";
+
 /**
  * Loads `.env.local` files in precedence order (first listed wins, while
  * never overriding variables already present in `process.env`).
@@ -17,7 +19,7 @@ export const loadEnvLocalFiles = (paths: readonly string[]): void => {
  * Loads `<repoRoot>/.env.local` into `process.env` without overriding variables
  * already set in the environment. Defaults to the Merit repository root.
  */
-export const loadRepoEnvLocal = (repoRoot: string = resolve(import.meta.dirname, "..")): void => {
+export const loadRepoEnvLocal = (repoRoot: string = REPO_ROOT): void => {
   loadEnvLocalFiles([resolve(repoRoot, ".env.local")]);
 };
 

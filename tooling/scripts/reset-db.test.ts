@@ -1,20 +1,22 @@
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import type * as NodeModule from "node:module";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
+import { REPO_ROOT } from "../paths.ts";
 import {
   assertSafeManagedDatabaseName,
   buildLocalDatabaseUrl,
   DEFAULT_COMPOSE_DATABASE_URL,
+  loadPgClient,
   parseLocalComposeDatabase,
 } from "./local-postgres.ts";
 import { isLinkedGitWorktree, resetLocalDatabase, resolveResetTarget } from "./reset-db.ts";
 
-const repoUrl = new URL("../../", import.meta.url);
 const tempDirs: string[] = [];
 
 const makeTempDir = (prefix: string) => {
@@ -43,7 +45,7 @@ it("recreates the Compose database before migrating and seeding, ignoring remote
   };
 
   const result = await resetLocalDatabase({
-    cwd: repoUrl,
+    cwd: REPO_ROOT,
     env,
     isLinkedWorktree: false,
     exec,
@@ -54,7 +56,7 @@ it("recreates the Compose database before migrating and seeding, ignoring remote
   expect(recreate).not.toHaveBeenCalled();
 
   const options = {
-    cwd: repoUrl,
+    cwd: REPO_ROOT,
     env: { ...env, DATABASE_URL: DEFAULT_COMPOSE_DATABASE_URL },
     stdio: "inherit",
   };
@@ -117,7 +119,7 @@ it.each(["127.0.0.1", "localhost"] as const)(
     const env = { ...process.env, DATABASE_URL: worktreeUrl };
 
     const result = await resetLocalDatabase({
-      cwd: repoUrl,
+      cwd: REPO_ROOT,
       env,
       isLinkedWorktree: false,
       exec,
@@ -143,7 +145,7 @@ it.each(["127.0.0.1", "localhost"] as const)(
     ]);
 
     const options = {
-      cwd: repoUrl,
+      cwd: REPO_ROOT,
       env: { ...env, DATABASE_URL: worktreeUrl },
       stdio: "inherit",
     };
@@ -192,7 +194,7 @@ it("refuses a local Compose URL whose database name pg would read differently in
     for (const isLinkedWorktree of [false, true]) {
       await expect(
         resetLocalDatabase({
-          cwd: repoUrl,
+          cwd: REPO_ROOT,
           env: { DATABASE_URL: databaseUrl },
           isLinkedWorktree,
           worktreeDatabaseUrl: databaseUrl,
@@ -247,7 +249,7 @@ it("refuses a linked-worktree reset when an exported DATABASE_URL overrides the 
 
   await expect(
     resetLocalDatabase({
-      cwd: repoUrl,
+      cwd: REPO_ROOT,
       env: { DATABASE_URL: buildLocalDatabaseUrl("merit_beta") },
       isLinkedWorktree: true,
       worktreeDatabaseUrl,
@@ -259,7 +261,7 @@ it("refuses a linked-worktree reset when an exported DATABASE_URL overrides the 
   expect(exec).not.toHaveBeenCalled();
 
   const result = await resetLocalDatabase({
-    cwd: repoUrl,
+    cwd: REPO_ROOT,
     env: { DATABASE_URL: worktreeDatabaseUrl },
     isLinkedWorktree: true,
     worktreeDatabaseUrl,
@@ -277,7 +279,7 @@ it("refuses a linked-worktree reset when the worktree's .env.local supplies no D
   for (const worktreeDatabaseUrl of [undefined, "", "  "]) {
     await expect(
       resetLocalDatabase({
-        cwd: repoUrl,
+        cwd: REPO_ROOT,
         env: { DATABASE_URL: buildLocalDatabaseUrl("merit_beta") },
         isLinkedWorktree: true,
         worktreeDatabaseUrl,
@@ -302,7 +304,7 @@ it.each([1, 2, 3, 4])(
 
     await expect(
       resetLocalDatabase({
-        cwd: repoUrl,
+        cwd: REPO_ROOT,
         env: {},
         isLinkedWorktree: false,
         exec,
@@ -322,7 +324,7 @@ it("stops before migrating or seeding when worktree database recreation fails", 
 
   await expect(
     resetLocalDatabase({
-      cwd: repoUrl,
+      cwd: REPO_ROOT,
       env: { DATABASE_URL: buildLocalDatabaseUrl("merit_alpha") },
       isLinkedWorktree: false,
       exec,
@@ -383,7 +385,7 @@ it("executes runCli when invoked directly as a child process with stubbed execut
     },
   });
 
-  if (isLinkedGitWorktree(repoUrl)) {
+  if (isLinkedGitWorktree(REPO_ROOT)) {
     expect(result.status).not.toBe(0);
     // Either no worktree database is configured, or the exported URL overrides `.env.local`.
     expect(result.stderr).toMatch(
@@ -400,4 +402,58 @@ it("executes runCli when invoked directly as a child process with stubbed execut
     `vp|run @merit/db#db:migrate|${DEFAULT_COMPOSE_DATABASE_URL}`,
     `vp|run @merit/app#db:seed|${DEFAULT_COMPOSE_DATABASE_URL}`,
   ]);
+});
+
+/** Creates a checkout whose foundation/db resolves `pg` to the given CommonJS module source. */
+const makeRepoWithPg = (prefix: string, pgSource: string) => {
+  const repoRoot = makeTempDir(prefix);
+  const pgDir = join(repoRoot, "foundation/db/node_modules/pg");
+  mkdirSync(pgDir, { recursive: true });
+  writeFileSync(join(repoRoot, "foundation/db/package.json"), JSON.stringify({ name: "db" }));
+  writeFileSync(join(pgDir, "package.json"), JSON.stringify({ name: "pg", main: "index.js" }));
+  writeFileSync(join(pgDir, "index.js"), pgSource);
+  return repoRoot;
+};
+
+it("loads pg from the repository's foundation/db and falls back to this checkout's", () => {
+  const repoRoot = makeRepoWithPg(
+    "merit-pg-repo-",
+    "module.exports = { Client: class RepoClient {} };\n",
+  );
+  const withoutDb = makeTempDir("merit-pg-no-db-");
+
+  expect(loadPgClient(repoRoot).name).toBe("RepoClient");
+  expect(loadPgClient(withoutDb)).toBe(loadPgClient());
+  expect(loadPgClient().name).toBe("Client");
+});
+
+it("throws instead of returning a Client loaded for another repository when pg cannot load", async () => {
+  // Make this checkout's own pg unavailable, so only the repository candidates can load it.
+  vi.resetModules();
+  vi.doMock("node:module", async (importOriginal) => {
+    const { createRequire } = await importOriginal<typeof NodeModule>();
+    // local-postgres.ts uses only createRequire; it receives this checkout's candidate as a URL.
+    return {
+      createRequire: (candidate: string | URL) =>
+        candidate instanceof URL
+          ? () => {
+              throw new Error("default pg is unavailable");
+            }
+          : createRequire(candidate),
+    };
+  });
+  try {
+    const { loadPgClient: loadIsolatedPgClient } = await import("./local-postgres.ts");
+    const loaded = makeRepoWithPg(
+      "merit-pg-loaded-",
+      "module.exports = { Client: class LoadedClient {} };\n",
+    );
+    const broken = makeRepoWithPg("merit-pg-broken-", 'throw new Error("broken pg");\n');
+
+    expect(loadIsolatedPgClient(loaded).name).toBe("LoadedClient");
+    expect(() => loadIsolatedPgClient(broken)).toThrow("default pg is unavailable");
+  } finally {
+    vi.doUnmock("node:module");
+    vi.resetModules();
+  }
 });

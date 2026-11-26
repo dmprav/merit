@@ -25,7 +25,6 @@
       "**/fixtures/**",
       "**/__fixtures__/**",
       "**/__mocks__/**",
-      "tooling/**",
     ],
     "suggestInlineSuppression": false,
   },

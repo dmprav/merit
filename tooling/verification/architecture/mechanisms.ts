@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, globSync, readFileSync, statSync } from "node:fs";
-import { join, matchesGlob, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, matchesGlob } from "node:path";
 
-import { normalizeRepoPath } from "../../cli.ts";
+import { normalizeRepoPath, parseCliArgs } from "../../cli.ts";
+import { REPO_ROOT } from "../../paths.ts";
 import {
   MAX_INVARIANT_LENGTH,
   MAX_INVARIANTS_PER_MECHANISM,
@@ -123,13 +123,56 @@ const validateInvariants = (mech: Mechanism): string[] => {
   return errors;
 };
 
+const validateSummary = (mech: Mechanism): string[] => [
+  ...(mech.summary.includes("\n") ? [`${mech.id}: summary must be a single line`] : []),
+  ...(mech.summary.length > MAX_SUMMARY_LENGTH
+    ? [`${mech.id}: summary is ${mech.summary.length} chars (max ${MAX_SUMMARY_LENGTH})`]
+    : []),
+];
+
+/** Reports each reference that `check` finds a problem with, naming the mechanism and its role. */
+const referenceErrors = (
+  mech: Mechanism,
+  role: "contract" | "adapter" | "doc",
+  references: readonly string[],
+  check: (reference: string) => string | null,
+): string[] =>
+  references.flatMap((reference) => {
+    const issue = check(reference);
+    return issue ? [`${mech.id} ${role} "${reference}": ${issue}`] : [];
+  });
+
+/** Decision references must resolve like docs and must not point at a superseded decision. */
+const validateDecisions = (mech: Mechanism, repoRoot: string): string[] =>
+  mech.decisions.flatMap((decision) => {
+    const issue = checkDocReference(repoRoot, decision);
+    if (issue) {
+      return [`${mech.id} decision "${decision}": ${issue}`];
+    }
+    return isSupersededDecision(readFileSync(join(repoRoot, decision), "utf8"))
+      ? [`${mech.id} decision "${decision}" is superseded; link its replacement`]
+      : [];
+  });
+
+const validateMechanism = (mech: Mechanism, repoRoot: string): string[] => {
+  const matchesFiles = (pattern: string) => checkGlobPattern(repoRoot, pattern);
+
+  return [
+    ...validateSummary(mech),
+    ...validateInvariants(mech),
+    ...referenceErrors(mech, "contract", mech.contracts, matchesFiles),
+    ...referenceErrors(mech, "adapter", mech.adapters, matchesFiles),
+    ...referenceErrors(mech, "doc", mech.docs, (doc) => checkDocReference(repoRoot, doc)),
+    ...validateDecisions(mech, repoRoot),
+  ];
+};
+
 export const validateMechanismMap = (
   mechanisms: readonly Mechanism[],
   repoRoot: string,
 ): string[] => {
   const errors: string[] = [];
   const seenIds = new Set<string>();
-
   for (const raw of mechanisms) {
     const parsed = mechanismSchema.safeParse(raw);
     if (!parsed.success) {
@@ -141,52 +184,8 @@ export const validateMechanismMap = (
       errors.push(`duplicate mechanism id: ${mech.id}`);
     }
     seenIds.add(mech.id);
-
-    if (mech.summary.includes("\n")) {
-      errors.push(`${mech.id}: summary must be a single line`);
-    }
-    if (mech.summary.length > MAX_SUMMARY_LENGTH) {
-      errors.push(
-        `${mech.id}: summary is ${mech.summary.length} chars (max ${MAX_SUMMARY_LENGTH})`,
-      );
-    }
-
-    errors.push(...validateInvariants(mech));
-
-    for (const pattern of mech.contracts) {
-      const issue = checkGlobPattern(repoRoot, pattern);
-      if (issue) {
-        errors.push(`${mech.id} contract "${pattern}": ${issue}`);
-      }
-    }
-
-    for (const pattern of mech.adapters) {
-      const issue = checkGlobPattern(repoRoot, pattern);
-      if (issue) {
-        errors.push(`${mech.id} adapter "${pattern}": ${issue}`);
-      }
-    }
-
-    for (const doc of mech.docs) {
-      const issue = checkDocReference(repoRoot, doc);
-      if (issue) {
-        errors.push(`${mech.id} doc "${doc}": ${issue}`);
-      }
-    }
-
-    for (const decision of mech.decisions) {
-      const issue = checkDocReference(repoRoot, decision);
-      if (issue) {
-        errors.push(`${mech.id} decision "${decision}": ${issue}`);
-        continue;
-      }
-      const content = readFileSync(join(repoRoot, decision), "utf8");
-      if (isSupersededDecision(content)) {
-        errors.push(`${mech.id} decision "${decision}" is superseded; link its replacement`);
-      }
-    }
+    errors.push(...validateMechanism(mech, repoRoot));
   }
-
   return errors;
 };
 
@@ -266,57 +265,89 @@ export const formatMechanismReport = (classification: MechanismClassification) =
   return lines.join("\n");
 };
 
-const readFlagValues = (args: readonly string[], flag: string) => {
-  const idx = args.indexOf(flag);
-  if (idx === -1) {
-    return null;
+const MECHANISMS_USAGE =
+  "Usage: mechanisms.ts --check | --paths <paths...> [--json] | --base <ref> [--head <ref>] [--json]";
+
+export type MechanismCommand =
+  | { mode: "check" }
+  | { mode: "paths"; paths: string[]; json: boolean }
+  | { mode: "diff"; base: string; head: string; json: boolean };
+
+/** Requires one explicit mode, so a stray `--head` cannot silently fall back to `--check`. */
+export const parseMechanismArgs = (args: readonly string[]): MechanismCommand => {
+  const { values, positionals } = parseCliArgs(args, {
+    options: {
+      check: { type: "boolean" },
+      paths: { type: "boolean" },
+      base: { type: "string" },
+      head: { type: "string" },
+      json: { type: "boolean" },
+    },
+    usage: MECHANISMS_USAGE,
+    allowPositionals: true,
+  });
+  const { check = false, paths = false, base, head, json = false } = values;
+
+  const fail = (message: string) => new Error(`${message}\n${MECHANISMS_USAGE}`);
+
+  if (head !== undefined && base === undefined) {
+    throw fail("--head requires --base.");
   }
-  const values: string[] = [];
-  for (const arg of args.slice(idx + 1)) {
-    if (arg.startsWith("--")) {
-      break;
+  if ([check, paths, base !== undefined].filter(Boolean).length !== 1) {
+    throw fail("Choose exactly one of --check, --paths, or --base.");
+  }
+  if (paths) {
+    if (positionals.length === 0) {
+      throw fail("--paths requires at least one path.");
     }
-    values.push(arg);
+    return { mode: "paths", paths: positionals, json };
   }
-  return values;
+  if (positionals.length > 0) {
+    throw fail(`Unexpected argument "${positionals[0]}"; only --paths takes paths.`);
+  }
+  if (base !== undefined) {
+    return { mode: "diff", base, head: head ?? "HEAD", json };
+  }
+  if (json) {
+    throw fail("--json applies to --paths or --base.");
+  }
+  return { mode: "check" };
+};
+
+const runCheck = (repoRoot: string) => {
+  const errors = validateMechanismMap(MECHANISMS, repoRoot);
+  if (errors.length > 0) {
+    console.error(`mechanisms check failed (${errors.length} problem(s)):`);
+    for (const error of errors) {
+      console.error(`  - ${error}`);
+    }
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`mechanisms ok (${MECHANISMS.length} cross-cutting mechanisms)`);
 };
 
 const runCli = () => {
-  const repoRoot = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
-  const args = process.argv.slice(2);
-  const baseValues = readFlagValues(args, "--base");
-  const headValues = readFlagValues(args, "--head");
-  const explicitPaths = readFlagValues(args, "--paths");
-  const jsonOut = args.includes("--json");
-
-  if (args.includes("--check") || (!baseValues && !explicitPaths)) {
-    const errors = validateMechanismMap(MECHANISMS, repoRoot);
-    if (errors.length > 0) {
-      console.error(`mechanisms check failed (${errors.length} problem(s)):`);
-      for (const error of errors) {
-        console.error(`  - ${error}`);
-      }
-      process.exitCode = 1;
-      return;
-    }
-    console.log(`mechanisms ok (${MECHANISMS.length} cross-cutting mechanisms)`);
+  const command = parseMechanismArgs(process.argv.slice(2));
+  if (command.mode === "check") {
+    runCheck(REPO_ROOT);
     return;
   }
 
   const paths =
-    explicitPaths ??
-    execFileSync(
-      "git",
-      ["diff", "--name-only", `${baseValues?.[0] ?? "origin/main"}...${headValues?.[0] ?? "HEAD"}`],
-      { cwd: repoRoot, encoding: "utf8" },
-    )
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
+    command.mode === "paths"
+      ? command.paths
+      : execFileSync("git", ["diff", "--name-only", `${command.base}...${command.head}`], {
+          cwd: REPO_ROOT,
+          encoding: "utf8",
+        })
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean);
 
   const classification = classifyChangedPaths({ paths, mechanisms: MECHANISMS });
 
-  if (jsonOut) {
+  if (command.json) {
     console.log(JSON.stringify(classification, null, 2));
     return;
   }

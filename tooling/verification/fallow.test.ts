@@ -427,6 +427,7 @@ test.each([
   "foundation/ui/src/new-component.tsx",
   "capabilities/example/business/src/domain/new-rule.ts",
   "app/src/new-handler.ts",
+  "tooling/verification/new-check.ts",
 ])("checks new production source even without an entry import: %s", (path) => {
   const { exitCode, report } = checkFallow(
     { "foundation/ui/src/index.ts": "export {};", [path]: branches("complex", 16) },
@@ -446,7 +447,6 @@ test.each([
   "foundation/ui/src/fixtures/example.ts",
   "foundation/ui/src/__fixtures__/example.ts",
   "foundation/ui/src/__mocks__/example.ts",
-  "tooling/verification/example.ts",
 ])("excludes nonproduction complexity: %s", (path) => {
   const { exitCode, report } = checkFallow(
     { "foundation/ui/src/index.ts": "export {};", [path]: branches("complex", 25) },

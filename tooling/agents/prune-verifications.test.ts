@@ -11,7 +11,7 @@ import {
   SCOUT_STATE_ISSUE_TITLE as PRUNE_STATE_ISSUE_TITLE,
   selectPrunableVerifications,
 } from "./prune-verifications.ts";
-import { SCOUT_STATE_ISSUE_NUMBER, SCOUT_STATE_ISSUE_TITLE } from "./scout.ts";
+import { SCOUT_STATE_ISSUE_NUMBER, SCOUT_STATE_ISSUE_TITLE } from "./scout/state.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -47,13 +47,18 @@ describe("prune-verifications", () => {
       ref: "origin/main",
     });
 
-    expect(() => parsePruneCliArgs(["--path"])).toThrow(/Unknown argument/);
-    expect(() => parsePruneCliArgs(["--retention-days"])).toThrow(/positive integer/);
+    expect(() => parsePruneCliArgs(["--path"])).toThrow(/Unknown option '--path'/);
+    expect(() => parsePruneCliArgs(["--retention-days"])).toThrow(
+      /Option '--retention-days <value>' argument missing/,
+    );
     expect(() => parsePruneCliArgs(["--retention-days", "0"])).toThrow(/positive integer/);
     expect(() => parsePruneCliArgs(["--retention-days", "30abc"])).toThrow(/positive integer/);
     expect(() => parsePruneCliArgs(["--retention-days", "14.5"])).toThrow(/positive integer/);
-    expect(() => parsePruneCliArgs(["--ref"])).toThrow(/non-empty git revision/);
-    expect(() => parsePruneCliArgs(["--ref", "--paths"])).toThrow(/non-empty git revision/);
+    expect(() => parsePruneCliArgs(["--retention-days", "-5"])).toThrow(/argument is ambiguous/);
+    expect(() => parsePruneCliArgs(["--ref"])).toThrow(/Option '--ref <value>' argument missing/);
+    expect(() => parsePruneCliArgs(["--ref", "--paths"])).toThrow(/argument is ambiguous/);
+    expect(() => parsePruneCliArgs(["--ref="])).toThrow(/non-empty git revision/);
+    expect(() => parsePruneCliArgs(["--paths", "extra"])).toThrow(/Unexpected argument 'extra'/);
   });
 
   test("extracts verification-flakes.lastPrNumber and fails closed on missing or invalid markers", () => {

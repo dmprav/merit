@@ -2,12 +2,12 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { expect, it } from "vite-plus/test";
 
-const root = fileURLToPath(new URL("../../", import.meta.url));
-const hooksDir = join(root, ".agents/hooks");
+import { REPO_ROOT } from "../paths.ts";
+
+const hooksDir = join(REPO_ROOT, ".agents/hooks");
 
 const git = (cwd: string, args: string[]) =>
   execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
@@ -30,7 +30,7 @@ const runHook = (
   payload: unknown,
   options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
 ) => {
-  const effectiveCwd = options.cwd ?? root;
+  const effectiveCwd = options.cwd ?? REPO_ROOT;
   return spawnSync(process.execPath, [join(hooksDir, script)], {
     cwd: effectiveCwd,
     input: JSON.stringify(payload),
