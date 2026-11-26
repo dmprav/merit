@@ -77,7 +77,8 @@ const IntakePresentation = ({
 
   // Return focus to the closed section's trigger once React has committed it. An editor that saved
   // closes only after its save and refresh finish, when the section may already be closed, so the
-  // request is state (it always commits a render) and names the last section that was open.
+  // request is state (it always commits a render) and names the last section that was open. Focus
+  // moves only if it fell to the page when the editor closed, not if the person moved it meanwhile.
   const restoreSection = useRef<IntakeSection | null>(null);
   const lastSection = useRef<IntakeSection | null>(null);
   const [, setRestoreRequests] = useState(0);
@@ -94,6 +95,9 @@ const IntakePresentation = ({
     const frame = requestAnimationFrame(() => {
       const previous = restoreSection.current;
       restoreSection.current = null;
+      if (document.activeElement !== document.body) {
+        return;
+      }
       if (previous === "title") {
         intakeTitle.current?.focus();
       } else if (previous) {
