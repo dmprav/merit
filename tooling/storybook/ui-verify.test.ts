@@ -286,6 +286,9 @@ describe("filterStoryTargets and sanitizeTargetName", () => {
       collided[0],
       collided[1],
     ]);
+    // A target keeps its path when captured alone, so a filtered --update leaves the other's file.
+    expect(buildUniqueTargetStems(["/app/alder/rounds"])).toEqual([collided[0]]);
+    expect(buildUniqueTargetStems(["/app/alder-rounds"])).toEqual([collided[1]]);
   });
 });
 

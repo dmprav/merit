@@ -114,7 +114,9 @@ Every host `vp run ui:verify` run (without `--container`) writes deterministic p
 - `<out>/results.json` — Zod-validated structured results (axe WCAG 2 A/AA/2.1AA violations,
   horizontal overflow, console/page errors, keyboard Tab focus stops and failures)
 - `<out>/screenshots/<target>-<viewport>.png` — full-page captures (or viewport capture for
-  fixed modal dialogs such as `patterns-form-dialog--with-context`)
+  fixed modal dialogs such as `patterns-form-dialog--with-context`); `<target>` is the story ID,
+  or for a route its sanitized path and a hash of the full route, such as
+  `route-app-alder-rounds-<hash>`
 
 `vp run ui:verify --container` (and `--container --update`) writes only a delegation
 `<out>/report.md` and `<out>/results.json` (with `containerExitCode`) and does **not** write

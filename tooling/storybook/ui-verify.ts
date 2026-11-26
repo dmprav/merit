@@ -538,16 +538,12 @@ export const sanitizeTargetName = (value: string): string => {
 };
 
 export const buildUniqueTargetStems = (names: readonly string[]): string[] => {
-  const baseStems = names.map((name) => sanitizeTargetName(name));
-  const counts = new Map<string, number>();
-  for (const stem of baseStems) {
-    counts.set(stem, (counts.get(stem) ?? 0) + 1);
-  }
-
   const used = new Set<string>();
-  return names.map((name, index) => {
-    const base = baseStems[index] ?? "target";
-    if ((counts.get(base) ?? 0) <= 1 && !used.has(base)) {
+  return names.map((name) => {
+    const base = sanitizeTargetName(name);
+    // Only a name that sanitizing leaves unchanged keeps its bare stem; any other, such as every
+    // route, gets a hash of the full name, so a target's file is the same alone or in a batch.
+    if (base === name && !used.has(base)) {
       used.add(base);
       return base;
     }
