@@ -390,6 +390,58 @@ describe("committee decisions", () => {
     ).rejects.toMatchObject({ code: "23514" });
   });
 
+  const brokenRows: [string, Record<string, unknown>][] = [
+    ["a funded outcome with no amount", { outcome: "Fund", amount_minor_units: 0 }],
+    ["a deferral that reserves funding", { outcome: "Defer", amount_minor_units: 1 }],
+    ["a decline that reserves funding", { outcome: "Decline", amount_minor_units: 1 }],
+    ["conditional funding without conditions", { outcome: "Fund with conditions" }],
+    ["conditions on funding without conditions", { conditions: "Match funding." }],
+    ["a blank reason", { reason: "  " }],
+    ["a blank deciding body", { decided_by: "  " }],
+    ["an explanation on the first version", { change_explanation: "Why." }],
+    ["a later version without an explanation", { revision: 2 }],
+    ["a later version with a blank explanation", { revision: 2, change_explanation: " " }],
+    ["a client-less MCP recorder", { provenance_interface: "mcp" }],
+    ["an unknown outcome", { outcome: "Approve" }],
+    ["another currency", { amount_currency: "USD" }],
+    ["a revision of zero", { revision: 0 }],
+  ];
+  for (const [name, overrides] of brokenRows) {
+    it(`rejects a stored row with ${name}`, async ({ database, scenario: s }) => {
+      const row = {
+        case_id: s.first.publicId,
+        revision: 1,
+        outcome: "Fund",
+        amount_minor_units: 5000,
+        amount_currency: "EUR",
+        conditions: null,
+        reason: "Meets the round's priorities.",
+        decided_by: "Funding committee",
+        decision_date: "2026-01-18",
+        change_explanation: null,
+        actor_name: "Dana Reed",
+        provenance_interface: null,
+        provenance_client_id: null,
+        ...overrides,
+      };
+      const columns = Object.keys(row);
+      const placeholders = columns.map((_, index) => `$${index + 1}`).join(", ");
+      await expect(
+        database.client.query(
+          `INSERT INTO committee_decision_versions (${columns.join(", ")}) VALUES (${placeholders})`,
+          Object.values(row),
+        ),
+      ).rejects.toMatchObject({ code: "23514" });
+    });
+  }
+
+  it("protects decision rows with workspace row security", async ({ database }) => {
+    const { rows } = await database.client.query<{ rowsecurity: boolean }>(
+      "SELECT relrowsecurity AS rowsecurity FROM pg_class WHERE relname = 'committee_decision_versions'",
+    );
+    expect(rows).toEqual([{ rowsecurity: true }]);
+  });
+
   it("leaves nothing saved when the audit event fails", async ({ database, scenario: s }) => {
     await expect(
       withAuditFailure(database.client, () => s.record(s.first, {})),

@@ -61,6 +61,23 @@ type Story = StoryObj<typeof meta>;
 
 export const Example: Story = {};
 export const Applications: Story = { args: { section: "applications" } };
+/** The committee's decision sits beside the recommendation; the budget summary shows committed funding. */
+export const Decisions: Story = {
+  args: {
+    section: "applications",
+    decisions: { A1: { outcome: "Fund" }, A2: { outcome: "Fund with conditions" } },
+  },
+  play: async ({ canvas }) => {
+    const funded = within(canvas.getByRole("row", { name: /Neighbour Table/ }));
+    await expect(funded.getByText("Fund", { exact: true })).toBeVisible();
+    await expect(
+      within(canvas.getByRole("row", { name: /Workshop Saturdays/ })).getByText("No decision"),
+    ).toBeVisible();
+    const summary = within(canvas.getByRole("region", { name: "Round summary" }));
+    await expect(summary.getByText("Committed")).toBeVisible();
+    await expect(summary.getByText("Available")).toBeVisible();
+  },
+};
 export const Empty: Story = {
   args: {
     round: encodeRoundOverview(roundView({ ...example, applications: [] })),

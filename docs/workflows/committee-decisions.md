@@ -1,9 +1,10 @@
-# Future design: committee preparation and decisions
+# Future design: committee preparation and publication
 
 **Not implemented.** This page preserves agreed design for review discussion,
-committee briefs, publication, and funding decisions. Current grant work ends with
-[manager recommendations](recommend-funding.md). These sections describe intended
-behavior, not available controls or a delivery commitment.
+committee briefs, and publication. Current grant work ends with
+[manager recommendations](recommend-funding.md) and the
+[committee decisions](record-decisions.md) a manager records. These sections describe
+intended behavior, not available controls or a delivery commitment.
 
 ## Review discussion and committee readership
 
@@ -51,19 +52,12 @@ earlier versions. Readers need current access to view any published version.
 
 ## Record decisions
 
-The manager records the committee's decision for each application: fund, fund with
-conditions, defer, or decline. The record includes the amount, conditions, reason,
-and meeting's brief. It identifies the manager who recorded the decision separately
-from the committee that made it. Amendments preserve the original and explain the
-change.
+[Recording committee decisions](record-decisions.md) is implemented: the decision, its
+amount and conditions, the body that made it, and the manager who recorded it are kept
+as versions that count against the round budget. This design no longer promises that a
+decision links to a published committee brief.
 
-Recorded commitments must fit the current budget, including commitments made
-since preparation began. Conditional awards count in full; deferrals reserve
-nothing. For a €60,000 round, a €24,000 award and a conditional €28,000 award leave
-€8,000 available. Only the program manager can change the budget, recording the
-old amount, new amount, and reason.
-
-Before implementing publication or funding decision recording, define who must
+Before implementing publication, define who must
 approve, what the approval covers, and how it is established. The owning capability
 must enforce those rules consistently across web and MCP, following the
 [authority boundary](../foundations/architecture.md#authority-across-interfaces).

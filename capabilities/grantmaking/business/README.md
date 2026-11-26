@@ -1,6 +1,6 @@
 # Grantmaking business model
 
-Grantmaking composes the funder's work across four business capabilities. It owns
+Grantmaking composes the funder's work across five business capabilities. It owns
 combined reading views, personal navigation, and fictional
 examples. The owning capability contains each workflow's rules, commands, transaction
 coordination, persistence, and reusable web interactions.
@@ -11,6 +11,7 @@ coordination, persistence, and reusable web interactions.
 | [Applications](../../applications/business/README.md)       | Case identity, material versions, working revisions, readiness, summaries, contact assignment. |
 | [Reviews](../../reviews/business/README.md)                 | Requests, assessments, reviewer access, private drafts and submission.                         |
 | [Recommendations](../../recommendations/business/README.md) | Manager proposals, allocation calculations, versions and audit coordination.                   |
+| [Decisions](../../decisions/business/README.md)             | Committee decisions recorded by a manager, committed funding, versions and audit coordination. |
 
 Web and MCP use the services supplied by [application assembly](../../../app/src/server/services.server.ts).
 The [workflows](../../../docs/workflows/review-and-decide.md) define behavior;

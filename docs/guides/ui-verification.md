@@ -59,6 +59,7 @@ Choose checks for the behavior you changed:
 | Applications components and controllers                 | `vp run @merit/applications-web#test`               |
 | Reviews components and controllers                      | `vp run @merit/reviews-web#test`                    |
 | Recommendations components and controllers              | `vp run @merit/recommendations-web#test`            |
+| Committee decision components and controllers           | `vp run @merit/decisions-web#test`                  |
 | Contact components and controllers                      | `vp run @merit/contacts-web#test --project ui`      |
 | Team components and controllers                         | `vp run @merit/organizations-web#test --project ui` |
 | Product routes and connected feature composition        | `vp run @merit/product#test --project ui`           |

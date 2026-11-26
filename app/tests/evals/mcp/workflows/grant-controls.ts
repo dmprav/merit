@@ -226,6 +226,21 @@ export const recommendation = (fromReview: boolean) => async (call: Call) => {
   return `Recorded the funding recommendation on ${recorded.date}. ${reasoning}`;
 };
 
+export const recordDecision = async (call: Call) => {
+  const target = await findApplication(call, "Lanterns");
+  const app = await readApplication(call, target);
+  await checked(call, "record_committee_decision", {
+    ...target,
+    outcome: "Fund",
+    amount: { currency: "EUR", minorUnits: "245025" },
+    reason: "The venue is secured.",
+    decidedBy: "Funding committee",
+    decisionDate: "2026-01-15",
+    expectedDecisionRevision: app.decisionRevision,
+  });
+  return "Recorded the Funding committee's decision to fund Lanterns for €2,450.25, decided on 15 January 2026.";
+};
+
 export const committeeBrief = async (call: Call) => {
   const target = await findApplication(call, "Lanterns");
   const app = await readApplication(call, target);
@@ -237,5 +252,5 @@ export const committeeBrief = async (call: Call) => {
     );
   const latest = record.versions.at(-1);
   assert(app.requested && latest);
-  return `The applicant requested ${money(app.requested)}. ${review.reviewer} proposed ${money(latest.content.amount)} in her assessment. Merit records no final awards.`;
+  return `The applicant requested ${money(app.requested)}. ${review.reviewer} proposed ${money(latest.content.amount)} in her assessment. No committee decision is recorded for it yet.`;
 };
