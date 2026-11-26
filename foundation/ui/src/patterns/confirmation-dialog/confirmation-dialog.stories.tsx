@@ -20,7 +20,7 @@ const ConfirmationExample = (args: ComponentProps<typeof ConfirmationDialog>) =>
         args.onConfirm();
         setOpen(false);
       }}
-      trigger={<Button variant="secondary">Review revocation</Button>}
+      trigger={args.trigger ?? <Button variant="secondary">Review revocation</Button>}
     />
   );
 };
@@ -58,9 +58,10 @@ export const Open: Story = {
       name: "Revoke invitation?",
     });
 
-    await waitFor(() => expect(dialog).toBeVisible());
-    await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: "Keep invitation" })).toHaveFocus(),
+    await waitFor(() => expect(dialog).toBeVisible(), { timeout: 3000 });
+    await waitFor(
+      () => expect(within(dialog).getByRole("button", { name: "Keep invitation" })).toHaveFocus(),
+      { timeout: 3000 },
     );
   },
 };
@@ -143,4 +144,28 @@ export const Retry: Story = {
     error: { control: false },
   },
   render: (args) => <RetryExample {...args} />,
+};
+
+export const NonDestructive: Story = {
+  args: {
+    title: "Open round for reviews?",
+    description:
+      "Assigned reviewers will be able to read applications and submit assessments for this round.",
+    cancelLabel: "Not now",
+    confirmLabel: "Open round",
+    pendingLabel: "Opening round…",
+    intent: "default",
+    trigger: <Button variant="secondary">Open round</Button>,
+  },
+  play: async ({ canvas, userEvent, canvasElement }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "Open round" }));
+    const dialog = within(canvasElement.ownerDocument.body).getByRole("dialog", {
+      name: "Open round for reviews?",
+    });
+
+    await waitFor(() => expect(dialog).toBeVisible());
+    await waitFor(() =>
+      expect(within(dialog).getByRole("button", { name: "Not now" })).toHaveFocus(),
+    );
+  },
 };

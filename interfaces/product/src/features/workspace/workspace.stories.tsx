@@ -60,7 +60,7 @@ const WorkspacePreview = ({
       const result: Awaited<ReturnType<typeof readWorkspaces>> = {
         status: "ok",
         value: memberships,
-        draftScope: "test-account",
+        draftScope: "",
         canAdminister,
       };
       client.setQueryData(workspacesOptions().queryKey, () => result);
@@ -103,12 +103,14 @@ const meta = {
   component: WorkspacePreview,
   parameters: { layout: "fullscreen", controls: { disable: true } },
   beforeEach: ({ args }) => {
-    mocked(readWorkspaces).mockResolvedValue({
-      status: "ok",
-      value: args.memberships ?? workspaces,
-      draftScope: "test-account",
-      canAdminister: args.canAdminister ?? false,
-    });
+    mocked(readWorkspaces)
+      .mockReset()
+      .mockResolvedValue({
+        status: "ok",
+        value: args.memberships ?? workspaces,
+        draftScope: "",
+        canAdminister: args.canAdminister ?? false,
+      });
   },
 } satisfies Meta<typeof WorkspacePreview>;
 

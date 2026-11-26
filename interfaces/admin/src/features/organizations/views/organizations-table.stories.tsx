@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, type ComponentProps } from "react";
 
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
+import { PageHeader } from "@merit/ui/page-header";
+
 import { AdminMessages } from "../../../app/messages";
 import { invitation } from "./invitation.fixtures";
 import { OrganizationsTable } from "./organizations-table";
@@ -17,12 +20,23 @@ const OrganizationListExample = (
 const meta = {
   title: "Features/Administration/Organizations",
   tags: ["!autodocs"],
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   component: OrganizationListExample,
   args: { organizations: [], renderLink: (org) => <a href={`#${org.slug}`}>{org.name}</a> },
   decorators: [
     (Story) => (
       <AdminMessages>
-        <Story />
+        <ApplicationStage>
+          <ApplicationPage
+            width="full"
+            locationKey="organizations"
+            breadcrumb={null}
+            breadcrumbLabel="Breadcrumb"
+          >
+            <PageHeader title="Organizations" />
+            <Story />
+          </ApplicationPage>
+        </ApplicationStage>
       </AdminMessages>
     ),
   ],

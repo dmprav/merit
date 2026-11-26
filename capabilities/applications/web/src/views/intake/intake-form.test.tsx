@@ -332,3 +332,19 @@ it("shows RetainedDraftNotice with copy/discard when the working revision disapp
     screen.queryByRole("region", { name: "Working revision no longer available" }),
   ).not.toBeInTheDocument();
 });
+
+it("adds, reorders, and removes applicant submission sections", async () => {
+  const { user } = renderForm("content");
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.click(screen.getByRole("button", { name: "Add section" }));
+  await user.type(screen.getAllByRole("textbox", { name: "Heading or question" })[1]!, "Budget");
+  await user.click(screen.getByRole("button", { name: "Section 2 actions" }));
+  await user.click(screen.getByRole("menuitem", { name: "Move up" }));
+
+  expect(screen.getAllByRole("textbox", { name: "Heading or question" })[0]).toHaveValue("Budget");
+
+  await user.click(screen.getByRole("button", { name: "Section 1 actions" }));
+  await user.click(screen.getByRole("menuitem", { name: "Remove section" }));
+
+  expect(screen.getByRole("textbox", { name: "Heading or question" })).toHaveValue("Project plan");
+});

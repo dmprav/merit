@@ -19,3 +19,7 @@
   font-weight: var(--weight-medium);
   color: var(--muted);
 }
+
+.narrow {
+  max-width: 16rem;
+}

@@ -13,10 +13,12 @@ it("keeps its own open state until the caller takes control", async () => {
   );
   const trigger = screen.getByRole("button", { name: "Earlier versions" });
   expect(trigger).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByText("Version 1")).not.toBeVisible();
 
   await user.click(trigger);
 
   expect(trigger).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByText("Version 1")).toBeVisible();
 });
 
 it("follows the caller's open state and reports what the person asks for", async () => {
@@ -29,11 +31,13 @@ it("follows the caller's open state and reports what the person asks for", async
   );
   const trigger = screen.getByRole("button", { name: "Working" });
   expect(trigger).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByText("Read 2 submissions")).toBeVisible();
 
   await user.click(trigger);
 
   expect(onExpandedChange).toHaveBeenCalledWith(false);
   expect(trigger).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByText("Read 2 submissions")).toBeVisible();
 
   rerender(
     <Disclosure title="Working" isExpanded={false} onExpandedChange={onExpandedChange}>
@@ -42,4 +46,5 @@ it("follows the caller's open state and reports what the person asks for", async
   );
 
   expect(trigger).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByText("Read 2 submissions")).not.toBeVisible();
 });

@@ -8,7 +8,6 @@ import { Icon } from "../components/icon/icon";
 import { Reading, Stack } from "../components/layout/layout";
 import { Link } from "../components/link/link";
 import { Text } from "../components/text/text";
-import focusStyles from "./focus.stories.module.css";
 import styles from "./foundations.stories.module.css";
 
 const meta = {
@@ -103,16 +102,16 @@ const recommendations = [
 
 export const FocusComparison: Story = {
   render: () => (
-    <section id="focus-comparison" aria-labelledby="focus-title" className={focusStyles.example}>
+    <section id="focus-comparison" aria-labelledby="focus-title" className={styles.example}>
       <h1 id="focus-title">Control focus</h1>
       <p>
         Tab through the controls, then hover or click them. Switch themes to compare the same focus
         cues on each surface. Disabled controls are skipped; read-only values remain focusable.
       </p>
-      <div className={focusStyles.columns}>
-        <section aria-label="Actions" className={focusStyles.stack}>
+      <div className={styles.columns}>
+        <section aria-label="Actions" className={styles.stack}>
           <h2>Actions</h2>
-          <div className={focusStyles.actions}>
+          <div className={styles.actions}>
             <Button>Save recommendation</Button>
             <Button variant="secondary">Cancel</Button>
             <Button variant="quiet">View details</Button>
@@ -121,7 +120,7 @@ export const FocusComparison: Story = {
               <Icon name="more" />
             </Button>
           </div>
-          <div className={focusStyles.actions}>
+          <div className={styles.actions}>
             <Link variant="primary" href="#focus-comparison">
               Open round
             </Link>
@@ -131,7 +130,7 @@ export const FocusComparison: Story = {
           </div>
           <Button isDisabled>Unavailable action</Button>
         </section>
-        <section aria-label="Fields" className={focusStyles.stack}>
+        <section aria-label="Fields" className={styles.stack}>
           <h2>Fields</h2>
           <TextField label="Applicant" defaultValue="Community Arts" />
           <TextField

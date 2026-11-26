@@ -1,4 +1,4 @@
-import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import { ArgTypes, Canvas, Meta } from "@storybook/addon-docs/blocks";
 import * as Dialog from "./dialog.stories";
 
 <Meta of={Dialog} />
@@ -68,7 +68,7 @@ Use `PickerPopover` for pickers and small filter panels, such as a `ChoiceList`.
 
 <Canvas of={Dialog.PopoverLongContent} />
 
-<Canvas of={Dialog.Picker} />
+<Canvas of={Dialog.Picker} story={{ inline: false, height: "380px" }} />
 
 ## Know the frame anatomy
 
@@ -146,3 +146,7 @@ Resume behavior. The dialog retains its last open content until the exit finishe
 so callers can clear their drafts on dismissal without collapsing the visible form.
 Focus returns to the trigger when it remains available. Omit `trigger` for a dialog
 the feature opens itself; focus then returns to where it was when the dialog opened.
+
+## API
+
+<ArgTypes of={Dialog} />

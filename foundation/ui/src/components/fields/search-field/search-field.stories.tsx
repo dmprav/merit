@@ -57,5 +57,8 @@ export const Clearing: Story = {
     await expect(input).toHaveValue("");
     await expect(input).toHaveFocus();
     await expect(canvas.queryByRole("button", { name: "Clear search" })).not.toBeInTheDocument();
+    await userEvent.type(input, "Neighbourhood");
+    await userEvent.tab();
+    await expect(canvas.getByRole("button", { name: "Clear search" })).toHaveFocus();
   },
 };

@@ -39,6 +39,7 @@ export const Tones: Story = {
 };
 
 export const WithRecovery: Story = {
+  argTypes: { actions: { control: false } },
   args: {
     as: "div",
     tone: "warning",
@@ -58,6 +59,7 @@ export const WithRecovery: Story = {
 };
 
 export const List: Story = {
+  argTypes: { children: { control: false } },
   args: {
     as: "ul",
     tone: "warning",
@@ -72,13 +74,14 @@ export const List: Story = {
 };
 
 export const LongContent: Story = {
+  argTypes: { children: { control: false } },
   args: {
     tone: "neutral",
     children: (
       <>
         Delivery is not confirmed for community.partnerships.and.grants@alder-foundation.example.
         You can copy the invitation link and share it directly. See the{" "}
-        <Link href="/docs/team">team guide</Link> for invitation options.
+        <Link href="#team-guide">team guide</Link> for invitation options.
       </>
     ),
   },

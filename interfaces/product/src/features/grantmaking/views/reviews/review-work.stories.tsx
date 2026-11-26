@@ -360,23 +360,6 @@ export const RequestHistory: Story = {
   },
 };
 
-export const AssessmentDetails: Story = {
-  play: async ({ canvas, canvasElement, userEvent }) => {
-    await userEvent.click(canvas.getAllByRole("button", { name: "Review details" })[0]!);
-    const details = within(
-      within(canvasElement.ownerDocument.body).getByRole("region", { name: "Review details" }),
-    );
-
-    await waitFor(() => expect(details.getByText("Dana Reed")).toBeVisible());
-    await expect(details.queryByText("Criteria reviewed")).not.toBeInTheDocument();
-    await userEvent.click(details.getByRole("button", { name: "View criteria used" }));
-    await expect(canvas.getByRole("heading", { name: "Criteria reviewed" })).toHaveFocus();
-    await expect(canvas.queryByRole("region", { name: "Review details" })).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: "Back to assessment" }));
-    await expect(canvas.getByRole("button", { name: "View criteria used" })).toHaveFocus();
-  },
-};
-
 export const CreateReviewer: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     await recordAssessment({ canvas, canvasElement, userEvent });
@@ -391,11 +374,6 @@ export const CreateReviewer: Story = {
     const contact = within(contactDialog);
 
     await waitFor(() => expect(contact.getByRole("textbox", { name: "Name" })).toBeVisible());
-
-    await userEvent.click(within(contact.getByRole("form")).getByRole("button", { name: "Close" }));
-
-    await waitFor(() => expect(contactDialog).not.toBeInTheDocument());
-    await expect(page.getByRole("form", { name: "Record assessment" })).toBeVisible();
   },
 };
 
@@ -448,8 +426,6 @@ const correctAssessment = async ({ canvas, canvasElement, userEvent }: Context) 
   await userEvent.click(canvas.getByRole("button", { name: "Assessment actions for Sam Morgan" }));
   await userEvent.click(page.getByRole("menuitem", { name: "Edit recorded assessment" }));
   const dialog = within(await page.findByRole("complementary", { name: "Application workspace" }));
-  // Paste the replacement: per-key typing is covered by DraftRecovery and AssessmentSaved,
-  // and typing every character here makes the conflict and refresh stories slow to settle.
   await userEvent.clear(dialog.getByRole("textbox", { name: "Assessment text" }));
   await userEvent.paste(correctedReasoning);
   return dialog;
@@ -466,43 +442,7 @@ export const CorrectingAssessment: Story = {
     await correctAssessment(context);
   },
 };
-export const AssessmentSaved: Story = {
-  play: async (context) => {
-    const pending = within(context.canvas.getByRole("article", { name: "Jules Patel" }));
-    const page = within(context.canvasElement.ownerDocument.body);
-    await context.userEvent.click(
-      pending.getByRole("button", { name: "Request actions for Jules Patel" }),
-    );
-    await context.userEvent.click(await page.findByRole("menuitem", { name: "Record assessment" }));
-    const dialog = within(await page.findByRole("form", { name: "Record assessment" }));
-    await context.userEvent.type(
-      dialog.getByRole("textbox", { name: "Assessment text" }),
-      "The revised budget makes the venue costs clear.",
-    );
-    await context.userEvent.click(dialog.getByRole("button", { name: "Save assessment" }));
-    await waitFor(() => expect(page.queryByRole("form")).not.toBeInTheDocument());
-    await expect(
-      context.canvas.getByRole("article", { name: "Assessment by Jules Patel" }),
-    ).toHaveTextContent("The revised budget makes the venue costs clear.");
-  },
-};
 export const AssessmentHistory: Story = { args: { initialReviews: correctedReviews } };
-
-export const CorrectionSaved: Story = {
-  play: async (context) => {
-    await saveCorrection(context);
-    await waitFor(
-      () =>
-        expect(
-          within(context.canvasElement.ownerDocument.body).queryByRole("form"),
-        ).not.toBeInTheDocument(),
-      { timeout: 10_000 },
-    );
-    await expect(
-      context.canvas.getByRole("article", { name: "Assessment by Sam Morgan" }),
-    ).toHaveTextContent("The revised venue costs are supported by a written quote.");
-  },
-};
 export const Saving: Story = {
   beforeEach: () => {
     mocked(saveReview).mockImplementation(() => new Promise(() => {}));

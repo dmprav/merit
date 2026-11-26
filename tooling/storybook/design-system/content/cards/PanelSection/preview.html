@@ -1,0 +1,74 @@
+<!-- @dsCard group="Patterns" height=340 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>PanelSection — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function noop() {}
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            "div",
+            { style: { maxWidth: 440 } },
+            h(
+              M.PanelSections,
+              null,
+              h(
+                M.PanelSection,
+                {
+                  title: "Recommendation",
+                  actions: h(
+                    M.Button,
+                    { variant: "quiet", iconOnly: true, "aria-label": "Edit recommendation" },
+                    h(M.Icon, { name: "edit" }),
+                  ),
+                },
+                h(
+                  M.Judgment,
+                  {
+                    author: "Dana Reed",
+                    meta: "9 November",
+                    summary: h(
+                      React.Fragment,
+                      null,
+                      h("strong", null, "Fund"),
+                      h("span", null, "€22,000 proposed"),
+                    ),
+                  },
+                  h("p", null, "Strong local demand and a clear budget for Saturday workshops."),
+                ),
+              ),
+              h(
+                M.PanelSection,
+                {
+                  title: "Reviews",
+                  count: 2,
+                  meta: "1 submitted · 1 awaiting assessment",
+                  actions: h(M.Button, { variant: "quiet", onPress: noop }, "Request review"),
+                },
+                h(M.JudgmentChoice, {
+                  author: "Sam Okafor",
+                  onPress: noop,
+                  summary: h(
+                    React.Fragment,
+                    null,
+                    h("strong", null, "Fund"),
+                    h("span", null, "€20,000 proposed"),
+                  ),
+                }),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

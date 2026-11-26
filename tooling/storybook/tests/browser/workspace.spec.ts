@@ -211,7 +211,7 @@ test(
   "invitation recovery separates status from identity and keeps recipients readable",
   { tag: "@cross-browser" },
   async ({ page }, testInfo) => {
-    await page.goto("/iframe.html?id=features-team-invitations--delivery-states&viewMode=story");
+    await page.goto("/iframe.html?id=features-team-manage-team--delivery-states&viewMode=story");
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
 
     const table = page.getByRole("table", { name: "Invitations" });
@@ -431,12 +431,7 @@ test("administration invitation states and organization lists remain readable an
   page,
 }, testInfo) => {
   for (const id of [
-    "features-administration-owner-invitation--sending-failed",
-    "features-administration-owner-invitation--sending-unconfirmed",
-    "features-administration-owner-invitation--expired",
-    "features-administration-owner-invitation--joined",
-    "features-administration-owner-invitation--revoked",
-    "features-administration-owner-invitation--needs-administrator",
+    "features-administration-owner-invitation--states",
     "features-administration-owner-invitation--long-email",
     "features-administration-organizations--populated",
     "features-administration-organizations--empty",
@@ -446,7 +441,7 @@ test("administration invitation states and organization lists remain readable an
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
 
     await checkPage(page);
-    if (id.endsWith("--populated") || id.endsWith("--sending-failed")) {
+    if (id.endsWith("--populated") || id.endsWith("--states")) {
       await page.screenshot({ path: testInfo.outputPath(`${id}.png`), fullPage: true });
     }
   }
@@ -468,9 +463,9 @@ for (const id of [
   "features-funding-rounds-manage-round--committee-date",
   "features-funding-rounds-manage-round--rename-round",
   "features-applications-manage-intake--working-revision",
-  "features-applications-manage-intake--separate-editing-scopes",
+  "features-applications-manage-intake--reconcile-application-details",
   "features-applications-manage-intake--edit-contact-and-project-dates",
-  "features-applications-manage-intake--history",
+  "features-applications-version-history--recorded-change",
   "features-contacts-edit-contact--resumed-draft",
   "features-contacts-edit-contact--concurrent-changes",
   "features-contacts-contact-picker--add-contact",

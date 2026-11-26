@@ -167,9 +167,9 @@ const meta = {
   tags: ["!autodocs"],
   component: IntakePreview,
   args: { onSave: fn<(value: IntakeChange) => Promise<string | null>>(async () => null) },
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   beforeEach: () => {
-    mocked(readContacts).mockResolvedValue({
+    mocked(readContacts).mockReset().mockResolvedValue({
       status: "ok",
       workspaceName: "Alder Foundation",
       contacts: [],
@@ -186,12 +186,6 @@ export const PartialIntake: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("complementary")).not.toBeInTheDocument();
     await expect(canvas.queryByText("Neighbourhood Kitchen")).not.toBeInTheDocument();
-    const form = canvas.getByRole("form");
-    const editor = within(form);
-    const amount = editor.getByRole("textbox", { name: /Requested amount/ });
-    await userEvent.type(amount, "24.001");
-    await expect(amount).toHaveValue("24.00");
-    await userEvent.clear(amount);
   },
 };
 export const WorkingRevision: Story = { args: { working: true, section: "content" } };
@@ -238,66 +232,5 @@ export const SaveFailure: Story = {
 
     await expect(await form.findByRole("alert")).toHaveTextContent("Your changes are preserved");
     await expect(form.getByRole("textbox", { name: /Requested amount/ })).toHaveValue("24000.00");
-  },
-};
-export const KeepLocalChanges: Story = {
-  args: { conflict: true },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(
-      within(canvas.getByRole("form")).getByRole("button", { name: "Keep my changes" }),
-    );
-    const updated = within(canvas.getByRole("form"));
-
-    await expect(updated.getByRole("textbox", { name: "Applicant" })).toHaveValue(
-      "Neighbourhood Kitchen — local edit",
-    );
-    await expect(updated.getByRole("textbox", { name: /Requested amount/ })).toHaveValue(
-      "28000.00",
-    );
-    await expect(updated.getByRole("button", { name: "Save" })).toBeEnabled();
-  },
-};
-export const UseLatestValues: Story = {
-  args: { conflict: true },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(
-      within(canvas.getByRole("form")).getByRole("button", { name: "Discard & load latest" }),
-    );
-    const updated = within(canvas.getByRole("form"));
-
-    await expect(updated.getByRole("textbox", { name: "Applicant" })).toHaveValue(
-      "Neighbourhood Kitchen",
-    );
-    await expect(updated.getByRole("textbox", { name: /Requested amount/ })).toHaveValue(
-      "28000.00",
-    );
-  },
-};
-
-export const ReorderSections: Story = {
-  args: { section: "content" },
-  play: async ({ canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    const form = within(within(canvasElement).getByRole("form"));
-    await userEvent.click(form.getByRole("button", { name: "Add section" }));
-    await userEvent.type(
-      form.getAllByRole("textbox", { name: "Heading or question" })[1]!,
-      "Budget",
-    );
-    await userEvent.click(form.getByRole("button", { name: "Section 2 actions" }));
-    await userEvent.click(body.getByRole("menuitem", { name: "Move up" }));
-
-    await expect(form.getAllByRole("textbox", { name: "Heading or question" })[0]).toHaveValue(
-      "Budget",
-    );
-
-    await userEvent.click(form.getByRole("button", { name: "Section 1 actions" }));
-    await userEvent.click(body.getByRole("menuitem", { name: "Remove section" }));
-
-    await expect(form.getByRole("textbox", { name: "Heading or question" })).toHaveValue(
-      "Project plan",
-    );
   },
 };

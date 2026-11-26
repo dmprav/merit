@@ -28,6 +28,7 @@ export const DisabledAccount: Story = {
     description: "morgan@example.test",
     status: <Badge appearance="plain">Account disabled</Badge>,
   },
+  argTypes: { status: { control: false } },
 };
 
 export const Reviewer: Story = {
@@ -41,6 +42,7 @@ export const Reviewer: Story = {
       </>
     ),
   },
+  argTypes: { description: { control: false } },
 };
 export const Linked: Story = {
   render: (args) => (

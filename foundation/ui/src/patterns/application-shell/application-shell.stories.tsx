@@ -89,6 +89,8 @@ type ShellExampleProps = {
   companion?: { open: boolean; width?: number; earlierMessages?: number };
 };
 
+const onCompanionWidthChange = fn();
+
 const ShellExample = ({ name, loading, signedIn, companion }: ShellExampleProps) => {
   const [open, setOpen] = useState(companion?.open ?? false);
   const [draft, setDraft] = useState("");
@@ -140,7 +142,7 @@ const ShellExample = ({ name, loading, signedIn, companion }: ShellExampleProps)
           closeLabel: "Close assistant",
           resizeLabel: "Resize assistant",
           width: companion.width,
-          onWidthChange: fn(),
+          onWidthChange: onCompanionWidthChange,
           children: <AssistantThread count={companion.earlierMessages ?? 0} />,
           footer: <AssistantMessageBox draft={draft} onDraftChange={setDraft} />,
         }
@@ -181,6 +183,7 @@ const meta = {
   tags: ["!autodocs"],
   parameters: { layout: "fullscreen" },
   args: { name: "Alder Foundation", loading: false, signedIn: false },
+  argTypes: { companion: { control: false } },
   render: (args) => <ShellExample {...args} />,
 } satisfies Meta<ShellExampleProps>;
 
@@ -303,6 +306,7 @@ export const LoadingAccount: Story = { args: { loading: true } };
 export const AccountMenu: Story = { args: { signedIn: true } };
 
 export const InaccessibleWorkspace: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <ApplicationRecovery
       locationKey="unavailable"

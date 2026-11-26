@@ -37,12 +37,13 @@ Alongside the Overview, the [Design language guide](../../foundation/ui/src/foun
 explains shared choices about emphasis, reading, layout, and interaction cues.
 Organize other examples by the responsibility a reader is looking for.
 
-| Group        | What belongs there                                                      |
-| ------------ | ----------------------------------------------------------------------- |
-| `Overview`   | Entry points into grant work and guidance for choosing controls.        |
-| `Components` | Reusable controls and layout building blocks, including the data table. |
-| `Patterns`   | Shared interactions and presentation, including page composition.       |
-| `Features`   | Domain screens and tasks, grouped by the work people recognize.         |
+| Group             | What belongs there                                                      |
+| ----------------- | ----------------------------------------------------------------------- |
+| `Overview`        | Entry points into grant work and guidance for choosing controls.        |
+| `Design language` | Shared choices about emphasis, reading, layout, and interaction cues.   |
+| `Components`      | Reusable controls and layout building blocks, including the data table. |
+| `Patterns`        | Shared interactions and presentation, including page composition.       |
+| `Features`        | Domain screens and tasks, grouped by the work people recognize.         |
 
 Use `Components/Dialog` for the reusable container and
 `Patterns/Confirmation dialog` for the consequential-action pattern, and
@@ -107,8 +108,8 @@ Storybook's padding. Frame `Features/*` stories with `ApplicationPage` or `AppPa
 using `breadcrumb={null}` unless the story demonstrates breadcrumbs, parent links,
 or preserved route context. Keep the same width and header density as the
 application when layout affects the task. Reserve workspace navigation for
-`Patterns/Application shell` and `Features/Workspace` stories that demonstrate navigation, entry, or
-recovery. For viewport-contained application work, use `ApplicationContainedPreview`
+`Patterns/Application shell`, `Features/Workspace`, and shell-hosted companion or
+guidance features (`Features/Merit AI`, `Features/Demo/Guidance`). For viewport-contained application work, use `ApplicationContainedPreview`
 from grantmaking's testing fixture: it applies the shell scrolling contract with
 `ApplicationPage contained` without navigation or breadcrumbs.
 Avoid copying shell CSS classes or setting a separate preview height. Examples own their landmarks, so
@@ -124,5 +125,5 @@ The [design-system export](../../tooling/storybook/design-system/README.md) pack
 the same shared catalog for designers and agents who work outside the repository:
 tokens from `tokens.css`, the built library and a card for each component and pattern.
 When a change adds a token, a shared export, or changes what a component shows, update
-its classification or card there and rebuild with
+its classification or card there, verify the catalog with `vp run test:design-system`, and rebuild with
 `vp run @merit/storybook#build:design-system`.

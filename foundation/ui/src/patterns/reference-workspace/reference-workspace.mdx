@@ -1,4 +1,4 @@
-import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import { ArgTypes, Canvas, Meta } from "@storybook/addon-docs/blocks";
 import * as Workspace from "./reference-workspace.stories";
 
 <Meta of={Workspace} />
@@ -7,8 +7,8 @@ import * as Workspace from "./reference-workspace.stories";
 
 Use `ReferenceWorkspace` when a task needs reading and writing at the same time,
 such as assessing an application or drafting a recommendation. It applies the
-experience principle of keeping
-[references accessible during consequential work](../../../../../docs/foundations/experience.md#keep-people-oriented):
+experience principle of keeping references accessible during consequential work
+(`docs/foundations/experience.md#keep-people-oriented`):
 the reference stays readable while the work stays in reach.
 
 <Canvas of={Workspace.WorkBesideReference} story={{ inline: false, height: "620px" }} />
@@ -79,3 +79,7 @@ The [application overview](?path=/story/features-applications-application-detail
 and [reviewer assessment](?path=/story/features-applications-review-an-assigned-application--writing)
 use this pattern with real feature content. Check them with long material, enlarged
 text, and narrow screens when changing the shared frame.
+
+## API
+
+<ArgTypes of={Workspace} />

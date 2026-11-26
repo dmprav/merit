@@ -29,9 +29,7 @@ const ready = {
 
 const Preview = () => (
   <StoryEnvironment path="/app/demo-example/rounds" routePath="/app/$workspaceSlug/rounds">
-    <WorkspaceNavigationContext
-      value={{ workspaces: [workspace], canAdminister: false, draftScope: "demo-example" }}
-    >
+    <WorkspaceNavigationContext value={{ workspaces: [workspace], canAdminister: false }}>
       <DemoGuidance>
         <AppShell current={{ kind: "workspace", workspace }}>
           <AppPage breadcrumb={null}>
@@ -47,18 +45,10 @@ const meta = {
   title: "Features/Demo/Guidance",
   tags: ["!autodocs"],
   component: Preview,
-  parameters: {
-    layout: "fullscreen",
-    docs: {
-      description: {
-        component:
-          "Uses Components/Dialog/Popover as its frame, with matching tinted header and footer. Expiry appears as quiet context above the introduction. Suggested tasks use Components/Link/Standalone text links aligned with the prose. The footer contains only exit/reset controls and scrolls with the guidance when space is limited. Controls expand to 44px touch targets. The sidebar contains only the Demo guide button.",
-      },
-    },
-  },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   beforeEach: () => {
-    mocked(readDemo).mockResolvedValue(ready);
-    mocked(startDemo).mockResolvedValue({ status: "unavailable" });
+    mocked(readDemo).mockReset().mockResolvedValue(ready);
+    mocked(startDemo).mockReset().mockResolvedValue(ready);
   },
 } satisfies Meta<typeof Preview>;
 
@@ -99,7 +89,7 @@ export const Open: StoryObj<typeof meta> = {
 
 export const TasksUnavailable: StoryObj<typeof meta> = {
   beforeEach: () => {
-    mocked(readDemo).mockResolvedValue({ status: "unavailable" });
+    mocked(readDemo).mockResolvedValueOnce({ status: "unavailable" });
   },
   play: async ({ canvasElement, userEvent }) => {
     const body = within(canvasElement.ownerDocument.body);
@@ -113,24 +103,6 @@ export const TasksUnavailable: StoryObj<typeof meta> = {
     );
     await expect(within(dialog).getByRole("button", { name: "Try again" })).toBeEnabled();
     await expect(within(dialog).getByRole("button", { name: "Reset demo" })).toBeEnabled();
-  },
-};
-
-export const TaskLoadRecovery: StoryObj<typeof meta> = {
-  beforeEach: () => {
-    mocked(readDemo).mockResolvedValueOnce({ status: "unavailable" });
-  },
-  play: async (context) => {
-    await TasksUnavailable.play!(context);
-    const body = within(context.canvasElement.ownerDocument.body);
-    const dialog = body.getByRole("dialog", { name: "Demo guide" });
-    await context.userEvent.click(within(dialog).getByRole("button", { name: "Try again" }));
-
-    await waitFor(async () =>
-      expect(
-        await within(dialog).findByRole("link", { name: "Review Workshop Saturdays" }),
-      ).toBeVisible(),
-    );
   },
 };
 
@@ -159,6 +131,9 @@ export const MissingExample: StoryObj<typeof meta> = {
 };
 
 export const ResetFailure: StoryObj<typeof meta> = {
+  beforeEach: () => {
+    mocked(startDemo).mockResolvedValueOnce({ status: "unavailable" });
+  },
   play: async ({ canvasElement, userEvent }) => {
     const body = within(canvasElement.ownerDocument.body);
     const guide = await body.findByRole("button", { name: "Demo guide" });

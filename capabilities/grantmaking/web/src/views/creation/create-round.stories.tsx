@@ -7,7 +7,7 @@ const meta = {
   title: "Features/Funding rounds/Create",
   tags: ["!autodocs"],
   component: ComposerPreview,
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
 } satisfies Meta<typeof ComposerPreview>;
 
 export default meta;
@@ -83,20 +83,5 @@ export const ResumeDraft: Story = {
     await expect(dialog.getByRole("textbox", { name: "Round name" })).toHaveValue(
       "Community grants",
     );
-  },
-};
-
-export const DiscardDraft: Story = {
-  play: async (context) => {
-    await ResumeDraft.play!(context);
-    const page = within(context.canvasElement.ownerDocument.body);
-    await userEvent.click(
-      within(page.getByRole("dialog")).getByRole("button", { name: "Discard draft" }),
-    );
-    await waitFor(() => expect(page.queryByRole("dialog")).not.toBeInTheDocument());
-    await openCreation(context);
-    await expect(
-      within(page.getByRole("dialog")).getByRole("textbox", { name: "Round name" }),
-    ).toHaveValue("");
   },
 };

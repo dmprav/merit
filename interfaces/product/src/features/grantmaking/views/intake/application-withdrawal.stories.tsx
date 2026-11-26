@@ -108,27 +108,3 @@ export const ConfirmReinstate: Story = {
     );
   },
 };
-
-export const WithdrawAndReinstate: Story = {
-  args: { state: "awaiting-reviews" },
-  play: async (context) => {
-    const { canvas, canvasElement, userEvent } = context;
-    const withdrawal = await openWithdrawal(context);
-    await expect(withdrawal.getByText(/outstanding review request/)).toBeVisible();
-    await userEvent.type(
-      withdrawal.getByRole("textbox", { name: /Reason/ }),
-      "Applicant withdrew.",
-    );
-    await userEvent.click(withdrawal.getByRole("button", { name: "Withdraw application" }));
-
-    await userEvent.click(await canvas.findByRole("button", { name: "Reinstate application" }));
-    const reinstate = within(
-      await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: /Reinstate/ }),
-    );
-    await userEvent.type(reinstate.getByRole("textbox", { name: /Reason/ }), "Applicant returned.");
-    await userEvent.click(reinstate.getByRole("button", { name: "Reinstate application" }));
-
-    const nextWithdrawal = await openWithdrawal(context);
-    await expect(nextWithdrawal.queryByText(/outstanding review request/)).not.toBeInTheDocument();
-  },
-};

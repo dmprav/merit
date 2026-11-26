@@ -10,7 +10,7 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
 import type { ReviewerData, ManagerReviewerData } from "../../contracts/reviewer";
-import { Messages as GrantmakingMessagesProvider } from "../../messages";
+import { Messages as ReviewsMessagesProvider } from "../../messages";
 
 const round = getExampleRound();
 const application = round.applications[0]!;
@@ -200,9 +200,9 @@ export const ReviewPreviewFrame = ({
   );
 
   return (
-    <GrantmakingMessagesProvider>
-      {manager ? page : <ApplicationStage>{page}</ApplicationStage>}
-    </GrantmakingMessagesProvider>
+    <ReviewsMessagesProvider>
+      <ApplicationStage>{page}</ApplicationStage>
+    </ReviewsMessagesProvider>
   );
 };
 
