@@ -164,15 +164,24 @@ const parseLockMetadata = (raw: string): LockMetadata | undefined => {
   }
 };
 
+// ui:verify's output lock wrote only its PID before it moved onto this lock, and a checkout that
+// still runs that version can hold the same directory.
+const LEGACY_PID_LOCK_PATTERN = /^[1-9]\d*\n?$/;
+
+/** Reads who holds a lock: its metadata, or the PID alone from an earlier ui:verify lock. */
+const parseLockOwner = (raw: string): LockOwner | undefined =>
+  parseLockMetadata(raw) ??
+  (LEGACY_PID_LOCK_PATTERN.test(raw) ? { pid: Number.parseInt(raw, 10) } : undefined);
+
 const isStaleLockContent = (
   raw: string,
   ageMs: number,
   context: Pick<ReclaimContext, "staleMs" | "isOwnerAlive">,
 ): boolean => {
-  const metadata = parseLockMetadata(raw);
-  if (metadata) {
-    // Never expire valid lock metadata solely by age while its owner process is still alive.
-    return !context.isOwnerAlive(metadata);
+  const owner = parseLockOwner(raw);
+  if (owner) {
+    // Never expire a lock solely by age while its owner process is still alive.
+    return !context.isOwnerAlive(owner);
   }
   // Locks are published complete, so unreadable content is foreign or damaged; allow a short grace.
   return ageMs >= Math.min(context.staleMs, LOCK_WRITE_GRACE_MS);
@@ -219,7 +228,7 @@ const tryReclaimStaleLock = (
     return outcomeOfFailedInspection(error);
   }
   if (!isStaleLockContent(raw, context.nowMs() - inspected.mtimeMs, context)) {
-    const holderPid = parseLockMetadata(raw)?.pid;
+    const holderPid = parseLockOwner(raw)?.pid;
     return holderPid === undefined ? HELD : { kind: "held", holderPid };
   }
 
@@ -289,7 +298,7 @@ const busyError = (
 ): FileLockBusyError => {
   const readHolderPid = () => {
     const raw = readOptionalFile(lockPath);
-    return raw === undefined ? undefined : parseLockMetadata(raw)?.pid;
+    return raw === undefined ? undefined : parseLockOwner(raw)?.pid;
   };
 
   const holderPid = observedHolderPid ?? readHolderPid();

@@ -72,6 +72,25 @@ describe("withFileLock stale-lock policy", () => {
     expect(existsSync(lockPath)).toBe(false);
   });
 
+  test("treats an earlier ui:verify lock that names only a live PID as held", async () => {
+    const { lockPath } = makeLockPath();
+    writeFileSync(lockPath, `${process.pid}\n`, "utf8");
+    utimesSync(lockPath, expired(), expired());
+    await expect(
+      acquireFileLock(lockPath, { label: "test", timeoutMs: 0, staleMs: 5_000 }),
+    ).rejects.toMatchObject({ holderPid: process.pid });
+    expect(readFileSync(lockPath, "utf8")).toBe(`${process.pid}\n`);
+  });
+
+  test("recovers an earlier ui:verify lock whose PID has exited", async () => {
+    const { lockPath } = makeLockPath();
+    writeFileSync(lockPath, `${exitedPid()}\n`, "utf8");
+    expect(await withFileLock(lockPath, () => "recovered-legacy", { timeoutMs: 2_000 })).toBe(
+      "recovered-legacy",
+    );
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
   test("recovers a corrupt lock only after the grace window", async () => {
     const { dir, lockPath } = makeLockPath();
     writeFileSync(lockPath, "{corrupt", "utf8");
