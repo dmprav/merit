@@ -10,6 +10,7 @@ import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
+import { roundCommitments } from "./application-work";
 
 const createRound = async (
   db: NodePgDatabase,
@@ -327,12 +328,17 @@ it("follows a renamed round without rewriting application rows", async ({ db, da
   const round = await createRound(db, "Old name");
   await createApplication(db, round, "Kitchen");
   const before = await database.client.query("SELECT xmin::text FROM application_cases");
-  const edited = await editFundingRound(db, actor, {
-    workspaceSlug,
-    publicId: round,
-    expectedRevision: 0,
-    change: { section: "details", title: "New name" },
-  });
+  const edited = await editFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      publicId: round,
+      expectedRevision: 0,
+      change: { section: "details", title: "New name" },
+    },
+    roundCommitments,
+  );
   expect(edited).toMatchObject({ status: "ok" });
 
   expect(await search(db, "kitchen")).toMatchObject({

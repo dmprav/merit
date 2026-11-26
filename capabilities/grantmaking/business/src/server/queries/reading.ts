@@ -71,6 +71,7 @@ export const getFundingRoundOverview = async (
       return { status: "not_found" } as const;
     }
     const proposed = fromMinorUnits(BigInt(row.proposed));
+    const committed = fromMinorUnits(BigInt(row.committed));
     const budget = row.budget === null ? null : decodeMoney(row.budget);
     return {
       status: "ok",
@@ -82,6 +83,8 @@ export const getFundingRoundOverview = async (
           withdrawnApplications: row.withdrawnApplications,
           proposed: encodeMoney(proposed),
           remaining: budget === null ? null : encodeMoney(subtract(budget, proposed)),
+          committed: encodeMoney(committed),
+          available: budget === null ? null : encodeMoney(subtract(budget, committed)),
         },
       }),
     } as const;
@@ -204,7 +207,9 @@ export const getFundingApplicationContent = async (
       return { status: "invalid_range" } as const;
     }
     if (
-      (request.section === "intake_change" || request.section === "recommendation_change") &&
+      (request.section === "intake_change" ||
+        request.section === "recommendation_change" ||
+        request.section === "decision_change") &&
       request.revision === undefined
     ) {
       return { status: "invalid_range" } as const;

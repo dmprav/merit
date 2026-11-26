@@ -1,4 +1,5 @@
 import type { IntakeData } from "@merit/applications-web/contracts";
+import type { DecisionData } from "@merit/decisions-web/contracts";
 import type { RoundSummary } from "@merit/grantmaking/api";
 import type {
   ApplicationView as Application,
@@ -17,6 +18,7 @@ export type ApplicationData = {
   application: Application;
   key: string;
   recommendation: RecommendationData;
+  decision: DecisionData;
   reviews: ReviewData | null;
   intake: IntakeData | null;
 };

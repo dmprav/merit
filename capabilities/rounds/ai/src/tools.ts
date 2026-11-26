@@ -11,7 +11,7 @@ import {
   type RoundsService,
 } from "@merit/rounds/api";
 
-import { roundCreatedSchema, roundSavedSchema } from "./responses";
+import { budgetBelowCommitmentsSchema, roundCreatedSchema, roundSavedSchema } from "./responses";
 
 export const createRoundTools = (actor: Actor, rounds: RoundsService) => [
   defineActorTool(
@@ -33,9 +33,9 @@ export const createRoundTools = (actor: Actor, rounds: RoundsService) => [
     actor,
     "edit_funding_round",
     {
-      errorSchema: writeErrorSchema,
+      errorSchema: z.union([budgetBelowCommitmentsSchema, writeErrorSchema]),
       description:
-        "Edit round preparation. Supply expectedPreparationRevision for purpose, criteria, and budget; title, meetingDate, and manager apply directly. Preserve criterion IDs across edits and reordering; new criteria need new UUIDs. Send only changed details fields; omitted fields stay unchanged. The first budget amount needs no reason; a later change, a clear, or an amount set after a clear requires one. Saves directly.",
+        "Edit round preparation. Supply expectedPreparationRevision for purpose, criteria, and budget; title, meetingDate, and manager apply directly. Preserve criterion IDs across edits and reordering; new criteria need new UUIDs. Send only changed details fields; omitted fields stay unchanged. The first budget amount needs no reason; a later change, a clear, or an amount set after a clear requires one. A budget below the funding already committed by recorded committee decisions, or cleared while any is committed, is rejected with budget_below_commitments and the committed total. Saves directly.",
       inputSchema: editRoundInputSchema
         .omit({ publicId: true, expectedRevision: true })
         .extend({ roundId: publicIdSchema, expectedPreparationRevision: revision.optional() }),

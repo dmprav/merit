@@ -97,6 +97,8 @@ export const preparationMessages = {
     deleteDescription:
       "Delete “{{title}}” and its preparation details? This round has no applications. This cannot be undone.",
     notEmpty: "This round now contains applications and cannot be deleted.",
+    budgetBelowCommitments:
+      "{{committed}} is already committed by committee decisions. The budget cannot be lower than that or removed.",
     deleteConflict:
       "This round has changed. Close this dialog, review the latest round, and start deletion again.",
     deleteError:

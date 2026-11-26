@@ -85,6 +85,7 @@ export const useApplicationIntake = ({
     application,
     withdrawn: isWithdrawn(application),
     outstandingReviews: outstandingReviewCount(application),
+    hasCommitment: intake.decisions?.hasCommitment ?? false,
     metadataEditing: intakeMetadataEditing(application, data, editing.section),
     workingRevision: intake.workingRevision,
     canStartRevision: canStartIntakeRevision(application, intake.workingRevision),
@@ -93,6 +94,7 @@ export const useApplicationIntake = ({
       application,
       intake.workingRevision,
       editing.changed("title"),
+      intake.decisions,
     ).filter((action) => editing.ready || (action !== "delete" && action !== "discard_revision")),
     canOpen: (target: IntakeSection) =>
       !isWithdrawn(application) &&

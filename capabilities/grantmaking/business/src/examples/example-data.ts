@@ -1,3 +1,4 @@
+import type { Decision } from "@merit/decisions/domain";
 import { fromMinorUnits, encodeMoney } from "@merit/money";
 
 import { fundingRoundOverviewSchema } from "../domain/model";
@@ -456,3 +457,21 @@ export const exampleRound = fundingRoundOverviewSchema.parse({
     },
   ],
 });
+
+/**
+ * The committee's decisions for the example round, by application. Neighbour Table is funded
+ * in full from ready material, which commits €24,000 of the €60,000 budget. The decision date
+ * and recording time are the seed time, so the seeded decision is one the form accepts.
+ */
+export const exampleDecisions: Record<string, Omit<Decision, "decisionDate" | "recordedAt">> = {
+  A1: {
+    outcome: "Fund",
+    amount: fromMinorUnits(2400000n),
+    conditions: "",
+    reason:
+      "The committee funded the full request and asked for simple reporting on repeat attendance.",
+    decidedBy: "Funding committee",
+    recorder: { name: "Dana Reed" },
+    applicationVersion: 1,
+  },
+};

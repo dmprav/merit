@@ -21,6 +21,7 @@ import { criteriaVersionSchema, type RoundChange } from "@merit/rounds/domain";
 import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
+import { roundCommitments } from "./application-work";
 import { withAuditFailure, recordedEvents } from "./audit-events";
 import { contactWork } from "./contact-work";
 
@@ -301,11 +302,16 @@ const roundChange = (
     (await getFundingRoundPage(db, actor, { ...address, kind: "round" }))!.preparation.revision;
 
   const edit = async (change: RoundChange, expectedRevision?: number) =>
-    editFundingRound(db, options.as ?? actor, {
-      ...address,
-      expectedRevision: expectedRevision ?? (await revision()),
-      change,
-    });
+    editFundingRound(
+      db,
+      options.as ?? actor,
+      {
+        ...address,
+        expectedRevision: expectedRevision ?? (await revision()),
+        change,
+      },
+      roundCommitments,
+    );
 
   return { edit, revision };
 };

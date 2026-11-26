@@ -54,6 +54,7 @@ const config: StorybookConfig = {
             "Manage reviews",
             "Manage reviewer invitations",
             "Review an assigned application",
+            "Committee decision",
             "Recommendation",
             "Version history",
           ],

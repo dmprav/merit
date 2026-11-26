@@ -66,4 +66,11 @@ export type IntakeApplication = z.infer<typeof intakeApplicationSchema>;
 export const isWithdrawn = (application: Pick<IntakeApplication, "withdrawal">) =>
   application.withdrawal !== undefined;
 
-export type ApplicationUsage = { hasReviews: boolean; hasRecommendation: boolean };
+export type ApplicationUsage = {
+  hasReviews: boolean;
+  hasRecommendation: boolean;
+  /** Any committee decision version, including one that reserves no funding. */
+  hasDecision: boolean;
+  /** The current committee decision commits funding. */
+  hasCommitment: boolean;
+};

@@ -1,6 +1,6 @@
 # Grantmaking business model
 
-Grantmaking composes the funder's work across four business capabilities. It owns
+Grantmaking composes the funder's work across five business capabilities. It owns
 combined reading views, personal navigation, and fictional
 examples. The owning capability contains each workflow's rules, commands, transaction
 coordination, persistence, and reusable web interactions.
@@ -11,6 +11,7 @@ coordination, persistence, and reusable web interactions.
 | [Applications](../../applications/business/README.md)       | Case identity, material versions, working revisions, readiness, summaries, contact assignment. |
 | [Reviews](../../reviews/business/README.md)                 | Requests, assessments, reviewer access, private drafts and submission.                         |
 | [Recommendations](../../recommendations/business/README.md) | Manager proposals, allocation calculations, versions and audit coordination.                   |
+| [Decisions](../../decisions/business/README.md)             | Committee decisions recorded by a manager, committed funding, versions and audit coordination. |
 
 Web and MCP use the services supplied by [application assembly](../../../app/src/server/services.server.ts).
 The [workflows](../../../docs/workflows/review-and-decide.md) define behavior;
@@ -43,8 +44,10 @@ material and criteria versions used.
 The case remains the unit of coordinated application work. A combined reading
 view or financial total does not by itself require one transaction over every
 application. Locks protect demonstrated rules: authorization, revisions, review
-bases, and deletion eligibility. Proposed allocations can exceed a round's budget;
-funding commitments are [future work](../../../docs/workflows/committee-decisions.md).
+bases, and deletion eligibility. Proposed allocations can exceed a round's budget.
+A Fund or Fund with conditions decision commits its amount against the round budget:
+a save that would exceed the budget is refused, as is a budget cut below the committed
+total ([recording decisions](../../../docs/workflows/record-decisions.md)).
 
 ## Versions and attribution
 

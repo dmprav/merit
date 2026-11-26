@@ -159,9 +159,9 @@ export const editFundingApplication = async (
       draft,
       request.change,
       author,
-      request.change.action === "delete"
+      request.change.action === "delete" || request.change.action === "withdraw"
         ? await applicationUsage(tx, work, request.publicId)
-        : { hasReviews: false, hasRecommendation: false },
+        : { hasReviews: false, hasRecommendation: false, hasDecision: false, hasCommitment: false },
     );
     if (!result.ok) {
       return { status: "invalid", error: result.error } as const;
@@ -205,6 +205,8 @@ const applicationUsage = async (
 ): Promise<ApplicationUsage> => ({
   hasReviews: await work.reviews.hasActivity(tx, caseId),
   hasRecommendation: await work.recommendations.hasRecommendation(tx, caseId),
+  hasDecision: await work.decisions.hasDecision(tx, caseId),
+  hasCommitment: await work.decisions.hasCommitment(tx, caseId),
 });
 
 const closeReviewsOnWithdrawal = async (

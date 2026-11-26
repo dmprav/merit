@@ -129,6 +129,12 @@ A **budget** needs an owner and scope: the funder's available resources differ
 from the recipient's planned costs. Requested, recommended, awarded, paid, and
 spent amounts represent different stages of the funding relationship.
 
+A **committed amount** is the funding a funder has authorized for an award, such as the
+amount of a recorded decision to fund, including a conditional one. It differs from a
+**proposed** amount, which is a recommendation that reserves nothing, and from a **paid**
+amount. In Merit, a round's committed amount is the sum of its current funding decisions;
+what remains of its budget is **available**. See [recording committee decisions](../workflows/record-decisions.md).
+
 **Closeout** settles final administrative and financial requirements. It can finish
 while longer-term results remain uncertain. See [delivery and closure](journeys/deliver-and-manage.md).
 

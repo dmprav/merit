@@ -67,7 +67,7 @@ const createApplicationContextTool = (
     {
       errorSchema: readingErrorSchema,
       description:
-        "Read current application context and distinct intake, review, recommendation, application and criteria versions. Use the appropriate revision for each command. Read content separately; reread after conflicts without overwriting newer work.",
+        "Read current application context and distinct intake, review, recommendation, decision, application and criteria versions, including the current committee decision with its revision and recorder. Use the appropriate revision for each command. Read content separately; reread after conflicts without overwriting newer work.",
       inputSchema: applicationReadInput,
       outputSchema: z.object({
         status: z.literal("ok"),
@@ -228,7 +228,7 @@ const createHistoryTools = (actor: Actor, grantmaking: GrantmakingOperations) =>
     {
       errorSchema: readingErrorSchema,
       description:
-        "List intake or recommendation changes in ascending revision order. Pass nextPage to this tool; fetch selected change content separately.",
+        "List intake, recommendation, or committee decision changes in ascending revision order. Pass nextPage to this tool; fetch selected change content separately.",
       inputSchema: applicationHistoryInput,
       outputSchema: historyResult,
     },
@@ -267,7 +267,7 @@ const createRoundReadingTools = (
     {
       errorSchema: readingErrorSchema,
       description:
-        "Read round identity, preparation revision, manager and exact whole-round financial totals. Totals include every application independently of list pagination. Use list_applications for records and get_funding_round_content for criteria and details.",
+        "Read round identity, preparation revision, manager and exact whole-round financial totals: requested, proposed (from recommendations), and committed and available (from recorded committee decisions). Totals include every application independently of list pagination. Use list_applications for records and get_funding_round_content for criteria and details.",
       inputSchema: roundReadInput,
       outputSchema: z.object({ status: z.literal("ok"), round: roundOverviewSchema, url: z.url() }),
     },
@@ -290,7 +290,7 @@ const createActivityTool = (actor: Actor, grantmaking: GrantmakingOperations, or
     {
       errorSchema: readingErrorSchema,
       description:
-        "List who changed shared grant work across a workspace, newest first. Use list_funding_round_history for the ordered history of one round; it includes the actual budget changes. Covers round changes (creation, details, budget, criteria, manager, deletion), application changes (creation, content, summary, contact, readiness, revisions, corrections, deletion, shared working revisions), review requests and reviewer responses, assessments (recorded, corrected, submitted, amended), and saved recommendations. Contact profiles, private reviewer drafts, and email delivery are outside this feed. Each entry gives the recorded person's name (null when none was recorded), the web or MCP-client provenance, the stored action name, and the record's current title and url, or a null record when it no longer exists. Optional roundId (the round and its applications, including their review requests, reviewer responses, assessments, and recommendations) and personId (a person from `people`) filters narrow the list; `people` lists everyone with recorded activity and is returned with the first page only (empty when `after` is given). Pass nextPage to this tool until null. Current program managers only.",
+        "List who changed shared grant work across a workspace, newest first. Use list_funding_round_history for the ordered history of one round; it includes the actual budget changes. Covers round changes (creation, details, budget, criteria, manager, deletion), application changes (creation, content, summary, contact, readiness, revisions, corrections, deletion, shared working revisions), review requests and reviewer responses, assessments (recorded, corrected, submitted, amended), saved recommendations, and recorded committee decisions (an amended decision shows its explanation as the reason). Contact profiles, private reviewer drafts, and email delivery are outside this feed. Each entry gives the recorded person's name (null when none was recorded), the web or MCP-client provenance, the stored action name, and the record's current title and url, or a null record when it no longer exists. Optional roundId (the round and its applications, including their review requests, reviewer responses, assessments, recommendations, and committee decisions) and personId (a person from `people`) filters narrow the list; `people` lists everyone with recorded activity and is returned with the first page only (empty when `after` is given). Pass nextPage to this tool until null. Current program managers only.",
       inputSchema: workspaceActivityInput,
       outputSchema: z.object({
         status: z.literal("ok"),

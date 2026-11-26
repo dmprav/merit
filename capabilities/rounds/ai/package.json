@@ -11,6 +11,7 @@
     "@merit/ai": "workspace:*",
     "@merit/auth": "workspace:*",
     "@merit/db": "workspace:*",
+    "@merit/money": "workspace:*",
     "@merit/rounds": "workspace:*",
     "zod": "catalog:"
   },

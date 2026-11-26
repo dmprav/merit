@@ -43,6 +43,13 @@ saved the work. Writes continue after navigation unmounts a provider.
 The editor asks for confirmation before leaving while writes are pending or
 writing remains only in memory after a storage failure or conflict.
 
+A workflow that keeps one draft per record, each with the baseline it began from, uses
+`createKeyedDrafts(kind, schema)` for the context, the store hook, and the reader hook,
+and `useDraftEditor` to open, close, and save its editor. `setDraft` keeps a draft's
+original baseline unless asked to replace it, so a change on the server shows as a
+conflict against what the person started from. `@merit/ui/editor-focus` returns focus
+to the section's edit action after the editor closes.
+
 When storage fails, input remains in memory. Another edit retries failed writes.
 If restoration failed, recovery never adopts a write baseline for unseen saved
 content. Keep the tab open until writing has been saved or discarded.
