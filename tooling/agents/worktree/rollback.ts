@@ -16,7 +16,7 @@ export type CreateProgress = {
   /** `git worktree add` ran, so a checkout may exist at `checkoutPath`. */
   checkoutAttempted: boolean;
   checkoutPath: string;
-  /** The Git metadata directory of the added checkout, which holds the attempt's token. */
+  /** The added checkout's Git metadata directory, set once the attempt's token is written there. */
   gitDir?: string;
   registryReserved: boolean;
   databaseCreated: boolean;

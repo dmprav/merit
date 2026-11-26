@@ -161,9 +161,12 @@ const addCheckout = ({ plan, progress, git }: CreateRun): void => {
   progress.checkoutAttempted = true;
   git.run(["worktree", "add", plan.targetDir, plan.branch]);
   progress.checkoutPath = canonicalPath(plan.targetDir);
-  progress.gitDir = readWorktreeGitDir(progress.checkoutPath) ?? undefined;
-  if (progress.gitDir) {
-    writeCheckoutToken(progress.gitDir, plan.checkoutToken);
+  const gitDir = readWorktreeGitDir(progress.checkoutPath);
+  if (gitDir) {
+    writeCheckoutToken(gitDir, plan.checkoutToken);
+    // Recorded only once the token is in place: rollback then requires it, and before that it
+    // proves ownership through the checkout's branch and back-link instead.
+    progress.gitDir = gitDir;
   }
 };
 

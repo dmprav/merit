@@ -3,8 +3,10 @@ import { dirname, join } from "node:path";
 
 import { describe, expect, test, vi } from "vite-plus/test";
 
+import { readWorktreeGitDir } from "./checkout-identity.ts";
 import { createWorktree } from "./create.ts";
 import { type ExecCommand } from "./deps.ts";
+import { defaultExecGit } from "./git.ts";
 import { canonicalPath } from "./paths.ts";
 import {
   readWorktreeRegistry,
@@ -518,6 +520,36 @@ describe("createWorktree rollback", () => {
     expect(git(repo, ["worktree", "list", "--porcelain"])).toContain(targetDir);
     expect(listBranch(repo, "feat/other-job")).toContain("feat/other-job");
     expect(readWorktreeRegistry(repo).worktrees.contested).toBeUndefined();
+  });
+
+  test("removes its own checkout when writing the checkout token fails", async () => {
+    const repo = initTempRepo();
+    const checkoutPath = join(repo, ".tmp/worktrees/token-fail");
+
+    const failure = createIn(
+      repo,
+      { slug: "token-fail" },
+      {
+        execGit: (dir, args) => {
+          const output = defaultExecGit(dir, args);
+          if (isGitCommand(args, "worktree", "add")) {
+            // A directory where the token file belongs makes writing the token fail.
+            const gitDir = readWorktreeGitDir(checkoutPath);
+            if (!gitDir) {
+              throw new Error("git worktree add left no linked checkout");
+            }
+            mkdirSync(join(gitDir, "merit-checkout-token"));
+          }
+          return output;
+        },
+      },
+    );
+
+    await expect(failure).rejects.toThrow(/EISDIR/);
+    await expect(failure).rejects.not.toThrow(/rollback preserved/);
+    expect(existsSync(checkoutPath)).toBe(false);
+    expect(listBranch(repo, "worktree/token-fail")).toBe("");
+    expect(readWorktreeRegistry(repo).worktrees["token-fail"]).toBeUndefined();
   });
 
   test("keeps a branch another job created after the last branch check", async () => {
