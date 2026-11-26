@@ -9,15 +9,10 @@ import type { Browser, BrowserContext } from "@playwright/test";
 
 import { collectBrowserErrors, expect, test, type BrowserError } from "@merit/test-support/browser";
 
-import {
-  checkKeyboardFocusTraversal,
-  openTargetOnPage,
-  runTargetsInBrowser,
-  summarizeResults,
-  uiVerifyResultsSchema,
-  verifyLoadedPage,
-  writeProofArtifacts,
-} from "../../ui-verify.ts";
+import { openTargetOnPage, runTargetsInBrowser, verifyLoadedPage } from "../../ui-verify/audit.ts";
+import { checkKeyboardFocusTraversal } from "../../ui-verify/focus/check.ts";
+import { writeProofArtifacts } from "../../ui-verify/report.ts";
+import { summarizeResults, uiVerifyResultsSchema } from "../../ui-verify/results.ts";
 
 const VIEWPORT_META = '<meta name="viewport" content="width=device-width, initial-scale=1">';
 
@@ -49,12 +44,9 @@ const runFixture = async (
     return await verifyLoadedPage({
       page,
       browserErrors: errors,
-      kind: "story",
-      target: name,
-      name,
+      target: { kind: "story", id: name, name, fullPage: true },
       url: `fixture://${name}`,
       viewport: "desktop",
-      fullPage: true,
       screenshotPath,
     });
   } finally {
@@ -786,12 +778,9 @@ test.describe("live Chromium checker failure detection", () => {
       const exactResult = await verifyLoadedPage({
         page: exactPage,
         browserErrors: [],
-        kind: "story",
-        target: "exact-cap",
-        name: "exact-cap",
+        target: { kind: "story", id: "exact-cap", name: "exact-cap", fullPage: true },
         url: "fixture://exact-cap",
         viewport: "desktop",
-        fullPage: true,
         screenshotPath: null,
         maxTabStops: 3,
       });
@@ -805,12 +794,9 @@ test.describe("live Chromium checker failure detection", () => {
       const cappedResult = await verifyLoadedPage({
         page: cappedPage,
         browserErrors: [],
-        kind: "story",
-        target: "exceeds-cap",
-        name: "exceeds-cap",
+        target: { kind: "story", id: "exceeds-cap", name: "exceeds-cap", fullPage: true },
         url: "fixture://exceeds-cap",
         viewport: "desktop",
-        fullPage: true,
         screenshotPath: null,
         maxTabStops: 3,
       });
@@ -930,12 +916,14 @@ test.describe("live Chromium checker failure detection", () => {
     const opaque = await verifyLoadedPage({
       page: crossOrigin,
       browserErrors: [],
-      kind: "story",
-      target: "cross-origin-frame",
-      name: "cross-origin-frame",
+      target: {
+        kind: "story",
+        id: "cross-origin-frame",
+        name: "cross-origin-frame",
+        fullPage: true,
+      },
       url: "fixture://cross-origin-frame",
       viewport: "desktop",
-      fullPage: true,
       screenshotPath: null,
     });
     expect(opaque.focus.reachedCap).toBe(false);
@@ -1012,11 +1000,11 @@ test.describe("live Chromium checker failure detection", () => {
 test("lets the CLI finish its Ctrl+C cleanup before the process exits", async () => {
   await withTempDir(async (dir) => {
     const script = join(dir, "sigint.mjs");
-    const uiVerifyUrl = new URL("../../ui-verify.ts", import.meta.url).href;
+    const auditModuleUrl = new URL("../../ui-verify/audit.ts", import.meta.url).href;
     // The child stands in for the CLI: its SIGINT handler needs time to stop servers.
     writeFileSync(
       script,
-      `import { launchVerificationBrowser } from ${JSON.stringify(uiVerifyUrl)};
+      `import { launchVerificationBrowser } from ${JSON.stringify(auditModuleUrl)};
       const browser = await launchVerificationBrowser();
       process.on("SIGINT", () => {
         setTimeout(async () => {
