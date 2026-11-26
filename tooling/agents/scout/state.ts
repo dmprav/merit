@@ -117,3 +117,33 @@ export const advanceScoutStateBody = ({
   const cursor = nextCursor(state[lens]);
   return { body: formatScoutStateBody(issueBody, { ...state, [lens]: cursor }), cursor };
 };
+
+/**
+ * Records a finished run at `commitSha`. The pull request and rotation target carry over from the
+ * previous cursor unless this run passes new ones.
+ */
+export const nextLensCursor = ({
+  previous,
+  commitSha,
+  commitDate,
+  target,
+  prNumber,
+  runAt,
+}: {
+  previous: LensCursor | undefined;
+  commitSha: string;
+  commitDate: string;
+  target: string | undefined;
+  prNumber: number | undefined;
+  runAt: Date;
+}): LensCursor => {
+  const lastPrNumber = prNumber ?? previous?.lastPrNumber;
+  const lastRotationTarget = target ?? previous?.lastRotationTarget;
+  return lensCursorSchema.parse({
+    lastCommitSha: commitSha,
+    lastCommitDate: commitDate,
+    ...(lastPrNumber !== undefined ? { lastPrNumber } : {}),
+    ...(lastRotationTarget ? { lastRotationTarget } : {}),
+    lastRunAt: runAt.toISOString(),
+  });
+};

@@ -1,3 +1,6 @@
+import { execFileSync } from "node:child_process";
+import { resolve } from "node:path";
+
 import { z } from "zod";
 
 import { normalizeRepoPath } from "../../cli.ts";
@@ -252,3 +255,63 @@ export const summarizeEntryWeights = ({
       };
     });
 };
+
+/** The raw fallow JSON reports structural telemetry summarizes. */
+export type FallowPort = {
+  health: () => unknown;
+  dupes: () => unknown;
+  entryWeight: () => unknown;
+};
+
+const FALLOW_TIMEOUT_MS = 25_000;
+const FALLOW_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
+
+const runFallowJson = (repoRoot: string, args: readonly string[]): unknown => {
+  const fallowBin = resolve(repoRoot, "node_modules/.bin/fallow");
+  let raw: string;
+  try {
+    raw = execFileSync(fallowBin, args, {
+      cwd: repoRoot,
+      encoding: "utf8",
+      timeout: FALLOW_TIMEOUT_MS,
+      maxBuffer: FALLOW_MAX_OUTPUT_BYTES,
+    });
+  } catch (error) {
+    // Exit code 1 indicates an enforced fallow gate finding; valid JSON is still emitted on stdout.
+    const status = error instanceof Error && "status" in error ? error.status : undefined;
+    const stdout = error instanceof Error && "stdout" in error ? error.stdout : undefined;
+    if (status !== 1 || typeof stdout !== "string" || !stdout.trim()) {
+      throw error;
+    }
+    raw = stdout;
+  }
+  return JSON.parse(raw);
+};
+
+/** Runs the repository's own fallow binary in `repoRoot`. */
+export const createFallowPort = (repoRoot: string): FallowPort => ({
+  health: () =>
+    runFallowJson(repoRoot, [
+      "health",
+      "--file-scores",
+      "--hotspots",
+      "--production",
+      "--no-cache",
+      "--quiet",
+      "--format",
+      "json",
+    ]),
+  dupes: () =>
+    runFallowJson(repoRoot, [
+      "dupes",
+      "--production",
+      "--skip-local",
+      "--no-fragments",
+      "--no-cache",
+      "--quiet",
+      "--format",
+      "json",
+    ]),
+  entryWeight: () =>
+    runFallowJson(repoRoot, ["list", "--entry-weight", "--format", "json", "--quiet"]),
+});

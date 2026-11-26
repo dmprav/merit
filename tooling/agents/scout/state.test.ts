@@ -3,6 +3,7 @@ import { describe, expect, test } from "vite-plus/test";
 import {
   advanceScoutStateBody,
   formatScoutStateBody,
+  nextLensCursor,
   parseScoutState,
   scoutStateForReading,
 } from "./state.ts";
@@ -92,5 +93,45 @@ describe("advancing scout state", () => {
     expect(() =>
       advanceScoutStateBody({ issueNumber: 219, issueBody, lens: "tests", nextCursor }),
     ).toThrow(/#219.*corrupt[\s\S]*gh issue edit 219/);
+  });
+});
+
+describe("next lens cursor", () => {
+  const run = {
+    commitSha: "c7e4efa123",
+    commitDate: "2026-11-23T00:00:00Z",
+    runAt: new Date("2026-11-23T01:00:00Z"),
+  };
+  const previous = {
+    lastCommitSha: "abcdef12",
+    lastPrNumber: 210,
+    lastRotationTarget: "capabilities/reviews",
+    lastRunAt: "2026-11-22T00:00:00Z",
+  };
+
+  test("carries the previous pull request and rotation target forward", () => {
+    expect(nextLensCursor({ ...run, previous, target: undefined, prNumber: undefined })).toEqual({
+      lastCommitSha: "c7e4efa123",
+      lastCommitDate: "2026-11-23T00:00:00Z",
+      lastPrNumber: 210,
+      lastRotationTarget: "capabilities/reviews",
+      lastRunAt: "2026-11-23T01:00:00.000Z",
+    });
+  });
+
+  test("replaces the pull request and rotation target the run passes", () => {
+    expect(
+      nextLensCursor({ ...run, previous, target: "capabilities/rounds", prNumber: 230 }),
+    ).toMatchObject({ lastPrNumber: 230, lastRotationTarget: "capabilities/rounds" });
+  });
+
+  test("omits a pull request and rotation target no run has recorded", () => {
+    expect(
+      nextLensCursor({ ...run, previous: undefined, target: undefined, prNumber: undefined }),
+    ).toEqual({
+      lastCommitSha: "c7e4efa123",
+      lastCommitDate: "2026-11-23T00:00:00Z",
+      lastRunAt: "2026-11-23T01:00:00.000Z",
+    });
   });
 });

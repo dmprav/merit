@@ -5,6 +5,7 @@ import {
   parseProposalMarker,
   TRUSTED_AUTHOR_ASSOCIATIONS,
 } from "../../verification/agent-policy.ts";
+import type { IssueListItem } from "../github.ts";
 
 /** Indexes tracked issue numbers per normalized path from open and wontfix `<!-- merit-proposal -->` markers. */
 export const buildTrackedPathsIndex = (
@@ -93,4 +94,28 @@ export const trackedByForPaths = (
     }
   }
   return [...issues].sort((a, b) => a - b);
+};
+
+export type OpenIssueSummary = { number: number; title: string; labels: string[] };
+
+export type WontfixIssueSummary = { number: number; title: string; reason?: string };
+
+export const summarizeOpenIssue = ({
+  number,
+  title,
+  labels,
+}: Pick<IssueListItem, "number" | "title" | "labels">): OpenIssueSummary => ({
+  number,
+  title,
+  labels,
+});
+
+/** Keeps a rejected proposal's title with the maintainer's reason so scouts do not propose it again. */
+export const summarizeWontfixIssue = ({
+  number,
+  title,
+  comments,
+}: Pick<IssueListItem, "number" | "title" | "comments">): WontfixIssueSummary => {
+  const reason = extractLatestTrustedRejectionReason(comments);
+  return { number, title, ...(reason ? { reason } : {}) };
 };

@@ -1,12 +1,9 @@
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import { errorMessage, normalizeRepoPath } from "../../cli.ts";
 import type { RotationAxis } from "./axes.ts";
 import {
   type CloneGroupEntry,
   type EntryWeightEntry,
+  type FallowPort,
   type FileScoreEntry,
   type HotspotEntry,
   summarizeEntryWeights,
@@ -14,9 +11,8 @@ import {
   summarizeFallowHealth,
   type ThresholdOverrideEntry,
 } from "./fallow-reports.ts";
+import type { GitPort } from "./git.ts";
 import { isProductionSourcePath } from "./repo-paths.ts";
-
-const FALLOW_TIMEOUT_MS = 25_000;
 
 export type SuppressionLedger = {
   total: number;
@@ -82,175 +78,120 @@ const SUPPRESSION_PATTERNS: ReadonlyArray<{ kind: string; pattern: RegExp }> = [
   { kind: "ts-expect-error", pattern: /@ts-expect-error\b/g },
 ];
 
-const collectSuppressionLedger = (
-  repoRoot: string,
+const SUPPRESSION_SCAN_ROOT_PATTERN = /^(?:app|capabilities|foundation|interfaces)\//;
+const TYPESCRIPT_SOURCE_PATTERN = /\.(?:ts|tsx)$/;
+const SUPPRESSION_TOP_FILE_COUNT = 6;
+
+const scansForSuppressions = (filePath: string): boolean =>
+  SUPPRESSION_SCAN_ROOT_PATTERN.test(filePath) &&
+  TYPESCRIPT_SOURCE_PATTERN.test(filePath) &&
+  isProductionSourcePath(filePath);
+
+/** Counts each suppression kind in one file's source. */
+const countSuppressions = (content: string): Array<{ kind: string; count: number }> =>
+  SUPPRESSION_PATTERNS.map(({ kind, pattern }) => ({
+    kind,
+    count: content.match(pattern)?.length ?? 0,
+  }));
+
+const readIfPresent = (readFile: (repoPath: string) => string, repoPath: string): string | null => {
+  try {
+    return readFile(repoPath);
+  } catch {
+    return null;
+  }
+};
+
+/** Counts lint, fallow, and type-check suppressions in production sources, optionally naming the heaviest files. */
+export const collectSuppressionLedger = (
+  readFile: (repoPath: string) => string,
   trackedFiles: readonly string[],
   includeTopFiles: boolean,
 ): SuppressionLedger => {
-  const byKind: Record<string, number> = {
-    "oxlint-disable": 0,
-    "eslint-disable": 0,
-    "fallow-ignore": 0,
-    "ts-expect-error": 0,
-  };
+  const byKind: Record<string, number> = Object.fromEntries(
+    SUPPRESSION_PATTERNS.map(({ kind }) => [kind, 0]),
+  );
   const perFile: Array<{ path: string; count: number }> = [];
-  let total = 0;
-
-  for (const rawPath of trackedFiles) {
-    const filePath = normalizeRepoPath(rawPath);
-    if (
-      !/^(?:app|capabilities|foundation|interfaces)\//.test(filePath) ||
-      !/\.(?:ts|tsx)$/.test(filePath) ||
-      !isProductionSourcePath(filePath)
-    ) {
-      continue;
-    }
-    let content: string;
-    try {
-      content = readFileSync(resolve(repoRoot, filePath), "utf8");
-    } catch {
+  for (const filePath of trackedFiles.map(normalizeRepoPath).filter(scansForSuppressions)) {
+    const content = readIfPresent(readFile, filePath);
+    if (content === null) {
       continue;
     }
     let fileCount = 0;
-    for (const { kind, pattern } of SUPPRESSION_PATTERNS) {
-      const matches = content.match(pattern);
-      if (matches && matches.length > 0) {
-        byKind[kind] = (byKind[kind] ?? 0) + matches.length;
-        fileCount += matches.length;
-      }
+    for (const { kind, count } of countSuppressions(content)) {
+      byKind[kind] = (byKind[kind] ?? 0) + count;
+      fileCount += count;
     }
     if (fileCount > 0) {
-      total += fileCount;
       perFile.push({ path: filePath, count: fileCount });
     }
   }
 
   perFile.sort((a, b) => b.count - a.count || a.path.localeCompare(b.path));
   return {
-    total,
+    total: perFile.reduce((sum, file) => sum + file.count, 0),
     byKind,
-    ...(includeTopFiles ? { topFiles: perFile.slice(0, 6) } : {}),
+    ...(includeTopFiles ? { topFiles: perFile.slice(0, SUPPRESSION_TOP_FILE_COUNT) } : {}),
   };
 };
 
-const runFallowJson = (repoRoot: string, args: readonly string[]): unknown => {
-  const fallowBin = resolve(repoRoot, "node_modules/.bin/fallow");
-  let raw: string;
+/** Runs one fallow report, recording its failure so the rest of the telemetry still arrives. */
+const readFallowReport = <T>(name: string, errors: string[], summarize: () => T): T | undefined => {
   try {
-    raw = execFileSync(fallowBin, args, {
-      cwd: repoRoot,
-      encoding: "utf8",
-      timeout: FALLOW_TIMEOUT_MS,
-      maxBuffer: 16 * 1024 * 1024,
-    });
+    return summarize();
   } catch (error) {
-    // Exit code 1 indicates an enforced fallow gate finding; valid JSON is still emitted on stdout.
-    const status = error instanceof Error && "status" in error ? error.status : undefined;
-    const stdout = error instanceof Error && "stdout" in error ? error.stdout : undefined;
-    if (status !== 1 || typeof stdout !== "string" || !stdout.trim()) {
-      throw error;
-    }
-    raw = stdout;
-  }
-  return JSON.parse(raw);
-};
-
-const isShallowRepo = (repoRoot: string): boolean => {
-  try {
-    return (
-      execFileSync("git", ["rev-parse", "--is-shallow-repository"], {
-        cwd: repoRoot,
-        encoding: "utf8",
-      }).trim() === "true"
-    );
-  } catch {
-    return false;
+    errors.push(`${name}: ${errorMessage(error)}`);
+    return undefined;
   }
 };
 
-export const collectStructuralTelemetry = ({
-  repoRoot,
-  capabilitySymmetry,
-  axis,
-  trackedFiles,
-  trackedPathsByIssue,
-}: {
-  repoRoot: string;
-  capabilitySymmetry: boolean;
-  axis: RotationAxis | null;
-  trackedFiles: readonly string[];
-  trackedPathsByIssue: ReadonlyMap<string, number[]>;
-}): StructuralTelemetry => {
+export type TelemetryPorts = {
+  fallow: FallowPort;
+  git: Pick<GitPort, "isShallow">;
+  /** Reads a repository-relative file from the working tree. */
+  readFile: (repoPath: string) => string;
+};
+
+/** Gathers fallow health, duplication, and suppression signals, focused on the rotation axis's paths. */
+export const collectStructuralTelemetry = (
+  { fallow, git, readFile }: TelemetryPorts,
+  {
+    capabilitySymmetry,
+    axis,
+    trackedFiles,
+    trackedPathsByIssue,
+  }: {
+    capabilitySymmetry: boolean;
+    axis: RotationAxis | null;
+    trackedFiles: readonly string[];
+    trackedPathsByIssue: ReadonlyMap<string, number[]>;
+  },
+): StructuralTelemetry => {
   const pathPatterns = axis?.pathPatterns ?? [];
   const fallowErrors: string[] = [];
-  let topFiles: FileScoreEntry[] = [];
-  let hotspots: HotspotEntry[] = [];
-  let thresholdOverrides: ThresholdOverrideEntry[] = [];
-  let cloneGroups: CloneGroupEntry[] = [];
-  let entryWeights: EntryWeightEntry[] | undefined;
-
-  try {
-    const rawHealth = runFallowJson(repoRoot, [
-      "health",
-      "--file-scores",
-      "--hotspots",
-      "--production",
-      "--no-cache",
-      "--quiet",
-      "--format",
-      "json",
-    ]);
-    const health = summarizeFallowHealth({ rawHealth, pathPatterns, trackedPathsByIssue });
-    topFiles = health.topFiles;
-    hotspots = health.hotspots;
-    thresholdOverrides = health.thresholdOverrides;
-  } catch (error) {
-    fallowErrors.push(`health: ${errorMessage(error)}`);
-  }
-
-  try {
-    const rawDupes = runFallowJson(repoRoot, [
-      "dupes",
-      "--production",
-      "--skip-local",
-      "--no-fragments",
-      "--no-cache",
-      "--quiet",
-      "--format",
-      "json",
-    ]);
-    cloneGroups = summarizeFallowDupes({ rawDupes, pathPatterns, trackedPathsByIssue });
-  } catch (error) {
-    fallowErrors.push(`dupes: ${errorMessage(error)}`);
-  }
-
-  if (axis?.telemetry?.entryWeights) {
-    try {
-      const rawEntryWeight = runFallowJson(repoRoot, [
-        "list",
-        "--entry-weight",
-        "--format",
-        "json",
-        "--quiet",
-      ]);
-      entryWeights = summarizeEntryWeights({ rawEntryWeight, trackedPathsByIssue });
-    } catch (error) {
-      fallowErrors.push(`entry-weight: ${errorMessage(error)}`);
-    }
-  }
-
+  const health = readFallowReport("health", fallowErrors, () =>
+    summarizeFallowHealth({ rawHealth: fallow.health(), pathPatterns, trackedPathsByIssue }),
+  );
+  const cloneGroups = readFallowReport("dupes", fallowErrors, () =>
+    summarizeFallowDupes({ rawDupes: fallow.dupes(), pathPatterns, trackedPathsByIssue }),
+  );
+  const entryWeights = axis?.telemetry?.entryWeights
+    ? readFallowReport("entry-weight", fallowErrors, () =>
+        summarizeEntryWeights({ rawEntryWeight: fallow.entryWeight(), trackedPathsByIssue }),
+      )
+    : undefined;
   const suppressions = collectSuppressionLedger(
-    repoRoot,
+    readFile,
     trackedFiles,
     axis?.telemetry?.suppressionTopFiles ?? false,
   );
 
   return {
-    shallowClone: isShallowRepo(repoRoot),
-    topFiles,
-    hotspots,
-    thresholdOverrides,
-    cloneGroups,
+    shallowClone: git.isShallow(),
+    topFiles: health?.topFiles ?? [],
+    hotspots: health?.hotspots ?? [],
+    thresholdOverrides: health?.thresholdOverrides ?? [],
+    cloneGroups: cloneGroups ?? [],
     ...(entryWeights ? { entryWeights } : {}),
     suppressions,
     ...(capabilitySymmetry ? { capabilitySymmetry: buildCapabilitySymmetry(trackedFiles) } : {}),
