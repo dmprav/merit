@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { errorMessage, normalizeRepoPath } from "../../cli.ts";
-import type { ScoutLens } from "../proposal.ts";
 import type { RotationAxis } from "./axes.ts";
 import {
   type CloneGroupEntry,
@@ -171,13 +170,13 @@ const isShallowRepo = (repoRoot: string): boolean => {
 
 export const collectStructuralTelemetry = ({
   repoRoot,
-  lens,
+  capabilitySymmetry,
   axis,
   trackedFiles,
   trackedPathsByIssue,
 }: {
   repoRoot: string;
-  lens: ScoutLens;
+  capabilitySymmetry: boolean;
   axis: RotationAxis | null;
   trackedFiles: readonly string[];
   trackedPathsByIssue: ReadonlyMap<string, number[]>;
@@ -225,7 +224,7 @@ export const collectStructuralTelemetry = ({
     fallowErrors.push(`dupes: ${errorMessage(error)}`);
   }
 
-  if (axis?.id === "interface-transport-and-routing") {
+  if (axis?.telemetry?.entryWeights) {
     try {
       const rawEntryWeight = runFallowJson(repoRoot, [
         "list",
@@ -243,7 +242,7 @@ export const collectStructuralTelemetry = ({
   const suppressions = collectSuppressionLedger(
     repoRoot,
     trackedFiles,
-    axis?.id === "enforcement-ladder-and-verification-gaps",
+    axis?.telemetry?.suppressionTopFiles ?? false,
   );
 
   return {
@@ -254,9 +253,7 @@ export const collectStructuralTelemetry = ({
     cloneGroups,
     ...(entryWeights ? { entryWeights } : {}),
     suppressions,
-    ...(lens === "architecture"
-      ? { capabilitySymmetry: buildCapabilitySymmetry(trackedFiles) }
-      : {}),
+    ...(capabilitySymmetry ? { capabilitySymmetry: buildCapabilitySymmetry(trackedFiles) } : {}),
     ...(fallowErrors.length > 0 ? { fallowErrors } : {}),
   };
 };

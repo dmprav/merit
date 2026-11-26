@@ -7,7 +7,12 @@ import { createGitHubIssueCliClient, type GitHubIssueCliClient } from "./github.
 import { MAX_OPEN_PROPOSALS, SCOUT_LENSES, type ScoutLens } from "./proposal.ts";
 import { buildScoutContext } from "./scout/context.ts";
 import { buildCommitQueryArgs, parseCommitLog } from "./scout/git.ts";
-import { MS_PER_DAY, resolveRotationTarget, selectAutoLens } from "./scout/lenses.ts";
+import {
+  LENS_POLICIES,
+  MS_PER_DAY,
+  resolveRotationTarget,
+  selectAutoLens,
+} from "./scout/lenses.ts";
 import { collectUnreadVerifications } from "./scout/repo-paths.ts";
 import {
   advanceScoutStateBody,
@@ -196,22 +201,21 @@ const runContextCommand = (
     trackedFiles,
     cursor?.lastRotationTarget,
   );
-  const unreadVerifications =
-    lens === "verification-flakes"
-      ? collectUnreadVerifications(trackedFiles, cursor?.lastPrNumber)
-      : [];
+  const policy = LENS_POLICIES[lens];
+  const unreadVerifications = policy.readsVerifications
+    ? collectUnreadVerifications(trackedFiles, cursor?.lastPrNumber)
+    : [];
 
   const trackedPathsByIssue = buildTrackedPathsIndex([...rawOpenIssues, ...rawWontfixIssues]);
-  const telemetry =
-    lens === "architecture" || lens === "simplification"
-      ? collectStructuralTelemetry({
-          repoRoot,
-          lens,
-          axis: rotationAxis,
-          trackedFiles,
-          trackedPathsByIssue,
-        })
-      : null;
+  const telemetry = policy.telemetry
+    ? collectStructuralTelemetry({
+        repoRoot,
+        capabilitySymmetry: policy.telemetry.capabilitySymmetry,
+        axis: rotationAxis,
+        trackedFiles,
+        trackedPathsByIssue,
+      })
+    : null;
 
   const context = buildScoutContext({
     lens,

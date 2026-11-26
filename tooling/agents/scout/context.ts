@@ -1,6 +1,6 @@
 import { classifyChangedPaths } from "../../verification/architecture/mechanisms.ts";
 import { MAX_OPEN_PROPOSALS, type ScoutLens } from "../proposal.ts";
-import type { RotationAxis } from "./axes.ts";
+import { describeRotationAxis, type RotationAxis } from "./axes.ts";
 import type { CommitSummary } from "./git.ts";
 import type { VerificationFileEntry } from "./repo-paths.ts";
 import type { LensCursor } from "./state.ts";
@@ -54,7 +54,7 @@ export const buildScoutContext = ({
     changedFiles,
     matchedMechanisms: classifyChangedPaths({ paths: changedFiles }),
     rotationTarget,
-    ...(rotationAxis ? { rotationAxis } : {}),
+    ...(rotationAxis ? { rotationAxis: describeRotationAxis(rotationAxis) } : {}),
     ...(telemetry ? { telemetry } : {}),
     unreadVerifications,
     openIssues,

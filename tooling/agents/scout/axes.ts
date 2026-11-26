@@ -1,10 +1,30 @@
-export type RotationAxis = {
+/** What a scout reads about one rotation target: its scope, the docs that anchor it, and what to look for. */
+export type RotationAxisDescription = {
   id: string;
   summary: string;
   anchorDocs: readonly string[];
   pathPatterns: readonly string[];
   focus: string;
 };
+
+/** Telemetry an axis needs beyond its lens's structural defaults. */
+export type AxisTelemetry = {
+  /** Measures eager versus deferred weight per bundle entry. */
+  entryWeights?: true;
+  /** Lists the files holding the most lint, fallow, and type-check suppressions. */
+  suppressionTopFiles?: true;
+};
+
+export type RotationAxis = RotationAxisDescription & { telemetry?: AxisTelemetry };
+
+/** Drops the telemetry flags, which steer collection but are not part of the scout context. */
+export const describeRotationAxis = ({
+  id,
+  summary,
+  anchorDocs,
+  pathPatterns,
+  focus,
+}: RotationAxis): RotationAxisDescription => ({ id, summary, anchorDocs, pathPatterns, focus });
 
 export const ARCHITECTURE_AXES: readonly RotationAxis[] = [
   {
@@ -58,6 +78,7 @@ export const ARCHITECTURE_AXES: readonly RotationAxis[] = [
     ],
     focus:
       "Eager router/bundle weight, repeated server-function adapter boilerplate across product and admin, and route loader/redirect/error-translation drift.",
+    telemetry: { entryWeights: true },
   },
   {
     id: "shared-ui-and-design-system-contracts",
@@ -117,6 +138,7 @@ export const ARCHITECTURE_AXES: readonly RotationAxis[] = [
     ],
     focus:
       "Recurring prose or review-rubric rules that should move up into lint, TypeScript boundaries, fallow, mechanisms.config.ts, or architecture tests, plus oxlint-disable and fallow override creep.",
+    telemetry: { suppressionTopFiles: true },
   },
 ];
 

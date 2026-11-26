@@ -4,7 +4,7 @@ import { SCOUT_LENSES, type ScoutLens } from "../proposal.ts";
 import { ARCHITECTURE_AXES, SIMPLIFICATION_LAYERS } from "./axes.ts";
 import {
   AUTO_LENS_PRIORITY,
-  LENS_TARGET_INTERVAL_DAYS,
+  LENS_POLICIES,
   pickNextRotationItem,
   resolveRotationTarget,
   selectAutoLens,
@@ -94,21 +94,31 @@ describe("automatic lens selection", () => {
 
   const ago = (days: number) => ({ lastRunAt: new Date(nowMs - days * dayMs).toISOString() });
 
-  test("ranks every lens exactly once", () => {
-    expect([...AUTO_LENS_PRIORITY].sort()).toEqual([...SCOUT_LENSES].sort());
+  test("ranks every lens once, from the highest-impact engineering lens", () => {
+    expect(AUTO_LENS_PRIORITY).toEqual([
+      "architecture",
+      "simplification",
+      "security",
+      "mcp-db",
+      "tests",
+      "docs",
+      "verification-flakes",
+    ]);
+    const priorities = SCOUT_LENSES.map((lens) => LENS_POLICIES[lens].priority);
+    expect(new Set(priorities).size).toBe(SCOUT_LENSES.length);
   });
 
   test("bootstraps never-run lenses in priority order", () => {
     expect(selectAutoLens({ state: {}, nowMs })).toEqual({
       due: true,
       lens: "architecture",
-      targetIntervalDays: LENS_TARGET_INTERVAL_DAYS.architecture,
+      targetIntervalDays: LENS_POLICIES.architecture.intervalDays,
       lastRunAt: null,
     });
     expect(selectAutoLens({ state: { architecture: ago(0.5) }, nowMs })).toEqual({
       due: true,
       lens: "simplification",
-      targetIntervalDays: LENS_TARGET_INTERVAL_DAYS.simplification,
+      targetIntervalDays: LENS_POLICIES.simplification.intervalDays,
       lastRunAt: null,
     });
   });
@@ -165,5 +175,33 @@ describe("automatic lens selection", () => {
         nowMs,
       }),
     ).toEqual({ due: false, nextLens: "simplification", nextDueInHours: 48 });
+  });
+});
+
+describe("lens policies", () => {
+  test("collect structural telemetry only for the architecture and simplification lenses", () => {
+    expect(SCOUT_LENSES.filter((lens) => LENS_POLICIES[lens].telemetry)).toEqual([
+      "architecture",
+      "simplification",
+    ]);
+    expect(LENS_POLICIES.architecture.telemetry).toEqual({ capabilitySymmetry: true });
+  });
+
+  test("read verification records only for the verification-flakes lens", () => {
+    expect(SCOUT_LENSES.filter((lens) => LENS_POLICIES[lens].readsVerifications)).toEqual([
+      "verification-flakes",
+    ]);
+  });
+
+  test("ask for extra telemetry only on the axes that inspect it", () => {
+    expect(
+      ARCHITECTURE_AXES.filter((axis) => axis.telemetry).map(({ id, telemetry }) => ({
+        id,
+        telemetry,
+      })),
+    ).toEqual([
+      { id: "interface-transport-and-routing", telemetry: { entryWeights: true } },
+      { id: "enforcement-ladder-and-verification-gaps", telemetry: { suppressionTopFiles: true } },
+    ]);
   });
 });
