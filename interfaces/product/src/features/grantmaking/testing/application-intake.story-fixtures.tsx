@@ -69,6 +69,7 @@ const fixture = (
     | "revision"
     | "correction"
     | "history"
+    | "funded"
     | "withdrawn",
 ): Page => {
   const preparing = state === "incomplete" || state === "complete";
@@ -137,6 +138,7 @@ const fixture = (
     intake: {
       revision: 2,
       workingRevision: state === "revision" || state === "correction" ? revision : null,
+      ...(state === "funded" ? { decisions: { hasDecision: true, hasCommitment: true } } : {}),
       history:
         state === "history"
           ? [

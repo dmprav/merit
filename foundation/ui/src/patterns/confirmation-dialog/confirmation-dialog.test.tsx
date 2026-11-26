@@ -140,3 +140,25 @@ it("closes after a confirmed action and restores trigger focus", async () => {
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   await waitFor(() => expect(trigger).toHaveFocus());
 });
+
+it("withholds confirmation while it is disabled", async () => {
+  const user = userEvent.setup();
+  const confirm = vi.fn();
+  render(
+    <ConfirmationDialog
+      title="Withdraw?"
+      description="This cannot be done yet."
+      cancelLabel="Cancel"
+      confirmLabel="Withdraw"
+      isOpen
+      isConfirmDisabled
+      onOpenChange={vi.fn()}
+      onConfirm={confirm}
+    />,
+  );
+
+  const action = screen.getByRole("button", { name: "Withdraw" });
+  expect(action).toBeDisabled();
+  await user.click(action);
+  expect(confirm).not.toHaveBeenCalled();
+});

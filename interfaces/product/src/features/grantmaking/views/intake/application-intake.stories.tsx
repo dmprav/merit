@@ -135,22 +135,15 @@ export const ConfirmDelete: Story = {
 
 /** A funded application cannot be withdrawn until a new decision version supersedes the commitment. */
 export const WithdrawFundedApplication: Story = {
+  args: { state: "funded" },
   play: async ({ canvas, canvasElement, userEvent }) => {
     const body = within(canvasElement.ownerDocument.body);
-    mocked(editApplication).mockResolvedValueOnce({
-      status: "invalid",
-      error: "application_has_commitment",
-    });
     await userEvent.click(await canvas.findByRole("button", { name: "Application actions" }));
     await userEvent.click(body.getByRole("menuitem", { name: "Withdraw application" }));
     const dialog = within(body.getByRole("dialog"));
-    await userEvent.type(
-      dialog.getByRole("textbox", { name: "Reason" }),
-      "The applicant withdrew.",
-    );
-    await userEvent.click(dialog.getByRole("button", { name: "Withdraw application" }));
 
-    await expect(await dialog.findByText(/has committed funding/)).toBeVisible();
+    await expect(await dialog.findByRole("alert")).toHaveTextContent(/has committed funding/);
+    await expect(dialog.getByRole("button", { name: "Withdraw application" })).toBeDisabled();
   },
 };
 

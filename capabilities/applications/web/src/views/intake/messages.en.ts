@@ -104,7 +104,8 @@ export const intakeMessages = {
     withdraw: "Withdraw application",
     withdrawFor: "Withdraw application: {{title}}",
     reinstateFor: "Reinstate application: {{title}}",
-    withdrawDescription: "The application, its material, reviews, and recommendation are kept.",
+    withdrawDescription:
+      "The application, its material, reviews, recommendation, and committee decision are kept.",
     withdrawClosesReviews_one:
       "{{count}} outstanding review request will close, and its reviewer’s access will end.",
     withdrawClosesReviews_other:

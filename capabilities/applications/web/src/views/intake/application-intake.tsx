@@ -432,6 +432,7 @@ export const IntakeFeedback = ({
     | "confirm"
     | "confirmationKey"
     | "outstandingReviews"
+    | "hasCommitment"
   >;
 }) => {
   const { t } = useTranslation(["applicationIntake", "common"]);
@@ -493,6 +494,7 @@ const IntakeConfirmations = ({
     | "confirm"
     | "confirmationKey"
     | "outstandingReviews"
+    | "hasCommitment"
   >;
   error: string | null;
 }) => {
@@ -513,6 +515,7 @@ const IntakeConfirmations = ({
         {...shared}
         isOpen={confirmation === "withdraw"}
         outstandingReviews={intake.outstandingReviews}
+        hasCommitment={intake.hasCommitment}
       />
       <ReinstateDialog
         key={`reinstate-${intake.confirmationKey}`}
@@ -622,12 +625,13 @@ const useWithdrawalDate = () => {
 const WithdrawDialog = ({
   application,
   outstandingReviews,
+  hasCommitment,
   pending,
   error,
   onClose,
   onConfirm,
   isOpen,
-}: ReasonDialogProps & { outstandingReviews: number }) => {
+}: ReasonDialogProps & { outstandingReviews: number; hasCommitment: boolean }) => {
   const { t } = useTranslation(["applicationIntake", "common"]);
   const date = useWithdrawalDate();
   const reason = useReason();
@@ -648,7 +652,9 @@ const WithdrawDialog = ({
       isOpen={isOpen}
       onOpenChange={(open) => !open && onClose()}
       isPending={pending}
-      error={error}
+      // A funded decision blocks withdrawal; say so before the form is filled in.
+      isConfirmDisabled={hasCommitment}
+      error={hasCommitment ? t("intake.hasCommitment") : error}
       onConfirm={() => {
         // Check both fields so every problem shows at once.
         const valid = [date.check(), reason.check()].every(Boolean);

@@ -85,6 +85,7 @@ export const useApplicationIntake = ({
     application,
     withdrawn: isWithdrawn(application),
     outstandingReviews: outstandingReviewCount(application),
+    hasCommitment: intake.decisions?.hasCommitment ?? false,
     metadataEditing: intakeMetadataEditing(application, data, editing.section),
     workingRevision: intake.workingRevision,
     canStartRevision: canStartIntakeRevision(application, intake.workingRevision),
