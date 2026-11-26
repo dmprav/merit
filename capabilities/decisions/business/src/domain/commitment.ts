@@ -8,6 +8,10 @@ type DecisionFacts = { outcome: DecisionOutcome; amount: Money };
 export const commitmentOf = (decision: DecisionFacts | null) =>
   decision && commitsFunding(decision.outcome) ? decision.amount : fromMinorUnits(0n);
 
+/** Funding is only committed to an application that is past preparation and states what it requests. */
+export const readyForFunding = (application: { intakeStatus: string; requested: unknown }) =>
+  application.intakeStatus !== "in_preparation" && application.requested !== null;
+
 export const commitmentTotals = (budget: Money | null, commitments: readonly Money[]) => {
   const committed = sum(commitments);
   return { committed, available: budget === null ? null : subtract(budget, committed) };

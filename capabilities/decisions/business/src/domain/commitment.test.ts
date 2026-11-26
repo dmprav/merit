@@ -8,6 +8,7 @@ import {
   commitmentTotalProblem,
   commitmentTotals,
   previewCommitment,
+  readyForFunding,
 } from "./commitment";
 import { decodeCommitmentContext } from "./encoding";
 
@@ -19,6 +20,12 @@ const maximum = fromMinorUnits(10n ** 30n - 1n);
 
 // A €60,000 round holding a €24,000 award and a €28,000 conditional award leaves €8,000.
 const round = { budget: euros(60_000), committed: euros(52_000) };
+
+it("holds funding until the application is past preparation and states a request", () => {
+  expect(readyForFunding({ intakeStatus: "in_preparation", requested: euros(10) })).toBe(false);
+  expect(readyForFunding({ intakeStatus: "ready", requested: null })).toBe(false);
+  expect(readyForFunding({ intakeStatus: "ready", requested: euros(10) })).toBe(true);
+});
 
 it("reserves an amount only for decisions that commit funding", () => {
   expect(commitmentOf({ outcome: "Fund", amount: euros(10) })).toEqual(euros(10));

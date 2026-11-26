@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, or, sql, type SQLWrapper } from "drizzle-orm";
+import { and, desc, eq, inArray, sql, type SQLWrapper } from "drizzle-orm";
 
 import { applicationCases } from "@merit/applications/schema";
 import { activeCase } from "@merit/applications/scope";
@@ -83,12 +83,11 @@ export const readDecisionChange = async (db: Database, caseId: string, revision:
   return version ? { revision, decision: assembleDecisionRecord(version) } : undefined;
 };
 
-/** Current commitments of the round's active cases, plus `includedCaseId` when it is withdrawn. */
+/** Current commitments of the round's active cases. */
 export const readRoundCommitments = async (
   db: Database,
   organizationId: string,
   roundId: string,
-  includedCaseId?: string,
 ) => {
   const rows = await db
     .selectDistinctOn([committeeDecisionVersions.caseId], {
@@ -102,9 +101,7 @@ export const readRoundCommitments = async (
       and(
         eq(applicationCases.organizationId, organizationId),
         eq(applicationCases.roundId, roundId),
-        includedCaseId === undefined
-          ? activeCase("application_cases")
-          : or(activeCase("application_cases"), eq(applicationCases.id, includedCaseId)),
+        activeCase("application_cases"),
       ),
     )
     .orderBy(committeeDecisionVersions.caseId, desc(committeeDecisionVersions.revision));

@@ -7,15 +7,12 @@ import type { WorkspaceChangeObserver } from "@merit/organizations/domain";
 import { writeObservedWorkspace } from "@merit/organizations/transactions";
 
 import { recordDecisionRequestSchema, type RecordDecisionRequest } from "../../api/commands";
-import { previewCommitment } from "../../domain/commitment";
+import { previewCommitment, readyForFunding } from "../../domain/commitment";
 import { prepareDecision, type Decision } from "../../domain/decision";
 import { commitsFunding } from "../../domain/decision-outcome";
 import { readDecisionState, writeDecision } from "../persistence/commands/decisions";
 
 type DecisionState = NonNullable<Awaited<ReturnType<typeof readDecisionState>>>;
-
-const readyForFunding = (application: DecisionState["application"]) =>
-  application.intakeStatus !== "in_preparation" && application.requested !== null;
 
 const decodeAmount = (input: RecordDecisionRequest["decision"]["amount"]) => {
   try {
