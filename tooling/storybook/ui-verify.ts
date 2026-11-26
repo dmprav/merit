@@ -1526,21 +1526,59 @@ export const checkKeyboardFocusTraversal = async (
   if (finalStop && !finalStop.unfocused) {
     await page.keyboard.press("Tab");
     await settleAnimations(page);
-    const blurred = await page.evaluate((targetIndex: number) => {
+    // An item in an open list or menu cannot be compared by blurring it: the collection keeps
+    // focus, and returns it to the item. Move focus to a sibling item instead, so the item is
+    // compared with how it looks while its neighbour is the focused one.
+    const siblingKey = await page.evaluate((targetIndex: number) => {
       const tracker = window.__meritFocusTracker;
       const el = tracker?.stops[targetIndex];
-      if (!tracker || !el || !el.isConnected) {
-        return false;
+      if (!tracker || !el || !el.isConnected || tracker.deepActiveElement() !== el) {
+        return undefined;
       }
-      if (tracker.deepActiveElement() === el && tracker.isFocusable(el)) {
-        el.blur();
-        return true;
+      const itemSelector =
+        '[role="option"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]';
+      const collection = el.matches(itemSelector)
+        ? el.closest('[role="listbox"], [role="menu"]')
+        : null;
+      const items = collection ? [...collection.querySelectorAll(itemSelector)] : [];
+      const position = items.indexOf(el);
+      if (position < 0 || items.length < 2) {
+        return undefined;
       }
-      return false;
+      return position < items.length - 1 ? "ArrowDown" : "ArrowUp";
     }, finalStop.index);
-    if (blurred) {
-      await settleAnimations(page);
+    if (siblingKey) {
+      await page.keyboard.press(siblingKey);
+      await page
+        .waitForFunction(
+          (targetIndex: number) => {
+            const tracker = window.__meritFocusTracker;
+            const el = tracker?.stops[targetIndex];
+            const active = tracker?.deepActiveElement();
+            return Boolean(el && active && active !== el && el.closest("[role]")?.contains(active));
+          },
+          finalStop.index,
+          { timeout: 2_000 },
+        )
+        .catch(() => undefined);
+    } else {
+      const blurred = await page.evaluate((targetIndex: number) => {
+        const tracker = window.__meritFocusTracker;
+        const el = tracker?.stops[targetIndex];
+        if (!tracker || !el || !el.isConnected) {
+          return false;
+        }
+        if (tracker.deepActiveElement() === el && tracker.isFocusable(el)) {
+          el.blur();
+          return true;
+        }
+        return false;
+      }, finalStop.index);
+      if (blurred) {
+        await settleAnimations(page);
+      }
     }
+    await settleAnimations(page);
     const finalUnfocused = await page.evaluate((targetIndex: number) => {
       const tracker = window.__meritFocusTracker;
       const el = tracker?.stops[targetIndex];

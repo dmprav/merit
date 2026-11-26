@@ -276,6 +276,60 @@ test.describe("live Chromium checker failure detection", () => {
     }
   });
 
+  test("compares a focus-trapped list option with its neighbour's focus, not a blur", async ({
+    newContext,
+  }) => {
+    const context = await newContext({ viewport: { width: 1280, height: 800 } });
+
+    const html = (
+      barRule: string,
+    ) => `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>List</title><style>
+        body { background: #fff; color: #111; }
+        [role="option"] { display: block; padding: 6px 10px; outline: none; background: #fff; color: #111; }
+        ${barRule}
+      </style></head><body>
+        <div role="listbox" aria-label="Choices" tabindex="-1">
+          <div role="option" tabindex="-1" id="a">Alpha</div>
+          <div role="option" tabindex="-1" id="b">Beta</div>
+        </div>
+        <script>
+          const list = document.querySelector('[role="listbox"]');
+          const options = [...list.querySelectorAll('[role="option"]')];
+          options[1].focus();
+          // Like an open list: Tab and blur leave focus where it was, and arrows move it.
+          list.addEventListener("focusout", (event) => {
+            if (!list.contains(event.relatedTarget)) {
+              queueMicrotask(() => event.target.focus());
+            }
+          });
+          list.addEventListener("keydown", (event) => {
+            const index = options.indexOf(document.activeElement);
+            if (event.key === "ArrowDown") options[Math.min(index + 1, 1)].focus();
+            if (event.key === "ArrowUp") options[Math.max(index - 1, 0)].focus();
+            if (event.key === "Tab") event.preventDefault();
+          });
+        </script>
+      </body></html>`;
+
+    const withBar = await context.newPage();
+    await withBar.setContent(
+      html('[role="option"]:focus { background: #edf0f7; box-shadow: inset 3px 0 #455779; }'),
+    );
+    const passing = await checkKeyboardFocusTraversal(withBar);
+    expect(passing.stopsChecked).toBe(1);
+    expect(passing.failures).toEqual([]);
+
+    const withoutBar = await context.newPage();
+    await withoutBar.setContent(html(""));
+    const failing = await checkKeyboardFocusTraversal(withoutBar);
+    expect(failing.failures).toEqual([
+      expect.objectContaining({
+        element: 'div[role=option] "Beta"',
+        reasons: ["no visible focus indicator change compared to unfocused state"],
+      }),
+    ]);
+  });
+
   test("re-checks the paint of a dialog's first stop when focus cycles back to it", async ({
     newContext,
   }) => {
