@@ -77,12 +77,13 @@ const infrastructure = category("{server,browser}", ["pure"]);
 
 // Upstream and sibling capabilities stay independent of downstream capabilities.
 const upstreamDisallowedTargets: Record<string, string> = {
-  organizations: "{contacts,rounds,applications,reviews,recommendations,grantmaking}",
-  contacts: "{rounds,applications,reviews,recommendations,grantmaking}",
-  rounds: "{applications,reviews,recommendations,grantmaking}",
-  applications: "{reviews,recommendations,grantmaking}",
-  reviews: "{recommendations,grantmaking}",
-  recommendations: "{reviews,grantmaking}",
+  organizations: "{contacts,rounds,applications,reviews,recommendations,decisions,grantmaking}",
+  contacts: "{rounds,applications,reviews,recommendations,decisions,grantmaking}",
+  rounds: "{applications,reviews,recommendations,decisions,grantmaking}",
+  applications: "{reviews,recommendations,decisions,grantmaking}",
+  reviews: "{recommendations,decisions,grantmaking}",
+  recommendations: "{reviews,decisions,grantmaking}",
+  decisions: "{reviews,recommendations,grantmaking}",
 };
 
 // Match the consumer, public specifier, and resolved provider role. Later policies can still deny an import.

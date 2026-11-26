@@ -67,6 +67,7 @@ export const getFundingRoundPage = async (
     const properties = decodeRound(row.snapshot);
     const totals = await readRoundPageTotals(tx, row.organizationId, properties);
     const proposed = fromMinorUnits(BigInt(totals.proposed));
+    const committed = fromMinorUnits(BigInt(totals.committed));
     const round = {
       ...properties,
       applicationCount: totals.applicationCount,
@@ -75,6 +76,8 @@ export const getFundingRoundPage = async (
         requested: fromMinorUnits(BigInt(totals.requested)),
         proposed,
         remaining: properties.budget === null ? null : subtract(properties.budget, proposed),
+        committed,
+        available: properties.budget === null ? null : subtract(properties.budget, committed),
         unknownRequests: totals.unknownRequests,
         withdrawnApplications: totals.withdrawnApplications,
         reviews: { ...totals.reviews, ...reviewProgress(totals.reviews) },
@@ -113,7 +116,12 @@ export const getFundingApplicationPage = async (
     }
 
     const history = await readApplicationHistory(tx, row.organizationId, row.publicId);
-    const round = decodeApplicationContext(row.round, row.allocations, row.withdrawnApplications);
+    const round = decodeApplicationContext(
+      row.round,
+      row.allocations,
+      row.commitments,
+      row.withdrawnApplications,
+    );
 
     return {
       intake: {
@@ -133,6 +141,7 @@ export const getFundingApplicationPage = async (
       round,
       workspaceSlug: row.workspaceSlug,
       recommendationVersion: row.recommendationVersion,
+      decision: row.decision,
     };
   });
 };

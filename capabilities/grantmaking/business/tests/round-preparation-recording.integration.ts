@@ -7,6 +7,8 @@ import { getFundingRoundPage } from "@merit/grantmaking/server";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit/rounds/server";
 
+import { roundCommitments } from "./application-work";
+
 it.for(["criteria_versions", "audit_events"])(
   "rolls back round creation and its retry receipt when %s cannot be recorded",
   async (table, { db, database }) => {
@@ -54,20 +56,25 @@ it.for(["criteria_versions", "audit_events"])(
     );
     try {
       await expect(
-        editFundingRound(db, actor, {
-          ...address,
-          expectedRevision: 0,
-          change: {
-            section: "criteria",
-            criteria: [
-              {
-                id: "69ab841a-4705-57f6-aa41-875e8fa4ad4a",
-                title: "Fit",
-                description: "Community benefit",
-              },
-            ],
+        editFundingRound(
+          db,
+          actor,
+          {
+            ...address,
+            expectedRevision: 0,
+            change: {
+              section: "criteria",
+              criteria: [
+                {
+                  id: "69ab841a-4705-57f6-aa41-875e8fa4ad4a",
+                  title: "Fit",
+                  description: "Community benefit",
+                },
+              ],
+            },
           },
-        }),
+          roundCommitments,
+        ),
       ).rejects.toThrow();
       expect(await getFundingRoundPage(db, actor, { ...address, kind: "round" })).toEqual(before);
       expect((await database.client.query("SELECT * FROM audit_events")).rows).toEqual(history);
@@ -130,11 +137,16 @@ it("records each preparation event with its action, reason, actor, and verified 
   assert(created.status === "ok");
   const address = { workspaceSlug, publicId: created.publicId };
   expect(
-    await editFundingRound(db, recorder, {
-      ...address,
-      expectedRevision: 0,
-      change: { section: "budget", amount: "200.50", reason: "Additional allocation" },
-    }),
+    await editFundingRound(
+      db,
+      recorder,
+      {
+        ...address,
+        expectedRevision: 0,
+        change: { section: "budget", amount: "200.50", reason: "Additional allocation" },
+      },
+      roundCommitments,
+    ),
   ).toEqual({ status: "ok", revision: 1 });
 
   await database.client.query("INSERT INTO app_users (id, name) VALUES ('pat', 'Pat Taylor')");
@@ -142,11 +154,16 @@ it("records each preparation event with its action, reason, actor, and verified 
     "INSERT INTO memberships (organization_id, user_id, role) VALUES ('alder', 'pat', 'program_manager')",
   );
   expect(
-    await editFundingRound(db, recorder, {
-      ...address,
-      expectedRevision: 1,
-      change: { section: "manager", userId: "pat" },
-    }),
+    await editFundingRound(
+      db,
+      recorder,
+      {
+        ...address,
+        expectedRevision: 1,
+        change: { section: "manager", userId: "pat" },
+      },
+      roundCommitments,
+    ),
   ).toEqual({ status: "ok", revision: 2 });
   expect(
     await deleteFundingRound(

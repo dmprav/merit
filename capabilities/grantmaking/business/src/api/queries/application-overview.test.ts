@@ -14,6 +14,7 @@ const summary = {
   reviews: { current: 0, outdated: 1, outstanding: 1, unknown: 0 },
   criteriaChanged: false,
   recommendation: null,
+  decision: null,
 };
 
 it("excludes application material from workspace summaries", () => {
@@ -37,8 +38,16 @@ it("keeps a summary with a recommendation serializable", () => {
   );
 });
 
+it("keeps the committee decision separate from the recommendation", () => {
+  const decided = { ...summary, decision: { outcome: "Fund with conditions" as const } };
+
+  expect(applicationOverviewSchema.parse(JSON.parse(JSON.stringify(decided)))).toEqual(decided);
+  expect(applicationOverviewSchema.parse(decided).recommendation).toBeNull();
+});
+
 it.each([
   { id: "invalid" },
+  { decision: { outcome: "Approved" } },
   { intakeStatus: "approved" },
   { reviews: { ...summary.reviews, current: -1 } },
   {

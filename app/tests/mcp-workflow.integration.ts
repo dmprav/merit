@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { assert, expect } from "vite-plus/test";
 
+import { roundCommitments } from "@merit/decisions/server/integrations";
 import { getFundingApplicationPage, getFundingRoundPage } from "@merit/grantmaking/server";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
@@ -294,12 +295,17 @@ it("rejects a round edit using a stale preparation revision without changing the
 }) => {
   const read = async () => (await getFundingRoundPage(db, actor, { ...pageInput, kind: "round" }))!;
 
-  const colleague = await editFundingRound(db, actor, {
-    workspaceSlug: "alder",
-    publicId: pageInput.publicId,
-    expectedRevision: (await read()).preparation.revision,
-    change: { section: "budget", amount: "1000", reason: "A colleague's envelope" },
-  });
+  const colleague = await editFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug: "alder",
+      publicId: pageInput.publicId,
+      expectedRevision: (await read()).preparation.revision,
+      change: { section: "budget", amount: "1000", reason: "A colleague's envelope" },
+    },
+    roundCommitments,
+  );
   assert(colleague.status === "ok", "Could not prepare the colleague's round edit");
   const before = await read();
 

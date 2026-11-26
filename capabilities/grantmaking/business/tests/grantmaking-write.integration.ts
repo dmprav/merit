@@ -15,6 +15,7 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { editFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
+import { roundCommitments } from "./application-work";
 import { contactWork } from "./contact-work";
 import { roundTest } from "./round-test";
 
@@ -44,15 +45,20 @@ const alder = { slug: "alder", userId: actor.userId };
 // has a second version that the first application lacks.
 const it = roundTest.extend("scenario", async ({ db, rounds }) => {
   const criterionId = randomUUID();
-  const editedRound = await editFundingRound(db, actor, {
-    workspaceSlug: rounds.pageInput.workspaceSlug,
-    publicId: rounds.pageInput.publicId,
-    expectedRevision: 0,
-    change: {
-      section: "criteria",
-      criteria: [{ id: criterionId, title: "Community fit", description: "Community benefit" }],
+  const editedRound = await editFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug: rounds.pageInput.workspaceSlug,
+      publicId: rounds.pageInput.publicId,
+      expectedRevision: 0,
+      change: {
+        section: "criteria",
+        criteria: [{ id: criterionId, title: "Community fit", description: "Community benefit" }],
+      },
     },
-  });
+    roundCommitments,
+  );
   assert(editedRound.status === "ok", "Could not add criteria fixture");
   const address = await rounds.createApplication("Recorded application");
   await rounds.recommendApplication(address, "8000");

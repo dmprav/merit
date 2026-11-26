@@ -13,6 +13,7 @@ vi.mock("./example-data", () => ({
   get exampleRound() {
     return example.read();
   },
+  exampleDecisions: {},
 }));
 
 afterEach(() => vi.resetAllMocks());

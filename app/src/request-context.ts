@@ -1,6 +1,7 @@
 import type { ApplicationsService } from "@merit/applications/api";
 import type { Identity } from "@merit/auth";
 import type { ContactService } from "@merit/contacts/api";
+import type { DecisionsService } from "@merit/decisions/api";
 import type { GrantmakingQueries, NavigationService } from "@merit/grantmaking/api";
 import type { OrganizationService } from "@merit/organizations/api";
 import type { DemoServices } from "@merit/product/context";
@@ -19,6 +20,7 @@ export interface ApplicationRequestContext {
   applications: ApplicationsService;
   reviews: ReviewService;
   recommendations: RecommendationsService;
+  decisions: DecisionsService;
   contacts: ContactService;
   grantmaking: GrantmakingQueries;
   organizations: OrganizationService;

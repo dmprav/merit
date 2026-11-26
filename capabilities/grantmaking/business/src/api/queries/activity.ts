@@ -6,7 +6,7 @@ import { workspaceSlugSchema } from "@merit/organizations/api";
 
 export const workspaceActivityInput = z.strictObject({
   workspaceSlug: workspaceSlugSchema,
-  /** Matches the round and its applications, including their review requests, reviewer responses, assessments, and recommendations. */
+  /** Matches the round and its applications, including their review requests, reviewer responses, assessments, recommendations, and committee decisions. */
   roundId: publicIdSchema.optional(),
   /** The recorded person's user ID; interfaces send it in a request body, never a URL. */
   personId: z.string().min(1).max(200).optional(),
@@ -41,7 +41,7 @@ export const activityEntrySchema = z.object({
     roundId: z.string().nullable(),
     applicationId: z.string().nullable(),
   }),
-  /** The reason recorded with a withdrawal or reinstatement; null for other actions. */
+  /** The reason recorded with a withdrawal or reinstatement, or the explanation of an amended decision; null for other actions. */
   reason: z.string().nullable(),
   /** The record's current identity, or null when it no longer exists. */
   record: activityRecordSchema.nullable(),

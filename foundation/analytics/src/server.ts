@@ -9,7 +9,8 @@ export type GrantOutcome = {
     | "round_created"
     | "application_recorded"
     | "assessment_submitted"
-    | "funding_recommendation_saved";
+    | "funding_recommendation_saved"
+    | "committee_decision_recorded";
   surface: "web" | "mcp";
   workspaceKind: "standard" | "demo";
   workspaceId: string;

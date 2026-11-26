@@ -1,5 +1,6 @@
 import type { ApplicationsService } from "@merit/applications/api";
 import type { ContactOperations } from "@merit/contacts-ai";
+import type { DecisionsService } from "@merit/decisions/api";
 import type { GrantmakingOperations } from "@merit/grantmaking-ai";
 import type { WorkspaceOperations } from "@merit/organizations-ai";
 import type { DemoOperations } from "@merit/organizations-ai/demo";
@@ -13,6 +14,7 @@ export type McpOperations = {
   reviews: ReviewService;
   reviewer: ReviewerService;
   recommendations: RecommendationsService;
+  decisions: DecisionsService;
   grantmaking: GrantmakingOperations;
   contacts: ContactOperations;
   organizations: WorkspaceOperations;

@@ -14,6 +14,7 @@ import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
+import { roundCommitments } from "./application-work";
 
 const createRound = async (db: Database) => {
   const round = await createFundingRound(db, actor, {
@@ -60,12 +61,17 @@ const editDetails = async (db: Database, publicId: string, count: number) => {
 /** Records budgets of 1000, 1001, … after creation, leaving the round at revision `count`. */
 const changeBudgets = async (db: Database, roundId: string, count: number) => {
   for (let revision = 0; revision < count; revision++) {
-    const edited = await editFundingRound(db, actor, {
-      workspaceSlug,
-      publicId: roundId,
-      expectedRevision: revision,
-      change: { section: "budget", amount: String(1000 + revision), reason: "Updated funding" },
-    });
+    const edited = await editFundingRound(
+      db,
+      actor,
+      {
+        workspaceSlug,
+        publicId: roundId,
+        expectedRevision: revision,
+        change: { section: "budget", amount: String(1000 + revision), reason: "Updated funding" },
+      },
+      roundCommitments,
+    );
     assert(edited.status === "ok", "Could not record the budget history fixture");
   }
 };

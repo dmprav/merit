@@ -2,6 +2,7 @@ import type { z } from "zod";
 
 import type { IntakeState } from "@merit/applications/api";
 import type { Actor } from "@merit/auth";
+import type { DecisionStateData } from "@merit/decisions/api";
 import type { PreparationState } from "@merit/rounds/api";
 
 import type { ApplicationRequest, PublicRoundRequest } from "./queries";
@@ -88,6 +89,7 @@ export interface GrantmakingQueries {
     round: ApplicationRoundContext;
     workspaceSlug: string;
     recommendationVersion: number;
+    decision: DecisionStateData;
   } | null>;
   readRoundPage: (
     actor: Actor,

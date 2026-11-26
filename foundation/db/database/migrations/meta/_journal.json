@@ -15,6 +15,13 @@
       "when": 1795446230669,
       "tag": "0001_assistant_conversations",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795712444145,
+      "tag": "0002_committee_decisions",
+      "breakpoints": true
     }
   ]
 }

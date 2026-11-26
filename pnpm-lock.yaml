@@ -526,6 +526,9 @@ importers:
       '@merit/db':
         specifier: workspace:*
         version: link:../foundation/db
+      '@merit/decisions':
+        specifier: workspace:*
+        version: link:../capabilities/decisions/business
       '@merit/drafts':
         specifier: workspace:*
         version: link:../foundation/drafts
@@ -1025,6 +1028,171 @@ importers:
         specifier: 'catalog:'
         version: 1.5.0(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@31.0.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
 
+  capabilities/decisions/ai:
+    dependencies:
+      '@merit/ai':
+        specifier: workspace:*
+        version: link:../../../foundation/ai
+      '@merit/auth':
+        specifier: workspace:*
+        version: link:../../../foundation/auth
+      '@merit/db':
+        specifier: workspace:*
+        version: link:../../../foundation/db
+      '@merit/decisions':
+        specifier: workspace:*
+        version: link:../business
+      '@merit/money':
+        specifier: workspace:*
+        version: link:../../../foundation/money
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite-plus:
+        specifier: 'catalog:'
+        version: 1.5.0(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@31.0.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+
+  capabilities/decisions/business:
+    dependencies:
+      '@merit/applications':
+        specifier: workspace:*
+        version: link:../../applications/business
+      '@merit/audit':
+        specifier: workspace:*
+        version: link:../../audit/business
+      '@merit/auth':
+        specifier: workspace:*
+        version: link:../../../foundation/auth
+      '@merit/dates':
+        specifier: workspace:*
+        version: link:../../../foundation/dates
+      '@merit/db':
+        specifier: workspace:*
+        version: link:../../../foundation/db
+      '@merit/money':
+        specifier: workspace:*
+        version: link:../../../foundation/money
+      '@merit/organizations':
+        specifier: workspace:*
+        version: link:../../organizations/business
+      '@merit/rounds':
+        specifier: workspace:*
+        version: link:../../rounds/business
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.4(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(pg@8.23.1)
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      '@types/pg':
+        specifier: 'catalog:'
+        version: 8.23.1
+      pg:
+        specifier: 'catalog:'
+        version: 8.23.1
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite-plus:
+        specifier: 'catalog:'
+        version: 1.5.0(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@31.0.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+
+  capabilities/decisions/web:
+    dependencies:
+      '@merit/decisions':
+        specifier: workspace:*
+        version: link:../business
+      '@merit/drafts':
+        specifier: workspace:*
+        version: link:../../../foundation/drafts
+      '@merit/forms':
+        specifier: workspace:*
+        version: link:../../../foundation/forms
+      '@merit/grantmaking':
+        specifier: workspace:*
+        version: link:../../grantmaking/business
+      '@merit/i18n':
+        specifier: workspace:*
+        version: link:../../../foundation/i18n
+      '@merit/money':
+        specifier: workspace:*
+        version: link:../../../foundation/money
+      '@merit/recommendations':
+        specifier: workspace:*
+        version: link:../../recommendations/business
+      '@merit/ui':
+        specifier: workspace:*
+        version: link:../../../foundation/ui
+      '@tanstack/react-query':
+        specifier: 'catalog:'
+        version: 5.107.1(@types/react@19.3.0)(react@19.3.1)
+      i18next:
+        specifier: 'catalog:'
+        version: 26.7.2(typescript@7.0.2)
+      react:
+        specifier: 'catalog:'
+        version: 19.3.1
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.3.1(react@19.3.1)
+      react-i18next:
+        specifier: 'catalog:'
+        version: 17.1.13(i18next@26.7.2(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@7.0.2)
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@merit/test-support':
+        specifier: workspace:*
+        version: link:../../../tooling/testing
+      '@storybook/react-vite':
+        specifier: 'catalog:'
+        version: 11.0.0-beta.3(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))(react-docgen-typescript@2.4.0(typescript@7.0.2))(react-docgen@8.0.4(supports-color@10.2.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(storybook@11.0.0-beta.3(@types/react@19.3.0)(prettier@3.9.10)(react@19.3.1)(vite-plus@1.5.0(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@31.0.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)))(typescript@7.0.2)
+      '@testing-library/dom':
+        specifier: 'catalog:'
+        version: 10.4.2
+      '@testing-library/react':
+        specifier: 'catalog:'
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@testing-library/user-event':
+        specifier: 'catalog:'
+        version: 14.6.13(@testing-library/dom@10.4.2)
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.3.0(@types/react@19.3.0)
+      jsdom:
+        specifier: 'catalog:'
+        version: 31.0.1
+      storybook:
+        specifier: 'catalog:'
+        version: 11.0.0-beta.3(@types/react@19.3.0)(prettier@3.9.10)(react@19.3.1)(vite-plus@1.5.0(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@31.0.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: '@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)'
+      vite-plus:
+        specifier: 'catalog:'
+        version: 1.5.0(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@31.0.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+
   capabilities/grantmaking/ai:
     dependencies:
       '@merit/ai':
@@ -1070,6 +1238,9 @@ importers:
       '@merit/db':
         specifier: workspace:*
         version: link:../../../foundation/db
+      '@merit/decisions':
+        specifier: workspace:*
+        version: link:../../decisions/business
       '@merit/money':
         specifier: workspace:*
         version: link:../../../foundation/money
@@ -1125,6 +1296,12 @@ importers:
       '@merit/dates':
         specifier: workspace:*
         version: link:../../../foundation/dates
+      '@merit/decisions':
+        specifier: workspace:*
+        version: link:../../decisions/business
+      '@merit/decisions-web':
+        specifier: workspace:*
+        version: link:../../decisions/web
       '@merit/drafts':
         specifier: workspace:*
         version: link:../../../foundation/drafts
@@ -1738,6 +1915,9 @@ importers:
       '@merit/db':
         specifier: workspace:*
         version: link:../../../foundation/db
+      '@merit/money':
+        specifier: workspace:*
+        version: link:../../../foundation/money
       '@merit/rounds':
         specifier: workspace:*
         version: link:../business
@@ -2543,6 +2723,12 @@ importers:
       '@merit/contacts-ai':
         specifier: workspace:*
         version: link:../../capabilities/contacts/ai
+      '@merit/decisions':
+        specifier: workspace:*
+        version: link:../../capabilities/decisions/business
+      '@merit/decisions-ai':
+        specifier: workspace:*
+        version: link:../../capabilities/decisions/ai
       '@merit/grantmaking-ai':
         specifier: workspace:*
         version: link:../../capabilities/grantmaking/ai
@@ -2619,6 +2805,12 @@ importers:
       '@merit/db':
         specifier: workspace:*
         version: link:../../foundation/db
+      '@merit/decisions':
+        specifier: workspace:*
+        version: link:../../capabilities/decisions/business
+      '@merit/decisions-web':
+        specifier: workspace:*
+        version: link:../../capabilities/decisions/web
       '@merit/drafts':
         specifier: workspace:*
         version: link:../../foundation/drafts

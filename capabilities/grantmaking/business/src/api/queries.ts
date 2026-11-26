@@ -47,7 +47,9 @@ export {
   encodeApplicationDetail,
   decodeApplicationDetail,
   encodeBudgetTotals,
+  encodeRoundTotals,
   totalsDataSchema,
+  roundTotalsDataSchema,
 } from "./queries/application-detail";
 export { encodeRoundSummary, decodeRoundSummary } from "./queries/round-summary";
 export type { RoundSummary } from "./queries/round-summary";
