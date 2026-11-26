@@ -1170,4 +1170,24 @@ describe("ledger concurrency and locking", () => {
     expect(readdirSync(ledgerDir).sort()).toEqual([".ledger-locks", "symlink-shared.tsv"]);
     expect(readdirSync(join(ledgerDir, ".ledger-locks"))).toEqual([]);
   });
+
+  test("canonicalizes --file paths beneath dangling or looping directory symlinks", () => {
+    const repo = makeTempDir();
+    symlinkSync(join(repo, "ledgers", "later"), join(repo, "alias"));
+    symlinkSync("alias", join(repo, "relative-alias"));
+    symlinkSync(join(repo, "loop-b"), join(repo, "loop-a"));
+    symlinkSync(join(repo, "loop-a"), join(repo, "loop-b"));
+
+    // The missing segments below a dangling directory symlink are kept under its target.
+    expect(resolveLedgerFilePath({ file: "alias/task/run.tsv", cwd: repo })).toBe(
+      join(repo, "ledgers", "later", "task", "run.tsv"),
+    );
+    expect(resolveLedgerFilePath({ file: "relative-alias/run.tsv", cwd: repo })).toBe(
+      join(repo, "ledgers", "later", "run.tsv"),
+    );
+    // A symlink cycle stops after the hop limit and keeps the path as given.
+    expect(resolveLedgerFilePath({ file: "loop-a/run.tsv", cwd: repo })).toBe(
+      join(repo, "loop-a", "run.tsv"),
+    );
+  });
 });

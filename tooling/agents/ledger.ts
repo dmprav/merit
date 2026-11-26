@@ -60,62 +60,37 @@ const hasControlChars = (value: string): boolean => {
 
 const isValidIsoTimestamp = (value: string): boolean => isoTimestampSchema.safeParse(value).success;
 
-const requiredLedgerCellSchema = z.string().superRefine((value, ctx) => {
-  if (hasControlChars(value)) {
-    ctx.addIssue({ code: "custom", message: "must not contain control characters" });
-    return;
-  }
-  if (value.trim().length === 0) {
-    ctx.addIssue({ code: "custom", message: "must be non-empty" });
-  }
+/** Every ledger cell is one line of text; later checks run only once this one passes. */
+const ledgerTextSchema = z.string().refine((value) => !hasControlChars(value), {
+  message: "must not contain control characters",
+  abort: true,
 });
 
-const optionalLedgerCellSchema = z.string().superRefine((value, ctx) => {
-  if (hasControlChars(value)) {
-    ctx.addIssue({ code: "custom", message: "must not contain control characters" });
-    return;
-  }
-  if (value.length > 0 && value.trim().length === 0) {
-    ctx.addIssue({ code: "custom", message: "must not be whitespace-only" });
-  }
-});
+const requiredLedgerCellSchema = ledgerTextSchema.refine(
+  (value) => value.trim().length > 0,
+  "must be non-empty",
+);
 
-const ledgerTimestampSchema = z.string().superRefine((value, ctx) => {
-  if (hasControlChars(value)) {
-    ctx.addIssue({ code: "custom", message: "must not contain control characters" });
-    return;
-  }
-  if (!isValidIsoTimestamp(value)) {
-    ctx.addIssue({
-      code: "custom",
-      message: 'must be a valid ISO-8601 timestamp (e.g. "2026-11-24T22:00:00.000Z")',
-    });
-  }
-});
+const optionalLedgerCellSchema = ledgerTextSchema.refine(
+  (value) => value.length === 0 || value.trim().length > 0,
+  "must not be whitespace-only",
+);
 
-const ledgerRunIdSchema = z.string().superRefine((value, ctx) => {
-  if (hasControlChars(value)) {
-    ctx.addIssue({ code: "custom", message: "must not contain control characters" });
-    return;
-  }
-  if (value.length === 0) {
-    ctx.addIssue({ code: "custom", message: "must be non-empty" });
-    return;
-  }
-  if (!NON_WHITESPACE_TOKEN_PATTERN.test(value)) {
-    ctx.addIssue({
-      code: "custom",
-      message: "must be a single token without whitespace",
-    });
-    return;
-  }
-  if (FORMULA_PREFIX_PATTERN.test(value)) {
-    ctx.addIssue({
-      code: "custom",
-      message: 'must not start with a spreadsheet formula character (=, +, -, @, ")',
-    });
-  }
-});
+const ledgerTimestampSchema = ledgerTextSchema.refine(
+  isValidIsoTimestamp,
+  'must be a valid ISO-8601 timestamp (e.g. "2026-11-24T22:00:00.000Z")',
+);
+
+const ledgerRunIdSchema = ledgerTextSchema
+  .refine((value) => value.length > 0, { message: "must be non-empty", abort: true })
+  .refine((value) => NON_WHITESPACE_TOKEN_PATTERN.test(value), {
+    message: "must be a single token without whitespace",
+    abort: true,
+  })
+  .refine(
+    (value) => !FORMULA_PREFIX_PATTERN.test(value),
+    'must not start with a spreadsheet formula character (=, +, -, @, ")',
+  );
 
 export const ledgerEntrySchema = z.object({
   ts: ledgerTimestampSchema,
@@ -259,60 +234,63 @@ export const validateLedgerRunId = (runId: string): string => {
   return parsed.data;
 };
 
+/** Returns the real path of `path`, or null when it does not exist; other failures throw. */
+const realpathIfExists = (path: string): string | null => {
+  try {
+    return realpathSync(path);
+  } catch (error) {
+    if (getErrnoCode(error) === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+};
+
+/** Returns the absolute target of a symlink at `path`, or null when `path` is not a readable symlink. */
+const followSymlinkOnce = (path: string): string | null => {
+  try {
+    return lstatSync(path).isSymbolicLink() ? resolve(dirname(path), readlinkSync(path)) : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Canonicalizes a path that does not exist yet. A dangling symlink at the path or an ancestor (such
+ * as an alias to a not-yet-created ledger) is followed; otherwise the nearest existing ancestor is
+ * canonicalized and the missing trailing segments are kept.
+ */
+const canonicalizeMissingPath = (absolute: string, depth: number): string => {
+  const followLink = (path: string) => (depth < MAX_SYMLINK_HOPS ? followSymlinkOnce(path) : null);
+
+  const linkTarget = followLink(absolute);
+  if (linkTarget !== null) {
+    return canonicalizeLedgerPath(linkTarget, depth + 1);
+  }
+  const trailingSegments: string[] = [];
+  for (let current = absolute; dirname(current) !== current;) {
+    trailingSegments.unshift(basename(current));
+    current = dirname(current);
+    const realAncestor = realpathIfExists(current);
+    if (realAncestor !== null) {
+      return join(realAncestor, ...trailingSegments);
+    }
+    const ancestorTarget = followLink(current);
+    if (ancestorTarget !== null) {
+      return canonicalizeLedgerPath(join(ancestorTarget, ...trailingSegments), depth + 1);
+    }
+  }
+  return absolute;
+};
+
+/** Resolves symlinks in a ledger path, even one that does not exist yet, so aliases share one lock. */
 const canonicalizeLedgerPath = (targetPath: string, depth = 0): string => {
   const absolute = resolve(targetPath);
   try {
-    return realpathSync(absolute);
-  } catch (error) {
-    if (getErrnoCode(error) !== "ENOENT") {
-      return absolute;
-    }
-  }
-
-  // Follow a dangling symlink directly at targetPath (e.g. an alias to a not-yet-created ledger).
-  if (depth < MAX_SYMLINK_HOPS) {
-    try {
-      if (lstatSync(absolute).isSymbolicLink()) {
-        const linkTarget = readlinkSync(absolute);
-        return canonicalizeLedgerPath(resolve(dirname(absolute), linkTarget), depth + 1);
-      }
-    } catch {
-      // Fall through to ancestor canonicalization.
-    }
-  }
-
-  // Walk up to the nearest existing ancestor and canonicalize it, keeping non-existent trailing segments.
-  const trailingSegments: string[] = [];
-  let current = absolute;
-  while (true) {
-    const parent = dirname(current);
-    if (parent === current) {
-      return absolute;
-    }
-    trailingSegments.push(basename(current));
-    current = parent;
-    try {
-      const realAncestor = realpathSync(current);
-      return join(realAncestor, ...trailingSegments.reverse());
-    } catch (error) {
-      if (getErrnoCode(error) !== "ENOENT") {
-        return absolute;
-      }
-      if (depth < MAX_SYMLINK_HOPS) {
-        try {
-          if (lstatSync(current).isSymbolicLink()) {
-            const linkTarget = readlinkSync(current);
-            const resolvedTarget = join(
-              resolve(dirname(current), linkTarget),
-              ...trailingSegments.reverse(),
-            );
-            return canonicalizeLedgerPath(resolvedTarget, depth + 1);
-          }
-        } catch {
-          // Continue walking up.
-        }
-      }
-    }
+    return realpathIfExists(absolute) ?? canonicalizeMissingPath(absolute, depth);
+  } catch {
+    // A path that cannot be inspected is used as given.
+    return absolute;
   }
 };
 
@@ -406,66 +384,53 @@ const validateTimestamp = (rawTs: string): string => {
 export const formatLedgerRow = (entry: LedgerEntry): string =>
   LEDGER_COLUMNS.map((column) => entry[column]).join("\t");
 
-export const parseLedgerTsv = (content: string, filePath: string): LedgerEntry[] => {
-  const normalized = content.endsWith("\r\n")
-    ? content.slice(0, -2)
-    : content.endsWith("\n")
-      ? content.slice(0, -1)
-      : content;
+const describeRowIssues = (issues: z.ZodError["issues"]): string => {
+  const [onlyIssue] = issues;
+  if (issues.length === 1 && onlyIssue) {
+    const column = onlyIssue.path.map(String).join(".");
+    return `${column ? ` (${column})` : ""}: ${onlyIssue.message}`;
+  }
+  const detail = issues
+    .map((issue) => {
+      const column = issue.path.map(String).join(".");
+      return column ? `${column}: ${issue.message}` : issue.message;
+    })
+    .join("; ");
+  return `: ${detail}`;
+};
 
+const parseLedgerRow = (line: string, lineNumber: number, filePath: string): LedgerEntry => {
+  const cols = line.split("\t");
+  if (cols.length !== LEDGER_COLUMNS.length) {
+    throw new Error(
+      `Malformed decision ledger at "${filePath}" line ${lineNumber}: expected ${LEDGER_COLUMNS.length} tab-separated columns, found ${cols.length}.`,
+    );
+  }
+  const parsed = ledgerEntrySchema.safeParse(
+    Object.fromEntries(LEDGER_COLUMNS.map((column, index) => [column, cols[index]])),
+  );
+  if (!parsed.success) {
+    throw new Error(
+      `Malformed decision ledger at "${filePath}" line ${lineNumber}${describeRowIssues(parsed.error.issues)}.`,
+    );
+  }
+  return parsed.data;
+};
+
+export const parseLedgerTsv = (content: string, filePath: string): LedgerEntry[] => {
+  const normalized = content.replace(/\r?\n$/, "");
   if (normalized.length === 0) {
     throw new Error(`Malformed decision ledger at "${filePath}": file is empty (missing header).`);
   }
 
-  const lines = normalized.split(/\r?\n/);
-  const header = lines[0];
+  const [header, ...rows] = normalized.split(/\r?\n/);
   if (header !== LEDGER_HEADER) {
     throw new Error(
       `Malformed decision ledger at "${filePath}": invalid header (expected "${LEDGER_HEADER}").`,
     );
   }
-
-  const entries: LedgerEntry[] = [];
-  for (let index = 1; index < lines.length; index += 1) {
-    const line = lines[index] ?? "";
-    const lineNumber = index + 1;
-    const cols = line.split("\t");
-    if (cols.length !== LEDGER_COLUMNS.length) {
-      throw new Error(
-        `Malformed decision ledger at "${filePath}" line ${lineNumber}: expected ${LEDGER_COLUMNS.length} tab-separated columns, found ${cols.length}.`,
-      );
-    }
-
-    const parsed = ledgerEntrySchema.safeParse({
-      ts: cols[0],
-      run_id: cols[1],
-      phase: cols[2],
-      decision: cols[3],
-      why: cols[4],
-      evidence: cols[5],
-      result: cols[6],
-    });
-    if (!parsed.success) {
-      const issues = parsed.error.issues;
-      if (issues.length === 1 && issues[0]) {
-        const column = issues[0].path.map(String).join(".");
-        const fieldSuffix = column ? ` (${column})` : "";
-        throw new Error(
-          `Malformed decision ledger at "${filePath}" line ${lineNumber}${fieldSuffix}: ${issues[0].message}.`,
-        );
-      }
-      const detail = issues
-        .map((issue) => {
-          const column = issue.path.map(String).join(".");
-          return column ? `${column}: ${issue.message}` : issue.message;
-        })
-        .join("; ");
-      throw new Error(`Malformed decision ledger at "${filePath}" line ${lineNumber}: ${detail}.`);
-    }
-    entries.push(parsed.data);
-  }
-
-  return entries;
+  // Data rows start on the second line of the file.
+  return rows.map((line, index) => parseLedgerRow(line, index + 2, filePath));
 };
 
 export const withLedgerLock = async <T>(
