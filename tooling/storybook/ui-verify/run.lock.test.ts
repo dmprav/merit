@@ -35,14 +35,26 @@ vi.mock("./servers.ts", async (importOriginal) => ({
   },
 }));
 
+const stubBrowser = {
+  close: async () => {
+    observe("browser closed");
+  },
+};
+
+/** When set, the browser launch waits for this, so a test can interrupt the run mid-launch. */
+let pendingLaunch: Promise<typeof stubBrowser> | undefined;
+let launchesStarted = 0;
+
 vi.mock("./audit.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof AuditModule>()),
-  launchVerificationBrowser: async () => ({
-    close: async () => {
-      observe("browser closed");
-    },
-  }),
-  runTargetsInBrowser: async () => [],
+  launchVerificationBrowser: async () => {
+    launchesStarted += 1;
+    return pendingLaunch ?? stubBrowser;
+  },
+  runTargetsInBrowser: async () => {
+    observe("targets checked");
+    return [];
+  },
 }));
 
 vi.mock("./output.ts", async (importOriginal) => {
@@ -58,6 +70,8 @@ vi.mock("./output.ts", async (importOriginal) => {
 });
 
 afterEach(() => {
+  pendingLaunch = undefined;
+  launchesStarted = 0;
   observations.splice(0);
   if (observedOutDir) {
     rmSync(observedOutDir, { recursive: true, force: true });
@@ -77,10 +91,44 @@ describe("runUiVerify output lock", () => {
     });
 
     expect(observations).toEqual([
+      { step: "targets checked", locked: true, published: false },
       { step: "results published", locked: true, published: true },
       { step: "browser closed", locked: true, published: true },
       { step: "Storybook stopped", locked: true, published: true },
     ]);
+    expect(existsSync(join(observedOutDir, ".ui-verify.lock"))).toBe(false);
+  });
+
+  it("closes a browser still launching when interrupted before releasing the output directory", async () => {
+    observedOutDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-lock-launch-"));
+
+    let finishLaunch = () => {};
+
+    pendingLaunch = new Promise((resolve) => {
+      finishLaunch = () => resolve(stubBrowser);
+    });
+    let teardown: ((signal: NodeJS.Signals) => Promise<void>) | undefined;
+
+    const run = runUiVerify(parseUiVerifyArgs(["--out", observedOutDir, "--viewport", "desktop"]), {
+      repoRoot: observedOutDir,
+      log: () => undefined,
+      runContainer: () => {
+        throw new Error("This run does not delegate to the container.");
+      },
+      watchInterrupts: (onInterrupt) => {
+        teardown = onInterrupt;
+        return () => undefined;
+      },
+    });
+    await vi.waitFor(() => expect(launchesStarted).toBe(1));
+    const interrupted = teardown?.("SIGINT");
+    finishLaunch();
+    await interrupted;
+    const results = await run;
+
+    expect(results.error).toMatch(/Cleanup started/);
+    expect(observations.map(({ step }) => step)).not.toContain("targets checked");
+    expect(observations.find(({ step }) => step === "browser closed")?.locked).toBe(true);
     expect(existsSync(join(observedOutDir, ".ui-verify.lock"))).toBe(false);
   });
 });

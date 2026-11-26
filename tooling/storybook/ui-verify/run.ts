@@ -2,7 +2,7 @@ import { join, resolve } from "node:path";
 
 import { errorMessage } from "../../cli.ts";
 import { launchVerificationBrowser, runTargetsInBrowser } from "./audit.ts";
-import { createCleanupStack, type Log, type RunContext } from "./cleanup.ts";
+import { acquireWithCleanup, createCleanupStack, type Log, type RunContext } from "./cleanup.ts";
 import type { UiVerifyCliOptions } from "./cli.ts";
 import {
   acquireOutputLock,
@@ -155,8 +155,11 @@ const checkOnHost = async (
 
   const storybook = plan.storybook ? await startStorybookServer(context) : undefined;
   const app = plan.app ? await startAppServer(context, plan.app.mode) : undefined;
-  const browser = await launchVerificationBrowser();
-  context.registerCleanup(() => browser.close());
+  const { resource: browser } = await acquireWithCleanup(
+    launchVerificationBrowser(),
+    (launched) => launched.close(),
+    context.registerCleanup,
+  );
 
   const check = async (
     targets: readonly VerifyTarget[],
