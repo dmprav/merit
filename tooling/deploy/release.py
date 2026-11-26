@@ -3,6 +3,7 @@
 
 import argparse
 import fcntl
+import ipaddress
 import json
 import os
 import re
@@ -27,6 +28,8 @@ def deploy(image, env_file):
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,48}", name):
         raise ValueError("MERIT_DEPLOY_NAME must be a short lowercase Docker name")
     network = os.getenv("MERIT_DEPLOY_NETWORK", "merit_default")
+    services = os.getenv("MERIT_DEPLOY_SERVICES_NETWORK", network)
+    proxy_ip = os.getenv("MERIT_DEPLOY_PROXY_IP", "")
     port = int(os.getenv("MERIT_DEPLOY_PORT", "8080"))
     timeout = int(os.getenv("MERIT_DEPLOY_READY_SECONDS", "90"))
     if not (1 <= port <= 65535 and timeout > 0 and env_file.is_file()):
@@ -143,7 +146,13 @@ def deploy(image, env_file):
         if not owner:
             lock.write(name)
             lock.flush()
-        docker("network", "inspect", network)
+        pools = json.loads(docker("network", "inspect", "--format", "{{json .IPAM.Config}}", network))
+        if not proxy_ip:
+            raise ValueError("Set MERIT_DEPLOY_PROXY_IP to a reserved IPv4 address on the release network")
+        address = ipaddress.IPv4Address(proxy_ip)
+        if not any(pool.get("IPRange") and address in ipaddress.ip_network(pool["Subnet"])
+                   and address not in ipaddress.ip_network(pool["IPRange"]) for pool in pools):
+            raise ValueError("Reserve the proxy IP inside the release subnet and outside its --ip-range")
         # Resolve the tag once so both processes use identical bytes.
         image_id = docker("image", "inspect", "--format", "{{.Id}}", image)
         config.mkdir(exist_ok=True)
@@ -171,16 +180,18 @@ def deploy(image, env_file):
         info = inspect(proxy)
         if not info:
             docker("run", "-d", "--name", proxy, *labels, "--restart", "unless-stopped",
-                   "--network", network, "-p", f"127.0.0.1:{port}:8080",
+                   "--network", network, "--ip", proxy_ip, "-p", f"127.0.0.1:{port}:8080",
                    "-v", f"{config}:{CONFIG}:ro", "-v", f"{client}:/srv/merit:ro",
                    NGINX, "nginx", "-c", f"{CONFIG}/nginx.conf", "-g", "daemon off;")
         else:
+            endpoint = info["NetworkSettings"]["Networks"].get(network, {})
+            if (endpoint.get("IPAMConfig") or {}).get("IPv4Address") != proxy_ip:
+                raise ValueError("Existing proxy uses a different network or static address")
             binding = info["HostConfig"]["PortBindings"].get("8080/tcp")
             if binding != [{"HostIp": "127.0.0.1", "HostPort": str(port)}]:
                 raise ValueError("Existing proxy uses a different loopback port")
             if not info["State"]["Running"]:
                 docker("start", proxy)
-        proxy_ip = inspect(proxy)["NetworkSettings"]["Networks"][network]["IPAddress"]
         web, worker = (f"{name}-{candidate}-{role}" for role in ("web", "worker"))
         if live_slot() != active or inspect(web) or inspect(worker):
             # Reconcile a previous interrupted invocation before reusing a slot
@@ -190,8 +201,11 @@ def deploy(image, env_file):
         try:
             for role, container in (("web", web), ("worker", worker)):
                 env = ["-e", f"TRUSTED_PROXY_IP={proxy_ip}"] if role == "web" else []
+                networks = ["--network", services]
+                if role == "web" and services != network:
+                    networks.extend(["--network", network])
                 docker("run", "-d", "--init", "--name", container, *labels,
-                       "--restart", "unless-stopped", "--network", network,
+                       "--restart", "unless-stopped", *networks,
                        "--env-file", str(env_file), "-e", "PORT=3000", *env, image_id, role)
             await_health((web, worker))
             docker("exec", proxy, "wget", "-qO", "/dev/null", "-T", "5", f"http://{web}:3000/_ready")

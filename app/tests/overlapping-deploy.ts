@@ -41,12 +41,26 @@ containerDatabase.host = "postgres:5432";
 const composeId = (service: string) => docker("compose", "ps", "-q", service);
 
 const postgres = await composeId("postgres");
-const network = await docker(
+const servicesNetwork = await docker(
   "inspect",
   "-f",
   "{{range $key, $_ := .NetworkSettings.Networks}}{{$key}}{{end}}",
   postgres,
 );
+// The trusted proxy gets an address outside the range Docker allocates to restarting containers.
+const network = `${name}-release`;
+const subnet = `10.${randomBytes(2).join(".")}`;
+const proxyIp = `${subnet}.2`;
+await docker(
+  "network",
+  "create",
+  "--subnet",
+  `${subnet}.0/24`,
+  "--ip-range",
+  `${subnet}.128/25`,
+  network,
+);
+cleanup.defer(() => docker("network", "rm", network).then(() => {}));
 const mailImage = await docker("inspect", "-f", "{{.Config.Image}}", await composeId("mailpit"));
 const socket = createServer().listen(0, "127.0.0.1");
 await once(socket, "listening");
@@ -95,6 +109,8 @@ const deploy = async (image: string, filename: string, extra: Record<string, str
         ...process.env,
         MERIT_DEPLOY_NAME: name,
         MERIT_DEPLOY_NETWORK: network,
+        MERIT_DEPLOY_SERVICES_NETWORK: servicesNetwork,
+        MERIT_DEPLOY_PROXY_IP: proxyIp,
         MERIT_DEPLOY_PORT: String(port),
         MERIT_DEPLOY_STATE: join(directory, "state"),
         ...extra,
@@ -176,7 +192,31 @@ const workerHealth = async () => {
 };
 
 await deploy(`${name}:a`, "web.env");
-assert.equal(await read("/release.txt"), "a");
+await docker("restart", `${name}-proxy`);
+assert.equal(
+  await docker(
+    "inspect",
+    "-f",
+    `{{(index .NetworkSettings.Networks "${network}").IPAddress}}`,
+    `${name}-proxy`,
+  ),
+  proxyIp,
+);
+assert.equal(await docker("exec", `${name}-blue-web`, "printenv", "TRUSTED_PROXY_IP"), proxyIp);
+// Docker returns from restart as soon as the process starts. Wait for nginx to listen
+// before measuring uninterrupted service through the subsequent release switches.
+const proxyDeadline = Date.now() + 15_000;
+while (true) {
+  try {
+    assert.equal(await read("/release.txt"), "a");
+    break;
+  } catch (error) {
+    if (Date.now() >= proxyDeadline) {
+      throw error;
+    }
+    await delay(100);
+  }
+}
 await workerHealth();
 let requests = 0;
 let monitoring = true;

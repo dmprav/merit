@@ -20,6 +20,7 @@ The rehearsal creates an isolated PostgreSQL database and restricted login, uses
 unique Temporal queues and a Schedule, and captures invitation email in Mailpit. Only the email-capture release uses the
 local worker setting.
 It derives two images with different public files from the supplied release.
+It restarts the proxy and verifies its reserved IP and the active route.
 It samples container memory while both slots are running, continuously requests
 the rendered home page, rejects an unhealthy candidate,
 holds a 32 MiB response open across the switch, and checks that an old client
@@ -39,11 +40,14 @@ Use the same `APP_ORIGIN`, payload key, namespace, and task queues in both slots
 Apply any schema changes with the migration credential before switching. The
 old and new processes share the database and Temporal history during a deploy.
 Schema changes, activities, and workflow code must work with both versions
-through the rollback window. Create the Docker network once before the first release.
+through the rollback window. Create a bridge with a subnet that is free on the host.
+Reserve nginx's address outside Docker's dynamic allocation range so the web containers
+continue to trust the same peer after a proxy or Docker restart.
 
 ```sh
-docker network create merit-services
+docker network create --subnet 10.81.0.0/24 --ip-range 10.81.0.128/25 merit-services
 export MERIT_DEPLOY_NETWORK=merit-services
+export MERIT_DEPLOY_PROXY_IP=10.81.0.2
 export MERIT_DEPLOY_STATE=/var/lib/merit/release
 export MERIT_DEPLOY_PORT=8080
 tooling/deploy/release.py merit:release-a /etc/merit/runtime.env
@@ -51,6 +55,10 @@ tooling/deploy/release.py merit:release-b /etc/merit/runtime.env
 # Roll back using the retained image and its compatible configuration.
 tooling/deploy/release.py merit:release-a /etc/merit/runtime.env
 ```
+
+If the database and Temporal run on a second Docker network, set
+`MERIT_DEPLOY_SERVICES_NETWORK` to that network's name. The web and worker can
+then reach those services while nginx stays on the release network.
 
 The [release command](../../tooling/deploy/release.py) starts the new web and
 worker, checks each container's readiness, and validates the nginx configuration
