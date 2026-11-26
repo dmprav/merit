@@ -127,7 +127,8 @@ under `tooling/storybook/snapshots/` and Playwright's container output.
 Always inspect the captured screenshots visually beside the named precedent before claiming
 a UI change is verified. For pixel-exact Linux visual baselines in
 `tooling/storybook/snapshots`, run `vp run ui:verify --container` (and `--update` only for
-intentional visual changes).
+intentional visual changes). With `--container`, `--story` selects among the curated visual
+targets only and fails when a filter matches none of them.
 
 ## 5. Cleanup
 

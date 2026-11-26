@@ -583,71 +583,85 @@ describe("detectFocusVisualChange", () => {
 });
 
 describe("container delegation and proof reporting", () => {
+  // Mirrors the test titles in tests/browser/visual.spec.ts.
+  const visualTestTitles = [
+    "control focus appearance in product",
+    "control focus appearance in site",
+    ...DEFAULT_STORYBOOK_TARGETS.filter((target) => !target.name.startsWith("focus-")).map(
+      (target) => `appearance: ${target.id}`,
+    ),
+  ];
+
+  // Playwright matches a bare --grep case-insensitively against the project name, the file
+  // name, and the test title joined with spaces.
+  const containerSelection = (cliArgs: string[]) => {
+    const args = buildContainerDelegationArgs(parseCliArgs(["--container", ...cliArgs]));
+    const grepIndex = args.indexOf("--grep");
+    const grep = grepIndex === -1 ? undefined : new RegExp(args[grepIndex + 1] ?? "", "i");
+    return visualTestTitles.filter((title) =>
+      ["desktop", "mobile"].some(
+        (project) => grep?.test(` ${project} visual.spec.ts ${title}`) ?? true,
+      ),
+    );
+  };
+
   it("builds container delegation arguments forwarding update, viewport, and story filters", () => {
     expect(
       buildContainerDelegationArgs(
         parseCliArgs(["--container", "--update", "--viewport", "mobile", "--story", "button"]),
-      ),
-    ).toEqual(["--update-snapshots", "--project", "mobile", "--grep", "button"]);
+      ).slice(0, 3),
+    ).toEqual(["--update-snapshots", "--project", "mobile"]);
+    expect(containerSelection(["--story", "button"])).toEqual([
+      "appearance: components-button--overview",
+    ]);
 
-    expect(
-      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "focus-product"])),
-    ).toEqual(["--grep", "control focus appearance in product"]);
-
-    expect(
-      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "focus-site"])),
-    ).toEqual(["--grep", "control focus appearance in site"]);
-
-    expect(
-      buildContainerDelegationArgs(
-        parseCliArgs(["--container", "--story", "design-language--focus-comparison"]),
-      ),
-    ).toEqual(["--grep", "control focus appearance in"]);
-
-    expect(
-      buildContainerDelegationArgs(
-        parseCliArgs(["--container", "--story", "components-button*,dialog.open"]),
-      ),
-    ).toEqual(["--grep", "appearance: components-button.*$|dialog\\.open"]);
+    expect(containerSelection(["--story", "focus-product"])).toEqual([
+      "control focus appearance in product",
+    ]);
+    expect(containerSelection(["--story", "focus-site"])).toEqual([
+      "control focus appearance in site",
+    ]);
+    expect(containerSelection(["--story", "design-language--focus-comparison"])).toEqual([
+      "control focus appearance in product",
+      "control focus appearance in site",
+    ]);
+    expect(containerSelection(["--story", "components-button*,form-dialog"])).toEqual([
+      "appearance: components-button--overview",
+      "appearance: patterns-form-dialog--with-context",
+    ]);
 
     expect(buildContainerDelegationArgs(parseCliArgs(["--container"]))).toEqual([]);
   });
 
+  it("rejects a container story filter that matches only Playwright project or file names", () => {
+    for (const story of ["desktop", "mobile", "visual", "spec", "dialog.open", "constructor"]) {
+      expect(
+        () => buildContainerDelegationArgs(parseCliArgs(["--container", "--story", story])),
+        story,
+      ).toThrow(`--story "${story}" matches no visual baseline story`);
+    }
+  });
+
   it("anchors a glob filter so container mode selects only the visual tests the host glob selects", () => {
-    const [, pattern = ""] = buildContainerDelegationArgs(
-      parseCliArgs([
-        "--container",
-        "--update",
-        "--story",
-        "patterns-application-shell--workspace-switche?",
-      ]),
-    ).slice(-2);
-    // Playwright matches a bare --grep case-insensitively against the full test title.
-    const grep = new RegExp(pattern, "i");
-
-    const title = (storyId: string) => `desktop visual.spec.ts appearance: ${storyId}`;
-
-    expect(grep.test(title("patterns-application-shell--workspace-switcher"))).toBe(true);
-    expect(grep.test(title("patterns-application-shell--workspace-switcher-long-name"))).toBe(
-      false,
-    );
+    expect(
+      containerSelection(["--update", "--story", "patterns-application-shell--workspace-switche?"]),
+    ).toEqual(["appearance: patterns-application-shell--workspace-switcher"]);
+    expect(
+      containerSelection(["--story", "patterns-application-shell--workspace-switcher"]),
+    ).toEqual([
+      "appearance: patterns-application-shell--workspace-switcher",
+      "appearance: patterns-application-shell--workspace-switcher-long-name",
+    ]);
   });
 
   it("maps substring and glob filters that select curated focus aliases to their container tests", () => {
-    expect(
-      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "focus-*"])),
-    ).toEqual([
-      "--grep",
-      "control focus appearance in product|control focus appearance in site|appearance: focus-.*$",
+    expect(containerSelection(["--story", "focus-*"])).toEqual([
+      "control focus appearance in product",
+      "control focus appearance in site",
     ]);
-
-    expect(
-      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "focus-prod"])),
-    ).toEqual(["--grep", "control focus appearance in product|focus-prod"]);
-
-    expect(
-      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "constructor"])),
-    ).toEqual(["--grep", "constructor"]);
+    expect(containerSelection(["--story", "focus-prod"])).toEqual([
+      "control focus appearance in product",
+    ]);
   });
 
   it("escapes pipes in report target names while keeping the original name in results", () => {

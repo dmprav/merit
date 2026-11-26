@@ -559,10 +559,10 @@ export const buildUniqueTargetStems = (names: readonly string[]): string[] => {
   });
 };
 
-const CONTAINER_FOCUS_STORY_PATTERNS: Readonly<Record<string, string>> = {
+// Visual test titles for curated targets whose test is not titled `appearance: <story-id>`.
+const CONTAINER_FOCUS_TEST_TITLES: Readonly<Record<string, string>> = {
   "focus-product": "control focus appearance in product",
   "focus-site": "control focus appearance in site",
-  "design-language--focus-comparison": "control focus appearance in",
 };
 
 export const buildContainerDelegationArgs = (options: UiVerifyCliOptions): string[] => {
@@ -581,36 +581,26 @@ export const buildContainerDelegationArgs = (options: UiVerifyCliOptions): strin
     args.push("--project", "mobile");
   }
   if (options.stories.length > 0) {
-    const bodies = options.stories.flatMap((story) => {
-      const alias = story.toLowerCase();
-      // Own-property lookup, so inherited names such as `constructor` stay substring filters.
-      const mappedFocusPattern = Object.hasOwn(CONTAINER_FOCUS_STORY_PATTERNS, alias)
-        ? CONTAINER_FOCUS_STORY_PATTERNS[alias]
-        : undefined;
-      if (mappedFocusPattern) {
-        return [escapeRegex(mappedFocusPattern)];
-      }
-      // Curated aliases name host targets, not container test titles, so a substring or glob
-      // that selects an alias on the host must also select that alias's container test.
+    // Playwright matches --grep against the project and file names as well as the title, so
+    // resolve each filter against the curated targets the visual spec covers, as the host does,
+    // and select their exact titles.
+    const titles = options.stories.flatMap((story) => {
       const matches = compileStoryMatcher(story);
-      const aliasBodies = Object.entries(CONTAINER_FOCUS_STORY_PATTERNS)
-        .filter(([alias]) => matches(alias))
-        .map(([, aliasPattern]) => escapeRegex(aliasPattern));
-      if (!story.includes("*") && !story.includes("?")) {
-        return [...aliasBodies, escapeRegex(story)];
+      const selected = DEFAULT_STORYBOOK_TARGETS.filter(
+        (target) => matches(target.name) || matches(target.id),
+      );
+      if (selected.length === 0) {
+        throw new Error(
+          `--story "${story}" matches no visual baseline story; container mode checks only the curated targets (${DEFAULT_STORYBOOK_TARGETS.map((target) => target.name).join(", ")}).`,
+        );
       }
-      // The host anchors a glob to the whole story ID, so anchor it to the ID that ends each
-      // `appearance: <story-id>` title; unanchored, `...switche?` also selects `...switcher-long-name`.
-      const globBody = story
-        .split("")
-        .map((char) => (char === "*" ? ".*" : char === "?" ? "." : escapeRegex(char)))
-        .join("");
-      return [...aliasBodies, `appearance: ${globBody}$`];
+      return selected.map(
+        (target) => CONTAINER_FOCUS_TEST_TITLES[target.name] ?? `appearance: ${target.id}`,
+      );
     });
 
-    // Playwright CLI compiles a bare --grep pattern case-insensitively, so escaped
-    // substrings and glob bodies can be joined into one alternation.
-    const pattern = [...new Set(bodies)].join("|");
+    // Anchor each title to the end of the subject, so `...switcher` leaves `...switcher-long-name`.
+    const pattern = [...new Set(titles)].map((title) => `${escapeRegex(title)}$`).join("|");
     args.push("--grep", pattern);
   }
   return args;
