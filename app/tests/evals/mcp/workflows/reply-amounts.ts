@@ -31,7 +31,7 @@ export const euroAmounts = (reply: string) => {
 export const numberAmounts = (reply: string) =>
   Array.from(
     reply.matchAll(
-      /(?:(?<=^|[\s€(:])[-\u2212])?(?<![\d.,])\d+(?:[,.]\d+|[ \u00a0\u202f]\d{3}(?!\d))*/g,
+      /(?:(?<![\w.,])[-\u2212]|(?<![\d.,\-\u2212]))\d+(?:[,.]\d+|[ \u00a0\u202f]\d{3}(?!\d))*/g,
     ),
     ([token]) => {
       const compact = token.replace(/[ \u00a0\u202f]/g, "").replace("\u2212", "-");
