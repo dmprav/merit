@@ -16,7 +16,8 @@ const defaultTiming: ReviewerMessageTiming = {
 /**
  * Deliver one reviewer invitation or submission email. The message stays `pending` while the
  * send activity retries with backoff for about 15 minutes; after the final failure the
- * outcome is recorded as `failed`. Every attempt rechecks the message, its assignment and the
+ * outcome is recorded as `failed`, and a manual retry of that failure during this run starts
+ * another round. Every attempt rechecks the message, its assignment and the
  * member's access, so the workflow ends quietly once the message is no longer current.
  * The input holds identifiers and timings only.
  */
@@ -31,16 +32,25 @@ export const reviewerMessage = async ({ timing, ...work }: ReviewerMessageInput)
       maximumInterval: wanted.maximumIntervalMs,
     },
   });
-  const { failReviewerMessage } = proxyActivities<ReviewerMessageActivities>({
-    startToCloseTimeout: "10 seconds",
-    retry: { initialInterval: "1 second", maximumInterval: "30 seconds", maximumAttempts: 8 },
-  });
-  try {
-    return await sendReviewerMessage(work);
-  } catch (error) {
-    if (isCancellation(error)) {
-      throw error;
+  const { failReviewerMessage, reviewerMessageRetried } =
+    proxyActivities<ReviewerMessageActivities>({
+      startToCloseTimeout: "10 seconds",
+      retry: { initialInterval: "1 second", maximumInterval: "30 seconds", maximumAttempts: 8 },
+    });
+  // A manager can retry a failed message while this run is still open, which puts it back to
+  // `pending`. The run then delivers it again, so the retry is never lost to the closing window.
+  for (;;) {
+    let outcome;
+    try {
+      outcome = await sendReviewerMessage(work);
+    } catch (error) {
+      if (isCancellation(error)) {
+        throw error;
+      }
+      outcome = await failReviewerMessage(work);
+    }
+    if (outcome !== "failed" || !(await reviewerMessageRetried(work))) {
+      return outcome;
     }
   }
-  return failReviewerMessage(work);
 };

@@ -9,6 +9,7 @@ import { changeWorkspaceContact } from "@merit/contacts/server";
 import { withDatabase } from "@merit/db";
 import { createInlineOrganizationService } from "@merit/organizations/server/testing";
 import { actor } from "@merit/organizations/testing/workspace";
+import { assignmentScope, writeScoped } from "@merit/organizations/transactions";
 import type { ReviewerMessage } from "@merit/reviews/api";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { listPendingReviewerMessageWork, saveApplicationReview } from "@merit/reviews/server";
@@ -29,137 +30,142 @@ import { contactWork } from "./contact-work";
 import { roundTest } from "./round-test";
 
 const sam = { userId: "sam" };
-const it = roundTest.extend("reviewerScenario", async ({ db, database, rounds }) => {
-  await database.client.query(
-    "INSERT INTO app_users (id, name, clerk_user_id) VALUES ('sam','Sam Morgan','sam-account'), ('other','Other','other-account')",
-  );
-  await database.client.query(
-    "INSERT INTO memberships (organization_id, user_id, email, role) VALUES ('alder', 'sam', 'sam@example.test', 'reviewer')",
-  );
-  const address = await rounds.createApplication("Community review");
-  const created = await changeWorkspaceContact(
-    db,
-    actor,
-    {
-      workspaceSlug: "alder",
-      action: "create",
-      contactId: randomUUID(),
-      details: { name: "Sam Morgan", email: "sam@example.test", affiliation: "" },
-    },
-    contactWork,
-  );
-  assert(created.status === "ok");
+// One restricted runtime role serves the whole file.
+const it = roundTest
+  .extend("runtimeUrl", { scope: "file" }, async ({ database }) =>
+    database.createRuntimeConnection(),
+  )
+  .extend("reviewerScenario", async ({ db, database, rounds }) => {
+    await database.client.query(
+      "INSERT INTO app_users (id, name, clerk_user_id) VALUES ('sam','Sam Morgan','sam-account'), ('other','Other','other-account')",
+    );
+    await database.client.query(
+      "INSERT INTO memberships (organization_id, user_id, email, role) VALUES ('alder', 'sam', 'sam@example.test', 'reviewer')",
+    );
+    const address = await rounds.createApplication("Community review");
+    const created = await changeWorkspaceContact(
+      db,
+      actor,
+      {
+        workspaceSlug: "alder",
+        action: "create",
+        contactId: randomUUID(),
+        details: { name: "Sam Morgan", email: "sam@example.test", affiliation: "" },
+      },
+      contactWork,
+    );
+    assert(created.status === "ok");
 
-  const requestReview = async (application: typeof address) => {
-    const requestId = randomUUID();
-    expect(
-      await saveApplicationReview(db, actor, {
-        ...application,
-        expectedRevision: reviewRevisionSchema.parse(0),
-        expectedApplicationVersion: materialVersionSchema.parse(1),
-        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-        change: {
-          action: "request",
-          id: requestId,
-          contactId: created.contact.id,
-          replacesId: null,
-        },
-      }),
-    ).toMatchObject({ status: "ok" });
-    return requestId;
-  };
+    const requestReview = async (application: typeof address) => {
+      const requestId = randomUUID();
+      expect(
+        await saveApplicationReview(db, actor, {
+          ...application,
+          expectedRevision: reviewRevisionSchema.parse(0),
+          expectedApplicationVersion: materialVersionSchema.parse(1),
+          expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+          change: {
+            action: "request",
+            id: requestId,
+            contactId: created.contact.id,
+            replacesId: null,
+          },
+        }),
+      ).toMatchObject({ status: "ok" });
+      return requestId;
+    };
 
-  const requestId = await requestReview(address);
-  const messages: ReviewerMessage[] = [];
-  let failDelivery = false;
-  const service = createInlineReviewerService({
-    database: async (operation) => operation(db),
-    send: async (message) => {
-      if (failDelivery) {
-        throw new Error("Sender unavailable");
-      }
-      messages.push(message);
-    },
-    reviewerUrl: (slug, id) => `https://merit.test/app/${slug}/work/${id}`,
-    managerUrl: (slug, id) => `https://merit.test/app/${slug}/applications/${id}`,
+    const requestId = await requestReview(address);
+    const messages: ReviewerMessage[] = [];
+    let failDelivery = false;
+    const service = createInlineReviewerService({
+      database: async (operation) => operation(db),
+      send: async (message) => {
+        if (failDelivery) {
+          throw new Error("Sender unavailable");
+        }
+        messages.push(message);
+      },
+      reviewerUrl: (slug, id) => `https://merit.test/app/${slug}/work/${id}`,
+      managerUrl: (slug, id) => `https://merit.test/app/${slug}/applications/${id}`,
+    });
+    const invitation = { ...address, requestId, commandId: randomUUID(), dueDate: "2020-01-01" };
+    const invited = await service.invite(actor, invitation);
+    assert(invited.status === "ok", JSON.stringify(invited));
+    const assignmentId = invited.value.id;
+
+    const read = async () => {
+      const result = await service.read(sam, { assignmentId });
+      assert(result.status === "ok");
+      return result.value;
+    };
+
+    const respond = async (action: "accept" | "decline" | "report_conflict", note = "") =>
+      service.respond(sam, {
+        assignmentId,
+        commandId: randomUUID(),
+        expectedRevision: (await read()).assignment.revision,
+        action,
+        note,
+      });
+
+    const manage = async (
+      action: "cancel" | "reinstate" | "clear_conflict" | "resend" | "retry_notification",
+      note = "",
+    ) => {
+      const list = await service.forApplication(actor, address);
+      assert(list.status === "ok");
+      const current = list.value.find((value) => value.id === assignmentId);
+      assert.isDefined(current);
+      return service.manage(actor, {
+        ...address,
+        assignmentId,
+        commandId: randomUUID(),
+        expectedRevision: current.revision,
+        action,
+        note,
+      });
+    };
+
+    const save = async (reasoning = "Evidence supports the proposed work", note = "") => {
+      const page = await read();
+      assert(page.draft);
+      return service.saveDraft(sam, {
+        assignmentId,
+        commandId: randomUUID(),
+        expectedDraftRevision: page.draft.revision,
+        draft: { position: "Fund", amount: "40.00", reasoning, observations: [], note },
+      });
+    };
+
+    const submit = async () => {
+      const page = await read();
+      assert(page.draft);
+      return service.submit(sam, {
+        assignmentId,
+        commandId: randomUUID(),
+        expectedDraftRevision: page.draft.revision,
+      });
+    };
+
+    return {
+      service,
+      assignmentId,
+      address,
+      invitation,
+      messages,
+      read,
+      respond,
+      manage,
+      save,
+      submit,
+      requestId,
+      requestReview,
+      setDeliveryFailure: (value: boolean) => {
+        failDelivery = value;
+      },
+    };
   });
-  const invitation = { ...address, requestId, commandId: randomUUID(), dueDate: "2020-01-01" };
-  const invited = await service.invite(actor, invitation);
-  assert(invited.status === "ok", JSON.stringify(invited));
-  const assignmentId = invited.value.id;
-
-  const read = async () => {
-    const result = await service.read(sam, { assignmentId });
-    assert(result.status === "ok");
-    return result.value;
-  };
-
-  const respond = async (action: "accept" | "decline" | "report_conflict", note = "") =>
-    service.respond(sam, {
-      assignmentId,
-      commandId: randomUUID(),
-      expectedRevision: (await read()).assignment.revision,
-      action,
-      note,
-    });
-
-  const manage = async (
-    action: "cancel" | "reinstate" | "clear_conflict" | "resend" | "retry_notification",
-    note = "",
-  ) => {
-    const list = await service.forApplication(actor, address);
-    assert(list.status === "ok");
-    const current = list.value.find((value) => value.id === assignmentId);
-    assert.isDefined(current);
-    return service.manage(actor, {
-      ...address,
-      assignmentId,
-      commandId: randomUUID(),
-      expectedRevision: current.revision,
-      action,
-      note,
-    });
-  };
-
-  const save = async (reasoning = "Evidence supports the proposed work", note = "") => {
-    const page = await read();
-    assert(page.draft);
-    return service.saveDraft(sam, {
-      assignmentId,
-      commandId: randomUUID(),
-      expectedDraftRevision: page.draft.revision,
-      draft: { position: "Fund", amount: "40.00", reasoning, observations: [], note },
-    });
-  };
-
-  const submit = async () => {
-    const page = await read();
-    assert(page.draft);
-    return service.submit(sam, {
-      assignmentId,
-      commandId: randomUUID(),
-      expectedDraftRevision: page.draft.revision,
-    });
-  };
-
-  return {
-    service,
-    assignmentId,
-    address,
-    invitation,
-    messages,
-    read,
-    respond,
-    manage,
-    save,
-    submit,
-    requestId,
-    requestReview,
-    setDeliveryFailure: (value: boolean) => {
-      failDelivery = value;
-    },
-  };
-});
 
 it("refuses new invitations without a qualifying workspace membership and sends no email", async ({
   db,
@@ -680,6 +686,106 @@ it("preserves successful submission when delivery fails and retries only the not
   expect(retried.rows[0]?.delivery_token).not.toBe(failed.rows[0]?.delivery_token);
 });
 
+it("resets a failed message only in the workspace scope of its own workspace", async ({
+  runtimeUrl,
+  database,
+  reviewerScenario: s,
+}) => {
+  await s.respond("accept");
+  await s.save();
+  s.setDeliveryFailure(true);
+  expect(await s.submit()).toMatchObject({ status: "ok" });
+  const noticeId = (
+    await database.client.query<{ id: string }>(
+      "SELECT id FROM reviewer_messages WHERE assignment_id = $1 AND kind = 'submission'",
+      [s.assignmentId],
+    )
+  ).rows[0]!.id;
+
+  const stored = async () =>
+    (
+      await database.client.query<{ status: string; delivery_token: string }>(
+        "SELECT status, delivery_token FROM reviewer_messages WHERE id = $1",
+        [noticeId],
+      )
+    ).rows[0]!;
+
+  const before = await stored();
+  expect(before.status).toBe("failed");
+
+  const reset = (scope: Parameters<typeof writeScoped>[1]) =>
+    withDatabase(runtimeUrl, (db) =>
+      writeScoped(db, scope, async (tx) => {
+        const [row] = (
+          await tx.execute<{ reset: boolean }>(
+            sql`select merit_retry_reviewer_message(${noticeId}) as reset`,
+          )
+        ).rows;
+        return row?.reset;
+      }),
+    );
+
+  // Another workspace's manager, and the reviewer's assignment scope, cannot reset it.
+  expect(await reset({ kind: "workspace", userId: "birch-manager", slug: "birch" })).toBe(false);
+  expect(await reset(assignmentScope(sam.userId, s.assignmentId))).toBe(false);
+  expect(await stored()).toEqual(before);
+
+  expect(await reset({ kind: "workspace", userId: actor.userId, slug: "alder" })).toBe(true);
+  const after = await stored();
+  expect(after.status).toBe("pending");
+  expect(after.delivery_token).not.toBe(before.delivery_token);
+});
+
+it("revives only the newest failed message of its kind", async ({
+  database,
+  runtimeUrl,
+  reviewerScenario: s,
+}) => {
+  const first = s.invitation.commandId;
+  await database.client.query(
+    "UPDATE reviewer_messages SET status = 'failed', created_at = now() - interval '2 minutes' WHERE id = $1",
+    [first],
+  );
+  // A resend queues a newer message, which fails too.
+  expect(await s.manage("resend")).toMatchObject({ status: "ok" });
+  const newer = (
+    await database.client.query<{ id: string }>(
+      "SELECT id FROM reviewer_messages WHERE assignment_id = $1 AND id <> $2",
+      [s.assignmentId, first],
+    )
+  ).rows[0]!.id;
+  await database.client.query("UPDATE reviewer_messages SET status = 'failed' WHERE id = $1", [
+    newer,
+  ]);
+
+  const reset = (id: string) =>
+    withDatabase(runtimeUrl, (db) =>
+      writeScoped(db, { kind: "workspace", userId: actor.userId, slug: "alder" }, async (tx) => {
+        const [row] = (
+          await tx.execute<{ reset: boolean }>(
+            sql`select merit_retry_reviewer_message(${id}) as reset`,
+          )
+        ).rows;
+        return row?.reset;
+      }),
+    );
+
+  const status = async (id: string) =>
+    (
+      await database.client.query<{ status: string }>(
+        "SELECT status FROM reviewer_messages WHERE id = $1",
+        [id],
+      )
+    ).rows[0]?.status;
+
+  expect(await reset(first)).toBe(false);
+  expect(await status(first)).toBe("failed");
+  expect(await reset(newer)).toBe(true);
+  expect(await status(newer)).toBe("pending");
+  // Pending is not failed: a second reset finds nothing to revive.
+  expect(await reset(newer)).toBe(false);
+});
+
 it("keeps a failed notice available for the manager when an amendment email is suppressed", async ({
   reviewerScenario: s,
 }) => {
@@ -700,10 +806,10 @@ it("keeps a failed notice available for the manager when an amendment email is s
 });
 
 it("records an accepted reviewer message after the sender loses workspace access", async ({
+  runtimeUrl,
   database,
   reviewerScenario: s,
 }) => {
-  const runtimeUrl = await database.createRuntimeConnection();
   // Replay the committed invitation with its original message still awaiting acknowledgement.
   await database.client.query("UPDATE reviewer_messages SET status = 'pending' WHERE id = $1", [
     s.invitation.commandId,

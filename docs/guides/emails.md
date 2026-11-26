@@ -66,7 +66,15 @@ not inside the request. After the message commits, the web server starts the
 `reviewer-message:<messageId>` workflow, which Reviews owns, and the request waits about five seconds
 for the first outcome. Each attempt rereads the assignment and the message and sends with a
 10-second timeout and the message ID as the provider's idempotency key. A failed attempt is retried with
-backoff for about fifteen minutes while the message stays pending, then recorded as failed.
+backoff for about fifteen minutes while the message stays pending, then recorded as failed. If a
+manager retries a failed submission notice (which resets it to pending) while that run is still
+open, the run delivers it again before it closes. Reconciliation restarts any pending message whose
+run has closed, listing only messages whose acting member is still active with a membership in an
+active workspace; each run rereads the message, so one already sent is never sent twice. Merit AI
+starts the same workflow for an approved invitation and then only reads the message's status; it
+never starts one for a message already recorded as sent or failed. A workflow sends only a message
+that is still pending, so the only way to deliver a failed message again is to reset it to pending
+first, as the manager's notice retry and the assistant's own retry action do.
 The worker reads the same sender settings as the web server (`EMAIL_FROM`, `RESEND_API_KEY`, and
 Mailpit locally) and `APP_ORIGIN` for links. Only identifiers reach Temporal; the rendered email is built from
 Postgres inside the activity.
@@ -77,7 +85,10 @@ request waits about five seconds for the first outcome. Its activity rereads the
 every attempt and stops once it is revoked, accepted, or expired. The raw invitation token is the one
 sensitive field in the workflow input; the payload codec encrypts it, and only its hash is stored in
 Postgres. Reconciliation therefore cannot recover a lost start: the invitation stays unconfirmed and
-the administrator resends it. Resend creates a new invitation with its own workflow.
+the administrator resends it. Resend creates a new invitation with its own workflow. The workflow
+reads and records under the invitation's token-hash scope, as invitation delivery always has, so
+the inviter's own access can change while it runs; a late failure never overwrites a recorded send.
+Temporal keeps workflow history, including that encrypted token, for the namespace's retention period.
 
 Sending failures leave the saved invitation available for recovery. Application diagnostics
 distinguish rendering, sender configuration, network requests, and provider rejection.

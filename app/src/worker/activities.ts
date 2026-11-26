@@ -12,6 +12,7 @@ import {
 import type { StartOutcome } from "@merit/workflows";
 
 import type { AssistantWork } from "../server/assistant/conversation-work";
+import { reported } from "./reported";
 
 /** Activities run in the worker process with full Node.js access, outside the workflow sandbox. */
 
@@ -98,13 +99,31 @@ const reconcileConversations = async ({
   }
 };
 
-export const createActivities = (dependencies: WorkerActivityDependencies) => ({
-  confirmWorkerHealth,
-  ...createReviewerMessageActivities(dependencies.reviewerMessages),
-  ...createInvitationActivities(dependencies.invitations),
-  reconcileReviewerMessages: () => reconcileReviewerMessages(dependencies),
-  reconcileConversations: () => reconcileConversations(dependencies),
-});
+export const createActivities = (dependencies: WorkerActivityDependencies) => {
+  const reviewerMessages = createReviewerMessageActivities(dependencies.reviewerMessages);
+  const invitations = createInvitationActivities(dependencies.invitations);
+  return {
+    confirmWorkerHealth,
+    // A send failure is reported by the email sender and retried; recording an outcome is not.
+    ...reviewerMessages,
+    failReviewerMessage: reported("reviewerMessage.fail", reviewerMessages.failReviewerMessage),
+    reviewerMessageRetried: reported(
+      "reviewerMessage.retried",
+      reviewerMessages.reviewerMessageRetried,
+    ),
+    ...invitations,
+    failOrganizationInvitation: reported(
+      "organizationInvitation.fail",
+      invitations.failOrganizationInvitation,
+    ),
+    reconcileReviewerMessages: reported("reconcile.reviewerMessages", () =>
+      reconcileReviewerMessages(dependencies),
+    ),
+    reconcileConversations: reported("reconcile.conversations", () =>
+      reconcileConversations(dependencies),
+    ),
+  };
+};
 
 export type Activities = ReturnType<typeof createActivities>;
 

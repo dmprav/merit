@@ -11,7 +11,7 @@ import { readAppOrigin, readDatabaseUrl } from "../server/runtime-config.server"
 import { organizationInvitationDelivery, reviewerMessageDelivery } from "../server/services.server";
 import { createActivities } from "./activities";
 import { createAssistantActivities } from "./assistant-activities";
-import { assistantTurnConcurrency, assistantTurnTaskQueue } from "./task-queue";
+import { assistantTurnConcurrency, readWorkSettings } from "./task-queue";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -31,7 +31,12 @@ export const createWorkerRuntime = (
     resendKey: env.RESEND_API_KEY ?? "",
     mailpitUrl: local ? (env.MAILPIT_URL ?? "http://127.0.0.1:8025") : undefined,
   });
-  const background = createBackgroundWork({ client: () => client });
+  const queues = readWorkSettings(env);
+  const background = createBackgroundWork({
+    client: () => client,
+    taskQueue: queues.taskQueue,
+    turnTaskQueue: queues.turnTaskQueue,
+  });
   const invitationOrigin = readAppOrigin();
   // Turns run here, so this process owns what a turn's grant changes report and deliver.
   const assistant = createAssistantRuntime(
@@ -41,7 +46,6 @@ export const createWorkerRuntime = (
         apiKey: env.VITE_POSTHOG_KEY,
         host: env.VITE_POSTHOG_HOST,
       }),
-      sendEmail,
       startReviewerMessage: background.startReviewerMessage,
       startOrganizationInvitation: background.startOrganizationInvitation,
       invitationOrigin,
@@ -69,10 +73,10 @@ export const createWorkerRuntime = (
   });
   const activityQueues = [
     {
-      taskQueue: assistantTurnTaskQueue,
+      taskQueue: queues.turnTaskQueue,
       activities: createAssistantActivities(assistant),
       maxConcurrentActivities: assistantTurnConcurrency,
     },
   ];
-  return { config, client, activities, activityQueues };
+  return { config, client, activities, activityQueues, queues };
 };

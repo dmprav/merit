@@ -39,9 +39,7 @@ type Dependencies = {
   database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
   analytics?: ServerAnalytics;
   identity: OrganizationIdentity;
-  invitationOrigin: string;
   networkAddress?: string;
-  sendEmail: EmailSender;
   /**
    * Starts a reviewer message's delivery workflow after its record commits. It never rejects
    * and answers whether the work runs or ran.
@@ -54,12 +52,19 @@ type Dependencies = {
   deferReviewerDelivery?: (delivery: ReviewerDelivery) => void;
 };
 
+/** What the delivery activities, which run in the worker, need to send an email. */
+type DeliveryDependencies = Pick<Dependencies, "database"> & {
+  /** The origin of the links in emails, which only the worker needs. */
+  invitationOrigin: string;
+  sendEmail: EmailSender;
+};
+
 /** What the delivery activities, which run in the worker, need to send a reviewer message. */
 export const reviewerMessageDelivery = ({
   database,
   invitationOrigin,
   sendEmail,
-}: Pick<Dependencies, "database" | "invitationOrigin" | "sendEmail">) => ({
+}: DeliveryDependencies) => ({
   database,
   reviewerUrl: (slug: string, id: string) =>
     new URL(productLinks.review(slug, id), invitationOrigin).href,
@@ -74,7 +79,7 @@ export const organizationInvitationDelivery = ({
   database,
   invitationOrigin,
   sendEmail,
-}: Pick<Dependencies, "database" | "invitationOrigin" | "sendEmail">) => ({
+}: DeliveryDependencies) => ({
   database,
   invitationUrl: (token: string) => new URL(productLinks.invitation(token), invitationOrigin).href,
   sendInvitation: (message: InvitationMessage) => sendInvitationEmail(message, sendEmail),

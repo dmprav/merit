@@ -11,6 +11,7 @@ import { productLinks } from "@merit/product/links";
 import { inlineReviewerDelivery } from "@merit/reviews/testing";
 
 import { createAccountDemoServices } from "../../src/server/demo-workspace.server";
+import type { EmailSender } from "../../src/server/email-delivery.server";
 import {
   createApplicationServices,
   organizationInvitationDelivery,
@@ -31,7 +32,7 @@ export const createTransport = (
     verifiedEmails: async () => [],
     displayName: async () => null,
   },
-  sendEmail: Parameters<typeof createApplicationServices>[0]["sendEmail"] = async () => {},
+  sendEmail: EmailSender = async () => {},
   analytics?: Parameters<typeof createApplicationServices>[0]["analytics"],
 ) => {
   const {
@@ -47,8 +48,6 @@ export const createTransport = (
     database: async (operation) => operation(db),
     identity,
     analytics,
-    invitationOrigin: "http://localhost:3000",
-    sendEmail,
     startReviewerMessage: inlineReviewerDelivery(
       reviewerMessageDelivery({
         database: async (operation) => operation(db),

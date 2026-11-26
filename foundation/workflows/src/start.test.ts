@@ -1,3 +1,4 @@
+import { WorkflowNotFoundError } from "@temporalio/client";
 import { WorkflowExecutionAlreadyStartedError } from "@temporalio/common";
 import { describe, expect, it, vi } from "vite-plus/test";
 
@@ -11,7 +12,12 @@ const request = {
 };
 
 const setup = () => {
-  const workflow = { start: vi.fn(), signalWithStart: vi.fn() };
+  const signal = vi.fn();
+  const workflow = {
+    start: vi.fn(),
+    signalWithStart: vi.fn(),
+    getHandle: vi.fn(() => ({ signal })),
+  };
   const report = vi.fn();
 
   const starter = (timeoutMs?: number) =>
@@ -22,7 +28,7 @@ const setup = () => {
       ...(timeoutMs === undefined ? {} : { timeoutMs }),
     });
 
-  return { workflow, report, starter };
+  return { workflow, signal, report, starter };
 };
 
 describe("starting work", () => {
@@ -101,5 +107,50 @@ describe("starting work", () => {
 
     expect(await starter(20).start(request)).toBe("failed");
     expect(report).toHaveBeenCalledExactlyOnceWith("reviewer-message.start");
+  });
+});
+
+describe("signaling work", () => {
+  const request = {
+    workflowId: "assistant-conversation:1",
+    signal: "cancelTurn",
+    operation: "x.cancel",
+  };
+
+  it("signals the workflow under the ID without starting one", async () => {
+    const { workflow, signal, report, starter } = setup();
+    signal.mockResolvedValue(undefined);
+
+    expect(await starter().signal(request)).toBe("signaled");
+
+    expect(workflow.getHandle).toHaveBeenCalledWith("assistant-conversation:1");
+    expect(signal).toHaveBeenCalledWith("cancelTurn");
+    expect(workflow.start).not.toHaveBeenCalled();
+    expect(workflow.signalWithStart).not.toHaveBeenCalled();
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it("answers absent, without a report, when no workflow runs under the ID", async () => {
+    const { signal, report, starter } = setup();
+    signal.mockRejectedValue(new WorkflowNotFoundError("gone", "assistant-conversation:1", ""));
+
+    expect(await starter().signal(request)).toBe("absent");
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it("reports an unreachable Temporal by operation name only and does not throw", async () => {
+    const { signal, report, starter } = setup();
+    signal.mockRejectedValue(new Error("jo@example.test unreachable"));
+
+    expect(await starter().signal(request)).toBe("failed");
+    expect(report).toHaveBeenCalledExactlyOnceWith("x.cancel");
+  });
+
+  it("gives up on a signal that never answers", async () => {
+    const { signal, report, starter } = setup();
+    signal.mockReturnValue(new Promise(() => {}));
+
+    expect(await starter(20).signal(request)).toBe("failed");
+    expect(report).toHaveBeenCalledExactlyOnceWith("x.cancel");
   });
 });

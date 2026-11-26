@@ -44,35 +44,35 @@ export type InvitationDeliveryDependencies = DatabaseAccess & {
   wait?: OutcomeWait;
 };
 
-// Onboarding scope: the organization's ID alone opens its invitations and its name, with no
-// member access, so delivery continues while the inviter's own access changes.
-const scopeOf = (work: InvitationWork) => ({
-  kind: "provision" as const,
-  organizationId: work.organizationId,
+// The token's hash alone opens its invitation and the organization's name, with no member
+// access, so delivery continues while the inviter's own access changes. This is the scope the
+// invitation was always delivered and recorded under.
+const scopeOf = async (work: InvitationWork) => ({
+  kind: "invitation" as const,
+  tokenHash: await hashToken(work.token),
 });
 
 const readCurrent = async (database: DatabaseAccess["database"], work: InvitationWork) => {
-  const row = await database((db) =>
-    readScoped(db, scopeOf(work), (tx) => readInvitationForDelivery(tx, work.invitationId)),
+  const scope = await scopeOf(work);
+  return database((db) =>
+    readScoped(db, scope, (tx) => readInvitationForDelivery(tx, work.invitationId)),
   );
-  if (!row || row.invitation.organizationId !== work.organizationId) {
-    return undefined;
-  }
-  return row;
 };
 
 /** An invitation still awaiting its email: not revoked, accepted or expired. */
 const awaitingEmail = (row: NonNullable<Awaited<ReturnType<typeof readCurrent>>>) =>
   !row.invitation.revokedAt && !row.invitation.acceptedAt && row.invitation.expiresAt > new Date();
 
-const record = (
+const record = async (
   database: DatabaseAccess["database"],
   work: InvitationWork,
   delivery: "sent" | "failed",
-) =>
-  database((db) =>
-    writeScoped(db, scopeOf(work), (tx) => recordDelivery(tx, work.invitationId, delivery)),
+) => {
+  const scope = await scopeOf(work);
+  await database((db) =>
+    writeScoped(db, scope, (tx) => recordDelivery(tx, work.invitationId, delivery)),
   );
+};
 
 /**
  * Deliver a committed invitation: start the workflow that sends it, then wait briefly for the
@@ -85,7 +85,6 @@ export const deliverInvitation = async (
 ): Promise<Status | "unavailable"> => {
   const work = {
     invitationId: invitation.record.id,
-    organizationId: invitation.record.organizationId,
     token: invitation.token,
   };
   const started = await dependencies.start(work);
@@ -112,7 +111,7 @@ const sendOrganizationInvitation = async (
   work: InvitationWork,
 ): Promise<"sent" | "stopped"> => {
   const row = await readCurrent(dependencies.database, work);
-  if (!row || !awaitingEmail(row) || row.invitation.tokenHash !== (await hashToken(work.token))) {
+  if (!row || !awaitingEmail(row)) {
     return "stopped";
   }
   const { invitation, organizationName } = row;

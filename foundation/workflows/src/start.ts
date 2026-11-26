@@ -1,3 +1,4 @@
+import { WorkflowNotFoundError } from "@temporalio/client";
 import { WorkflowExecutionAlreadyStartedError, WorkflowIdReusePolicy } from "@temporalio/common";
 
 import type { WorkflowClient } from "./connection.ts";
@@ -29,6 +30,21 @@ export type StartOutcome =
   /** The workflow already ran or is running, so nothing changed. */
   | "exists"
   /** Temporal could not be reached; the failure was reported and the work waits for reconciliation. */
+  | "failed";
+
+export type SignalRequest = {
+  workflowId: string;
+  signal: string;
+  /** A safe name for telemetry when the signal fails. */
+  operation: string;
+};
+
+export type SignalOutcome =
+  /** The running workflow received the signal. */
+  | "signaled"
+  /** No workflow runs under the ID, so there was nothing to tell. */
+  | "absent"
+  /** Temporal could not be reached; the failure was reported. */
   | "failed";
 
 export type WorkflowStarterOptions = {
@@ -100,6 +116,27 @@ export const createWorkflowStarter = ({
     } catch (error) {
       if (error instanceof WorkflowExecutionAlreadyStartedError) {
         return "exists";
+      }
+      report(request.operation);
+      return "failed";
+    }
+  },
+  /**
+   * Send a plain signal to a workflow that may be running, never starting one. It never throws:
+   * a workflow that is not running is `absent`, and an unreachable Temporal is reported.
+   */
+  async signal(request: SignalRequest): Promise<SignalOutcome> {
+    try {
+      const handle = client().workflow.getHandle(request.workflowId);
+      const result = await within(handle.signal(request.signal), timeoutMs);
+      if (result === timedOut) {
+        report(request.operation);
+        return "failed";
+      }
+      return "signaled";
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) {
+        return "absent";
       }
       report(request.operation);
       return "failed";

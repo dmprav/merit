@@ -2,9 +2,6 @@ import { proxyActivities } from "@temporalio/workflow";
 
 import type { ReconcileActivities } from "./activities.ts";
 
-/** The Schedule that starts reconciliation, and the workflow it runs. */
-export const reconcileScheduleId = "merit-reconcile";
-
 /**
  * Start or signal the workflow of every committed piece of unfinished work that has none.
  * Postgres lists the work and each start is idempotent, so a run that overlaps another, repeats,

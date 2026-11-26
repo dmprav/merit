@@ -5,7 +5,7 @@ import { afterAll, beforeAll, expect, it } from "vite-plus/test";
 import { ensureSchedule } from "@merit/workflows";
 import { readTestTemporalConfig, startTestWorker, type TestWorker } from "@merit/workflows/testing";
 
-import { reconcileScheduleId } from "../src/worker/reconcile.workflow";
+import { reconcileScheduleId } from "../src/worker/task-queue";
 
 // Runs against the Compose Temporal service: `docker compose up -d --wait`.
 const config = readTestTemporalConfig(process.env);
@@ -51,13 +51,19 @@ it("ensures exactly one reconciliation Schedule however often it is called", asy
     ensureSchedule(worker.client, settings()),
   ]);
 
-  const matching = [];
-  for await (const summary of worker.client.schedule.list()) {
-    if (summary.scheduleId === scheduleId) {
-      matching.push(summary);
-    }
-  }
-  expect(matching).toHaveLength(1);
+  // The listing is eventually consistent, so wait for it to show the Schedule exactly once.
+  await expect
+    .poll(
+      async () => {
+        let count = 0;
+        for await (const summary of worker.client.schedule.list()) {
+          count += summary.scheduleId === scheduleId ? 1 : 0;
+        }
+        return count;
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(1);
   const description = await worker.client.schedule.getHandle(scheduleId).describe();
   expect(description.spec.intervals).toMatchObject([{ every: 60_000 }]);
   expect(description.policies.overlap).toBe("SKIP");

@@ -14,6 +14,7 @@ import { reviewRevisionSchema } from "@merit/reviews/domain";
 import {
   createReviewerService,
   deliverCommittedReviewerMessage,
+  listPendingReviewerMessageWork,
   saveApplicationReview,
   type ReviewerDelivery,
 } from "@merit/reviews/server";
@@ -52,6 +53,8 @@ const current: {
   database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
   send: (message: ReviewerMessage) => Promise<void>;
   background: ReturnType<typeof createBackgroundWork>;
+  /** Holds a run open after its failure was recorded, until the test releases it. */
+  afterFailure?: Promise<void>;
 } = {
   database: () => Promise.reject(new Error("No test is running.")),
   send: () => Promise.reject(new Error("No test is running.")),
@@ -63,7 +66,7 @@ let worker: TestWorker;
 beforeAll(async () => {
   const database: typeof current.database = (operation) => current.database(operation);
 
-  const activities = createActivities({
+  const base = createActivities({
     database,
     reviewerMessages: {
       database,
@@ -79,6 +82,15 @@ beforeAll(async () => {
     assistant: { configured: false, running: async () => [], wake: async () => true },
     reconcileReviewerMessage: (work) => current.background.reconcileReviewerMessage(work),
   });
+  const activities = {
+    ...base,
+    // The failure is committed, and the run stays open, as when its workflow task is delayed.
+    failReviewerMessage: async (work: Parameters<typeof base.failReviewerMessage>[0]) => {
+      const outcome = await base.failReviewerMessage(work);
+      await current.afterFailure;
+      return outcome;
+    },
+  };
   worker = await startTestWorker(config, { workflows: { workflowsPath }, activities });
 }, 120_000);
 
@@ -143,6 +155,7 @@ const it = roundTest
       reviewerMessageTiming: timing,
     });
     current.background = background;
+    current.afterFailure = undefined;
 
     const serviceWith = (
       start = background.startReviewerMessage,
@@ -172,12 +185,13 @@ const it = roundTest
     const manage = async (
       assignmentId: string,
       action: "cancel" | "resend" | "retry_notification",
+      using = service,
     ) => {
-      const list = await service.forApplication(actor, address);
+      const list = await using.forApplication(actor, address);
       assert(list.status === "ok");
       const found = list.value.find((value) => value.id === assignmentId);
       assert(found);
-      return service.manage(actor, {
+      return using.manage(actor, {
         ...address,
         assignmentId,
         commandId: randomUUID(),
@@ -405,7 +419,7 @@ it("retries a manually retried notice through the window and records failed agai
   expect(await s.status(noticeId)).toBe("failed");
 });
 
-it("starts a workflow for a message at most once and never resends a delivered one", async ({
+it("starts a workflow for a message at most once at a time and never resends a delivered one", async ({
   scenario: s,
 }) => {
   const invited = await s.service.invite(actor, s.invitation);
@@ -422,7 +436,10 @@ it("starts a workflow for a message at most once and never resends a delivered o
     s.background.startReviewerMessage(work),
     s.background.startReviewerMessage(work),
   ]);
-  expect(await s.background.reconcileReviewerMessage(work)).toBe("exists");
+  await closed(s.invitation.commandId);
+  // A closed run starts again, finds the message sent and sends nothing.
+  expect(await s.background.reconcileReviewerMessage(work)).toBe("started");
+  expect(await closed(s.invitation.commandId)).toBe("sent");
   const replay = await s.service.invite(actor, s.invitation);
 
   expect(replay).toMatchObject({ status: "ok", value: { delivery: "sent" } });
@@ -496,6 +513,114 @@ it("stops retrying once the invitation has expired", async ({ scenario: s }) => 
   expect(await s.status(s.invitation.commandId)).toBe("pending");
 });
 
+const release = () => {
+  let open = () => {};
+
+  const held = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { held, open };
+};
+
+it("delivers a notice retried while its failed run is still open", async ({ scenario: s }) => {
+  const gate = release();
+  current.afterFailure = gate.held;
+  const { assignmentId, noticeId } = await s.failedNotice();
+  expect(await s.status(noticeId)).toBe("failed");
+
+  // The retry resets the message to pending while the run that failed it is still open, so the
+  // request's start finds that run and starts nothing.
+  s.behavior.fail = false;
+  s.mail.length = 0;
+  const impatient = createReviewerService({
+    database: s.run,
+    start: s.background.startReviewerMessage,
+    wait: { timeoutMs: 200, intervalMs: 50 },
+  });
+  const retried = await s.manage(assignmentId, "retry_notification", impatient);
+  assert(retried.status === "ok");
+  expect(retried.value.notification).toBe("pending");
+  expect(await s.status(noticeId)).toBe("pending");
+
+  gate.open();
+
+  // The run that failed it notices the retry and delivers the message again.
+  expect(await closed(noticeId)).toBe("sent");
+  expect(await s.status(noticeId)).toBe("sent");
+  expect(s.mail.map(({ id }) => id)).toEqual([noticeId]);
+});
+
+it("restarts a pending message whose earlier run completed, by reconciliation", async ({
+  scenario: s,
+}) => {
+  const { noticeId } = await s.failedNotice();
+  expect(await closed(noticeId)).toBe("failed");
+
+  // A retry committed after the run closed, as when the request's own start was lost.
+  await s.database.client.query(
+    "UPDATE reviewer_messages SET status = 'pending', delivery_token = gen_random_uuid() WHERE id = $1",
+    [noticeId],
+  );
+  s.behavior.fail = false;
+  s.mail.length = 0;
+
+  const outcome: unknown = await worker.client.workflow.execute("reconcile", {
+    taskQueue: worker.taskQueue,
+    workflowId: uniqueName("reconcile"),
+    workflowExecutionTimeout: "30 seconds",
+  });
+
+  expect(outcome).toEqual({ reviewerMessages: "ok", conversations: "ok" });
+  expect(await closed(noticeId)).toBe("sent");
+  expect(await s.status(noticeId)).toBe("sent");
+  expect(s.mail.map(({ id }) => id)).toEqual([noticeId]);
+});
+
+it("lists a pending message only while its actor could still deliver it", async ({
+  scenario: s,
+}) => {
+  s.behavior.fail = true;
+  const impatient = createReviewerService({
+    database: s.run,
+    start: async () => false,
+    wait: { timeoutMs: 0, intervalMs: 0 },
+  });
+  const invited = await impatient.invite(actor, s.invitation);
+  assert(invited.status === "ok");
+
+  const listed = async () =>
+    (await listPendingReviewerMessageWork(s.run, 100)).map(({ messageId }) => messageId);
+
+  expect(await listed()).toEqual([s.invitation.commandId]);
+
+  await s.database.client.query("UPDATE app_users SET active = false WHERE id = $1", [
+    actor.userId,
+  ]);
+  expect(await listed()).toEqual([]);
+  await s.database.client.query("UPDATE app_users SET active = true WHERE id = $1", [actor.userId]);
+  expect(await listed()).toEqual([s.invitation.commandId]);
+
+  await s.database.client.query(
+    "UPDATE organizations SET kind = 'demo', demo_expires_at = now() - interval '1 hour', demo_seed_version = 1 WHERE id = 'alder'",
+  );
+  expect(await listed()).toEqual([]);
+});
+
+/** Ask where the assistant's saved message stands until it settles, as its later steps do. */
+const settle = async (
+  s: { run: Parameters<typeof deliverCommittedReviewerMessage>[0]["database"] },
+  ticket: ReviewerDelivery,
+  start: Parameters<typeof deliverCommittedReviewerMessage>[0]["start"],
+) => {
+  const dependencies = { database: s.run, start };
+  return expect
+    .poll(() => deliverCommittedReviewerMessage(dependencies, actor.userId, ticket), {
+      timeout: 10_000,
+      interval: 100,
+    })
+    .not.toBe("pending");
+};
+
 it("delivers the assistant's committed invitation through the same workflow", async ({
   scenario: s,
 }) => {
@@ -511,19 +636,17 @@ it("delivers the assistant's committed invitation through the same workflow", as
   assert(ticket);
   expect(s.mail).toHaveLength(0);
 
-  const delivered = await deliverCommittedReviewerMessage(
-    { database: s.run, start: s.background.startReviewerMessage },
-    actor.userId,
-    ticket,
-    wait,
-  );
+  const dependencies = { database: s.run, start: s.background.startReviewerMessage };
+  // Asking never waits: the message is pending until the workflow has sent it.
+  expect(await deliverCommittedReviewerMessage(dependencies, actor.userId, ticket)).toBe("pending");
+  await settle(s, ticket, s.background.startReviewerMessage);
+  expect(await s.status(ticket.messageId)).toBe("sent");
 
-  expect(delivered).toBe("sent");
   expect(await closed(ticket.messageId)).toBe("sent");
   expect(s.mail).toHaveLength(1);
 });
 
-it("reports a failed assistant delivery after the retry window, and a newer message as unavailable", async ({
+it("records a failed assistant delivery once and never sends it again, and a newer message is unavailable", async ({
   scenario: s,
 }) => {
   s.behavior.fail = true;
@@ -535,15 +658,34 @@ it("reports a failed assistant delivery after the retry window, and a newer mess
   assert(invited.status === "ok");
   assert(ticket);
 
-  const delivered = await deliverCommittedReviewerMessage(
-    { database: s.run, start: s.background.startReviewerMessage },
-    actor.userId,
-    ticket,
-    wait,
-  );
-  expect(delivered).toBe("failed");
+  await settle(s, ticket, s.background.startReviewerMessage);
+  expect(await s.status(ticket.messageId)).toBe("failed");
+  expect(await closed(ticket.messageId)).toBe("failed");
 
+  // A crash after the failure and before the assistant recorded it asks again: the message is
+  // already failed, so nothing starts a new run or sends it behind the assistant's retry action.
+  const attempts = s.mail.length;
   s.behavior.fail = false;
+  expect(
+    await deliverCommittedReviewerMessage(
+      { database: s.run, start: s.background.startReviewerMessage },
+      actor.userId,
+      ticket,
+    ),
+  ).toBe("failed");
+  expect(s.mail).toHaveLength(attempts);
+  expect(await s.status(ticket.messageId)).toBe("failed");
+
+  // Even a run started for it, as a race with the failure recording could, sends nothing.
+  await s.background.startReviewerMessage({
+    messageId: ticket.messageId,
+    assignmentId: ticket.assignmentId,
+    kind: ticket.kind,
+    userId: actor.userId,
+  });
+  expect(await closed(ticket.messageId)).toBe("stopped");
+  expect(s.mail).toHaveLength(attempts);
+
   await s.backdateMessages(invited.value.id);
   expect(await s.manage(invited.value.id, "resend")).toMatchObject({ status: "ok" });
   expect(
@@ -551,7 +693,6 @@ it("reports a failed assistant delivery after the retry window, and a newer mess
       { database: s.run, start: s.background.startReviewerMessage },
       actor.userId,
       ticket,
-      wait,
     ),
   ).toBe("unavailable");
 });

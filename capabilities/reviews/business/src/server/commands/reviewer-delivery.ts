@@ -3,7 +3,10 @@ import { assignmentScope, readScoped } from "@merit/organizations/transactions";
 import { waitForOutcome, type OutcomeWait } from "@merit/workflows/outcome";
 
 import type { ReviewerMessage } from "../../api/reviewer";
-import { finishReviewerMessage } from "../persistence/commands/reviewer";
+import {
+  finishReviewerMessage,
+  resetFailedReviewerMessage,
+} from "../persistence/commands/reviewer";
 import {
   latestReviewerMessage,
   listPendingReviewerMessages,
@@ -54,8 +57,8 @@ export type ReviewerMessageActivityDependencies = {
 export type ReviewerDeliveryDependencies = {
   database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
   /**
-   * Start the delivery workflow for a committed message. Starting what already runs is a
-   * no-op, and a failure to start is reported by the implementation and never thrown: the
+   * Start the delivery workflow for a committed message, again if its last run closed: a manual
+   * retry of a failed message runs under the same ID. Starting what already runs is a no-op, and a failure to start is reported by the implementation and never thrown: the
    * commit stands and reconciliation starts the work later. It answers whether the work
    * runs or ran, so a request does not wait for a workflow that never started.
    */
@@ -111,22 +114,14 @@ export const deliverReviewerMessage = async (
   {
     workspaceSlug,
     submissionCommandId,
-    expectedMessageId,
-    wait,
-    waitWithoutStart = false,
   }: {
     workspaceSlug?: string;
     submissionCommandId?: string;
-    expectedMessageId?: string;
-    /** Overrides the dependencies' wait, such as for a delivery the assistant waits out. */
-    wait?: OutcomeWait;
-    /** Keep waiting when the start failed, because reconciliation will deliver the message. */
-    waitWithoutStart?: boolean;
   } = {},
 ): Promise<"sent" | "failed" | "unavailable" | "pending"> => {
   const current = await readDelivery(dependencies.database, userId, id, kind, workspaceSlug);
   const found = deliverable(current, kind);
-  if (!found || (expectedMessageId && found.message.id !== expectedMessageId)) {
+  if (!found) {
     return "unavailable";
   }
   const { message } = found;
@@ -149,7 +144,7 @@ export const deliverReviewerMessage = async (
     messageId: message.id,
     userId,
   });
-  if (!started && !waitWithoutStart) {
+  if (!started) {
     return message.status === "failed" ? "failed" : "pending";
   }
 
@@ -163,33 +158,38 @@ export const deliverReviewerMessage = async (
       return "unavailable" as const;
     }
     return settled(latest.message.status) ? latest.message.status : undefined;
-  }, wait ?? dependencies.wait);
+  }, dependencies.wait);
   return outcome ?? (message.status === "failed" ? "failed" : "pending");
 };
 
 /**
- * Deliver only the exact committed message and wait for its final status. A newer invitation
- * needs its own approval. The assistant keeps the action `delivering` until this settles.
+ * Where the exact committed message the assistant saved stands now, without waiting: the
+ * assistant keeps its action `delivering` and asks again on a later step until the message is
+ * `sent` or `failed`. A message still pending gets its workflow started, again if its last run
+ * closed; one already recorded as `sent` or `failed` is never started, so a crash cannot send it
+ * twice or retry it behind the assistant's own retry action. A newer message needs its own
+ * approval.
  */
 export const deliverCommittedReviewerMessage = async (
-  dependencies: Omit<ReviewerDeliveryDependencies, "deferDelivery">,
+  dependencies: Pick<ReviewerDeliveryDependencies, "database" | "start">,
   userId: string,
   delivery: ReviewerDelivery,
-  wait: OutcomeWait,
-) => {
-  const status = await deliverReviewerMessage(
-    dependencies,
+): Promise<"sent" | "failed" | "unavailable" | "pending"> => {
+  const current = await readDelivery(
+    dependencies.database,
     userId,
     delivery.assignmentId,
     delivery.kind,
-    {
-      expectedMessageId: delivery.messageId,
-      wait,
-      waitWithoutStart: true,
-    },
   );
-  // The wait ends only when the workflow gave up or never ran; the assistant's retry covers it.
-  return status === "pending" ? "failed" : status;
+  const found = deliverable(current, delivery.kind);
+  if (!found || found.message.id !== delivery.messageId) {
+    return "unavailable";
+  }
+  if (found.message.status !== "pending") {
+    return found.message.status;
+  }
+  await dependencies.start({ ...delivery, userId });
+  return "pending";
 };
 
 /**
@@ -212,8 +212,10 @@ const sendReviewerMessage = async (
     return "stopped";
   }
   const { record, message } = found;
-  if (message.status === "sent") {
-    return "sent";
+  if (message.status !== "pending") {
+    // A failed message is retried by resetting it to pending first, so a run that finds it failed
+    // or sent has nothing to send; a late or restarted run can never resend it behind a retry.
+    return message.status === "sent" ? "sent" : "stopped";
   }
   await dependencies.send({
     id: message.id,
@@ -261,19 +263,44 @@ const failReviewerMessage = async (
   return "failed";
 };
 
+/**
+ * The assistant's retry of a failed message it saved, in the retry's own transaction: the message
+ * goes back to `pending` with a fresh delivery token, under the same ID, so its workflow delivers
+ * it again. Nothing else makes a failed message deliverable.
+ */
+export const retryReviewerDelivery = async (db: Database, delivery: ReviewerDelivery) =>
+  resetFailedReviewerMessage(db, delivery.messageId);
+
+/** Whether a manager retried the message after its failure was recorded: it is pending again. */
+const reviewerMessageRetried = async (
+  dependencies: Pick<ReviewerMessageActivityDependencies, "database">,
+  work: ReviewerMessageWork,
+): Promise<boolean> => {
+  const current = await readDelivery(
+    dependencies.database,
+    work.userId,
+    work.assignmentId,
+    work.kind,
+  );
+  const found = deliverable(current, work.kind);
+  return found?.message.id === work.messageId && found.message.status === "pending";
+};
+
 /** The activities the delivery workflow calls, bound to a database and an email sender. */
 export const createReviewerMessageActivities = (
   dependencies: ReviewerMessageActivityDependencies,
 ) => ({
   sendReviewerMessage: (work: ReviewerMessageWork) => sendReviewerMessage(dependencies, work),
   failReviewerMessage: (work: ReviewerMessageWork) => failReviewerMessage(dependencies, work),
+  reviewerMessageRetried: (work: ReviewerMessageWork) => reviewerMessageRetried(dependencies, work),
 });
 
 export type ReviewerMessageActivities = ReturnType<typeof createReviewerMessageActivities>;
 
 /**
  * Committed messages that still await delivery, across workspaces, as workflow input. Reconciliation
- * starts a workflow for each page; one that already runs or completed is left alone.
+ * restarts a workflow for each page, so a message whose earlier run completed is delivered again
+ * (each run rechecks the message and sends nothing for one already sent); one that runs is left alone.
  */
 export const listPendingReviewerMessageWork = async (
   database: ReviewerDeliveryDependencies["database"],

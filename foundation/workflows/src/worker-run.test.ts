@@ -11,6 +11,8 @@ const sdk = vi.hoisted(() => ({
 
 vi.mock("@temporalio/worker", () => ({
   DefaultLogger: class {},
+  makeTelemetryFilterString: ({ core, other }: { core: string; other: string }) =>
+    `${other},temporal_sdk_core=${core}`,
   NativeConnection: { connect: sdk.connect },
   Runtime: { install: sdk.install },
   Worker: { create: sdk.create },
@@ -56,6 +58,14 @@ describe("connecting", () => {
     expect(worker.run).toHaveBeenCalledOnce();
     expect(connection.close).toHaveBeenCalledOnce();
     expect(sdk.install).toHaveBeenCalledOnce();
+    // The native core's logs reach the safe logger instead of the console, which would print task tokens.
+    expect(sdk.install).toHaveBeenCalledWith(
+      expect.objectContaining({
+        telemetryOptions: {
+          logging: { forward: {}, filter: "ERROR,temporal_sdk_core=WARN" },
+        },
+      }),
+    );
   });
 
   it("keeps the first runtime when one is already installed", async () => {

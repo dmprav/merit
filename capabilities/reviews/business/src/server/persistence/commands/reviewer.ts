@@ -496,3 +496,17 @@ export const cancelParticipatingRequest = async (
     action: "cancel",
   });
 };
+
+/**
+ * Put a failed message back to `pending` with a fresh delivery token so its workflow delivers it
+ * again, as the assistant's retry of its own invitation does. Only the newest message of its kind
+ * in a workspace the member can access resets.
+ */
+export const resetFailedReviewerMessage = async (tx: Database, messageId: string) => {
+  const [row] = (
+    await tx.execute<{ reset: boolean }>(
+      sql`select public.merit_retry_reviewer_message(${messageId}) as reset`,
+    )
+  ).rows;
+  return row?.reset === true;
+};

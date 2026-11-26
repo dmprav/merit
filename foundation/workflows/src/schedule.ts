@@ -22,7 +22,7 @@ const options = ({
 }: ScheduleSettings) => ({
   spec: { intervals: [{ every: everyMs }] },
   action: { type: "startWorkflow" as const, workflowType, taskQueue, workflowId, args },
-  // A run still going when the next is due makes that one wait; runs never pile up.
+  // A run still going when the next is due drops that one; runs never overlap or pile up.
   policies: { overlap: ScheduleOverlapPolicy.SKIP },
 });
 

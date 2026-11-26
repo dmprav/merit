@@ -112,18 +112,24 @@ running: the development watcher prints that the worker exited and reruns it on 
 change, such as a fix in `app/.env.local`, and preview prints that it stopped. Press Ctrl+C once to stop everything after work in flight finishes, and again to
 force the worker to exit. Run the worker alone with `vp run @merit/app#worker`.
 
-Every worker started this way polls the fixed `merit` task queue, and `merit-assistant-turns`
+Every worker started this way polls the `merit` task queue by default, and `merit-assistant-turns`
 for Merit AI turn activities, on the one Compose server. The turn queue limits the process to four
 concurrent turns, so model calls never take the slots that email delivery needs. A dev worker from another worktree can pick up your work, running its code against its
-checkout. Stop other worktrees' workers while you work on workflows.
+checkout. Stop other worktrees' workers while you work on workflows. A run that must not share work
+with a developer's worker, such as the workspace browser tests, sets `MERIT_TASK_QUEUE`,
+`MERIT_TURN_TASK_QUEUE`, and `MERIT_RECONCILE_SCHEDULE_ID` for both its web server and worker, and
+`MERIT_WORKER_APP_ORIGIN` for the origin the worker puts in email links (`scripts/with-worker.ts`
+passes it to the worker as `APP_ORIGIN`, leaving the web server's origin alone).
 
 Each worker start ensures one Temporal Schedule, `merit-reconcile`, which runs the `reconcile`
 workflow every minute. Its activities list committed unfinished work in Postgres, such as
 reviewer messages still `pending` and conversations still `running`, and start or wake the
 workflow of anything that has none. This is how
 work recovers when Temporal was unreachable at commit, or the process stopped between commit and
-start. Starting a workflow that already ran is a no-op. The Schedule shows in the Temporal UI; pausing
-it pauses recovery only. A new kind of work joins reconciliation by adding a reconciler to the
+start. Starting a workflow that is already running is a no-op, and a start that lets a closed run of
+the same ID run again (`closed: "restart"`, which reviewer messages and conversations use) starts a
+new run that rereads Postgres and does nothing for work already done. The Schedule shows in the
+Temporal UI; pausing it pauses recovery only. A new kind of work joins reconciliation by adding a reconciler to the
 [reconcile workflow](../../app/src/worker/reconcile.workflow.ts).
 
 Both processes read `app/.env.local`. The defaults need no configuration:

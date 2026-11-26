@@ -48,3 +48,10 @@ it("only runs the work outside an activity", async () => {
 
   await expect(withHeartbeat(async () => "ok")).resolves.toBe("ok");
 });
+
+it("gives the work the activity's cancellation signal", async () => {
+  const cancellationSignal = new AbortController().signal;
+  sdk.current.mockReturnValue({ heartbeat: vi.fn(), cancellationSignal });
+
+  await expect(withHeartbeat(async (signal) => signal)).resolves.toBe(cancellationSignal);
+});

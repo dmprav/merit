@@ -2,8 +2,10 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import {
   DefaultLogger,
+  makeTelemetryFilterString,
   NativeConnection,
   Runtime,
+  type RuntimeOptions,
   Worker,
   type WorkerOptions,
 } from "@temporalio/worker";
@@ -120,9 +122,21 @@ export const runWorkers = async (workers: Worker[]) => {
  * remain, with their level, workflow or activity type and identifiers, but never failure
  * text or stack traces: those can carry what the encrypted history protects.
  */
+/**
+ * Options of the SDK Runtime: its logger writes through {@link writeSafeLogEntry}, and the
+ * native core's own logs, which would otherwise go straight to the console with task tokens and
+ * failure text, are forwarded to that logger.
+ */
+const runtimeOptions = (): RuntimeOptions => ({
+  logger: new DefaultLogger("WARN", writeSafeLogEntry),
+  telemetryOptions: {
+    logging: { forward: {}, filter: makeTelemetryFilterString({ core: "WARN", other: "ERROR" }) },
+  },
+});
+
 export const quietRuntime = () => {
   try {
-    Runtime.install({ logger: new DefaultLogger("WARN", writeSafeLogEntry) });
+    Runtime.install(runtimeOptions());
   } catch {
     // The runtime is installed once per process; keep its first configuration.
   }

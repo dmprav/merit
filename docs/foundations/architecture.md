@@ -451,9 +451,20 @@ Audit snapshots actor names, provenance, target names, and historical context so
 history remains intelligible after renames and eligible deletion. Authorized views
 select only their permitted subjects; sharing storage does not broaden access.
 
-Invitations commit before email delivery so sending failures leave recoverable
-work; the [email guide](../guides/emails.md#ownership-and-delivery) defines that
-integration.
+Reviewer messages, organization invitation emails, and Merit AI turns run as Temporal
+workflows after the business change and its audit record commit, so a sending failure
+leaves recoverable work and never fails the committed request. Postgres stays the source of
+truth: a workflow's ID is derived from the record, and each activity rereads current state
+and access before it acts. Temporal history holds identifiers, statuses, and timings, with one
+exception: the raw organization invitation token, which the payload codec encrypts and nothing
+else carries. History is ciphertext in the Temporal UI, and the namespace's retention period
+bounds how long it is kept; Postgres, not history, is the record. A failed email send is retried
+with backoff for about fifteen minutes while the message or invitation stays `pending`, then
+recorded as `failed`; the manager's resend, retry, or the assistant's own retry is the way to
+try again. A once-a-minute reconciliation Schedule restarts committed work that has no running
+workflow, except organization invitations, whose tokens are not stored. The
+[email guide](../guides/emails.md#ownership-and-delivery) defines the delivery integration and
+the [workflows package](../../foundation/workflows/README.md) the runtime.
 
 Demo deletion is a deliberate exception to retention for disposable data: lifecycle
 operations verify workspace kind and expiry before cleanup. See the

@@ -25,7 +25,16 @@ const watcher = [
 ];
 const worker = spawn("vpx", [...(watch ? watcher : []), "src/worker/main.ts"], {
   stdio: ["ignore", "inherit", "inherit"],
-  env: { ...process.env, MERIT_LOCAL_WORKER: "1" },
+  env: {
+    ...process.env,
+    MERIT_LOCAL_WORKER: "1",
+    // The origin of the links the worker puts in emails, set for the worker only. A run that
+    // serves the web on another port than APP_ORIGIN, such as the browser tests, names it here
+    // without changing the origin the web server itself reports.
+    ...(process.env.MERIT_WORKER_APP_ORIGIN
+      ? { APP_ORIGIN: process.env.MERIT_WORKER_APP_ORIGIN }
+      : {}),
+  },
 });
 worker.on("error", (error) => console.error(`[worker] Could not start: ${error.message}`));
 worker.on("exit", (code, signal) => {

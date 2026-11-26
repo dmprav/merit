@@ -7,7 +7,7 @@ import type { OutcomeWait } from "@merit/workflows/outcome";
  * field: the payload codec encrypts it, and Postgres stores only its hash, so nothing can
  * recover a lost start. Everything else is an identifier.
  */
-export type InvitationWork = { invitationId: string; organizationId: string; token: string };
+export type InvitationWork = { invitationId: string; token: string };
 
 export type Dependencies = {
   revokeReviewAccess: (

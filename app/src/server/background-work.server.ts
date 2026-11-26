@@ -18,6 +18,7 @@ import {
 import { assistantTurnTaskQueue, taskQueue as applicationTaskQueue } from "../worker/task-queue";
 import {
   assistantConversationWorkflowId,
+  assistantCancelSignal,
   assistantWakeSignal,
   type AssistantConversationInput,
   type AssistantWork,
@@ -61,13 +62,17 @@ export const createBackgroundWork = ({
 }: BackgroundWorkOptions) => {
   const starter = createWorkflowStarter({ client, taskQueue, report: reportFailedStart });
 
-  const startReviewerMessageWorkflow = (work: ReviewerMessageWork, closed: "keep" | "restart") =>
+  /**
+   * `restart` lets a closed run start anew: each run rechecks the message and sends nothing for
+   * one already sent, so a pending message is never left behind by a run that completed.
+   */
+  const startReviewerMessageWorkflow = (work: ReviewerMessageWork) =>
     starter.start({
       workflowType: "reviewerMessage",
       workflowId: reviewerMessageWorkflowId(work.messageId),
       args: [reviewerMessageTiming ? { ...work, timing: reviewerMessageTiming } : work],
       operation: "reviewerMessage.start",
-      closed,
+      closed: "restart",
     });
 
   return {
@@ -84,11 +89,11 @@ export const createBackgroundWork = ({
         operation: "organizationInvitation.start",
       })) !== "failed",
     /**
-     * A request or the assistant delivers a committed message. A failed message retried by hand
-     * runs again under its ID, so `restart` lets a closed run start anew.
+     * A request or the assistant delivers a committed message. A message retried by hand runs
+     * again under its ID.
      */
     startReviewerMessage: async (work: ReviewerMessageWork): Promise<boolean> =>
-      (await startReviewerMessageWorkflow(work, "restart")) !== "failed",
+      (await startReviewerMessageWorkflow(work)) !== "failed",
     /**
      * Tells a Merit AI conversation's workflow to look at its conversation again, starting the
      * workflow when it has none (signal-with-start, so a start never races a finishing run).
@@ -109,8 +114,20 @@ export const createBackgroundWork = ({
         closed: "restart",
         signal: { name: assistantWakeSignal },
       })) !== "failed",
-    /** Reconciliation starts only what never ran or failed; completed work stays as it is. */
+    /**
+     * Cancels the step a conversation's workflow runs, so a stopped or deleted conversation or
+     * withdrawn consent aborts the model request the worker holds. A plain signal: it never
+     * starts a workflow, and a conversation without a running one has nothing to cancel.
+     */
+    cancelAssistantTurn: async (conversationId: string): Promise<void> => {
+      await starter.signal({
+        workflowId: assistantConversationWorkflowId(conversationId),
+        signal: assistantCancelSignal,
+        operation: "assistantConversation.cancel",
+      });
+    },
+    /** Reconciliation starts a run for every pending message that has none open. */
     reconcileReviewerMessage: (work: ReviewerMessageWork): Promise<StartOutcome> =>
-      startReviewerMessageWorkflow(work, "keep"),
+      startReviewerMessageWorkflow(work),
   };
 };

@@ -5,9 +5,7 @@ import { fileURLToPath } from "node:url";
 import { reportError } from "@merit/telemetry/errors";
 import { describeError, ensureSchedule, runWorker, type WorkerLogger } from "@merit/workflows";
 
-import { reconcileScheduleId } from "./reconcile.workflow.ts";
 import { createWorkerRuntime } from "./runtime.ts";
-import { taskQueue } from "./task-queue.ts";
 
 const reconcileEvery = 60_000;
 
@@ -45,11 +43,11 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 let exitCode = 0;
 try {
   // The development and preview commands set MERIT_LOCAL_WORKER; a deployed worker must not.
-  const { config, client, activities, activityQueues } = createWorkerRuntime(env);
+  const { config, client, activities, activityQueues, queues } = createWorkerRuntime(env);
   await runWorker(
     {
       config,
-      taskQueue,
+      taskQueue: queues.taskQueue,
       workflows: {
         workflowsPath: fileURLToPath(new URL("./workflows.workflow.ts", import.meta.url)),
       },
@@ -62,11 +60,11 @@ try {
       // Idempotent: every worker start leaves exactly one reconciliation Schedule.
       onConnected: () =>
         ensureSchedule(client, {
-          scheduleId: reconcileScheduleId,
+          scheduleId: queues.reconcileScheduleId,
           workflowType: "reconcile",
-          taskQueue,
+          taskQueue: queues.taskQueue,
           everyMs: reconcileEvery,
-          workflowId: reconcileScheduleId,
+          workflowId: queues.reconcileScheduleId,
         }),
     },
   );

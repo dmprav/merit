@@ -45,7 +45,9 @@ Invitation delivery runs after the invitation transaction completes, in the
 [`organization-invitation:<invitationId>` workflow](src/server/organization-invitation.workflow.ts)
 that Organizations owns. Its [activities](src/server/commands/delivery.ts) reread the invitation
 before every attempt and stop once it is revoked, accepted, or expired. They send through
-`sendInvitation` and record the outcome with `recordDelivery` in a separate transaction. The
+`sendInvitation` and record the outcome with `recordDelivery` in a separate transaction. Reads and
+the outcome use the invitation's token-hash scope, so they need no organization identifier and
+continue while the inviter's access changes; `recordDelivery` never overwrites `sent` with `failed`. The
 invitation stays `pending` during about fifteen minutes of automatic retries, then becomes `failed`.
 Requests wait about five seconds, polling Postgres, for the first outcome. The raw token is the only
 sensitive workflow input, protected by the payload codec. Because only the token hash is stored,

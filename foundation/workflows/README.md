@@ -56,7 +56,12 @@ taskQueue, report })` returns `start(request)`, the one way to start after commi
 - the ID is the caller's, derived from the record; a run that already exists is a no-op
   (`"exists"`), and `signal` turns the call into signal-with-start for a long-lived workflow;
 - by default a completed run of the same ID is left alone and a failed one may run again, so a
-  reconciler never repeats finished work; `closed: "restart"` lets a request run it again;
+  reconciler never repeats finished work; `closed: "restart"` lets a closed run start again, so a
+  workflow that rereads Postgres and does nothing when its work is done can be restarted safely
+  by a request or by reconciliation;
+- `starter.signal({ workflowId, signal, operation })` sends a plain signal to a workflow that may
+  be running and never starts one: `"signaled"`, `"absent"` when nothing runs under the ID, or
+  `"failed"` (reported by operation name only);
 - it never throws. A start that fails or takes longer than five seconds is passed to `report`
   by its operation name only, and answers `"failed"`. The commit stands and reconciliation starts
   the work later. `client` is a function, so missing settings fail there, reported, not at startup.
@@ -101,7 +106,11 @@ queues that run activities only, each with its own `maxConcurrentActivities`. Me
 activities use one, so at most four turns run at once whatever else the worker does. Long
 activities wrap their work in `withHeartbeat`, which reports that the process is alive; with a
 heartbeat timeout on the activity, a worker that dies is noticed within seconds instead of at the
-activity's start-to-close timeout. It connects with exponential backoff (1 s to 30 s)
+activity's start-to-close timeout. The work receives the activity's cancellation signal:
+Temporal delivers a cancellation with the next heartbeat's answer, so a workflow that cancels a
+step (such as Merit AI cancelling a stopped turn) ends the work within about one heartbeat. The
+SDK's native core logs are forwarded to the same safe logger, so no task tokens or failure text
+reach the console. It connects with exponential backoff (1 s to 30 s)
 while Temporal is unreachable, logs each attempt without credentials, then polls until the
 signal aborts and in-flight work finishes. Failing to build the worker, for example from
 invalid workflow code, rejects instead of retrying. `createWorker` builds a worker over a
