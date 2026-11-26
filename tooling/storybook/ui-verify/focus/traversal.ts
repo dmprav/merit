@@ -194,20 +194,86 @@ const snapshotUnfocusedStop = (index: number): FocusVisualSnapshot | undefined =
     : undefined;
 };
 
-/** Captures the last stop's unfocused baseline when focus stayed on it, as a focus trap does. */
-export const captureFinalBaseline = async (page: Page, stops: readonly CapturedStop[]) => {
+const COLLECTION_ITEM =
+  '[role="option"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]';
+const COLLECTION = '[role="listbox"], [role="menu"]';
+
+/**
+ * Runs in the page: the arrow key that moves focus from the stop to a sibling item when the stop
+ * is an item of an open list or menu, which keeps focus on its items rather than letting it blur.
+ */
+const siblingKeyForStop = ({
+  index,
+  item,
+  collection,
+}: {
+  index: number;
+  item: string;
+  collection: string;
+}): "ArrowDown" | "ArrowUp" | undefined => {
+  const tracker = window.__meritFocusTracker;
+  const el = tracker?.stops[index];
+  if (!tracker || !el?.isConnected || tracker.deepActiveElement() !== el || !el.matches(item)) {
+    return undefined;
+  }
+  const items = [...(el.closest(collection)?.querySelectorAll(item) ?? [])];
+  const position = items.indexOf(el);
+  if (position < 0 || items.length < 2) {
+    return undefined;
+  }
+  return position < items.length - 1 ? "ArrowDown" : "ArrowUp";
+};
+
+/** Runs in the page: whether focus has moved from the stop to another item of its collection. */
+const siblingHasFocus = ({ index, collection }: { index: number; collection: string }) => {
+  const tracker = window.__meritFocusTracker;
+  const el = tracker?.stops[index];
+  const active = tracker?.deepActiveElement();
+  return Boolean(el && active && active !== el && el.closest(collection)?.contains(active));
+};
+
+/**
+ * Captures the last stop's unfocused baseline when focus stayed on it, as a focus trap does. An
+ * item of an open list or menu is compared with how it looks while a sibling item has focus,
+ * because the collection returns focus to it when it is blurred. Returns false when focus did not
+ * reach a sibling, so the check is reported as incomplete rather than judged on a focused baseline.
+ */
+export const captureFinalBaseline = async (
+  page: Page,
+  stops: readonly CapturedStop[],
+): Promise<boolean> => {
   const finalStop = stops.at(-1);
   if (!finalStop || finalStop.unfocused) {
-    return;
+    return true;
   }
   await pressTab(page);
-  if (await page.evaluate(blurStopIfFocused, finalStop.index)) {
+  const siblingKey = await page.evaluate(siblingKeyForStop, {
+    index: finalStop.index,
+    item: COLLECTION_ITEM,
+    collection: COLLECTION,
+  });
+  let reachedSibling = true;
+  if (siblingKey) {
+    await page.keyboard.press(siblingKey);
+    reachedSibling = await page
+      .waitForFunction(
+        siblingHasFocus,
+        { index: finalStop.index, collection: COLLECTION },
+        { timeout: 2_000 },
+      )
+      .then(
+        () => true,
+        () => false,
+      );
+  } else if (await page.evaluate(blurStopIfFocused, finalStop.index)) {
     await settleAnimations(page);
   }
+  await settleAnimations(page);
   const finalUnfocused = await page.evaluate(snapshotUnfocusedStop, finalStop.index);
   if (finalUnfocused) {
     finalStop.unfocused = finalUnfocused;
   }
+  return reachedSibling;
 };
 
 /** Runs in the page: every stop's styles while nothing has focus, or null if something does. */

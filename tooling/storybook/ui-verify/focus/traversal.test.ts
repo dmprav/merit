@@ -13,6 +13,7 @@ const pageWithTrappedStop = ({ refocusOnBlur }: { refocusOnBlur: boolean }) => {
   let focused = true;
   const button = {
     isConnected: true,
+    matches: () => false,
     blur: () => {
       focused = refocusOnBlur;
     },
@@ -40,6 +41,77 @@ const trappedStop = (): CapturedStop => ({
   boundingBox: { width: 80, height: 32 },
   painted: true,
   focused: outlinedSnapshot(),
+});
+
+/**
+ * A page whose last Tab stop is the first option of an open listbox. Blurring is undone by the
+ * listbox, so only an arrow key moves focus, to the second option when `arrowMoves` is true.
+ */
+const pageWithListOption = ({ arrowMoves }: { arrowMoves: boolean }) => {
+  const options: Array<Record<string, unknown>> = [];
+  const listbox = {
+    querySelectorAll: () => options,
+    contains: (el: unknown) => options.includes(el as Record<string, unknown>),
+  };
+  for (let index = 0; index < 2; index += 1) {
+    options.push({
+      isConnected: true,
+      matches: () => true,
+      closest: () => listbox,
+      blur: () => undefined,
+    });
+  }
+  let active = options[0];
+  vi.stubGlobal("document", { getAnimations: () => [] });
+  vi.stubGlobal("window", {
+    __meritFocusTracker: {
+      stops: [options[0]],
+      deepActiveElement: () => active,
+      isFocusable: () => true,
+      captureSnapshot: (el: unknown) => (el === active ? outlinedSnapshot() : baseSnapshot()),
+    },
+  });
+  const keys: string[] = [];
+  const page = {
+    evaluate: async (pageFunction: (arg: unknown) => unknown, arg?: unknown) => pageFunction(arg),
+    keyboard: {
+      press: async (key: string) => {
+        keys.push(key);
+        if (key === "ArrowDown" && arrowMoves) {
+          active = options[1];
+        }
+      },
+    },
+    waitForFunction: async (pageFunction: (arg: unknown) => unknown, arg?: unknown) => {
+      if (!pageFunction(arg)) {
+        throw new Error("timed out");
+      }
+    },
+  };
+  return { page: page as unknown as Page, keys };
+};
+
+const optionStop = (): CapturedStop => ({ ...trappedStop(), element: 'div[role=option] "Alpha"' });
+
+describe("capturing a list item's unfocused baseline", () => {
+  test("compares the item with how it looks while its sibling has focus", async () => {
+    const stop = optionStop();
+    const { page, keys } = pageWithListOption({ arrowMoves: true });
+
+    await expect(captureFinalBaseline(page, [stop])).resolves.toBe(true);
+
+    expect(keys).toEqual(["Tab", "ArrowDown"]);
+    expect(stop.unfocused).toEqual(baseSnapshot());
+  });
+
+  test("reports an incomplete comparison when focus does not reach a sibling", async () => {
+    const stop = optionStop();
+    const { page } = pageWithListOption({ arrowMoves: false });
+
+    await expect(captureFinalBaseline(page, [stop])).resolves.toBe(false);
+
+    expect(stop.unfocused).toBeUndefined();
+  });
 });
 
 afterEach(() => {
