@@ -92,6 +92,7 @@ const startWorker = () =>
         running: (limit, after) => current.running(limit, after),
         wake: (work) => current.background.wakeAssistantConversation(work),
       },
+      invitationDispatch: { invitationKey: () => config.payloadKey, start: async () => false },
       reconcileReviewerMessage: async () => "exists",
     }),
     activityQueues: [

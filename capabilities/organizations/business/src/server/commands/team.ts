@@ -33,6 +33,7 @@ export const inviteMember = (
   db: Database,
   actor: Actor,
   input: z.infer<typeof inviteMemberInput>,
+  invitationKey: Dependencies["invitationKey"],
 ) =>
   writeWorkspace(db, actor.userId, input.workspaceSlug, async (tx) => {
     const { organization, member } = await workspace(tx, input.workspaceSlug, actor.userId);
@@ -78,6 +79,7 @@ export const inviteMember = (
         role: input.role,
       },
       actor,
+      invitationKey,
     );
     await recordOrganizationEvent(tx, {
       organizationId: organization.id,
@@ -122,6 +124,7 @@ export const resendTeamInvitation = (
   slug: string,
   actor: Actor,
   invitationId: string,
+  invitationKey: Dependencies["invitationKey"],
 ) =>
   writeWorkspace(db, actor.userId, slug, async (tx) => {
     const { organization, invitation: previous } = await lockPendingInvitation(
@@ -141,6 +144,7 @@ export const resendTeamInvitation = (
         role: previous.role,
       },
       actor,
+      invitationKey,
     );
     await recordOrganizationEvent(tx, {
       organizationId: organization.id,

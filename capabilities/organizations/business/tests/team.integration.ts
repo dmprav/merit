@@ -2,10 +2,13 @@ import { randomUUID } from "node:crypto";
 
 import { assert, beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { withDatabase } from "@merit/db";
+import { withDatabase, type DatabaseRunner } from "@merit/db";
 import { migrate } from "@merit/db/migrate";
 import type { InvitationMessage } from "@merit/organizations/api";
-import { createOrganizationService } from "@merit/organizations/server";
+import {
+  createOrganizationService,
+  reconcileOrganizationInvitations,
+} from "@merit/organizations/server";
 import { createInlineOrganizationService } from "@merit/organizations/server/testing";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
@@ -339,6 +342,76 @@ describe("organization team", () => {
       role: "program_manager" as const,
     });
 
+    describe("dispatch recovery", () => {
+      const run: DatabaseRunner = (operation) => withDatabase(runtimeUrl, operation);
+
+      const invitationKey = () => new Uint8Array(32);
+
+      const owner = { userId: "owner" };
+
+      const issue = async (acceptedByTemporal: boolean) => {
+        const invitations = createOrganizationService({
+          database: run,
+          invitationKey,
+          revokeReviewAccess: async () => {},
+          isOperator: async () => false,
+          verifiedEmails: async () => [],
+          start: async () => acceptedByTemporal,
+          wait: { timeoutMs: 0, intervalMs: 0 },
+        });
+        const invitation = request();
+        expect(await invitations.inviteMember(owner, invitation)).toEqual({
+          status: "ok",
+          value: { invitationId: invitation.requestId },
+        });
+        return invitation.requestId;
+      };
+
+      const hasEnvelope = async (id: string) => {
+        const { rows } = await database.client.query<{ present: boolean }>(
+          "SELECT dispatch_ciphertext IS NOT NULL AS present FROM organization_invitations WHERE id = $1",
+          [id],
+        );
+        assert(rows[0]);
+        return rows[0].present;
+      };
+
+      const reconcileWithoutStarting = async () => {
+        const start = vi.fn(async () => true);
+        expect(
+          await reconcileOrganizationInvitations({ database: run, invitationKey, start }),
+        ).toEqual({ listed: 0, handedOff: 0 });
+        expect(start).not.toHaveBeenCalled();
+      };
+
+      it("clears a revoked invitation's envelope before a worker scans", async () => {
+        const invitationId = await issue(false);
+        expect(await hasEnvelope(invitationId)).toBe(true);
+        expect(
+          await service().revokeMemberInvitation(owner, { ...input, invitationId }),
+        ).toMatchObject({ status: "ok" });
+        expect(await hasEnvelope(invitationId)).toBe(false);
+        await reconcileWithoutStarting();
+      });
+
+      it("discards an expired envelope without starting delivery", async () => {
+        const id = await issue(false);
+        await database.client.query(
+          "UPDATE organization_invitations SET expires_at = now() WHERE id = $1",
+          [id],
+        );
+        expect(await hasEnvelope(id)).toBe(true);
+        await reconcileWithoutStarting();
+        expect(await hasEnvelope(id)).toBe(false);
+      });
+
+      it("skips a handoff already accepted by Temporal", async () => {
+        const id = await issue(true);
+        expect(await hasEnvelope(id)).toBe(false);
+        await reconcileWithoutStarting();
+      });
+    });
+
     it("delivers one invitation when the same request is retried", async () => {
       const invitation = request();
       const before = messages.length;
@@ -530,44 +603,59 @@ describe("organization team", () => {
     });
   });
 
-  it("keeps a committed invitation and answers when the outcome cannot be read", async () => {
-    let readsFail = false;
-    const reported = vi.fn();
-    const flaky = createOrganizationService({
-      revokeReviewAccess: async () => {},
-      database: (operation) =>
-        readsFail
-          ? Promise.reject(new Error("database down"))
-          : withDatabase(runtimeUrl, operation),
-      isOperator: async () => false,
-      verifiedEmails: async (actor) => [`${actor.userId}@example.test`],
-      // The workflow starts after the commit; from here on the request's own reads fail.
-      start: async () => {
-        readsFail = true;
-        return true;
-      },
-      wait: { timeoutMs: 50, intervalMs: 1 },
-      onOutcomeError: reported,
-    });
-    const requestId = randomUUID();
-
-    expect(
-      await flaky.inviteMember(
-        { userId: "owner" },
-        {
-          ...input,
-          requestId,
-          email: "late@example.test",
-          administration: "none",
-          role: "program_manager",
+  it.each([
+    { step: "acknowledgement", failure: "fails" },
+    { step: "acknowledgement", failure: "stalls" },
+    { step: "outcome read", failure: "fails" },
+  ])(
+    "keeps a committed invitation and answers when the $step $failure",
+    async ({ step, failure }) => {
+      let postCommitCalls = 0;
+      let started = false;
+      const reported = vi.fn();
+      const flaky = createOrganizationService({
+        invitationKey: () => new Uint8Array(32),
+        revokeReviewAccess: async () => {},
+        database: (operation) => {
+          if (started) {
+            postCommitCalls += 1;
+          }
+          if (!started || (step === "outcome read" && postCommitCalls === 1)) {
+            return withDatabase(runtimeUrl, operation);
+          }
+          return failure === "fails"
+            ? Promise.reject(new Error("database down"))
+            : new Promise(() => {});
         },
-      ),
-    ).toEqual({ status: "ok", value: { invitationId: requestId } });
+        isOperator: async () => false,
+        verifiedEmails: async (actor) => [`${actor.userId}@example.test`],
+        // The first post-commit database call acknowledges the start, then the request reads the outcome.
+        start: async () => {
+          started = true;
+          return true;
+        },
+        wait: { timeoutMs: 50, intervalMs: 1 },
+        onOutcomeError: reported,
+      });
+      const requestId = randomUUID();
 
-    expect(reported).toHaveBeenCalledOnce();
-    readsFail = false;
-    expect((await team()).invitations.map((item) => item.email)).toContain("late@example.test");
-  });
+      expect(
+        await flaky.inviteMember(
+          { userId: "owner" },
+          {
+            ...input,
+            requestId,
+            email: "late@example.test",
+            administration: "none",
+            role: "program_manager",
+          },
+        ),
+      ).toEqual({ status: "ok", value: { invitationId: requestId } });
+
+      expect(reported).toHaveBeenCalledTimes(failure === "fails" ? 1 : 0);
+      expect((await team()).invitations.map((item) => item.email)).toContain("late@example.test");
+    },
+  );
 
   it("recovers failed email delivery and replaces one invitation without revoking others", async () => {
     const first = await invite("first");

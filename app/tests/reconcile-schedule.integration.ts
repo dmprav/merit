@@ -26,6 +26,7 @@ beforeAll(async () => {
         reconciled += 1;
         return { listed: 0, started: 0 };
       },
+      reconcileOrganizationInvitations: async () => ({ listed: 0, handedOff: 0 }),
       reconcileConversations: async () => ({ listed: 0, started: 0 }),
     },
   });

@@ -721,6 +721,11 @@ describe("organization provisioning", () => {
               `GRANT UPDATE (revoked_at, accepted_at, accepted_by, delivery) ON organization_invitations TO ${role}`,
             ),
           );
+          await tx.execute(
+            sql.raw(
+              `GRANT EXECUTE ON FUNCTION merit_acknowledge_invitation_dispatch(text, text) TO ${role}`,
+            ),
+          );
           await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
           let actor = "operator";
           const operations = createInlineOrganizationService({

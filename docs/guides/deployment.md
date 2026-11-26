@@ -48,8 +48,8 @@ whether Temporal is hosted or self-managed, is still open.
 - **A payload key.** Set `TEMPORAL_PAYLOAD_KEY` to a base64-encoded 32-byte key
   (`openssl rand -base64 32`) in the web server and worker environments. They must share it.
   The development key is public, so a deployment without its own key refuses to start. Keep
-  the key in the secret store, and treat a rotation as a migration: history written under the
-  old key cannot be read with the new one.
+  the key in the secret store. Rotation must account for both retained workflow history and
+  pending organization-invitation handoffs encrypted with the old key.
 - **A worker process.** Run `app/src/worker/main.ts` as its own long-lived Node.js process
   with the same environment as the web server, without `MERIT_LOCAL_WORKER`. It needs outbound
   access to Temporal and, once capabilities register workflows, to the database and other

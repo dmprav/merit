@@ -1,4 +1,3 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -10,15 +9,13 @@ import {
 } from "@temporalio/common";
 import proto from "@temporalio/proto";
 
+import { encryptBytes, decryptBytes, cipherName } from "./encryption.ts";
 import { failureConverter } from "./failure-converter.ts";
 
 // The protobuf module is CommonJS, so Node cannot take its named exports directly.
 const { temporal } = proto;
 
 export const encryptedEncoding = "binary/encrypted";
-const cipherName = "aes-256-gcm";
-const ivBytes = 12;
-const tagBytes = 16;
 const text = new TextEncoder();
 const textDecoder = new TextDecoder();
 
@@ -35,11 +32,8 @@ export const createPayloadCodec = (key: Uint8Array): PayloadCodec => {
   }
 
   const encrypt = (payload: Payload): Payload => {
-    const iv = randomBytes(ivBytes);
-    const cipher = createCipheriv(cipherName, key, iv);
     const plain = temporal.api.common.v1.Payload.encode(payload).finish();
-    const encrypted = Buffer.concat([cipher.update(plain), cipher.final()]);
-    return { metadata, data: Buffer.concat([iv, cipher.getAuthTag(), encrypted]) };
+    return { metadata, data: encryptBytes(key, plain) };
   };
 
   const decrypt = (payload: Payload): Payload => {
@@ -47,15 +41,7 @@ export const createPayloadCodec = (key: Uint8Array): PayloadCodec => {
       throw new Error("Refusing a workflow payload that is not encrypted.");
     }
     const data = payload.data ?? new Uint8Array();
-    const iv = data.subarray(0, ivBytes);
-    const tag = data.subarray(ivBytes, ivBytes + tagBytes);
-    const decipher = createDecipheriv(cipherName, key, iv);
-    decipher.setAuthTag(tag);
-    const plain = Buffer.concat([
-      decipher.update(data.subarray(ivBytes + tagBytes)),
-      decipher.final(),
-    ]);
-    return temporal.api.common.v1.Payload.decode(plain);
+    return temporal.api.common.v1.Payload.decode(decryptBytes(key, data));
   };
 
   return {

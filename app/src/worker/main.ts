@@ -69,16 +69,23 @@ try {
       signal: stop.signal,
       // Idempotent: every worker start leaves exactly one reconciliation Schedule.
       // A server that stops answering fails the attempt after a deadline, so it is retried.
-      onConnected: () =>
-        client.connection.withDeadline(Date.now() + scheduleRequestDeadlineMs, () =>
-          ensureSchedule(client, {
-            scheduleId: queues.reconcileScheduleId,
-            workflowType: "reconcile",
-            taskQueue: queues.taskQueue,
-            everyMs: reconcileEvery,
-            workflowId: queues.reconcileScheduleId,
-          }),
-        ),
+      onConnected: async () => {
+        const active = await client.connection.withDeadline(
+          Date.now() + scheduleRequestDeadlineMs,
+          () =>
+            ensureSchedule(client, {
+              scheduleId: queues.reconcileScheduleId,
+              workflowType: "reconcile",
+              taskQueue: queues.taskQueue,
+              everyMs: reconcileEvery,
+              workflowId: queues.reconcileScheduleId,
+            }),
+        );
+        // Worker polling continues independently while startup recovery runs or retries.
+        if (active) {
+          await activities.reconcileOrganizationInvitations();
+        }
+      },
     },
   );
 } catch (error) {

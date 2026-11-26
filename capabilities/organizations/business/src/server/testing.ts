@@ -26,10 +26,12 @@ export const inlineInvitationDelivery = (dependencies: InvitationActivityDepende
 
 /** The organization service with delivery attempted in the caller, so tests read the outcome at once. */
 export const createInlineOrganizationService = (
-  dependencies: Omit<Dependencies, "start" | "wait"> & InvitationActivityDependencies,
+  dependencies: Omit<Dependencies, "start" | "wait" | "invitationKey"> &
+    InvitationActivityDependencies,
 ) =>
   createOrganizationService({
     ...dependencies,
+    invitationKey: () => new Uint8Array(32),
     start: inlineInvitationDelivery(dependencies),
     wait: { timeoutMs: 0, intervalMs: 0 },
   });
