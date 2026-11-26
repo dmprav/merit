@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+case "${1:-}" in
+  web) exec node --import tsx scripts/serve.ts ;;
+  worker) export MERIT_WORKER_READINESS_PORT="${PORT:-3000}"; exec node --import tsx src/worker/main.ts ;;
+  *) echo 'Usage: web | worker' >&2; exit 2 ;;
+esac

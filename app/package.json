@@ -30,6 +30,7 @@
     "@merit/telemetry": "workspace:*",
     "@merit/ui": "workspace:*",
     "@merit/workflows": "workspace:*",
+    "@tanstack/ai-mcp": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-router-ssr-query": "catalog:",
@@ -42,6 +43,8 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-i18next": "catalog:",
+    "srvx": "catalog:",
+    "tsx": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -50,7 +53,6 @@
     "@merit/money": "workspace:*",
     "@merit/test-support": "workspace:*",
     "@playwright/test": "catalog:",
-    "@tanstack/ai-mcp": "catalog:",
     "@tanstack/react-devtools": "catalog:",
     "@tanstack/react-query-devtools": "catalog:",
     "@tanstack/react-router-devtools": "catalog:",

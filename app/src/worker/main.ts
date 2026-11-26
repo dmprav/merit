@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { createServer } from "node:http";
 import { env } from "node:process";
 import { fileURLToPath } from "node:url";
 
@@ -84,6 +85,17 @@ try {
         // Worker polling continues independently while startup recovery runs or retries.
         if (active) {
           await activities.reconcileOrganizationInvitations();
+        }
+        // Each release probes its own worker. A healthy old worker on the same queues
+        // cannot make its replacement look ready. SIGTERM closes this listener immediately.
+        if (env.MERIT_WORKER_READINESS_PORT && !stop.signal.aborted) {
+          createServer((request, response) => {
+            response.writeHead(request.url === "/_ready" ? 204 : 404).end();
+          }).listen({
+            host: "127.0.0.1",
+            port: Number(env.MERIT_WORKER_READINESS_PORT),
+            signal: stop.signal,
+          });
         }
       },
     },
