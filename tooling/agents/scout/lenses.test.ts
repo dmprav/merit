@@ -61,7 +61,7 @@ describe("scout rotation", () => {
     expect(resolveRotationTarget("simplification", tracked, undefined).axis?.id).toBe(ids[0]);
   });
 
-  test("rotates domain-scoped lenses over their own slices", () => {
+  test("rotates the security lens over app, capability, auth, database, and MCP slices", () => {
     expect(rotate("security", 6)).toEqual([
       "app",
       "capabilities/reviews",
@@ -70,13 +70,22 @@ describe("scout rotation", () => {
       "foundation/db",
       "interfaces/mcp",
     ]);
+  });
+
+  test("rotates the mcp-db lens over capability, database, and MCP slices only", () => {
     expect(new Set(rotate("mcp-db", 6))).toEqual(
       new Set(["capabilities/reviews", "capabilities/rounds", "foundation/db", "interfaces/mcp"]),
     );
+  });
+
+  test("starts the docs lens at the first documentation area without an axis", () => {
     expect(resolveRotationTarget("docs", tracked, undefined)).toEqual({
       target: "docs/guides",
       axis: null,
     });
+  });
+
+  test("starts the tests lens at the first tested slice", () => {
     expect(resolveRotationTarget("tests", tracked, undefined).target).toBe("app");
   });
 
