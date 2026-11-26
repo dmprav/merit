@@ -7,9 +7,9 @@ import {
   checkAgentPolicy,
   extractLinkedIssueNumbers,
   findProtectedPaths,
-  parseNameStatusZ,
   parseProposalMarker,
 } from "./agent-policy.ts";
+import { parseNameStatusZ } from "./verification-record.ts";
 
 const maintainerApprovalComment = (paths: string[]) => ({
   authorAssociation: "OWNER",

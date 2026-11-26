@@ -3,7 +3,7 @@ import { appendFileSync } from "node:fs";
 import { matchesGlob, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { type ChangedFile } from "./verification-record.ts";
+import { readChangedFiles, type ChangedFile } from "./verification-record.ts";
 
 export const AGENT_PR_LABEL = "agent:pr";
 export const ALLOW_PROTECTED_LABEL = "agent:allow-protected";
@@ -71,46 +71,6 @@ const isAppliedMigrationSql = (filePath: string): boolean => {
   }
   const remainder = normalized.slice(MIGRATION_DIR_PREFIX.length);
   return remainder.length > 0 && !remainder.includes("/");
-};
-
-/** Parses `git diff --name-status --find-renames -z` NUL-delimited records without display quoting. */
-export const parseNameStatusZ = (raw: string): ChangedFile[] => {
-  const tokens = raw.split("\0");
-  const files: ChangedFile[] = [];
-  let index = 0;
-
-  while (index < tokens.length) {
-    const status = tokens[index] ?? "";
-    index += 1;
-    if (!status) {
-      continue;
-    }
-    if (status.startsWith("R") || status.startsWith("C")) {
-      const first = tokens[index] ?? "";
-      const second = tokens[index + 1] ?? "";
-      index += 2;
-      if (status.startsWith("R") && first && second) {
-        files.push({ status: "deleted", path: first }, { status: "added", path: second });
-      } else if (second) {
-        files.push({ status: "added", path: second });
-      }
-      continue;
-    }
-    const path = tokens[index] ?? "";
-    index += 1;
-    if (!path) {
-      continue;
-    }
-    if (status.startsWith("D")) {
-      files.push({ status: "deleted", path });
-    } else if (status.startsWith("A")) {
-      files.push({ status: "added", path });
-    } else {
-      files.push({ status: "modified", path });
-    }
-  }
-
-  return files;
 };
 
 export const extractLinkedIssueNumbers = (prBody: string): number[] => {
@@ -287,15 +247,6 @@ export const checkAgentPolicy = ({
   return { exempt: null, errors };
 };
 
-const readPrDiff = (repoRoot: string, baseSha: string, headSha: string): ChangedFile[] => {
-  const raw = execFileSync(
-    "git",
-    ["diff", "--name-status", "--find-renames", "-z", `${baseSha}...${headSha}`],
-    { cwd: repoRoot, encoding: "utf8" },
-  );
-  return parseNameStatusZ(raw);
-};
-
 const parseLabelNames = (rawLabels: unknown): string[] => {
   if (!Array.isArray(rawLabels)) {
     return [];
@@ -414,7 +365,7 @@ const runCli = () => {
 
   const baseSha = process.env.PR_BASE_SHA || "origin/main";
   const headSha = process.env.PR_HEAD_SHA || "HEAD";
-  const changedFiles = readPrDiff(repoRoot, baseSha, headSha);
+  const changedFiles = readChangedFiles(repoRoot, `${baseSha}...${headSha}`);
   const protectedFiles = findProtectedPaths(changedFiles.map((file) => file.path));
 
   const linkedIssues =

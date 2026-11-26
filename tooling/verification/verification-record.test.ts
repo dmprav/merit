@@ -1,4 +1,7 @@
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vite-plus/test";
@@ -6,7 +9,9 @@ import { describe, expect, test } from "vite-plus/test";
 import {
   checkRecordContent,
   checkVerificationRecord,
-  parseNameStatus,
+  parseNameStatusZ,
+  parsePrNumber,
+  readChangedFiles,
   RECORD_DIRECTORY,
   type ChangedFile,
 } from "./verification-record.ts";
@@ -39,6 +44,35 @@ const check = (changedFiles: ChangedFile[], records: Record<string, string> = {}
     changedFiles,
     readRecord: (path) => records[path],
   });
+
+/** Commits `files` in a scratch repository and returns the repository and its diff range. */
+const scratchDiff = (files: Record<string, string>) => {
+  const dir = mkdtempSync(join(tmpdir(), "merit-verification-record-"));
+  // A git hook running these tests exports GIT_* variables that would point at the outer repository.
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_")),
+  );
+  const config = [
+    ["core.hooksPath", "/dev/null"],
+    ["commit.gpgsign", "false"],
+    ["core.quotePath", "true"],
+    ["user.name", "Test"],
+    ["user.email", "test@example.test"],
+  ].flatMap(([key, value]) => ["-c", `${key}=${value}`]);
+
+  const git = (...args: string[]) =>
+    execFileSync("git", [...config, ...args], { cwd: dir, encoding: "utf8", env });
+
+  git("init", "-q", "-b", "main");
+  git("commit", "-q", "--allow-empty", "-m", "init");
+  for (const [path, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, path)), { recursive: true });
+    writeFileSync(join(dir, path), content);
+  }
+  git("add", ".");
+  git("commit", "-q", "-m", "change");
+  return { dir, range: "HEAD~1...HEAD" };
+};
 
 const codeChange: ChangedFile = { status: "modified", path: "foundation/ui/src/index.ts" };
 
@@ -147,10 +181,26 @@ describe("verification record", () => {
     expect(checkRecordContent("r.md", inline)).toEqual([]);
   });
 
-  test("parses git name-status output, splitting renames", () => {
+  test("parses NUL-delimited git name-status output, splitting renames", () => {
     expect(
-      parseNameStatus(
-        "A\tverifications/42.md\nM\tdocs/README.md\nD\told.ts\nR087\tverifications/41.md\tverifications/42.md\n",
+      parseNameStatusZ(
+        [
+          "A",
+          "verifications/42.md",
+          "M",
+          "docs/README.md",
+          "D",
+          "old.ts",
+          "R087",
+          "verifications/41.md",
+          "verifications/42.md",
+          "C075",
+          "docs/a.md",
+          "docs/a copy.md",
+          "T",
+          "link",
+          "",
+        ].join("\0"),
       ),
     ).toEqual([
       { status: "added", path: "verifications/42.md" },
@@ -158,7 +208,46 @@ describe("verification record", () => {
       { status: "deleted", path: "old.ts" },
       { status: "deleted", path: "verifications/41.md" },
       { status: "added", path: "verifications/42.md" },
+      { status: "added", path: "docs/a copy.md" },
+      { status: "modified", path: "link" },
     ]);
+  });
+
+  test("accepts only a positive integer pull request number", () => {
+    expect(parsePrNumber("42")).toBe(42);
+    for (const value of ["", "abc", "0", "-3", "4.2", "042", " 42", "1e3", "99999999999999999"]) {
+      expect(() => parsePrNumber(value), value).toThrow(
+        `PR_NUMBER must be a positive integer; received "${value}".`,
+      );
+    }
+  });
+
+  test("rejects another record whose path git would quote", () => {
+    const { dir, range } = scratchDiff({
+      "foundation/ui/src/index.ts": "export {};\n",
+      "verifications/42.md": completeRecord,
+      "verifications/é.md": completeRecord,
+    });
+    try {
+      const changedFiles = readChangedFiles(dir, range);
+      expect(check(changedFiles, { "verifications/42.md": completeRecord })).toEqual({
+        exempt: null,
+        errors: [
+          "verifications/é.md: a pull request may add or change only its own record, verifications/42.md. Move this record there.",
+        ],
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("imports only Node built-ins so CI can run it before installing dependencies", () => {
+    const source = readFileSync(new URL("./verification-record.ts", import.meta.url), "utf8");
+    const specifiers = [...source.matchAll(/^import [^;]*? from "([^"]+)";$/gms)].map(
+      ([, specifier]) => specifier,
+    );
+    expect(specifiers.length).toBeGreaterThan(0);
+    expect(specifiers.filter((specifier) => !specifier?.startsWith("node:"))).toEqual([]);
   });
 
   test("keeps records out of repository search", () => {

@@ -26,27 +26,57 @@ export const recordPath = (prNumber: number) => `${RECORD_DIRECTORY}/${prNumber}
 
 const isRecordPath = (path: string) => path.startsWith(`${RECORD_DIRECTORY}/`);
 
-/** Parses `git diff --name-status` output; a rename removes the old path and adds the new one. */
-export const parseNameStatus = (raw: string): ChangedFile[] =>
-  raw
-    .split(/\r?\n/)
-    .filter(Boolean)
-    .flatMap((line): ChangedFile[] => {
-      const [status = "", first = "", second] = line.split("\t");
-      if (status.startsWith("R") && second) {
-        return [
-          { status: "deleted", path: first },
-          { status: "added", path: second },
-        ];
+/**
+ * Parses NUL-delimited `git diff -z --name-status` output, whose paths are never
+ * quoted; a rename removes the old path and adds the new one.
+ */
+export const parseNameStatusZ = (raw: string): ChangedFile[] => {
+  const tokens = raw.split("\0");
+  const files: ChangedFile[] = [];
+  let index = 0;
+
+  while (index < tokens.length) {
+    const status = tokens[index] ?? "";
+    index += 1;
+    if (!status) {
+      continue;
+    }
+    if (status.startsWith("R") || status.startsWith("C")) {
+      const first = tokens[index] ?? "";
+      const second = tokens[index + 1] ?? "";
+      index += 2;
+      if (status.startsWith("R") && first && second) {
+        files.push({ status: "deleted", path: first }, { status: "added", path: second });
+      } else if (second) {
+        files.push({ status: "added", path: second });
       }
-      if (status.startsWith("D")) {
-        return [{ status: "deleted", path: first }];
-      }
-      if (status.startsWith("A") || (status.startsWith("C") && second)) {
-        return [{ status: "added", path: second ?? first }];
-      }
-      return [{ status: "modified", path: first }];
-    });
+      continue;
+    }
+    const path = tokens[index] ?? "";
+    index += 1;
+    if (!path) {
+      continue;
+    }
+    if (status.startsWith("D")) {
+      files.push({ status: "deleted", path });
+    } else if (status.startsWith("A")) {
+      files.push({ status: "added", path });
+    } else {
+      files.push({ status: "modified", path });
+    }
+  }
+
+  return files;
+};
+
+/** Lists the files changed in a diff range; `-z` stops git quoting unusual paths. */
+export const readChangedFiles = (repoRoot: string, diffRange: string): ChangedFile[] =>
+  parseNameStatusZ(
+    execFileSync("git", ["diff", "-z", "--name-status", "-M", diffRange], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    }),
+  );
 
 type Section = { heading: string; hasContent: boolean };
 
@@ -169,19 +199,23 @@ const requireEnv = (name: string) => {
   return value;
 };
 
+/** Reads a pull request number, rejecting values that would name a record like `NaN.md`. */
+export const parsePrNumber = (value: string): number => {
+  if (!/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(Number(value))) {
+    throw new Error(`PR_NUMBER must be a positive integer; received "${value}".`);
+  }
+  return Number(value);
+};
+
 const runCli = () => {
   const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
-  const prNumber = Number(requireEnv("PR_NUMBER"));
+  const prNumber = parsePrNumber(requireEnv("PR_NUMBER"));
   const diffRange = `${requireEnv("PR_BASE_SHA")}...${requireEnv("PR_HEAD_SHA")}`;
-  const raw = execFileSync("git", ["diff", "--name-status", "-M", diffRange], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
 
   const result = checkVerificationRecord({
     prNumber,
     author: requireEnv("PR_AUTHOR"),
-    changedFiles: parseNameStatus(raw),
+    changedFiles: readChangedFiles(repoRoot, diffRange),
     readRecord: (path) => {
       const file = join(repoRoot, path);
       return existsSync(file) ? readFileSync(file, "utf8") : undefined;
