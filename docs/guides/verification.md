@@ -70,28 +70,29 @@ include the full matrix for the [full verification milestones](#verification).
 
 Choose checks for the part you changed:
 
-| When you need to…                                                   | Run…                                                                  |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Check formatting, lint, and types                                   | `vp run check:code` (build first to generate route types)             |
-| Check React Compiler diagnostics across UI code                     | `vp run check:react-compiler`                                         |
-| Check capability packages without application-generated types       | `vp run -r typecheck`                                                 |
-| Typecheck one extracted web capability                              | `vp run @merit/grantmaking-web#typecheck`                             |
-| Check CSS correctness and spacing                                   | `vp run check:css`                                                    |
-| Check local documentation links and heading anchors                 | `vp run check:docs`                                                   |
-| Check dependency boundaries after moving code or changing imports   | `vp run architecture`                                                 |
-| Check for unused code and incorrect dependency declarations         | `vp run code-health`                                                  |
-| Check production function complexity                                | `vp run check:complexity`                                             |
-| Scan repository files for secrets and audit dependencies            | `vp run check:security`                                               |
-| Run package tests                                                   | `vp run -r test`, or `vp run <package>#test` for the affected package |
-| Check all stories, their interactions, and accessibility            | `vp run test:stories`                                                 |
-| Check Storybook layouts and interactions without the application    | `vp run test:browser:stories`                                         |
-| Check or update visual baselines in the pinned Playwright container | `vp run test:browser:stories:container`                               |
-| Check application flows                                             | `vp run test:browser:app`                                             |
-| Check shared browser fixtures without starting a server             | `vp run test:browser:tooling`                                         |
-| Run shared browser checks, Storybook, and application flows         | `vp run test:browser`                                                 |
-| Build the workspace                                                 | `vp run -r build`                                                     |
-| Check database integration                                          | `vp run @merit/app#test:integration`                                  |
-| Check persisted workspace navigation without Clerk                  | `vp run @merit/app#test:workspace`                                    |
+| When you need to…                                                 | Run…                                                                  |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Check formatting, lint, and types                                 | `vp run check:code` (build first to generate route types)             |
+| Check React Compiler diagnostics across UI code                   | `vp run check:react-compiler`                                         |
+| Check capability packages without application-generated types     | `vp run -r typecheck`                                                 |
+| Typecheck one extracted web capability                            | `vp run @merit/grantmaking-web#typecheck`                             |
+| Check CSS correctness and spacing                                 | `vp run check:css`                                                    |
+| Check local documentation links and heading anchors               | `vp run check:docs`                                                   |
+| Check dependency boundaries after moving code or changing imports | `vp run architecture`                                                 |
+| Check for unused code and incorrect dependency declarations       | `vp run code-health`                                                  |
+| Check production function complexity                              | `vp run check:complexity`                                             |
+| Scan repository files for secrets and audit dependencies          | `vp run check:security`                                               |
+| Run package tests                                                 | `vp run -r test`, or `vp run <package>#test` for the affected package |
+| Check all stories, their interactions, and accessibility          | `vp run test:stories`                                                 |
+| Check Storybook layouts and interactions without the application  | `vp run test:browser:stories`                                         |
+| Check visual baselines in the pinned Playwright container         | `vp run test:browser:stories:container`                               |
+| Update visual baselines in the pinned Playwright container        | `vp run ui:verify --container --update`                               |
+| Check application flows                                           | `vp run test:browser:app`                                             |
+| Check shared browser fixtures without starting a server           | `vp run test:browser:tooling`                                         |
+| Run shared browser checks, Storybook, and application flows       | `vp run test:browser`                                                 |
+| Build the workspace                                               | `vp run -r build`                                                     |
+| Check database integration                                        | `vp run @merit/app#test:integration`                                  |
+| Check persisted workspace navigation without Clerk                | `vp run @merit/app#test:workspace`                                    |
 
 Visual comparisons and baseline updates are valid only inside the pinned Playwright image
 (`vp run test:browser:stories:container`, or CI). Every host run that includes the Storybook
