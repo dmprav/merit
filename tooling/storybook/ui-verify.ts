@@ -1179,6 +1179,9 @@ type MeritFocusTracker = {
 const OPAQUE_FRAME_INCOMPLETE_REASON =
   "Incomplete: focus entered a cross-origin frame whose controls cannot be inspected";
 
+const SIBLING_FOCUS_INCOMPLETE_REASON =
+  "Incomplete: focus did not move to a sibling item, so the focused item could not be compared with an unfocused one";
+
 const TRACKER_LOST_INCOMPLETE_REASON =
   "Incomplete: the page navigated to a new document during focus traversal";
 
@@ -1549,18 +1552,29 @@ export const checkKeyboardFocusTraversal = async (
     }, finalStop.index);
     if (siblingKey) {
       await page.keyboard.press(siblingKey);
-      await page
+      const moved = await page
         .waitForFunction(
           (targetIndex: number) => {
             const tracker = window.__meritFocusTracker;
             const el = tracker?.stops[targetIndex];
             const active = tracker?.deepActiveElement();
-            return Boolean(el && active && active !== el && el.closest("[role]")?.contains(active));
+            return Boolean(
+              el &&
+              active &&
+              active !== el &&
+              el.closest('[role="listbox"], [role="menu"]')?.contains(active),
+            );
           },
           finalStop.index,
           { timeout: 2_000 },
         )
-        .catch(() => undefined);
+        .then(
+          () => true,
+          () => false,
+        );
+      if (!moved) {
+        incompleteReason = SIBLING_FOCUS_INCOMPLETE_REASON;
+      }
     } else {
       const blurred = await page.evaluate((targetIndex: number) => {
         const tracker = window.__meritFocusTracker;
