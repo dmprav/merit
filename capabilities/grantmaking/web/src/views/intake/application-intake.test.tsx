@@ -377,6 +377,103 @@ it("edits the summary inline with the standard field and preserves contact detai
   );
 });
 
+it("returns focus to the section's edit button after its editor saves and closes", async () => {
+  const { user, calls } = renderIntake();
+  await user.click(await screen.findByRole("button", { name: "Edit summary" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Staff summary" }), {
+    target: { value: "Updated staff interpretation." },
+  });
+  // A frame may run before React commits the edit button that replaces the editor.
+  const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    callback(0);
+    return 0;
+  });
+  try {
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(calls).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: "Staff summary" })).not.toBeInTheDocument(),
+    );
+  } finally {
+    frame.mockRestore();
+  }
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Edit summary" })).toHaveFocus());
+});
+
+it("returns focus to the section's edit button once the save's refresh re-enables it", async () => {
+  let finishRefresh = () => {};
+
+  const refresh = vi.fn<IntakeData["refresh"]>(
+    () =>
+      new Promise<void>((resolve) => {
+        finishRefresh = resolve;
+      }),
+  );
+  const { user, calls } = renderIntake(refresh);
+  await user.click(await screen.findByRole("button", { name: "Edit summary" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Staff summary" }), {
+    target: { value: "Updated staff interpretation." },
+  });
+  // Frames run at once, so focus is attempted while the refresh still disables the edit button.
+  const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    callback(0);
+    return 0;
+  });
+  try {
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(calls).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: "Staff summary" })).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: "Edit summary" })).toBeDisabled();
+    await act(async () => finishRefresh());
+  } finally {
+    frame.mockRestore();
+  }
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Edit summary" })).toHaveFocus());
+});
+
+it("leaves focus where the person moved it while the save's refresh was pending", async () => {
+  let finishRefresh = () => {};
+
+  const refresh = vi.fn<IntakeData["refresh"]>(
+    () =>
+      new Promise<void>((resolve) => {
+        finishRefresh = resolve;
+      }),
+  );
+  const { user } = renderIntake(refresh);
+  await user.click(await screen.findByRole("button", { name: "Edit summary" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Staff summary" }), {
+    target: { value: "Updated staff interpretation." },
+  });
+  const elsewhere = document.createElement("button");
+  elsewhere.textContent = "Elsewhere";
+  document.body.append(elsewhere);
+  const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    callback(0);
+    return 0;
+  });
+  try {
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    act(() => elsewhere.focus());
+    await act(async () => finishRefresh());
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: "Staff summary" })).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit summary" })).toBeEnabled());
+
+    expect(elsewhere).toHaveFocus();
+  } finally {
+    frame.mockRestore();
+    elsewhere.remove();
+  }
+});
+
 it("brings a newly started revision into view from application management", async () => {
   const { user } = renderIntake();
   await user.click(await screen.findByRole("button", { name: "Application actions" }));
