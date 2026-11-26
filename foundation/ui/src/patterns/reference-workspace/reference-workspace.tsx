@@ -106,7 +106,7 @@ export const ReferencePane = ({
   return (
     <ReadingViewportContext value={viewport}>
       <div {...frameRoot("pane", styles.reference)} id={`${id}-reference`}>
-        <FrameBar>{toolbar ?? <FrameTitle plain title={label} />}</FrameBar>
+        <FrameBar>{toolbar || <FrameTitle plain title={label} />}</FrameBar>
         <FrameBody
           ref={viewport}
           data-reading-viewport

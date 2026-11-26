@@ -29,6 +29,20 @@ export const RetainedDialogContent = ({
   return isOpen ? children : content;
 };
 
+/** The dialog element's props: the shared frame anatomy for titled frames, otherwise a plain class. */
+const dialogProps = (
+  frame: Extract<FramePlacement, "center" | "end"> | undefined,
+  className: string | undefined,
+  scrollsWhole: boolean,
+) => {
+  const dialogClassName = `${styles.dialog} ${className ?? ""}`;
+  return {
+    ...(frame ? frameRoot(frame, dialogClassName) : { className: dialogClassName }),
+    "data-frame-scrolls": scrollsWhole || undefined,
+    "data-modal-dialog": frame,
+  };
+};
+
 /**
  * Shared modal behavior for every modal frame: backdrop, focus containment, dismissal,
  * retained exit content, and entrance motion. Each frame owns its own surface and layout.
@@ -64,8 +78,6 @@ export const ModalFrame = ({
     }
   };
 
-  const dialogClassName = `${styles.dialog} ${classNames.dialog ?? ""}`;
-  const root = frame ? frameRoot(frame, dialogClassName) : { className: dialogClassName };
   const overlayState =
     trigger == null ? { isOpen, defaultOpen, onOpenChange: handleOpenChange } : {};
   const overlay = (
@@ -80,11 +92,9 @@ export const ModalFrame = ({
         <RetainedDialogContent isOpen={state.isOpen}>
           <Modal className={classNames.modal}>
             <Dialog
-              {...root}
-              data-frame-scrolls={scrollsWhole || undefined}
+              {...dialogProps(frame, classNames.dialog, scrollsWhole)}
               aria-label={ariaLabel}
               aria-describedby={descriptionId}
-              data-modal-dialog={frame}
             >
               {({ close }) => children(close)}
             </Dialog>

@@ -111,10 +111,13 @@ it("shows title actions only while the work pane has a title", () => {
   expect(screen.getByRole("button", { name: "Close review task" })).toBeVisible();
 });
 
-it("titles a reference pane without a toolbar with its label", () => {
+it.each([
+  ["without a toolbar", undefined],
+  ["whose conditional toolbar is false", false],
+])("titles a reference pane %s with its label", (_case, toolbar) => {
   render(
     <ReferenceWorkspace>
-      <ReferencePane label="Reviewer list">
+      <ReferencePane label="Reviewer list" toolbar={toolbar}>
         <p>Reading</p>
       </ReferencePane>
     </ReferenceWorkspace>,
