@@ -254,6 +254,149 @@ const toOpenedPull = (pr: z.output<typeof restOpenedPullSchema>): RestOpenedPull
   headRefName: pr.head.ref,
 });
 
+const toRestPull = (pr: z.output<typeof restPullSchema>): RestPull => ({
+  number: pr.number,
+  title: pr.title,
+  body: pr.body ?? "",
+  draft: pr.draft,
+  createdAt: pr.created_at,
+  updatedAt: pr.updated_at,
+  labels: labelNames(pr.labels),
+  headRefName: pr.head.ref,
+  headSha: pr.head.sha,
+});
+
+/** The repository and the `gh api` requests every REST operation builds on. */
+type RestContext = {
+  repo: RepoIdentity;
+  /** The `repos/<owner>/<name>` path prefix of every endpoint. */
+  base: string;
+  /** Runs one request and returns its parsed JSON, or null for an empty response. */
+  api: (args: readonly string[]) => unknown;
+  /** Fetches every page of `endpoint`, validating each page against `pageSchema`. */
+  paginate: <T extends z.ZodType>(endpoint: string, pageSchema: T) => z.output<T>[];
+  /** Posts `fields` as `-f` form fields to `endpoint`. */
+  post: (endpoint: string, fields?: readonly string[]) => unknown;
+};
+
+const createRestContext = (repo: RepoIdentity, exec: GhExec): RestContext => {
+  const api = (args: readonly string[]): unknown => {
+    const raw = exec(["api", ...args]);
+    return raw.trim() ? JSON.parse(raw) : null;
+  };
+
+  return {
+    repo,
+    base: `repos/${repo.owner}/${repo.name}`,
+    api,
+    paginate: (endpoint, pageSchema) =>
+      z.array(pageSchema).parse(api(["--paginate", "--slurp", endpoint])),
+    post: (endpoint, fields = []) =>
+      api([endpoint, "-X", "POST", ...fields.flatMap((field) => ["-f", field])]),
+  };
+};
+
+const restIssueOperations = ({ base, api, paginate, post }: RestContext) => ({
+  getIssue: (number: number): RestIssue =>
+    toRestIssue(restIssueSchema.parse(api([`${base}/issues/${number}`]))),
+
+  /** Lists open issues and pull requests carrying `label`; pull requests have `isPullRequest`. */
+  listOpenIssues: (label: AgentLabel): RestIssue[] =>
+    paginate(
+      `${base}/issues?state=open&labels=${label}&per_page=100`,
+      z.array(restIssueSchema),
+    ).flatMap((page) => page.map(toRestIssue)),
+
+  listIssueComments: (number: number): IssueCommentRecord[] =>
+    paginate(`${base}/issues/${number}/comments?per_page=100`, z.array(restCommentSchema))
+      .flat()
+      .map((comment) => ({
+        body: comment.body ?? "",
+        authorAssociation: comment.author_association,
+      })),
+
+  postIssueComment: (number: number, body: string) => {
+    post(`${base}/issues/${number}/comments`, [`body=${body}`]);
+  },
+
+  addLabels: (number: number, labels: readonly AgentLabel[]) => {
+    post(
+      `${base}/issues/${number}/labels`,
+      labels.map((label) => `labels[]=${label}`),
+    );
+  },
+});
+
+const restPullOperations = ({ repo, base, api, paginate, post }: RestContext) => ({
+  getPull: (number: number): RestPull =>
+    toRestPull(restPullSchema.parse(api([`${base}/pulls/${number}`]))),
+
+  listReviewComments: (prNumber: number): RestPullReviewComment[] =>
+    paginate(
+      `${base}/pulls/${prNumber}/comments?per_page=100`,
+      z.array(restPullReviewCommentSchema),
+    ).flat(),
+
+  /** Returns the first open pull request from `head` into `base`, if any. */
+  findOpenPull: ({ head, base: baseRef }: { head: string; base: string }) =>
+    z
+      .array(restOpenedPullSchema)
+      .parse(
+        api([
+          `${base}/pulls?state=open&head=${encodeURIComponent(`${repo.owner}:${head}`)}&base=${encodeURIComponent(baseRef)}&per_page=10`,
+        ]),
+      )
+      .map(toOpenedPull)[0] ?? null,
+
+  createPull: (pull: { title: string; head: string; base: string; body: string }) =>
+    toOpenedPull(
+      restOpenedPullSchema.parse(
+        post(`${base}/pulls`, [
+          `title=${pull.title}`,
+          `head=${pull.head}`,
+          `base=${pull.base}`,
+          `body=${pull.body}`,
+        ]),
+      ),
+    ),
+
+  replyToReviewComment: (prNumber: number, commentId: number, body: string) => {
+    post(`${base}/pulls/${prNumber}/comments/${commentId}/replies`, [`body=${body}`]);
+  },
+});
+
+const restCheckOperations = ({ base, api, paginate, post }: RestContext) => ({
+  /** Lists every check run and commit status reported for `sha`, including superseded reruns. */
+  listCommitChecks: (sha: string): { checkRuns: RestCheckRun[]; statuses: RestCommitStatus[] } => ({
+    checkRuns: paginate(
+      `${base}/commits/${sha}/check-runs?per_page=100`,
+      restCheckRunsPageSchema,
+    ).flatMap((page) => page.check_runs),
+    statuses: paginate(
+      `${base}/commits/${sha}/status?per_page=100`,
+      restCommitStatusPageSchema,
+    ).flatMap((page) => page.statuses),
+  }),
+
+  /** Lists the ten most recent runs of `workflowFile` for `headSha`. */
+  listWorkflowRuns: (workflowFile: string, headSha: string): RestWorkflowRun[] =>
+    restWorkflowRunsSchema
+      .parse(
+        api([
+          `${base}/actions/workflows/${workflowFile}/runs?head_sha=${encodeURIComponent(headSha)}&per_page=10`,
+        ]),
+      )
+      .workflow_runs.map((run) => ({
+        id: run.id,
+        attempt: run.run_attempt,
+        conclusion: run.conclusion,
+      })),
+
+  rerunFailedJobs: (runId: number) => {
+    post(`${base}/actions/runs/${runId}/rerun-failed-jobs`);
+  },
+});
+
 /**
  * Reads and writes issues and pull requests through the GitHub REST API with ambient credentials.
  * Every request is a `gh api` call to a REST path, because the Claude Code cloud proxy rejects the
@@ -270,130 +413,12 @@ export const createGitHubRestClient = ({
   repo?: RepoIdentity;
   exec?: GhExec;
 }) => {
-  const base = `repos/${repo.owner}/${repo.name}`;
-
-  const api = (args: readonly string[]): unknown => {
-    const raw = exec(["api", ...args]);
-    return raw.trim() ? JSON.parse(raw) : null;
-  };
-
-  const paginate = <T extends z.ZodType>(endpoint: string, pageSchema: T): z.output<T>[] =>
-    z.array(pageSchema).parse(api(["--paginate", "--slurp", endpoint]));
-
-  const post = (endpoint: string, fields: readonly string[] = []) =>
-    api([endpoint, "-X", "POST", ...fields.flatMap((field) => ["-f", field])]);
-
+  const context = createRestContext(repo, exec);
   return {
     repo,
-
-    getIssue: (number: number): RestIssue =>
-      toRestIssue(restIssueSchema.parse(api([`${base}/issues/${number}`]))),
-
-    /** Lists open issues and pull requests carrying `label`; pull requests have `isPullRequest`. */
-    listOpenIssues: (label: AgentLabel): RestIssue[] =>
-      paginate(
-        `${base}/issues?state=open&labels=${label}&per_page=100`,
-        z.array(restIssueSchema),
-      ).flatMap((page) => page.map(toRestIssue)),
-
-    listIssueComments: (number: number): IssueCommentRecord[] =>
-      paginate(`${base}/issues/${number}/comments?per_page=100`, z.array(restCommentSchema))
-        .flat()
-        .map((comment) => ({
-          body: comment.body ?? "",
-          authorAssociation: comment.author_association,
-        })),
-
-    getPull: (number: number): RestPull => {
-      const pr = restPullSchema.parse(api([`${base}/pulls/${number}`]));
-      return {
-        number: pr.number,
-        title: pr.title,
-        body: pr.body ?? "",
-        draft: pr.draft,
-        createdAt: pr.created_at,
-        updatedAt: pr.updated_at,
-        labels: labelNames(pr.labels),
-        headRefName: pr.head.ref,
-        headSha: pr.head.sha,
-      };
-    },
-
-    listReviewComments: (prNumber: number): RestPullReviewComment[] =>
-      paginate(
-        `${base}/pulls/${prNumber}/comments?per_page=100`,
-        z.array(restPullReviewCommentSchema),
-      ).flat(),
-
-    /** Lists every check run and commit status reported for `sha`, including superseded reruns. */
-    listCommitChecks: (
-      sha: string,
-    ): { checkRuns: RestCheckRun[]; statuses: RestCommitStatus[] } => ({
-      checkRuns: paginate(
-        `${base}/commits/${sha}/check-runs?per_page=100`,
-        restCheckRunsPageSchema,
-      ).flatMap((page) => page.check_runs),
-      statuses: paginate(
-        `${base}/commits/${sha}/status?per_page=100`,
-        restCommitStatusPageSchema,
-      ).flatMap((page) => page.statuses),
-    }),
-
-    /** Lists the ten most recent runs of `workflowFile` for `headSha`. */
-    listWorkflowRuns: (workflowFile: string, headSha: string): RestWorkflowRun[] =>
-      restWorkflowRunsSchema
-        .parse(
-          api([
-            `${base}/actions/workflows/${workflowFile}/runs?head_sha=${encodeURIComponent(headSha)}&per_page=10`,
-          ]),
-        )
-        .workflow_runs.map((run) => ({
-          id: run.id,
-          attempt: run.run_attempt,
-          conclusion: run.conclusion,
-        })),
-
-    rerunFailedJobs: (runId: number) => {
-      post(`${base}/actions/runs/${runId}/rerun-failed-jobs`);
-    },
-
-    postIssueComment: (number: number, body: string) => {
-      post(`${base}/issues/${number}/comments`, [`body=${body}`]);
-    },
-
-    addLabels: (number: number, labels: readonly AgentLabel[]) => {
-      post(
-        `${base}/issues/${number}/labels`,
-        labels.map((label) => `labels[]=${label}`),
-      );
-    },
-
-    /** Returns the first open pull request from `head` into `base`, if any. */
-    findOpenPull: ({ head, base: baseRef }: { head: string; base: string }) =>
-      z
-        .array(restOpenedPullSchema)
-        .parse(
-          api([
-            `${base}/pulls?state=open&head=${encodeURIComponent(`${repo.owner}:${head}`)}&base=${encodeURIComponent(baseRef)}&per_page=10`,
-          ]),
-        )
-        .map(toOpenedPull)[0] ?? null,
-
-    createPull: (pull: { title: string; head: string; base: string; body: string }) =>
-      toOpenedPull(
-        restOpenedPullSchema.parse(
-          post(`${base}/pulls`, [
-            `title=${pull.title}`,
-            `head=${pull.head}`,
-            `base=${pull.base}`,
-            `body=${pull.body}`,
-          ]),
-        ),
-      ),
-
-    replyToReviewComment: (prNumber: number, commentId: number, body: string) => {
-      post(`${base}/pulls/${prNumber}/comments/${commentId}/replies`, [`body=${body}`]);
-    },
+    ...restIssueOperations(context),
+    ...restPullOperations(context),
+    ...restCheckOperations(context),
   };
 };
 
@@ -438,6 +463,45 @@ const issueViewSchema = z.object({
   body: z.string(),
 });
 
+const listIssuesWithGh = (
+  exec: GhExec,
+  { state, label, withComments = false }: IssueListQuery,
+): IssueListItem[] => {
+  const fields = ["number", "title", "state", "labels", "body"];
+  if (withComments) {
+    fields.push("comments");
+  }
+  const raw = exec([
+    "issue",
+    "list",
+    "--state",
+    state,
+    ...(label ? ["--label", label] : []),
+    "--limit",
+    String(ISSUE_LIST_LIMIT),
+    "--json",
+    fields.join(","),
+  ]);
+  return issueListSchema.parse(JSON.parse(raw)).map((issue) => ({
+    ...issue,
+    labels: labelNames(issue.labels),
+  }));
+};
+
+const createIssueWithGh = (
+  exec: GhExec,
+  { title, body, labels }: { title: string; body: string; labels: readonly string[] },
+): string =>
+  exec([
+    "issue",
+    "create",
+    "--title",
+    title,
+    "--body",
+    body,
+    ...labels.flatMap((label) => ["--label", label]),
+  ]).trim();
+
 /**
  * Reads and files issues with `gh issue`, authenticated with `MERIT_SCOUT_GH_TOKEN` when it is set
  * so scout and proposal runs can write issues where the default token cannot.
@@ -452,27 +516,7 @@ export const createGitHubIssueCliClient = ({
   exec?: GhExec;
 }) => ({
   /** Lists up to `ISSUE_LIST_LIMIT` issues in `state`, optionally only those carrying `label`. */
-  listIssues: ({ state, label, withComments = false }: IssueListQuery): IssueListItem[] => {
-    const fields = ["number", "title", "state", "labels", "body"];
-    if (withComments) {
-      fields.push("comments");
-    }
-    const raw = exec([
-      "issue",
-      "list",
-      "--state",
-      state,
-      ...(label ? ["--label", label] : []),
-      "--limit",
-      String(ISSUE_LIST_LIMIT),
-      "--json",
-      fields.join(","),
-    ]);
-    return issueListSchema.parse(JSON.parse(raw)).map((issue) => ({
-      ...issue,
-      labels: labelNames(issue.labels),
-    }));
-  },
+  listIssues: (query: IssueListQuery): IssueListItem[] => listIssuesWithGh(exec, query),
 
   viewIssue: (number: number) =>
     issueViewSchema.parse(
@@ -484,22 +528,6 @@ export const createGitHubIssueCliClient = ({
   },
 
   /** Files an issue and returns its URL. */
-  createIssue: ({
-    title,
-    body,
-    labels,
-  }: {
-    title: string;
-    body: string;
-    labels: readonly string[];
-  }): string =>
-    exec([
-      "issue",
-      "create",
-      "--title",
-      title,
-      "--body",
-      body,
-      ...labels.flatMap((label) => ["--label", label]),
-    ]).trim(),
+  createIssue: (issue: { title: string; body: string; labels: readonly string[] }): string =>
+    createIssueWithGh(exec, issue),
 });
