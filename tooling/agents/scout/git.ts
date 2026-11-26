@@ -67,7 +67,8 @@ export const parseCommitLog = (raw: string): CommitSummary[] =>
       return sha && date ? [{ sha, date, subject }] : [];
     });
 
-const splitLines = (raw: string): string[] => raw.split(/\r?\n/).filter(Boolean);
+// With `-z`, Git separates paths with NUL and leaves them unquoted, however unusual their names.
+const splitPaths = (raw: string): string[] => raw.split("\0").filter(Boolean);
 
 /** Reads history with the `git` command line in `repoRoot`. */
 export const createGitPort = (repoRoot: string): GitPort => {
@@ -102,7 +103,7 @@ export const createGitPort = (repoRoot: string): GitPort => {
         ),
       ),
     filesChangedIn: (sha) =>
-      splitLines(
+      splitPaths(
         git([
           "diff-tree",
           "-m",
@@ -111,10 +112,11 @@ export const createGitPort = (repoRoot: string): GitPort => {
           "--no-commit-id",
           "--name-only",
           "-r",
+          "-z",
           sha,
         ]),
       ),
-    trackedFiles: (sha) => splitLines(git(["ls-tree", "-r", "--name-only", sha])),
+    trackedFiles: (sha) => splitPaths(git(["ls-tree", "-r", "-z", "--name-only", sha])),
     isShallow: () => {
       try {
         return git(["rev-parse", "--is-shallow-repository"]).trim() === "true";

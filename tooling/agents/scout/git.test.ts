@@ -1,6 +1,11 @@
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, test } from "vite-plus/test";
 
-import { buildCommitQueryArgs, parseCommitLog } from "./git.ts";
+import { buildCommitQueryArgs, createGitPort, parseCommitLog } from "./git.ts";
 
 describe("scout commit query", () => {
   const fallbackSinceIso = "2026-11-15T00:00:00Z";
@@ -45,5 +50,30 @@ describe("scout commit query", () => {
     expect(parseCommitLog("abc1234\t2026-11-22T00:00:00Z\tfeat: a\tb\n\nbroken-line\n")).toEqual([
       { sha: "abc1234", date: "2026-11-22T00:00:00Z", subject: "feat: a\tb" },
     ]);
+  });
+});
+
+describe("scout git paths", () => {
+  test("reads non-ASCII paths as written, not quoted", () => {
+    const repo = mkdtempSync(join(tmpdir(), "merit-scout-git-"));
+    try {
+      const git = (args: readonly string[]) =>
+        execFileSync("git", ["-c", "commit.gpgsign=false", ...args], { cwd: repo });
+
+      git(["init", "-q"]);
+      mkdirSync(join(repo, "docs/guides"), { recursive: true });
+      writeFileSync(join(repo, "docs/guides/café.md"), "# Café\n");
+      writeFileSync(join(repo, "README.md"), "# Readme\n");
+      git(["add", "."]);
+      git(["-c", "user.name=Scout", "-c", "user.email=scout@example.com", "commit", "-qm", "docs"]);
+
+      const port = createGitPort(repo);
+      const head = port.revParse("HEAD");
+
+      expect(port.trackedFiles(head)).toEqual(["README.md", "docs/guides/café.md"]);
+      expect(port.filesChangedIn(head)).toEqual(["README.md", "docs/guides/café.md"]);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
   });
 });
