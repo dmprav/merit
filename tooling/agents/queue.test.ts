@@ -1188,8 +1188,9 @@ describe("runQueueCommand", () => {
       updatedAt: new Date(NOW - CLAIM_TTL_MS).toISOString(),
     });
 
-    runQueueCommand(parseQueueArgs(["next"]), deps(client));
+    const order: unknown = JSON.parse(runQueueCommand(parseQueueArgs(["next"]), deps(client)));
 
+    expect(order).toMatchObject({ kind: "escalate", prNumber: 221 });
     expect(writes).toEqual([]);
   });
 
