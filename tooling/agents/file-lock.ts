@@ -21,6 +21,9 @@ const DEFAULT_LOCK_MAX_DELAY_MS = 250;
 const LOCK_WRITE_GRACE_MS = 1_000;
 // A reclaim marker is itself a lock, so a dead reclaimer's marker is reclaimed one level deeper.
 const MAX_RECLAIM_DEPTH = 3;
+// A lock released between a failed publish and its inspection is retried at once, even past the
+// deadline, so a single attempt does not report a holder that has already gone.
+const MAX_VANISHED_LOCK_RETRIES = 3;
 
 const lockMetadataSchema = z.object({
   pid: z.number().int().positive(),
@@ -46,6 +49,8 @@ export type FileLockOptions = {
   writeMetadata?: (fd: number, payload: string) => void;
   /** Test seam: runs after a lock is judged stale and before its reclaim marker is taken. */
   onStaleLock?: (details: { lockPath: string; markerPath: string }) => void;
+  /** Test seam: runs after publishing finds the lock taken and before that lock is inspected. */
+  onLockHeld?: (lockPath: string) => void;
 };
 
 type ReclaimContext = {
@@ -56,6 +61,20 @@ type ReclaimContext = {
   nowMs: () => number;
   onStaleLock?: FileLockOptions["onStaleLock"];
 };
+
+/**
+ * What inspecting a taken lock found: it was removed as stale, it vanished first, or it is held,
+ * by the live process whose PID the inspection read when it could.
+ */
+type ReclaimOutcome =
+  | { kind: "reclaimed" }
+  | { kind: "gone" }
+  | { kind: "held"; holderPid?: number };
+
+const HELD: ReclaimOutcome = { kind: "held" };
+
+const outcomeOfFailedInspection = (error: unknown): ReclaimOutcome =>
+  getErrnoCode(error) === "ENOENT" ? { kind: "gone" } : HELD;
 
 /** Thrown when another live process still holds the lock once the timeout has elapsed. */
 export class FileLockBusyError extends Error {
@@ -186,17 +205,22 @@ const releaseIfOwned = (path: string, payload: string): void => {
  * publish an exclusive marker keyed by that file's identity; while the stale file occupies the
  * path no one can create a new lock, so the marker holder's re-check and unlink are race-free.
  */
-const tryReclaimStaleLock = (lockPath: string, context: ReclaimContext, depth = 0): boolean => {
+const tryReclaimStaleLock = (
+  lockPath: string,
+  context: ReclaimContext,
+  depth = 0,
+): ReclaimOutcome => {
   let inspected: { dev: number; ino: number; mtimeMs: number };
   let raw: string;
   try {
     inspected = lstatSync(lockPath);
     raw = readFileSync(lockPath, "utf8");
-  } catch {
-    return false;
+  } catch (error) {
+    return outcomeOfFailedInspection(error);
   }
   if (!isStaleLockContent(raw, context.nowMs() - inspected.mtimeMs, context)) {
-    return false;
+    const holderPid = parseLockMetadata(raw)?.pid;
+    return holderPid === undefined ? HELD : { kind: "held", holderPid };
   }
 
   const identity = createHash("sha256")
@@ -210,18 +234,18 @@ const tryReclaimStaleLock = (lockPath: string, context: ReclaimContext, depth = 
     if (depth < MAX_RECLAIM_DEPTH) {
       tryReclaimStaleLock(markerPath, context, depth + 1);
     }
-    return false;
+    return HELD;
   }
   try {
     const current = lstatSync(lockPath);
     if (!sameFile(current, inspected) || readFileSync(lockPath, "utf8") !== raw) {
-      return false;
+      return HELD;
     }
     unlinkSync(lockPath);
-    return true;
-  } catch {
-    // The stale lock is already gone; retry acquisition.
-    return false;
+    return { kind: "reclaimed" };
+  } catch (error) {
+    // An already removed stale lock leaves the path free to publish.
+    return outcomeOfFailedInspection(error);
   } finally {
     releaseIfOwned(markerPath, context.payload);
   }
@@ -256,14 +280,65 @@ const sleep = (ms: number): Promise<void> =>
     setTimeout(resolveSleep, ms);
   });
 
-const busyError = (lockPath: string, label: string, timeoutMs: number): FileLockBusyError => {
-  const raw = readOptionalFile(lockPath);
-  const holderPid = raw === undefined ? undefined : parseLockMetadata(raw)?.pid;
+/** Reports the holder the last inspection saw, or else whoever holds the lock now. */
+const busyError = (
+  lockPath: string,
+  label: string,
+  timeoutMs: number,
+  observedHolderPid: number | undefined,
+): FileLockBusyError => {
+  const readHolderPid = () => {
+    const raw = readOptionalFile(lockPath);
+    return raw === undefined ? undefined : parseLockMetadata(raw)?.pid;
+  };
+
+  const holderPid = observedHolderPid ?? readHolderPid();
   const message =
     timeoutMs > 0
       ? `Timed out waiting for ${label} lock at "${lockPath}" after ${timeoutMs}ms.`
       : `The ${label} lock at "${lockPath}" is held${holderPid ? ` by pid ${holderPid}` : ""}.`;
   return new FileLockBusyError(message, lockPath, holderPid);
+};
+
+type WaitPolicy = {
+  label: string;
+  timeoutMs: number;
+  deadline: number;
+  initialDelayMs: number;
+  maxDelayMs: number;
+  onLockHeld: FileLockOptions["onLockHeld"];
+};
+
+/** Publishes the lock, reclaiming a stale holder and waiting for a live one until the deadline. */
+const publishLock = async (
+  lockPath: string,
+  context: ReclaimContext,
+  wait: WaitPolicy,
+): Promise<void> => {
+  let delayMs = wait.initialDelayMs;
+  let vanishedRetries = 0;
+  while (!tryPublish(context.publishedPath, lockPath)) {
+    wait.onLockHeld?.(lockPath);
+    const outcome = tryReclaimStaleLock(lockPath, context);
+    if (outcome.kind === "reclaimed") {
+      continue;
+    }
+    if (outcome.kind === "gone" && vanishedRetries < MAX_VANISHED_LOCK_RETRIES) {
+      vanishedRetries += 1;
+      continue;
+    }
+    const remainingMs = wait.deadline - context.nowMs();
+    if (remainingMs <= 0) {
+      throw busyError(
+        lockPath,
+        wait.label,
+        wait.timeoutMs,
+        outcome.kind === "held" ? outcome.holderPid : undefined,
+      );
+    }
+    await sleep(Math.min(delayMs, remainingMs));
+    delayMs = Math.min(delayMs * 2, wait.maxDelayMs);
+  }
 };
 
 /**
@@ -277,10 +352,7 @@ export const acquireFileLock = async (
   lockPath: string,
   options: FileLockOptions = {},
 ): Promise<() => void> => {
-  const label = options.label ?? "file";
   const timeoutMs = options.timeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS;
-  const initialDelayMs = options.initialDelayMs ?? DEFAULT_LOCK_INITIAL_DELAY_MS;
-  const maxDelayMs = options.maxDelayMs ?? DEFAULT_LOCK_MAX_DELAY_MS;
   const checkProcessAlive = options.isProcessAlive ?? isProcessAlive;
   const readStartTime = options.readProcessStartTime ?? readProcessStartTime;
   const nowMs = options.nowMs ?? Date.now;
@@ -316,21 +388,17 @@ export const acquireFileLock = async (
     onStaleLock: options.onStaleLock,
   };
 
-  const deadline = nowMs() + timeoutMs;
-  let delayMs = initialDelayMs;
+  const wait: WaitPolicy = {
+    label: options.label ?? "file",
+    timeoutMs,
+    deadline: nowMs() + timeoutMs,
+    initialDelayMs: options.initialDelayMs ?? DEFAULT_LOCK_INITIAL_DELAY_MS,
+    maxDelayMs: options.maxDelayMs ?? DEFAULT_LOCK_MAX_DELAY_MS,
+    onLockHeld: options.onLockHeld,
+  };
   try {
     writePrivateFile(publishedPath, payload, writeMetadata);
-    while (!tryPublish(publishedPath, lockPath)) {
-      if (tryReclaimStaleLock(lockPath, context)) {
-        continue;
-      }
-      const remainingMs = deadline - nowMs();
-      if (remainingMs <= 0) {
-        throw busyError(lockPath, label, timeoutMs);
-      }
-      await sleep(Math.min(delayMs, remainingMs));
-      delayMs = Math.min(delayMs * 2, maxDelayMs);
-    }
+    await publishLock(lockPath, context, wait);
   } finally {
     try {
       unlinkSync(publishedPath);

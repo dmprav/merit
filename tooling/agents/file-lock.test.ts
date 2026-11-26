@@ -241,6 +241,43 @@ describe("acquireFileLock without waiting", () => {
     expect(existsSync(lockPath)).toBe(false);
   });
 
+  test("takes the lock when its holder releases it between the failed publish and the inspection", async () => {
+    const { lockPath } = makeLockPath();
+    const releaseHolder = await acquireFileLock(lockPath, { timeoutMs: 0 });
+    let heldChecks = 0;
+
+    const release = await acquireFileLock(lockPath, {
+      timeoutMs: 0,
+      onLockHeld: () => {
+        heldChecks += 1;
+        releaseHolder();
+      },
+    });
+
+    expect(heldChecks).toBe(1);
+    expect(readFileSync(lockPath, "utf8")).toContain(`"pid":${process.pid}`);
+    release();
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
+  test("names the holder it inspected even when that holder releases before the failure is reported", async () => {
+    const { lockPath } = makeLockPath();
+    writeFileSync(lockPath, lockPayload(424_242, "live"), "utf8");
+
+    const failure = await acquireFileLock(lockPath, {
+      label: "test",
+      timeoutMs: 0,
+      isProcessAlive: () => {
+        unlinkSync(lockPath);
+        return true;
+      },
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(FileLockBusyError);
+    expect(failure).toMatchObject({ lockPath, holderPid: 424_242 });
+    expect(String(failure)).toContain("is held by pid 424242");
+  });
+
   test("reclaims a stale lock in its single attempt and releases only its own lock", async () => {
     const { dir, lockPath } = makeLockPath();
     writeFileSync(lockPath, lockPayload(exitedPid(), "dead"), "utf8");
