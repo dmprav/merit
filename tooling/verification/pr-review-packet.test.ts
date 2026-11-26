@@ -78,8 +78,45 @@ describe("pr-review-packet", () => {
       },
       {
         action: "added",
+        kind: "grant",
+        summary: "REVOKE ALL ON FUNCTION merit_retry(uuid) FROM PUBLIC",
+        securityDefiner: false,
+      },
+      {
+        action: "added",
         kind: "policy",
         summary: "CREATE POLICY workspace_only ON existing",
+        securityDefiner: false,
+      },
+    ]);
+  });
+
+  test("preserves SQL string and dollar-quoted literal whitespace and reports removed revocations", () => {
+    const baseSql = `
+      CREATE FUNCTION label() RETURNS text LANGUAGE sql AS $$ SELECT 'a  b' $$;
+      REVOKE ALL ON FUNCTION label() FROM PUBLIC;
+    `;
+    const headSql = `
+      CREATE FUNCTION label() RETURNS text LANGUAGE sql AS $$ SELECT 'a b' $$;
+    `;
+
+    expect(extractSqlDdlDelta(baseSql, headSql)).toEqual([
+      {
+        action: "added",
+        kind: "function",
+        summary: "CREATE FUNCTION label()",
+        securityDefiner: false,
+      },
+      {
+        action: "removed",
+        kind: "function",
+        summary: "CREATE FUNCTION label()",
+        securityDefiner: false,
+      },
+      {
+        action: "removed",
+        kind: "grant",
+        summary: "REVOKE ALL ON FUNCTION label() FROM PUBLIC",
         securityDefiner: false,
       },
     ]);
@@ -242,7 +279,13 @@ None.
       const method = init?.method ?? "GET";
       calls.push({ url, method, body: typeof init?.body === "string" ? init.body : undefined });
       if (method === "GET") {
-        return new Response(JSON.stringify([{ id: 1, body: "unrelated" }]), { status: 200 });
+        // Another user quoting the marker must not be patched.
+        return new Response(
+          JSON.stringify([
+            { id: 1, user: { login: "dmprav" }, body: `quoted ${REVIEW_PACKET_MARKER}` },
+          ]),
+          { status: 200 },
+        );
       }
       return new Response(JSON.stringify({ id: 99 }), { status: 201 });
     };
@@ -267,16 +310,27 @@ None.
       const method = init?.method ?? "GET";
       patchCalls.push({ url, method });
       if (method === "GET" && url.includes("per_page=100") && !url.includes("page=2")) {
-        return new Response(JSON.stringify([{ id: 1, body: "other" }]), {
-          status: 200,
-          headers: {
-            link: '<https://api.github.com/repos/dmprav/merit/issues/42/comments?per_page=100&page=2>; rel="next"',
+        return new Response(
+          JSON.stringify([
+            { id: 1, user: { login: "dmprav" }, body: `quoted ${REVIEW_PACKET_MARKER}` },
+          ]),
+          {
+            status: 200,
+            headers: {
+              link: '<https://api.github.com/repos/dmprav/merit/issues/42/comments?per_page=100&page=2>; rel="next"',
+            },
           },
-        });
+        );
       }
       if (method === "GET") {
         return new Response(
-          JSON.stringify([{ id: 77, body: `${REVIEW_PACKET_MARKER}\nold packet` }]),
+          JSON.stringify([
+            {
+              id: 77,
+              user: { login: "github-actions[bot]" },
+              body: `${REVIEW_PACKET_MARKER}\nold packet`,
+            },
+          ]),
           { status: 200 },
         );
       }

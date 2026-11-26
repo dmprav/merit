@@ -107,7 +107,8 @@ entry remains.
 The separate [Review Packet workflow](../../.github/workflows/review-packet.yml)
 runs [`pr-review-packet.ts`](../../tooling/verification/pr-review-packet.ts) on
 same-repo pull requests with `pull-requests: write` while keeping `verify.yml`
-read-only. Run `vp run ci:review-packet -- --base origin/main --head HEAD` to
+read-only. Run
+`vp run ci:review-packet -- --base origin/main --head HEAD --pr <number>` to
 preview the sticky comment locally, and run `vp run test:ci` after changing it.
 
 ## Check architecture enforcement

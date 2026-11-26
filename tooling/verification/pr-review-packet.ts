@@ -287,13 +287,87 @@ export const splitSqlStatements = (sqlText: string): string[] => {
   return statements;
 };
 
-const normalizeSqlStatement = (statement: string) => statement.replace(/\s+/gu, " ").trim();
+const normalizeSqlSummary = (statement: string) => statement.replace(/\s+/gu, " ").trim();
+
+/**
+ * Normalizes whitespace only outside PostgreSQL single-quoted and dollar-quoted
+ * literals so literal-only changes (e.g. `'a  b'` vs `'a b'`) stay detectable.
+ */
+const normalizeSqlForComparison = (statement: string): string => {
+  let out = "";
+  let index = 0;
+  let inSingleQuote = false;
+  let dollarTag: string | null = null;
+  let pendingSpace = false;
+
+  while (index < statement.length) {
+    const ch = statement[index] ?? "";
+    const next = statement[index + 1] ?? "";
+
+    if (dollarTag) {
+      if (statement.startsWith(dollarTag, index)) {
+        out += dollarTag;
+        index += dollarTag.length;
+        dollarTag = null;
+      } else {
+        out += ch;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (inSingleQuote) {
+      out += ch;
+      index += 1;
+      if (ch === "'" && next === "'") {
+        out += next;
+        index += 1;
+      } else if (ch === "'") {
+        inSingleQuote = false;
+      }
+      continue;
+    }
+
+    if (/\s/u.test(ch)) {
+      pendingSpace = out.length > 0;
+      index += 1;
+      continue;
+    }
+
+    if (pendingSpace) {
+      out += " ";
+      pendingSpace = false;
+    }
+
+    if (ch === "'") {
+      inSingleQuote = true;
+      out += ch;
+      index += 1;
+      continue;
+    }
+
+    if (ch === "$") {
+      const tagMatch = /^\$[A-Za-z_0-9]*\$/u.exec(statement.slice(index));
+      if (tagMatch?.[0]) {
+        dollarTag = tagMatch[0];
+        out += dollarTag;
+        index += dollarTag.length;
+        continue;
+      }
+    }
+
+    out += ch;
+    index += 1;
+  }
+
+  return out.trim();
+};
 
 const classifySqlStatement = (
   statement: string,
   action: "added" | "removed",
 ): SqlDdlChange | null => {
-  const flat = normalizeSqlStatement(statement);
+  const flat = normalizeSqlSummary(statement);
   const securityDefiner = /\bSECURITY\s+DEFINER\b/iu.test(flat);
 
   const tableMatch =
@@ -361,10 +435,6 @@ const classifySqlStatement = (
 
   const grantMatch = /^(GRANT|REVOKE)\s+(.+)$/iu.exec(flat);
   if (grantMatch?.[1] && grantMatch[2]) {
-    // Skip boilerplate `REVOKE ALL ON FUNCTION ... FROM PUBLIC` paired with every function.
-    if (/^REVOKE\s+ALL\s+ON\s+FUNCTION\b.+\bFROM\s+PUBLIC$/iu.test(flat)) {
-      return null;
-    }
     const detail = grantMatch[2].length > 100 ? `${grantMatch[2].slice(0, 97)}...` : grantMatch[2];
     return {
       action,
@@ -383,21 +453,21 @@ const classifySqlStatement = (
 export const extractSqlDdlDelta = (baseSql: string, headSql: string): SqlDdlChange[] => {
   const baseCounts = new Map<string, number>();
   for (const stmt of splitSqlStatements(baseSql)) {
-    const key = normalizeSqlStatement(stmt);
+    const key = normalizeSqlForComparison(stmt);
     baseCounts.set(key, (baseCounts.get(key) ?? 0) + 1);
   }
 
   const headStatements = splitSqlStatements(headSql);
   const headCounts = new Map<string, number>();
   for (const stmt of headStatements) {
-    const key = normalizeSqlStatement(stmt);
+    const key = normalizeSqlForComparison(stmt);
     headCounts.set(key, (headCounts.get(key) ?? 0) + 1);
   }
 
   const changes: SqlDdlChange[] = [];
 
   for (const stmt of headStatements) {
-    const key = normalizeSqlStatement(stmt);
+    const key = normalizeSqlForComparison(stmt);
     const remaining = baseCounts.get(key) ?? 0;
     if (remaining > 0) {
       baseCounts.set(key, remaining - 1);
@@ -410,7 +480,7 @@ export const extractSqlDdlDelta = (baseSql: string, headSql: string): SqlDdlChan
   }
 
   for (const stmt of splitSqlStatements(baseSql)) {
-    const key = normalizeSqlStatement(stmt);
+    const key = normalizeSqlForComparison(stmt);
     const remaining = headCounts.get(key) ?? 0;
     if (remaining > 0) {
       headCounts.set(key, remaining - 1);
@@ -760,9 +830,12 @@ const parseNextLink = (linkHeader: string | null): string | null => {
   return match?.[1] ?? null;
 };
 
+const DEFAULT_PUBLISHER_LOGIN = "github-actions[bot]";
+
 const issueCommentSchema = z.object({
   id: z.number(),
   body: z.string().nullable().optional(),
+  user: z.object({ login: z.string() }).nullable().optional(),
 });
 
 const issueCommentListSchema = z.array(issueCommentSchema);
@@ -773,12 +846,14 @@ export const upsertReviewPacketComment = async ({
   prNumber,
   token,
   body,
+  authorLogin = DEFAULT_PUBLISHER_LOGIN,
   fetchImpl = fetch,
 }: {
   repo: string;
   prNumber: number;
   token: string;
   body: string;
+  authorLogin?: string;
   fetchImpl?: typeof fetch;
 }): Promise<{ action: "created" | "updated"; id?: number }> => {
   const headers = {
@@ -798,7 +873,10 @@ export const upsertReviewPacketComment = async ({
       throw new Error(`Failed to list PR comments (${response.status}): ${await response.text()}`);
     }
     const comments = issueCommentListSchema.parse(await response.json());
-    const match = comments.find((comment) => comment.body?.includes(REVIEW_PACKET_MARKER));
+    const match = comments.find(
+      (comment) =>
+        comment.user?.login === authorLogin && comment.body?.includes(REVIEW_PACKET_MARKER),
+    );
     if (match) {
       existingId = match.id;
       break;
