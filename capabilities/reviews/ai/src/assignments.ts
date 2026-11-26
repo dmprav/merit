@@ -5,6 +5,7 @@ import {
   reviewerDraftSchema,
   reviewerProblems,
   reviewerStatuses,
+  reviewerWorkSchema,
   reviewBasisComparisonSchema,
   reviewCriteriaSchema,
   reviewStateSchema,
@@ -60,6 +61,9 @@ export const reviewerPageSchema = z.object({
     .object({ revision: z.number().int().nonnegative(), content: reviewerDraftSchema })
     .nullable(),
   assessment: reviewStateSchema.shape.assessments.element.nullable(),
+  work: reviewerWorkSchema.describe(
+    "Whether save_reviewer_draft and submit_reviewer_assessment can succeed now. When available is false, reason says why: action_unavailable until the assignment is accepted or while access is paused or ended, application_withdrawn while the application is withdrawn. Writes check again when they commit.",
+  ),
 });
 export const reviewerRevisionSchema = z.object({
   status: z.literal("ok"),

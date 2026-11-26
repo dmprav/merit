@@ -57,7 +57,8 @@ export const ReviewerScreen = ({
   const [conflictOpen, setConflictOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const expired = isInvitationExpired(assignment);
-  const material = work.canWrite ? page.material : null;
+  // Reviews returns material only to a reviewer who may read it, including after withdrawal.
+  const material = page.material;
   const errorKey = work.error;
 
   return (
@@ -196,11 +197,14 @@ const ReviewerHeader = ({
   const { page } = work;
   const assignment = page.assignment;
   const editing = work.canWrite && page.material && (!page.assessment || work.amending);
-  // An invitation offers conflict reporting beside its response instead.
-  const active = !expired && ["accepted", "submitted"].includes(assignment.status);
+  // An invitation offers conflict reporting beside its response instead. A withdrawn
+  // application refuses both responses, so neither is offered while work is unavailable.
+  const active = work.canWrite && !expired && ["accepted", "submitted"].includes(assignment.status);
   const actions = [
     ...(active ? [{ id: "conflict", label: t("conflict") }] : []),
-    ...(assignment.status === "accepted" ? [{ id: "withdraw", label: t("withdraw") }] : []),
+    ...(active && assignment.status === "accepted"
+      ? [{ id: "withdraw", label: t("withdraw") }]
+      : []),
   ];
   return (
     <PageHeader

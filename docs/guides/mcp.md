@@ -222,6 +222,11 @@ email on your account. Keep `assignment.revision` as `expectedRevision` and reus
 events, newest first, following `nextPage`. Both reads check current
 access and exclude private drafts.
 
+The read's `work` says whether a save, submission, or amendment can succeed now. When
+`work.available` is false, `work.reason` is `action_unavailable` before acceptance or
+while access is paused or ended, and `application_withdrawn` while the application is
+withdrawn. Writes check again when they commit.
+
 `save_reviewer_draft` saves against `draft.revision` as `expectedDraftRevision`.
 Draft amounts are decimal EUR strings. `submit_reviewer_assessment` submits that saved
 revision. To amend, save a new draft with an explanation in `draft.note`, then

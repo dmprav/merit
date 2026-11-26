@@ -42,7 +42,7 @@ const fundingPositions = new Set(["Fund", "Fund with a condition"]);
 export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
   const { t } = useTranslation("reviewer");
   const { page } = work;
-  const writing = Boolean(work.draft) && (!page.assessment || work.amending);
+  const writing = work.canWrite && Boolean(work.draft) && (!page.assessment || work.amending);
   const form = useRef<HTMLDivElement>(null);
   const [attempt, setAttempt] = useState(0);
 
@@ -64,7 +64,9 @@ export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
           note={writing ? t(page.assessment ? "amendmentHelp" : "privacy") : undefined}
         />
       }
-      titleActions={!writing && page.assessment && <AmendmentTrigger work={work} />}
+      titleActions={
+        work.canWrite && !writing && page.assessment && <AmendmentTrigger work={work} />
+      }
       footer={
         writing && (
           <ReviewerSubmitActions work={work} onInvalid={() => setAttempt((value) => value + 1)} />
@@ -72,10 +74,15 @@ export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
       }
     >
       <SubmissionConfirmation page={page} />
+      {/* Access that ends removes the material, so only withdrawal explains itself here. */}
+      {!page.work.available && page.work.reason === "application_withdrawn" && (
+        <Notice tone="neutral">{t("withdrawnReadOnly")}</Notice>
+      )}
       <div ref={form}>
         <Stack gap={5}>
           {writing ? <ReviewerDraftForm work={work} /> : <SubmittedAssessment work={work} />}
           <EarlierVersions page={page} />
+          <RetainedDraft work={work} />
         </Stack>
       </div>
     </WorkPane>

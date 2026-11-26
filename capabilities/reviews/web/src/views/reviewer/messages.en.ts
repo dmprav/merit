@@ -118,6 +118,8 @@ export const en = {
   unavailable: "The request could not be confirmed. Your text is still here; try again.",
   applicationWithdrawn:
     "This application was withdrawn, so reviews can no longer be changed. Your text is still here.",
+  withdrawnReadOnly:
+    "This application was withdrawn, so your assessment can no longer be amended. Contact the requesting manager if this needs to be reconsidered.",
   accessLost: "Your access has changed. Refresh to see the current assignment status.",
   stale: "The assignment changed. Refresh and review its current status before trying again.",
   reviewerAccess: "Reviewer participation",
