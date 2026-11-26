@@ -32,6 +32,13 @@ describe("scout state marker", () => {
     });
   });
 
+  test("writes the marker literally when preserved data contains replacement patterns", () => {
+    const initial = "State store.\n\n<!-- merit-scout-state: {} -->";
+    const entries = { future: { note: "$& and $1 and $$" } };
+    const body = formatScoutStateBody(initial, entries);
+    expect(body).toBe(`State store.\n\n<!-- merit-scout-state: ${JSON.stringify(entries)} -->`);
+  });
+
   test("drops one invalid lens cursor without wiping its siblings", () => {
     const partiallyCorrupt =
       '<!-- merit-scout-state: {"docs":{"lastCommitSha":"abcdef12","lastRunAt":"2026-11-22T00:00:00Z"},"tests":{"lastPrNumber":-5,"lastRunAt":"2026-11-22T00:00:00Z"}} -->';

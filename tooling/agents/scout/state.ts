@@ -104,7 +104,8 @@ export const formatScoutStateBody = (
 ): string => {
   const marker = `<!-- merit-scout-state: ${JSON.stringify(state)} -->`;
   if (STATE_MARKER_PATTERN.test(existingBody)) {
-    return existingBody.replace(STATE_MARKER_PATTERN, marker);
+    // A function inserts the marker literally; a string would expand `$&` and similar patterns.
+    return existingBody.replace(STATE_MARKER_PATTERN, () => marker);
   }
   const trimmed = existingBody.trimEnd();
   return `${trimmed}\n\n${marker}\n`;
