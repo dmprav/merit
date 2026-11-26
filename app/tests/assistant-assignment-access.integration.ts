@@ -6,7 +6,7 @@ import { withDatabase, type DatabaseRunner } from "@merit/db";
 import { fundingExampleIds } from "@merit/grantmaking/server/demo";
 import { seedExampleReviewer, seedExampleRounds } from "@merit/grantmaking/testing";
 import { createAssistantStore } from "@merit/organizations/server/assistant";
-import { createReviewerService } from "@merit/reviews/server";
+import { createInlineReviewerService } from "@merit/reviews/testing";
 import { databaseTest } from "@merit/test-support/database";
 
 const reviewer = { userId: "local-reviewer" };
@@ -14,7 +14,7 @@ const manager = { userId: "local-workspace-manager" };
 const workspaceSlug = "alder";
 
 const reviews = (database: DatabaseRunner) =>
-  createReviewerService({
+  createInlineReviewerService({
     database,
     send: async () => {},
     reviewerUrl: (_slug, id) => id,

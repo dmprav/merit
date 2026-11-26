@@ -160,6 +160,9 @@ export const reviewerMessages = pgTable(
   },
   (t) => [
     index("reviewer_messages_assignment").on(t.assignmentId),
+    index("reviewer_messages_pending")
+      .on(t.id)
+      .where(sql`${t.status} = 'pending'`),
     enumCheck("reviewer_messages_kind_check", t.kind, ["invitation", "submission"]),
     enumCheck("reviewer_messages_status_check", t.status, ["pending", "sent", "failed"]),
   ],

@@ -57,7 +57,11 @@ One outstanding invitation is allowed per email and organization. Invitations
 expire after seven days. **Resend** creates a new link and invalidates the previous
 one, without affecting other invitations. **Revoke** asks for confirmation. Sending
 failure, unconfirmed sending, expiry, and acceptance are distinct; sender acceptance
-does not prove inbox delivery. Retry a failed email through Resend.
+does not prove inbox delivery. After the invitation is saved, Merit sends the email in the
+background and tries again automatically for about fifteen minutes; the invitation shows as
+unconfirmed meanwhile and as failed only after the last attempt. Merit stops trying when the
+invitation is revoked, accepted, or expired. Resend remains available at any time, including for
+an invitation whose sending was never started. Resend creates a new link and its own delivery.
 
 To protect recipients and shared email delivery, wait one minute between invitations
 to the same email within an organization. Each organization can issue at most 20

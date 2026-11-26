@@ -85,11 +85,65 @@ digest, so the mirror cannot change what runs. The
 can run database, workspace, and email checks themselves.
 
 Compose also starts [Mailpit](organizations.md#try-the-complete-flow-locally) for
-local invitation emails and SeaweedFS for
-[private file storage](../../foundation/storage/README.md#configure-a-bucket).
+local invitation emails, SeaweedFS for
+[private file storage](../../foundation/storage/README.md#configure-a-bucket), and a
+[Temporal](#run-background-work-locally) development server.
 The seed creates example workspaces for Alder and Birch. Repeating it preserves
 existing content, review work, memberships, and revoked permissions. If you have a database from before the current
 schema baseline, see [local database recovery](#local-database-recovery).
+
+### Run background work locally
+
+Merit runs background work as [Temporal](../decisions/0016-temporal-background-work.md)
+workflows. Compose starts the Temporal development server, which accepts connections on
+`127.0.0.1:7233` and serves its web UI at [127.0.0.1:8233](http://127.0.0.1:8233). It keeps
+workflow history in a named volume across restarts; `vp run db:reset` deletes that volume
+with the others. The development server is a local tool, not a deployment.
+
+`vp run dev`, `vp run dev:workspace`, and `vp run @merit/app#preview` start the
+[application worker](../../app/src/worker/main.ts) as a separate Node.js process beside the
+web server; there is no in-process fallback. The worker reruns when its files change in
+development when a file it imports, a `*.workflow.ts` module, or `app/.env.local` changes,
+retries connecting with backoff when Temporal is not running, and logs each attempt without
+credentials. The worker does not read the terminal, so Vite's keyboard shortcuts reach Vite.
+The web server is unaffected either way. If the worker stops, for example from an invalid
+setting or a namespace that does not exist, the command says so and keeps the web server
+running: the development watcher prints that the worker exited and reruns it on the next
+change, such as a fix in `app/.env.local`, and preview prints that it stopped. Press Ctrl+C once to stop everything after work in flight finishes, and again to
+force the worker to exit. Run the worker alone with `vp run @merit/app#worker`.
+
+Every worker started this way polls the `merit` task queue by default, and `merit-assistant-turns`
+for Merit AI turn activities, on the one Compose server. The turn queue limits the process to four
+concurrent turns, so model calls never take the slots that email delivery needs. A dev worker from another worktree can pick up your work, running its code against its
+checkout. Stop other worktrees' workers while you work on workflows. A run that must not share work
+with a developer's worker, such as the workspace browser tests, sets `MERIT_TASK_QUEUE`,
+`MERIT_TURN_TASK_QUEUE`, and `MERIT_RECONCILE_SCHEDULE_ID` for both its web server and worker, and
+`MERIT_WORKER_APP_ORIGIN` for the origin the worker puts in email links (`scripts/with-worker.ts`
+passes it to the worker as `APP_ORIGIN`, leaving the web server's origin alone).
+
+Each worker start ensures one Temporal Schedule, `merit-reconcile`, which runs the `reconcile`
+workflow every minute. Its activities list committed unfinished work in Postgres, such as
+reviewer messages still `pending` and conversations still `running`, and start or wake the
+workflow of anything that has none. This is how
+work recovers when Temporal was unreachable at commit, or the process stopped between commit and
+start. Starting a workflow that is already running is a no-op, and a start that lets a closed run of
+the same ID run again (`closed: "restart"`, which reviewer messages and conversations use) starts a
+new run that rereads Postgres and does nothing for work already done. The Schedule shows in the
+Temporal UI; pausing it pauses recovery only. A new kind of work joins reconciliation by adding a reconciler to the
+[reconcile workflow](../../app/src/worker/reconcile.workflow.ts).
+
+Both processes read `app/.env.local`. The defaults need no configuration:
+
+| Setting                | Local default             | Purpose                                                   |
+| ---------------------- | ------------------------- | --------------------------------------------------------- |
+| `TEMPORAL_ADDRESS`     | `127.0.0.1:7233`          | Temporal frontend (`host:port`).                          |
+| `TEMPORAL_NAMESPACE`   | `default`                 | Namespace for workflows and task queues.                  |
+| `TEMPORAL_API_KEY`     | Unset                     | Hosted-service credential; setting it enables TLS.        |
+| `TEMPORAL_PAYLOAD_KEY` | Published development key | Base64 AES-256 key for every payload; not secret locally. |
+
+The Temporal UI shows ciphertext for payloads because the worker and client encrypt them;
+see the [workflows package](../../foundation/workflows/README.md) for the codec, workflow
+conventions, and test helpers.
 
 ### Work locally without Clerk
 
@@ -281,16 +335,18 @@ may be consolidated into a fresh baseline; existing local databases then need
 the handwritten SQL for public IDs, deferred foreign keys, content checks, the
 outstanding-review index, the audit organization foreign key, and immutability
 triggers. Keep the search extensions and indexes, workspace row-security policies
-and helpers, and reviewer delivery function with its restricted privileges.
+and helpers, the reviewer delivery, retry, and pending-message functions, the
+assistant conversation functions and access triggers, all with their restricted
+privileges.
 Once deployed, keep applied migrations unchanged and add a migration for each change.
 `vp run @merit/db#db:check` checks migration metadata.
 
 ## Local database recovery
 
 The current pre-deployment baseline,
-[`0000_initial.sql`](../../foundation/db/database/migrations/0000_initial.sql),
+[`0000_baseline.sql`](../../foundation/db/database/migrations/0000_baseline.sql),
 creates the complete schema in one migration. Recreate all databases initialized
-before this baseline, including those whose first migration had the same name.
+before this baseline, including those migrated from the earlier `0000_initial.sql`.
 The baseline has no upgrade or backfill path for prototype data; rerunning
 migrations or the seed preserves existing work and does not upgrade it.
 
@@ -334,7 +390,7 @@ desktop Chromium; include other supported browsers when the changed behavior
 requires them.
 
 At the full verification milestones defined by that policy, run the workspace
-checks with PostgreSQL and Mailpit running. Install the browsers once, and again
+checks with the Compose services (PostgreSQL, Mailpit, storage, and Temporal) running. Install the browsers once, and again
 after upgrading Playwright:
 
 ```sh

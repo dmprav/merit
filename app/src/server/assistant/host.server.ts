@@ -3,13 +3,17 @@ import type { Database } from "@merit/db";
 import { createAssistantCatalog } from "@merit/mcp/assistant";
 import { AssistantStoreError, createAssistantStore } from "@merit/organizations/server/assistant";
 import { productLinks } from "@merit/product/links";
-import { sendCommittedReviewerMessage, type ReviewerDelivery } from "@merit/reviews/server";
+import {
+  deliverCommittedReviewerMessage,
+  retryReviewerDelivery,
+  type ReviewerDelivery,
+} from "@merit/reviews/server";
 import { reportError } from "@merit/telemetry/errors";
 
-import { createApplicationServices, reviewerDelivery } from "../services.server";
+import { createApplicationServices } from "../services.server";
+import type { AssistantWork } from "./conversation-work";
 import { assistantJson, type AssistantCommand } from "./http.server";
 import { createOpenAiAssistantModel } from "./openai.server";
-import { createAssistantWorker } from "./scheduler.server";
 import {
   AssistantTurnConflict,
   createAssistantTurns,
@@ -17,12 +21,36 @@ import {
 } from "./turns.server";
 import { watchAssistant } from "./watch.server";
 
-type Dependencies = Omit<Parameters<typeof createApplicationServices>[0], "identity">;
+/** What a turn needs to run, in the web server and in the worker that drives turns. */
+export type AssistantRuntimeDependencies = Omit<
+  Parameters<typeof createApplicationServices>[0],
+  "identity"
+> & {
+  /** The origin of the workspace links Merit AI shows. */
+  invitationOrigin: string;
+};
+
+type Dependencies = AssistantRuntimeDependencies & {
+  /**
+   * Wakes a conversation's workflow after a request changed it, starting the workflow when it
+   * has none. It never rejects and answers false only when Temporal could not be reached; the
+   * committed change stands and reconciliation starts the work later.
+   */
+  wakeConversation: (work: AssistantWork) => Promise<boolean>;
+  /**
+   * Cancels the step a conversation's workflow runs after Stop, Delete or withdrawn consent, so
+   * the worker aborts the model request. It never rejects.
+   */
+  cancelConversation: (conversationId: string) => Promise<void>;
+};
 
 type Config = { apiKey: string; model: string };
 
-const catalogFor = (dependencies: Dependencies) => {
-  const delivery = reviewerDelivery(dependencies);
+const catalogFor = (dependencies: AssistantRuntimeDependencies) => {
+  const delivery = {
+    database: dependencies.database,
+    start: dependencies.startReviewerMessage,
+  };
 
   return (actor: Actor, workspace: string, transaction?: Database): AssistantRuntimeCatalog => {
     let ticket: ReviewerDelivery | undefined;
@@ -61,7 +89,14 @@ const catalogFor = (dependencies: Dependencies) => {
         const result = await tools.execute(preview);
         return ticket ? { ...result, delivery: ticket } : result;
       },
-      deliver: (pending) => sendCommittedReviewerMessage(delivery, actor.userId, pending),
+      // The retry's own transaction, so the reset commits with the action returning to delivering.
+      retryDelivery: async (pending) => {
+        if (!transaction) {
+          throw new Error("A delivery retry needs its transaction.");
+        }
+        await retryReviewerDelivery(transaction, pending);
+      },
+      deliver: (pending) => deliverCommittedReviewerMessage(delivery, actor.userId, pending),
     };
   };
 };
@@ -69,7 +104,8 @@ const catalogFor = (dependencies: Dependencies) => {
 type Backend = {
   store: ReturnType<typeof createAssistantStore>;
   turns: ReturnType<typeof createAssistantTurns>;
-  worker: ReturnType<typeof createAssistantWorker>;
+  wake: Dependencies["wakeConversation"];
+  cancel: Dependencies["cancelConversation"];
   model: string;
   configured: boolean;
 };
@@ -85,7 +121,7 @@ const unavailable = () => assistantJson({ status: "provider_unconfigured" }, 503
 const show = (value: unknown) => (value == null ? missing() : assistantJson(value));
 
 const settings = async (
-  { configured, model, store }: Backend,
+  { configured, model, store, cancel }: Backend,
   actor: Actor,
   workspace: string,
   input: Settings,
@@ -93,15 +129,19 @@ const settings = async (
   if (input.action === "set_consent" && input.enabled && !configured) {
     return unavailable();
   }
-  const enabled =
-    input.action === "settings"
-      ? await store.getConsent(actor, workspace)
-      : await store.setConsent(actor, workspace, input.enabled);
+  if (input.action === "settings") {
+    const enabled = await store.getConsent(actor, workspace);
+    return assistantJson({ provider: "OpenAI", model: model || null, configured, enabled });
+  }
+  // Withdrawn consent ends every member's running chats in the workspace. The administrator's
+  // own authorized change reports which ones, so no caller can list them without authority.
+  const { enabled, ending } = await store.setConsent(actor, workspace, input.enabled);
+  await Promise.all(ending.map((id) => cancel(id)));
   return assistantJson({ provider: "OpenAI", model: model || null, configured, enabled });
 };
 
 const enqueue = async (
-  { turns, worker, configured }: Backend,
+  { turns, wake, configured }: Backend,
   actor: Actor,
   workspace: string,
   input: Work,
@@ -118,7 +158,7 @@ const enqueue = async (
   if (!snapshot) {
     return missing();
   }
-  worker.schedule({ userId: actor.userId, workspaceSlug: workspace, id: input.id });
+  await wake({ userId: actor.userId, workspaceSlug: workspace, conversationId: input.id });
   return assistantJson(snapshot, 202);
 };
 
@@ -142,19 +182,46 @@ const dispatch = async (
       return backend.configured
         ? assistantJson(await turns.create(actor, workspace), 201)
         : unavailable();
-    case "delete":
-      return (await turns.remove(actor, workspace, input.id))
-        ? assistantJson({ status: "deleted" })
-        : missing();
-    case "watch":
-      return watchAssistant(() => turns.open(actor, workspace, input.id), signal);
+    case "delete": {
+      const removed = await turns.remove(actor, workspace, input.id);
+      if (removed) {
+        await backend.cancel(input.id);
+      }
+      return removed ? assistantJson({ status: "deleted" }) : missing();
+    }
+    case "watch": {
+      // Waking is idempotent: opening a stream on running work makes sure something drives it.
+      let woken = false;
+      return watchAssistant(async () => {
+        const snapshot = await turns.open(actor, workspace, input.id);
+        if (snapshot?.status === "running" && backend.configured && !woken) {
+          woken = true;
+          await backend.wake({
+            userId: actor.userId,
+            workspaceSlug: workspace,
+            conversationId: input.id,
+          });
+        }
+        return snapshot;
+      }, signal);
+    }
     case "open":
-    case "stop":
-      return show(await turns[input.action](actor, workspace, input.id));
+      return show(await turns.open(actor, workspace, input.id));
+    case "stop": {
+      const snapshot = await turns.stop(actor, workspace, input.id);
+      if (snapshot) {
+        await backend.cancel(input.id);
+      }
+      return show(snapshot);
+    }
     case "decline": {
       const snapshot = await turns.decline(actor, workspace, input.id, input);
       if (snapshot?.status === "running" && backend.configured) {
-        backend.worker.schedule({ userId: actor.userId, workspaceSlug: workspace, id: input.id });
+        await backend.wake({
+          userId: actor.userId,
+          workspaceSlug: workspace,
+          conversationId: input.id,
+        });
       }
       return show(snapshot);
     }
@@ -163,23 +230,31 @@ const dispatch = async (
   }
 };
 
-export const createAssistantHost = (dependencies: Dependencies, config: Config) => {
-  const configured = Boolean(config.model && config.apiKey);
+/** The store and turns of Merit AI, built the same way for requests and for the turn worker. */
+export const createAssistantRuntime = (
+  dependencies: AssistantRuntimeDependencies,
+  config: Config,
+) => {
   const store = createAssistantStore(dependencies.database);
   const turns = createAssistantTurns({
     store,
     catalog: catalogFor(dependencies),
     model: createOpenAiAssistantModel(config),
   });
-  const worker = createAssistantWorker(store.running, turns.run);
-  const backend = { configured, model: config.model, store, turns, worker };
+  return { store, turns, configured: Boolean(config.model && config.apiKey) };
+};
+
+export const createAssistantHost = (dependencies: Dependencies, config: Config) => {
+  const { store, turns, configured } = createAssistantRuntime(dependencies, config);
+  const backend = {
+    configured,
+    model: config.model,
+    store,
+    turns,
+    wake: dependencies.wakeConversation,
+    cancel: dependencies.cancelConversation,
+  };
   return {
-    start: () => {
-      if (configured) {
-        worker.start();
-      }
-    },
-    close: () => worker.close(),
     command: async (
       actor: Actor,
       workspace: string,
