@@ -25,4 +25,22 @@ export const BetweenBlocks: Story = {
   ),
 };
 
-export const Emphasis: Story = { args: { tone: "emphasis" } };
+export const Edge: Story = { ...BetweenBlocks, args: { strength: "edge" } };
+
+export const Tight: Story = { ...BetweenBlocks, args: { spacing: 3 } };
+
+/** The same spacing gives the same visible space whatever gap the parent Stack publishes. */
+export const AcrossStackGaps: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <Stack gap={6}>
+      {([3, 6] as const).map((gap) => (
+        <Stack as="section" key={gap} gap={gap} aria-label={`Gap ${gap}`}>
+          <p>Above the rule in a stack with gap {gap}.</p>
+          <Divider />
+          <p>Below the rule in a stack with gap {gap}.</p>
+        </Stack>
+      ))}
+    </Stack>
+  ),
+};

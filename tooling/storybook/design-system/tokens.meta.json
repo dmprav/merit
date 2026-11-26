@@ -35,7 +35,11 @@
     },
     "border": {
       "family": "color",
-      "usage": "Hairlines that group content: panels, tab rails, read-only fields, dividers. Decorative, not a control edge."
+      "usage": "Hairlines at the edge of a surface: panels, frames, tables, read-only fields, edge-strength dividers. Decorative, not a control edge."
+    },
+    "border-subtle": {
+      "family": "css",
+      "reason": "A color-mix() of border and surface; tokens.json cannot hold color-mix()."
     },
     "border-control": {
       "family": "color",

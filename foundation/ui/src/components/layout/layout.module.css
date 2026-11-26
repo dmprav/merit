@@ -128,18 +128,5 @@
 }
 
 .stack[data-divided="between"] > * + * {
-  border-top: 1px solid var(--border);
-}
-
-:where(.stack:is([data-divided="after"], [data-divided="around"])) > * {
-  padding-bottom: var(--parent-stack-gap);
-}
-
-.stack:is([data-divided="after"], [data-divided="around"]) > * {
-  border-bottom: 1px solid var(--border);
-}
-
-.stack[data-divided="around"] {
-  padding-top: var(--layout-gap);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-subtle);
 }

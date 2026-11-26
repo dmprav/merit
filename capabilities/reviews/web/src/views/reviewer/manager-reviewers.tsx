@@ -277,7 +277,7 @@ const ReviewerAssignment = ({
   return (
     <section ref={root} className={styles.assignment} aria-label={assignment.reviewer}>
       <Stack gap={4}>
-        <Divider />
+        <Divider spacing={4} />
         {historyOpen ? (
           <Stack gap={4}>
             <Button variant="quiet" alignment="start" onPress={back}>
