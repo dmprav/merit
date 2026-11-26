@@ -307,7 +307,9 @@ Run **one** recurring scheduled task **2–3 times daily** passing `--lens auto`
 with a strong reasoning model. [scout.ts](../../tooling/agents/scout.ts)
 prioritizes high-leverage engineering lenses and selects the most overdue lens
 from `#219` cursors (~17 runs/week total), exiting `idle` if every lens is
-still fresh:
+still fresh. Each lens declares its interval, priority, rotation, telemetry, and
+verification reading in `LENS_POLICIES` in
+[lenses.ts](../../tooling/agents/scout/lenses.ts):
 
 | Lens                             | Target interval |
 | -------------------------------- | --------------- |
@@ -317,9 +319,15 @@ still fresh:
 | `verification-flakes`            | Every 5 days    |
 
 Both [scout.ts](../../tooling/agents/scout.ts) and
-[proposal.ts](../../tooling/agents/proposal.ts) use GitHub REST (`gh api`) so
-they run cleanly in Claude Code Cloud sessions using the built-in GitHub proxy
-with no custom secret. In cloud runners whose default GitHub App token lacks
-`issues:write` (such as Cursor Cloud Agents), configure a fine-grained PAT
-scoped to `dmprav/merit` with `Issues: Read and write` in the
-`MERIT_SCOUT_GH_TOKEN` secret — both scripts pick it up automatically.
+[proposal.ts](../../tooling/agents/proposal.ts) read and file issues only
+through GitHub REST (`gh api`), using the issue client in
+[github.ts](../../tooling/agents/github.ts), so they run cleanly in Claude Code
+Cloud sessions using the built-in GitHub proxy with no custom secret. In cloud
+runners whose default GitHub App token lacks `issues:write` (such as Cursor
+Cloud Agents), configure a fine-grained PAT scoped to `dmprav/merit` with
+`Issues: Read and write` in the `MERIT_SCOUT_GH_TOKEN` secret — when it is set,
+the issue client passes it to `gh` as `GH_TOKEN`; otherwise `gh` keeps the
+runner's own credentials. Create the token from an account with push access to
+the repository: GitHub silently drops the labels of a new issue filed without
+it. When `proposal.ts` reports that an issue was created without its labels,
+apply the missing labels to that issue instead of filing the proposal again.

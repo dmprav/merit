@@ -1,0 +1,19 @@
+.editingAction {
+  /* Reserve the action's space so opening the editor does not move the header. */
+  visibility: hidden;
+}
+
+.header {
+  margin-bottom: var(--space-5);
+}
+
+.outcomeFields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.budgetContext {
+  padding-block-start: var(--space-2);
+}

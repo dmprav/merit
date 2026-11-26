@@ -9,15 +9,14 @@ import type { Browser, BrowserContext } from "@playwright/test";
 
 import { collectBrowserErrors, expect, test, type BrowserError } from "@merit/test-support/browser";
 
+import { openTargetOnPage, runTargetsInBrowser, verifyLoadedPage } from "../../ui-verify/audit.ts";
+import { checkKeyboardFocusTraversal } from "../../ui-verify/focus/check.ts";
+import { writeProofArtifacts } from "../../ui-verify/report.ts";
 import {
-  checkKeyboardFocusTraversal,
-  openTargetOnPage,
-  runTargetsInBrowser,
+  describeIncompleteTraversal,
   summarizeResults,
   uiVerifyResultsSchema,
-  verifyLoadedPage,
-  writeProofArtifacts,
-} from "../../ui-verify.ts";
+} from "../../ui-verify/results.ts";
 
 const VIEWPORT_META = '<meta name="viewport" content="width=device-width, initial-scale=1">';
 
@@ -49,12 +48,9 @@ const runFixture = async (
     return await verifyLoadedPage({
       page,
       browserErrors: errors,
-      kind: "story",
-      target: name,
-      name,
+      target: { kind: "story", id: name, name, fullPage: true },
       url: `fixture://${name}`,
       viewport: "desktop",
-      fullPage: true,
       screenshotPath,
     });
   } finally {
@@ -499,7 +495,7 @@ test.describe("live Chromium checker failure detection", () => {
     await page.waitForFunction(() => "__traversalStarted" in window, undefined, { polling: 20 });
     releaseRenderBlock();
     const focus = await traversal;
-    expect(focus.incompleteReason).toBeUndefined();
+    expect(focus.traversal).toEqual({ complete: true });
     expect(focus.stopsChecked).toBe(2);
     expect(focus.failures.map((failure) => failure.element)).toEqual([
       'button "Earlier broken button"',
@@ -795,16 +791,25 @@ test.describe("live Chromium checker failure detection", () => {
 
         expect(targetResults).toHaveLength(4);
         expect(targetResults[0]?.passed).toBe(false);
-        expect(targetResults[0]?.error).toContain("play() assertion failed: contrast");
+        expect(targetResults[0]).toMatchObject({
+          status: "errored",
+          error: expect.stringContaining("play() assertion failed: contrast"),
+        });
         expect(targetResults[0]?.screenshot).toBeNull();
         expect(existsSync(stalePath)).toBe(false);
 
         expect(targetResults[1]?.passed).toBe(false);
-        expect(targetResults[1]?.error).toContain("HTTP 404");
+        expect(targetResults[1]).toMatchObject({
+          status: "errored",
+          error: expect.stringContaining("HTTP 404"),
+        });
         expect(targetResults[1]?.screenshot).toBeNull();
 
         expect(targetResults[2]?.passed).toBe(false);
-        expect(targetResults[2]?.error).toContain("did not render non-empty content");
+        expect(targetResults[2]).toMatchObject({
+          status: "errored",
+          error: expect.stringContaining("did not render non-empty content"),
+        });
         expect(targetResults[2]?.screenshot).toBeNull();
 
         // A redirected route keeps the URL it requested beside the page it audited.
@@ -840,38 +845,31 @@ test.describe("live Chromium checker failure detection", () => {
       const exactResult = await verifyLoadedPage({
         page: exactPage,
         browserErrors: [],
-        kind: "story",
-        target: "exact-cap",
-        name: "exact-cap",
+        target: { kind: "story", id: "exact-cap", name: "exact-cap", fullPage: true },
         url: "fixture://exact-cap",
         viewport: "desktop",
-        fullPage: true,
         screenshotPath: null,
         maxTabStops: 3,
       });
       expect(exactResult.passed).toBe(true);
       expect(exactResult.focus.stopsChecked).toBe(3);
-      expect(exactResult.focus.reachedCap).toBe(false);
-      expect(exactResult.focus.incompleteReason).toBeUndefined();
+      expect(exactResult.focus.traversal).toEqual({ complete: true });
 
       const cappedPage = await context.newPage();
       await cappedPage.setContent(buildButtonsHtml(4));
       const cappedResult = await verifyLoadedPage({
         page: cappedPage,
         browserErrors: [],
-        kind: "story",
-        target: "exceeds-cap",
-        name: "exceeds-cap",
+        target: { kind: "story", id: "exceeds-cap", name: "exceeds-cap", fullPage: true },
         url: "fixture://exceeds-cap",
         viewport: "desktop",
-        fullPage: true,
         screenshotPath: null,
         maxTabStops: 3,
       });
       expect(cappedResult.passed).toBe(false);
       expect(cappedResult.focus.stopsChecked).toBe(3);
-      expect(cappedResult.focus.reachedCap).toBe(true);
-      expect(cappedResult.focus.incompleteReason).toBe("Incomplete: >3 stops");
+      expect(cappedResult.focus.traversal).toEqual({ complete: false, reason: "cap" });
+      expect(describeIncompleteTraversal(cappedResult.focus)).toBe("Incomplete: >3 stops");
       expect(cappedResult.focus.failures).toEqual([]);
 
       const summary = summarizeResults({
@@ -891,8 +889,10 @@ test.describe("live Chromium checker failure detection", () => {
       );
       expect(savedJson.passed).toBe(false);
       expect(savedJson.targets[1]?.passed).toBe(false);
-      expect(savedJson.targets[1]?.focus.reachedCap).toBe(true);
-      expect(savedJson.targets[1]?.focus.incompleteReason).toBe("Incomplete: >3 stops");
+      expect(savedJson.targets[1]).toMatchObject({
+        status: "audited",
+        focus: { traversal: { complete: false, reason: "cap" } },
+      });
 
       const markdown = readFileSync(join(outDir, "report.md"), "utf8");
       expect(markdown).toContain("**Status:** FAIL");
@@ -948,7 +948,7 @@ test.describe("live Chromium checker failure detection", () => {
     expect(focus.failures).toHaveLength(1);
     expect(focus.failures[0]?.element).toContain("Removed on blur");
     expect(focus.failures[0]?.reasons).toEqual([
-      "no unfocused baseline: the control left the document after losing focus, so its focus indicator could not be compared",
+      "no unfocused baseline: the control left the document or kept taking focus back, so its focus indicator could not be compared",
     ]);
   });
 
@@ -975,7 +975,7 @@ test.describe("live Chromium checker failure detection", () => {
     await sameOrigin.frameLocator("iframe").getByRole("button", { name: "Inner two" }).waitFor();
     const traversed = await checkKeyboardFocusTraversal(sameOrigin);
     expect(traversed.stopsChecked).toBe(2);
-    expect(traversed.incompleteReason).toBeUndefined();
+    expect(traversed.traversal).toEqual({ complete: true });
     expect(traversed.failures).toEqual([]);
 
     const crossOrigin = await context.newPage();
@@ -984,16 +984,18 @@ test.describe("live Chromium checker failure detection", () => {
     const opaque = await verifyLoadedPage({
       page: crossOrigin,
       browserErrors: [],
-      kind: "story",
-      target: "cross-origin-frame",
-      name: "cross-origin-frame",
+      target: {
+        kind: "story",
+        id: "cross-origin-frame",
+        name: "cross-origin-frame",
+        fullPage: true,
+      },
       url: "fixture://cross-origin-frame",
       viewport: "desktop",
-      fullPage: true,
       screenshotPath: null,
     });
-    expect(opaque.focus.reachedCap).toBe(false);
-    expect(opaque.focus.incompleteReason).toContain("cross-origin frame");
+    expect(opaque.focus.traversal).toEqual({ complete: false, reason: "opaqueFrame" });
+    expect(describeIncompleteTraversal(opaque.focus)).toContain("cross-origin frame");
     expect(opaque.passed).toBe(false);
   });
 
@@ -1022,7 +1024,8 @@ test.describe("live Chromium checker failure detection", () => {
     );
     const focus = await checkKeyboardFocusTraversal(page);
     expect(focus.stopsChecked).toBe(1);
-    expect(focus.incompleteReason).toBe(
+    expect(focus.traversal).toEqual({ complete: false, reason: "trackerLost" });
+    expect(describeIncompleteTraversal(focus)).toBe(
       "Incomplete: the page navigated to a new document during focus traversal",
     );
   });
@@ -1066,11 +1069,11 @@ test.describe("live Chromium checker failure detection", () => {
 test("lets the CLI finish its Ctrl+C cleanup before the process exits", async () => {
   await withTempDir(async (dir) => {
     const script = join(dir, "sigint.mjs");
-    const uiVerifyUrl = new URL("../../ui-verify.ts", import.meta.url).href;
+    const auditModuleUrl = new URL("../../ui-verify/audit.ts", import.meta.url).href;
     // The child stands in for the CLI: its SIGINT handler needs time to stop servers.
     writeFileSync(
       script,
-      `import { launchVerificationBrowser } from ${JSON.stringify(uiVerifyUrl)};
+      `import { launchVerificationBrowser } from ${JSON.stringify(auditModuleUrl)};
       const browser = await launchVerificationBrowser();
       process.on("SIGINT", () => {
         setTimeout(async () => {

@@ -7,6 +7,7 @@ import {
   roundWithdrawnCount,
 } from "@merit/applications/scope";
 import type { Database } from "@merit/db";
+import { readDecisionStatesMap, readRoundCommitments } from "@merit/decisions/scope";
 import { authorizedWorkspaces } from "@merit/organizations/scope";
 import { readCurrentRecommendationsMap, readRoundAllocations } from "@merit/recommendations/scope";
 import { readReviewsByCasesMap } from "@merit/reviews/scope";
@@ -94,6 +95,8 @@ export const readApplicationDetail = async (
     allocations,
     workingRevisionsMap,
     versionRows,
+    decisionsMap,
+    commitments,
   ] = await Promise.all([
     readCriteriaVersionsMap(db, [row.roundRow.id]),
     readIntakeApplicationsMap(db, row.caseRow.organizationId, [row.caseRow]),
@@ -106,6 +109,8 @@ export const readApplicationDetail = async (
       .from(materialVersions)
       .where(eq(materialVersions.caseId, row.caseRow.id))
       .orderBy(asc(materialVersions.version)),
+    readDecisionStatesMap(db, [row.caseRow.id]),
+    readRoundCommitments(db, row.caseRow.organizationId, row.roundRow.id),
   ]);
 
   const intake = intakeMap.get(row.caseRow.id);
@@ -119,6 +124,8 @@ export const readApplicationDetail = async (
     organizationId: row.caseRow.organizationId,
     round: assembleRoundRecord(row.roundRow, row.foundation, historyMap.get(row.roundRow.id) ?? []),
     allocations,
+    commitments,
+    decision: decisionsMap.get(row.caseRow.id) ?? { revision: 0, versions: [] },
     withdrawnApplications: row.withdrawnApplications,
     workspaceSlug: row.workspaceSlug,
     publicId: row.caseRow.id,

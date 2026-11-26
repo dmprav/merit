@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { assert, expect } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
+import { roundCommitments } from "@merit/decisions/server/integrations";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
 import { saveApplicationReview } from "@merit/reviews/server";
@@ -20,15 +21,20 @@ const it = commandTest.extend(
       const contactId = await createContact();
       const read = scenario.read;
       for (const [expectedRevision, title] of ["Local benefit", "Community impact"].entries()) {
-        const result = await editFundingRound(db, actor, {
-          workspaceSlug: "alder",
-          publicId: pageInput.publicId,
-          expectedRevision,
-          change: {
-            section: "criteria",
-            criteria: [{ id: "20000000-0000-4000-8000-000000000001", title, description: "" }],
+        const result = await editFundingRound(
+          db,
+          actor,
+          {
+            workspaceSlug: "alder",
+            publicId: pageInput.publicId,
+            expectedRevision,
+            change: {
+              section: "criteria",
+              criteria: [{ id: "20000000-0000-4000-8000-000000000001", title, description: "" }],
+            },
           },
-        });
+          roundCommitments,
+        );
         assert(result.status === "ok", "Could not prepare the MCP criteria history");
       }
 

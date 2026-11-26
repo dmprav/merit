@@ -404,9 +404,14 @@ it("keeps round editing available while the add action follows Applications", as
     expect(summary.getByText(amount)).toBeVisible();
   }
 
-  expect(
-    within(screen.getByRole("complementary", { name: "Round properties" })).getByText("€60,000"),
-  ).toBeVisible();
+  // The €60,000 budget is also the amount still available while nothing is committed.
+  const sixty = within(
+    screen.getByRole("complementary", { name: "Round properties" }),
+  ).getAllByText("€60,000");
+  expect(sixty).toHaveLength(2);
+  for (const element of sixty) {
+    expect(element).toBeVisible();
+  }
 
   await user.click(screen.getByRole("tab", { name: "Overview" }));
 

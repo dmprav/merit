@@ -52,6 +52,7 @@ export const handleMcp = (
     reviews: services.reviews,
     reviewer: services.reviewer,
     recommendations: services.recommendations,
+    decisions: services.decisions,
     grantmaking: services.grantmaking,
     contacts: services.contacts,
     organizations: {

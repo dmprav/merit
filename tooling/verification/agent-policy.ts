@@ -3,10 +3,33 @@ import { appendFileSync } from "node:fs";
 import { matchesGlob, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { type ChangedFile } from "./verification-record.ts";
+import {
+  codeFenceCloser,
+  readChangedFiles,
+  type ChangedFile,
+  type CheckResult,
+} from "./verification-record.ts";
 
-export const AGENT_PR_LABEL = "agent:pr";
-export const ALLOW_PROTECTED_LABEL = "agent:allow-protected";
+/** Every label the autonomous maintenance workflow reads or writes on issues and pull requests. */
+export const AGENT_LABELS = {
+  /** An approved proposal the queue may implement. */
+  ready: "agent:ready",
+  /** A Tier 2 proposal awaiting maintainer approval. */
+  proposed: "agent:proposed",
+  /** An architecture design or multi-PR proposal that is never implemented automatically. */
+  design: "agent:design",
+  /** A pull request opened by the autonomous workflow. */
+  pr: "agent:pr",
+  /** Work the autonomous workflow has handed to a maintainer. */
+  needsHuman: "agent:needs-human",
+  /** A maintainer's permission for an agent PR to change protected paths. */
+  allowProtected: "agent:allow-protected",
+  maintenance: "type:maintenance",
+  wontfix: "wontfix",
+  duplicate: "duplicate",
+} as const;
+
+export type AgentLabel = (typeof AGENT_LABELS)[keyof typeof AGENT_LABELS];
 
 export const TRUSTED_AUTHOR_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
@@ -46,8 +69,6 @@ export type LinkedIssueApprovalRecord = {
   comments: IssueCommentRecord[];
 };
 
-export type AgentPolicyResult = { exempt: string } | { exempt: null; errors: string[] };
-
 // CI runs this file from a trusted copy beside verification-record.ts alone, so it keeps its own
 // copy of tooling/cli.ts's normalizeRepoPath.
 const normalizePath = (value: string) => value.replaceAll("\\", "/").replace(/^\.\//, "");
@@ -73,46 +94,6 @@ const isAppliedMigrationSql = (filePath: string): boolean => {
   return remainder.length > 0 && !remainder.includes("/");
 };
 
-/** Parses `git diff --name-status --find-renames -z` NUL-delimited records without display quoting. */
-export const parseNameStatusZ = (raw: string): ChangedFile[] => {
-  const tokens = raw.split("\0");
-  const files: ChangedFile[] = [];
-  let index = 0;
-
-  while (index < tokens.length) {
-    const status = tokens[index] ?? "";
-    index += 1;
-    if (!status) {
-      continue;
-    }
-    if (status.startsWith("R") || status.startsWith("C")) {
-      const first = tokens[index] ?? "";
-      const second = tokens[index + 1] ?? "";
-      index += 2;
-      if (status.startsWith("R") && first && second) {
-        files.push({ status: "deleted", path: first }, { status: "added", path: second });
-      } else if (second) {
-        files.push({ status: "added", path: second });
-      }
-      continue;
-    }
-    const path = tokens[index] ?? "";
-    index += 1;
-    if (!path) {
-      continue;
-    }
-    if (status.startsWith("D")) {
-      files.push({ status: "deleted", path });
-    } else if (status.startsWith("A")) {
-      files.push({ status: "added", path });
-    } else {
-      files.push({ status: "modified", path });
-    }
-  }
-
-  return files;
-};
-
 export const extractLinkedIssueNumbers = (prBody: string): number[] => {
   const numbers = new Set<number>();
   for (const match of prBody.matchAll(LINKED_ISSUE_PATTERN)) {
@@ -134,9 +115,8 @@ const stripFencedCodeBlocks = (markdown: string): string => {
       }
       continue;
     }
-    const opening = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
-    if (opening) {
-      fence = new RegExp(`^ {0,3}${opening[0]}{${opening.length},}\\s*$`);
+    fence = codeFenceCloser(line);
+    if (fence) {
       continue;
     }
     kept.push(line);
@@ -153,35 +133,38 @@ const isNarrowApprovedPattern = (pattern: string): boolean => {
   return firstSegment.length > 0 && !/[*?{}[\]]/.test(firstSegment);
 };
 
-const parseLastPathsMarker = (markdown: string, pattern: RegExp): ProposalMarkerData | null => {
-  const visible = stripFencedCodeBlocks(markdown);
-  let lastValid: ProposalMarkerData | null = null;
-  for (const match of visible.matchAll(pattern)) {
-    const raw = match[1];
-    if (!raw) {
-      continue;
-    }
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        continue;
-      }
-      const rawPaths = "paths" in parsed && Array.isArray(parsed.paths) ? parsed.paths : [];
-      const paths = rawPaths
-        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-        .map(normalizePath);
-      const lens = "lens" in parsed && typeof parsed.lens === "string" ? parsed.lens : undefined;
-      const kind = "kind" in parsed && typeof parsed.kind === "string" ? parsed.kind : undefined;
-      lastValid = {
-        paths,
-        ...(lens ? { lens } : {}),
-        ...(kind ? { kind } : {}),
-      };
-    } catch {
-      continue;
-    }
+/** Reads a marker's JSON payload, or null when it is not valid JSON or not a plain object. */
+const parseMarkerObject = (raw: string): object | null => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
   }
-  return lastValid;
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+};
+
+/** Keeps a marker's non-blank string paths, normalized, and its string `lens` and `kind`. */
+const toPathsMarkerData = (marker: object): ProposalMarkerData => {
+  const rawPaths: unknown[] = "paths" in marker && Array.isArray(marker.paths) ? marker.paths : [];
+  const paths = rawPaths
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map(normalizePath);
+  const lens = "lens" in marker && typeof marker.lens === "string" ? marker.lens : undefined;
+  const kind = "kind" in marker && typeof marker.kind === "string" ? marker.kind : undefined;
+  return {
+    paths,
+    ...(lens ? { lens } : {}),
+    ...(kind ? { kind } : {}),
+  };
+};
+
+const parseLastPathsMarker = (markdown: string, pattern: RegExp): ProposalMarkerData | null => {
+  const markers = [...stripFencedCodeBlocks(markdown).matchAll(pattern)].flatMap((match) => {
+    const marker = match[1] ? parseMarkerObject(match[1]) : null;
+    return marker ? [toPathsMarkerData(marker)] : [];
+  });
+  return markers.at(-1) ?? null;
 };
 
 /** Parses the last `<!-- merit-proposal: {...} -->` marker outside fenced code blocks. */
@@ -210,9 +193,9 @@ export const parseMaintainerProtectedApproval = (
 
 const isMaintainerAuthorizedIssue = (issue: LinkedIssueApprovalRecord): boolean =>
   issue.state === "OPEN" &&
-  issue.labels.includes(ALLOW_PROTECTED_LABEL) &&
-  !issue.labels.includes("wontfix") &&
-  !issue.labels.includes("agent:proposed");
+  issue.labels.includes(AGENT_LABELS.allowProtected) &&
+  !issue.labels.includes(AGENT_LABELS.wontfix) &&
+  !issue.labels.includes(AGENT_LABELS.proposed);
 
 const matchesApprovedPattern = (filePath: string, pattern: string): boolean => {
   if (pattern === filePath) {
@@ -257,9 +240,9 @@ export const checkAgentPolicy = ({
   isAgentPr: boolean;
   changedFiles: readonly ChangedFile[];
   linkedIssues: readonly LinkedIssueApprovalRecord[];
-}): AgentPolicyResult => {
+}): CheckResult => {
   if (!isAgentPr) {
-    return { exempt: "Pull request is not labeled agent:pr." };
+    return { exempt: `Pull request is not labeled ${AGENT_LABELS.pr}.` };
   }
 
   const errors: string[] = [];
@@ -279,21 +262,12 @@ export const checkAgentPolicy = ({
   for (const filePath of protectedFiles) {
     if (!isApprovedByIssue(filePath, linkedIssues)) {
       errors.push(
-        `${filePath}: protected path requires an OPEN linked issue labeled "${ALLOW_PROTECTED_LABEL}" with a maintainer-authored <!-- merit-approve-protected: {"paths":[...]} --> comment covering this file.`,
+        `${filePath}: protected path requires an OPEN linked issue labeled "${AGENT_LABELS.allowProtected}" with a maintainer-authored <!-- merit-approve-protected: {"paths":[...]} --> comment covering this file.`,
       );
     }
   }
 
   return { exempt: null, errors };
-};
-
-const readPrDiff = (repoRoot: string, baseSha: string, headSha: string): ChangedFile[] => {
-  const raw = execFileSync(
-    "git",
-    ["diff", "--name-status", "--find-renames", "-z", `${baseSha}...${headSha}`],
-    { cwd: repoRoot, encoding: "utf8" },
-  );
-  return parseNameStatusZ(raw);
 };
 
 const parseLabelNames = (rawLabels: unknown): string[] => {
@@ -405,16 +379,16 @@ const runCli = () => {
   const livePr = prNumber ? fetchLivePrContext(repoRoot, prNumber) : null;
   const labels = livePr ? livePr.labels : readFallbackLabels();
   const prBody = livePr ? livePr.body : (process.env.PR_BODY ?? "");
-  const isAgentPr = labels.includes(AGENT_PR_LABEL);
+  const isAgentPr = labels.includes(AGENT_LABELS.pr);
 
   if (!isAgentPr) {
-    console.log("agent-policy: exempt (not labeled agent:pr)");
+    console.log(`agent-policy: exempt (not labeled ${AGENT_LABELS.pr})`);
     return;
   }
 
   const baseSha = process.env.PR_BASE_SHA || "origin/main";
   const headSha = process.env.PR_HEAD_SHA || "HEAD";
-  const changedFiles = readPrDiff(repoRoot, baseSha, headSha);
+  const changedFiles = readChangedFiles(repoRoot, `${baseSha}...${headSha}`);
   const protectedFiles = findProtectedPaths(changedFiles.map((file) => file.path));
 
   const linkedIssues =

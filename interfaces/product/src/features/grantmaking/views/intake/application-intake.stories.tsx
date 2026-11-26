@@ -111,6 +111,22 @@ export const ConfirmDelete: Story = {
   },
 };
 
+/** A funded application cannot be withdrawn until a new decision version supersedes the commitment. */
+export const WithdrawFundedApplication: Story = {
+  args: { state: "funded" },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole("button", { name: "Application actions" }));
+    await userEvent.click(body.getByRole("menuitem", { name: "Withdraw application" }));
+    const dialog = within(body.getByRole("dialog"));
+
+    // The dialog fades in, so wait for its explanation to be shown.
+    await waitFor(() => expect(dialog.getByText(/has committed funding/)).toBeVisible());
+    await expect(dialog.queryByRole("textbox")).not.toBeInTheDocument();
+    await expect(dialog.getByRole("button", { name: "Close" })).toBeVisible();
+  },
+};
+
 export const StaffSummaryDuringPreparation: Story = {
   play: async ({ canvas, userEvent }) => {
     await expect(canvas.getByRole("button", { name: "Mark ready for review" })).toBeDisabled();

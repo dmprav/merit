@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { applicationsMessages } from "@merit/applications-web/messages";
 import { en as contacts } from "@merit/contacts-web/messages";
+import { decisionsAppMessages } from "@merit/decisions-web/messages";
 import { MessagesProvider } from "@merit/i18n";
 import { recommendationsMessages } from "@merit/recommendations-web/messages";
 import { reviewsMessages } from "@merit/reviews-web/messages";
@@ -13,6 +14,7 @@ export const grantmakingMessages = {
   ...roundsMessages,
   ...applicationsMessages,
   ...recommendationsMessages,
+  ...decisionsAppMessages,
   ...reviewsMessages,
   fundingRounds: en,
   contacts,

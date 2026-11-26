@@ -5,7 +5,10 @@ import type { InvitationMessage } from "../../api/records";
 import type { InvitationWork } from "../dependencies";
 import { hashToken } from "../invitation-token";
 import { recordDelivery } from "../persistence/commands/provisioning";
-import { readInvitationForDelivery } from "../persistence/invitations";
+import {
+  acknowledgeInvitationDispatch,
+  readInvitationForDelivery,
+} from "../persistence/invitations";
 import { readScoped, writeScoped } from "../persistence/tenant";
 import type { IssuedInvitation } from "./issue-invitation";
 
@@ -94,16 +97,23 @@ export const deliverInvitation = async (
     return "pending";
   }
   // The invitation is committed and the workflow delivers it: a failing read must not fail the request.
-  const outcome = await waitForOutcome(async () => {
-    const row = await readCurrent(dependencies.database, work);
-    if (!row || !awaitingEmail(row)) {
-      return "unavailable" as const;
-    }
-    return row.invitation.delivery === "pending" ? undefined : row.invitation.delivery;
-  }, dependencies.wait).catch(() => {
+  try {
+    const acknowledged = dependencies.database((db) =>
+      acknowledgeInvitationDispatch(db, work.invitationId, invitation.record.tokenHash),
+    );
+    const outcome = await waitForOutcome(async () => {
+      await acknowledged;
+      const row = await readCurrent(dependencies.database, work);
+      if (!row || !awaitingEmail(row)) {
+        return "unavailable" as const;
+      }
+      return row.invitation.delivery === "pending" ? undefined : row.invitation.delivery;
+    }, dependencies.wait);
+    return outcome ?? "pending";
+  } catch {
     dependencies.onOutcomeError?.();
-  });
-  return outcome ?? "pending";
+    return "pending";
+  }
 };
 
 /**

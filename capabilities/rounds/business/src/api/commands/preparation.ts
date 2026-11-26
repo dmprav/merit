@@ -15,7 +15,8 @@ export type PreparationSaveError =
   | Extract<ReturnType<typeof prepareRoundChange>, { ok: false }>["error"]
   | "invalid_round"
   | "manager_unavailable"
-  | "round_not_empty";
+  | "round_not_empty"
+  | "budget_below_commitments";
 
 export const createRoundRequestSchema = z
   .strictObject({

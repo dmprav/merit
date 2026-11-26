@@ -131,6 +131,7 @@ const applicationData = () => {
     status: "ok" as const,
     ...encodeApplicationDetail({ round, application }),
     recommendationVersion: 0,
+    decision: { revision: 0, versions: [] },
     intake: { revision: 0, workingRevision: null, history: [] },
     workspaceSlug: "alder",
   };

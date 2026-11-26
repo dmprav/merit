@@ -29,6 +29,7 @@ import {
   listWorkspaceApplications,
 } from "../src/server";
 import { applicationWork } from "./application-work";
+import { roundCommitments } from "./application-work";
 import { withAuditFailure, recordedEvents } from "./audit-events";
 import { contactWork } from "./contact-work";
 import { roundTest } from "./round-test";
@@ -480,15 +481,20 @@ it.for(["report_conflict", "cancel", "decline"] as const)(
         : await s.respond(action, "Relationship disclosed");
     expect(ended.status).toBe("ok");
     expect(
-      await editFundingRound(db, actor, {
-        workspaceSlug: "alder",
-        publicId: rounds.pageInput.publicId,
-        expectedRevision: 0,
-        change: {
-          section: "criteria",
-          criteria: [{ id: randomUUID(), title: "New criterion", description: "" }],
+      await editFundingRound(
+        db,
+        actor,
+        {
+          workspaceSlug: "alder",
+          publicId: rounds.pageInput.publicId,
+          expectedRevision: 0,
+          change: {
+            section: "criteria",
+            criteria: [{ id: randomUUID(), title: "New criterion", description: "" }],
+          },
         },
-      }),
+        roundCommitments,
+      ),
     ).toMatchObject({ status: "ok" });
     const hidden = {
       basisComparison: {
@@ -570,21 +576,26 @@ it("keeps the assigned evidence and criteria when newer versions arrive", async 
   });
   expect(await edit({ action: "publish_revision" })).toMatchObject({ status: "ok" });
   expect(
-    await editFundingRound(db, actor, {
-      workspaceSlug: "alder",
-      publicId: rounds.pageInput.publicId,
-      expectedRevision: 0,
-      change: {
-        section: "criteria",
-        criteria: [
-          {
-            id: "0ce46ffb-63fc-50b1-a4b8-72a16d15e288",
-            title: "New criterion",
-            description: "New emphasis",
-          },
-        ],
+    await editFundingRound(
+      db,
+      actor,
+      {
+        workspaceSlug: "alder",
+        publicId: rounds.pageInput.publicId,
+        expectedRevision: 0,
+        change: {
+          section: "criteria",
+          criteria: [
+            {
+              id: "0ce46ffb-63fc-50b1-a4b8-72a16d15e288",
+              title: "New criterion",
+              description: "New emphasis",
+            },
+          ],
+        },
       },
-    }),
+      roundCommitments,
+    ),
   ).toMatchObject({ status: "ok" });
   const page = await s.read();
   expect(page).toMatchObject({
@@ -1128,12 +1139,17 @@ it("uses one freshness policy for reviewer, manager, workspace and MCP reads aft
     criteria: { id: string; title: string; description: string }[],
   ) => {
     expect(
-      await editFundingRound(db, actor, {
-        workspaceSlug: "alder",
-        publicId: rounds.pageInput.publicId,
-        expectedRevision,
-        change: { section: "criteria", criteria },
-      }),
+      await editFundingRound(
+        db,
+        actor,
+        {
+          workspaceSlug: "alder",
+          publicId: rounds.pageInput.publicId,
+          expectedRevision,
+          change: { section: "criteria", criteria },
+        },
+        roundCommitments,
+      ),
     ).toMatchObject({ status: "ok" });
   };
 

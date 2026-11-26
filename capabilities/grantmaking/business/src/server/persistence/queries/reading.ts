@@ -18,6 +18,12 @@ import {
 } from "@merit/applications/scope";
 import { auditEvents } from "@merit/audit/schema";
 import type { Database } from "@merit/db";
+import { committeeDecisionVersions } from "@merit/decisions/schema";
+import {
+  decisionRevision,
+  readDecisionChange,
+  readDecisionStatesMap,
+} from "@merit/decisions/scope";
 import { decodeMoney, formatMoney, type MoneyData } from "@merit/money";
 import { authorizedWorkspaces } from "@merit/organizations/scope";
 import { recommendationVersions } from "@merit/recommendations/schema";
@@ -82,6 +88,7 @@ const applicationFields = {
   intakeRevision: applicationCases.revision,
   reviewRevision,
   recommendationRevision,
+  decisionRevision,
   intakeStatus: applicationCases.intakeStatus,
   withdrawn: caseWithdrawn,
   requestedMinorUnits: materialVersions.requestedMinorUnits,
@@ -179,6 +186,7 @@ export const readRoundOverview = async (
       unknownRequests: totals.unknownRequests,
       withdrawnApplications: totals.withdrawnApplications,
       proposed: totals.proposed,
+      committed: totals.committed,
     })
     .from(fundingRounds)
     .innerJoin(workspace, eq(workspace.id, fundingRounds.organizationId))
@@ -270,7 +278,14 @@ export const readApplicationContext = async (
     )
     .innerJoin(workspace, eq(workspace.id, applicationCases.organizationId))
     .where(eq(applicationCases.id, input.applicationId));
-  return row ? withRequestedDisplay(withRequestedMoney(row)) : undefined;
+  if (!row) {
+    return undefined;
+  }
+  const decision = (await readDecisionStatesMap(db, [row.applicationId])).get(row.applicationId);
+  return {
+    ...withRequestedDisplay(withRequestedMoney(row)),
+    decision: decision?.versions[0] ?? null,
+  };
 };
 
 // Slicing serialized sections by Unicode code points bounds payloads at the server boundary,
@@ -420,8 +435,10 @@ type ApplicationContentInput = {
     | "review_request"
     | "working_revision"
     | "recommendation"
+    | "decision"
     | "intake_change"
-    | "recommendation_change";
+    | "recommendation_change"
+    | "decision_change";
   entryId?: string;
   materialVersion?: number;
   revision?: number;
@@ -545,6 +562,12 @@ const sectionReaders: Partial<Record<ApplicationContentInput["section"], Section
   }),
   recommendation_change: async (db, caseRow, input) =>
     optionalResult(await readRecommendationChange(db, caseRow.id, input.revision ?? -1)),
+  decision: async (db, caseRow) => ({
+    found: true,
+    value: (await readDecisionStatesMap(db, [caseRow.id])).get(caseRow.id)?.versions[0] ?? null,
+  }),
+  decision_change: async (db, caseRow, input) =>
+    optionalResult(await readDecisionChange(db, caseRow.id, input.revision ?? -1)),
 };
 
 const resolveApplicationSection = async (
@@ -599,7 +622,7 @@ export const readApplicationHistorySummaries = (
   input: {
     workspaceSlug: string;
     applicationId: string;
-    history: "intake" | "recommendation";
+    history: "intake" | "recommendation" | "decision";
     afterRevision?: number;
     limit: number;
   },
@@ -627,6 +650,27 @@ export const readApplicationHistorySummaries = (
         ),
       )
       .orderBy(recommendationVersions.revision)
+      .limit(input.limit + 1);
+  }
+  if (input.history === "decision") {
+    return db
+      .select({
+        revision: committeeDecisionVersions.revision,
+        action: sql<string>`case when ${committeeDecisionVersions.revision} = 1 then 'decision.recorded' else 'decision.amended' end`,
+        recordedAt: committeeDecisionVersions.recordedAt,
+      })
+      .from(committeeDecisionVersions)
+      .innerJoin(applicationCases, eq(applicationCases.id, committeeDecisionVersions.caseId))
+      .innerJoin(workspace, eq(workspace.id, applicationCases.organizationId))
+      .where(
+        and(
+          eq(applicationCases.id, input.applicationId),
+          input.afterRevision === undefined
+            ? undefined
+            : gt(committeeDecisionVersions.revision, input.afterRevision),
+        ),
+      )
+      .orderBy(committeeDecisionVersions.revision)
       .limit(input.limit + 1);
   }
   return db

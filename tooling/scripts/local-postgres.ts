@@ -9,6 +9,9 @@ const LOCAL_COMPOSE_HOSTS = new Set(["127.0.0.1", "localhost"]);
 const LOCAL_COMPOSE_PORT = "55432";
 const FORBIDDEN_CONNECTION_PARAMS = new Set(["host", "hostaddr", "port", "user"]);
 const VALID_DATABASE_NAME = /^[a-z][a-z0-9_]{0,62}$/;
+// Connection timeouts: a reachability probe fails fast; administrative commands wait longer.
+const REACHABILITY_TIMEOUT_MS = 2_000;
+const ADMIN_TIMEOUT_MS = 5_000;
 
 type PgClient = {
   connect(): Promise<void>;
@@ -148,8 +151,10 @@ export const parseLocalComposeDatabase = (
 const isPgClientConstructor = (value: unknown): value is PgClientConstructor =>
   typeof value === "function";
 
-let cachedPgClient: PgClientConstructor | null = null;
-
+/**
+ * Loads `pg`'s Client, trying the repository's `foundation/db` first and then this checkout's, and
+ * throws the last failure when neither provides it.
+ */
 export const loadPgClient = (repoRoot?: string): PgClientConstructor => {
   const candidates: Array<string | URL> = [];
   if (repoRoot) {
@@ -171,7 +176,6 @@ export const loadPgClient = (repoRoot?: string): PgClientConstructor => {
         "Client" in pg &&
         isPgClientConstructor(pg.Client)
       ) {
-        cachedPgClient = pg.Client;
         return pg.Client;
       }
     } catch (error) {
@@ -179,9 +183,6 @@ export const loadPgClient = (repoRoot?: string): PgClientConstructor => {
     }
   }
 
-  if (cachedPgClient) {
-    return cachedPgClient;
-  }
   throw lastError instanceof Error
     ? lastError
     : new Error('Could not load "Client" export from "pg".');
@@ -212,7 +213,7 @@ export const isLocalPostgresReachable = async (
   try {
     await withAdminClient(
       adminUrl,
-      2000,
+      REACHABILITY_TIMEOUT_MS,
       async (client) => {
         await client.query("SELECT 1");
       },
@@ -232,7 +233,7 @@ export const ensureLocalDatabase = async (
   assertSafeManagedDatabaseName(databaseName);
   return withAdminClient(
     adminUrl,
-    5000,
+    ADMIN_TIMEOUT_MS,
     async (client) => {
       const existing = await client.query("SELECT 1 FROM pg_database WHERE datname = $1", [
         databaseName,
@@ -255,7 +256,7 @@ export const dropLocalDatabase = async (
   assertSafeManagedDatabaseName(databaseName);
   await withAdminClient(
     adminUrl,
-    5000,
+    ADMIN_TIMEOUT_MS,
     async (client) => {
       await client.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`);
     },
@@ -271,7 +272,7 @@ export const recreateLocalDatabase = async (
   assertSafeManagedDatabaseName(databaseName);
   await withAdminClient(
     adminUrl,
-    5000,
+    ADMIN_TIMEOUT_MS,
     async (client) => {
       await client.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`);
       await client.query(`CREATE DATABASE "${databaseName}"`);

@@ -1,9 +1,86 @@
 # Deploy Merit
 
-Merit runs locally on Node.js with Vite. The public site, product, admin interface,
-and MCP share one origin. The production HTTP server and hosting provider are
-open decisions. The operating notes below describe what a future deployment
-will need.
+The public site, product, admin interface, and MCP share one origin. One Linux
+host can run the [Node.js release image](../../Dockerfile) as two separate
+containers, one for HTTP and one for the Temporal worker. An nginx container
+keeps a stable listener while the two release slots alternate.
+
+## Rehearse a release locally
+
+With a BuildKit-enabled Docker Engine, Compose, Python 3.9 or later, and the repository's Node
+dependencies installed, run these commands from the repository root:
+
+```sh
+docker compose up -d --wait
+docker build -t merit:local .
+vpx app/tests/overlapping-deploy.ts merit:local
+```
+
+The rehearsal creates an isolated PostgreSQL database and restricted login, uses
+unique Temporal queues and a Schedule, and captures invitation email in Mailpit. Only the email-capture release uses the
+local worker setting.
+It derives two images with different public files from the supplied release.
+It restarts the proxy and verifies its reserved IP and the active route.
+It samples container memory while both slots are running, continuously requests
+the rendered home page, rejects an unhealthy candidate,
+holds a 32 MiB response open across the switch, and checks that an old client
+asset still loads. An invitation saved before dispatch must arrive once and its
+link must work. Finally it rolls back and executes a workflow on the restored
+worker. The command removes its containers, test images, database, login,
+Schedule, and release state on exit.
+
+## Run overlapping releases on one host
+
+Build an image for the host's architecture and keep a tag or digest for each
+release. Supply public client settings such as `VITE_CLERK_PUBLISHABLE_KEY` at
+build time with Docker build arguments. Keep database credentials, Temporal and
+provider secrets in a mode-0600 Docker env file outside the build context.
+Use the same `APP_ORIGIN`, payload key, namespace, and task queues in both slots.
+
+Apply any schema changes with the migration credential before switching. The
+old and new processes share the database and Temporal history during a deploy.
+Schema changes, activities, and workflow code must work with both versions
+through the rollback window. Create a bridge with a subnet that is free on the host.
+Reserve nginx's address outside Docker's dynamic allocation range so the web containers
+continue to trust the same peer after a proxy or Docker restart.
+
+```sh
+docker network create --subnet 10.81.0.0/24 --ip-range 10.81.0.128/25 merit-services
+export MERIT_DEPLOY_NETWORK=merit-services
+export MERIT_DEPLOY_PROXY_IP=10.81.0.2
+export MERIT_DEPLOY_STATE=/var/lib/merit/release
+export MERIT_DEPLOY_PORT=8080
+tooling/deploy/release.py merit:release-a /etc/merit/runtime.env
+tooling/deploy/release.py merit:release-b /etc/merit/runtime.env
+# Roll back using the retained image and its compatible configuration.
+tooling/deploy/release.py merit:release-a /etc/merit/runtime.env
+```
+
+If the database and Temporal run on a second Docker network, set
+`MERIT_DEPLOY_SERVICES_NETWORK` to that network's name. The web and worker can
+then reach those services while nginx stays on the release network.
+
+The [release command](../../tooling/deploy/release.py) starts the new web and
+worker, checks each container's readiness, and validates the nginx configuration
+before switching new requests. When the old nginx worker finishes its requests,
+the driver sends SIGTERM to the retired processes and waits for them to exit.
+The active release continues serving if candidate readiness fails. If the new
+route fails verification after the switch, the driver restores the last confirmed
+configuration before removing the candidate. Rerun with
+the same state directory after an interrupted command. Budget memory and
+database connections for both slots, plus nginx, during the overlap. A local Linux ARM64 rehearsal measured 2.14 GiB across the two
+web servers, two workers, and nginx while the download was in flight. That
+sample excludes Docker, the host OS, PostgreSQL, and Temporal. Retain
+the state directory across releases and host restarts. Its client asset
+directory grows with new content hashes so already-open tabs can load their
+original assets.
+
+The listener binds to `127.0.0.1`. Before exposing a public origin, configure
+TLS and verify that the ingress sees the browser's actual IP for rate limiting.
+An additional TLS proxy changes the socket peer seen by nginx and requires an
+explicit trusted-proxy configuration. Verify HTTPS headers, streaming, and
+client-IP handling at that boundary. This rehearsal exercises deploys while the
+single host and its dependencies stay available.
 
 ## Build and preview
 
@@ -38,8 +115,7 @@ covers provider requirements, environment settings, and coordination with attach
 ## Prepare background work
 
 Merit's background work runs on [Temporal](../decisions/0016-temporal-background-work.md).
-A deployment needs three things beyond the web server; the hosting provider, and with it
-whether Temporal is hosted or self-managed, is still open.
+The packaged worker can connect to local Temporal or Temporal Cloud using the same queues.
 
 - **A Temporal service** reachable from both the web server and the worker. Set
   `TEMPORAL_ADDRESS` (`host:port` of the frontend) and `TEMPORAL_NAMESPACE` for the namespace
@@ -48,13 +124,12 @@ whether Temporal is hosted or self-managed, is still open.
 - **A payload key.** Set `TEMPORAL_PAYLOAD_KEY` to a base64-encoded 32-byte key
   (`openssl rand -base64 32`) in the web server and worker environments. They must share it.
   The development key is public, so a deployment without its own key refuses to start. Keep
-  the key in the secret store, and treat a rotation as a migration: history written under the
-  old key cannot be read with the new one.
-- **A worker process.** Run `app/src/worker/main.ts` as its own long-lived Node.js process
+  the key in the secret store. Rotation must account for both retained workflow history and
+  pending organization-invitation handoffs encrypted with the old key.
+- **A worker process.** Start the release image with the `worker` command, as the one-host deploy does,
   with the same environment as the web server, without `MERIT_LOCAL_WORKER`. It needs outbound
   access to Temporal and, once capabilities register workflows, to the database and other
-  services their activities use. Stop it with `SIGTERM` so it finishes work in flight. This
-  repository does not yet package the worker for deployment; that follows the hosting choice.
+  services their activities use. Stop it with `SIGTERM` so it finishes work in flight.
 
 ## Prepare the database
 
@@ -219,11 +294,10 @@ defines the events and how to count repeat use.
 
 ## Verify a future deployment
 
-When choosing how to serve the built application, account for the client assets,
-server-side rendering, and the shared origin for web and MCP. The current HTTP
-adapter uses the socket peer address. If a proxy terminates the
-client connection, configure the adapter to accept client addresses only from
-the trusted ingress, which must sanitize incoming forwarding headers. Before
+Verify client assets, server-side rendering, and the shared origin for web and MCP.
+The packaged HTTP adapter accepts forwarding headers from the exact nginx peer
+address supplied by the release command. nginx overwrites client-supplied
+forwarding headers with the address of its socket peer. Before
 launch, verify through that ingress that two distinct client addresses receive
 separate allowances and that changing a client-supplied forwarding header leaves
 the allowance unchanged.

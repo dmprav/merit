@@ -356,6 +356,86 @@ recommendationTest(
   },
 );
 
+const decisionTest = it.extend("verdict", async ({ rounds, parity: p }) => {
+  const address = await rounds.createApplication("Community garden");
+  await p.saved("dana", "mark_application_ready", {
+    workspaceSlug: address.workspaceSlug,
+    applicationId: address.publicId,
+    expectedIntakeRevision: 0,
+  });
+  const decision = {
+    outcome: "Fund" as const,
+    amount: { currency: "EUR" as const, minorUnits: "5000" },
+    conditions: "",
+    reason: "Meets the round's priorities.",
+    decidedBy: "Funding committee",
+    decisionDate: new Date().toISOString().slice(0, 10),
+  };
+  return {
+    ...address,
+    decision,
+    web: { ...address, expectedRevision: 0, decision },
+    mcp: {
+      workspaceSlug: address.workspaceSlug,
+      applicationId: address.publicId,
+      expectedDecisionRevision: 0,
+      ...decision,
+    },
+  };
+});
+
+decisionTest(
+  "counts a web decision once per saved version, not for a no-op or a conflict",
+  async ({ parity: p, verdict }) => {
+    const { recordDecision } = p.mcpOperations.decisions;
+    const first = await recordDecision(actor, verdict.web);
+    assert(first.status === "ok" && first.recorded);
+    expect(p.captureGrantOutcome).toHaveBeenCalledExactlyOnceWith({
+      ...webWorkspace,
+      event: "committee_decision_recorded",
+    });
+
+    // The same content records nothing, and a stale revision is a conflict.
+    const unchanged = await recordDecision(actor, { ...verdict.web, expectedRevision: 1 });
+    assert(unchanged.status === "ok" && !unchanged.recorded);
+    expect(await recordDecision(actor, verdict.web)).toEqual({ status: "conflict" });
+    expect(p.captureGrantOutcome).toHaveBeenCalledTimes(1);
+
+    const amended = await recordDecision(actor, {
+      ...verdict.web,
+      expectedRevision: 1,
+      decision: {
+        ...verdict.web.decision,
+        amount: { currency: "EUR", minorUnits: "4000" },
+        changeExplanation: "Reduced after review.",
+      },
+    });
+    assert(amended.status === "ok" && amended.recorded);
+    expect(p.captureGrantOutcome).toHaveBeenCalledTimes(2);
+  },
+);
+
+decisionTest("counts an MCP decision with the mcp surface", async ({ parity: p, verdict }) => {
+  await p.saved("dana", "record_committee_decision", verdict.mcp);
+  expect(p.captureGrantOutcome.mock.calls).toEqual([
+    [
+      {
+        event: "committee_decision_recorded",
+        surface: "mcp",
+        workspaceKind: "standard",
+        workspaceId: "alder",
+      },
+    ],
+  ]);
+
+  const unchanged = await p.saved("dana", "record_committee_decision", {
+    ...verdict.mcp,
+    expectedDecisionRevision: 1,
+  });
+  expect(unchanged).toMatchObject({ recorded: false });
+  expect(p.captureGrantOutcome).toHaveBeenCalledTimes(1);
+});
+
 it("counts a visitor's own MCP write in the demo and ignores prepared grant records", async ({
   database,
   parity: p,

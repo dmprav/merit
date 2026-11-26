@@ -1,5 +1,6 @@
 import type { z } from "zod";
 
+import type { MoneyData } from "@merit/money";
 import type { PageSource } from "@merit/query/contracts";
 import type { editRoundRequestSchema, deleteRoundRequestSchema } from "@merit/rounds/api";
 import type { PreparationSaveError, PreparationState } from "@merit/rounds/api";
@@ -25,7 +26,12 @@ export type PreparationRound = Pick<
 };
 
 export type PreparationFailure =
-  | { status: "invalid"; error: PreparationSaveError }
+  | {
+      status: "invalid";
+      error: PreparationSaveError;
+      /** The committed funding a budget must cover, with `budget_below_commitments`. */
+      committed?: MoneyData;
+    }
   | { status: "conflict" | "not_found" | "signed_out" | "unavailable" };
 
 export type PreparationData = {

@@ -1,5 +1,7 @@
 import { env } from "node:process";
 
+import { readPayloadKey } from "@merit/workflows/client";
+
 const localPreview = () => env.MERIT_LOCAL_PREVIEW === "1";
 
 // The worker runs in Node.js without Vite, so it has no `import.meta.env`; its start-up command
@@ -45,3 +47,6 @@ export const readDatabaseUrl = () => {
   }
   return url;
 };
+
+export const readInvitationKey = () =>
+  readPayloadKey(env.TEMPORAL_PAYLOAD_KEY, { local: localDefaults() });

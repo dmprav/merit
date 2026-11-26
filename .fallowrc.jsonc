@@ -25,11 +25,12 @@
       "**/fixtures/**",
       "**/__fixtures__/**",
       "**/__mocks__/**",
-      "tooling/**",
     ],
     "suggestInlineSuppression": false,
   },
   "supportEntry": [
+    // The release image starts its HTTP server through app/runtime/start.
+    "app/scripts/serve.ts",
     "app/tests/browser/workspace.playwright.config.ts",
     // The MCP eval CLI supplies its Vitest config and suite explicitly.
     "app/vitest.eval.config.ts",

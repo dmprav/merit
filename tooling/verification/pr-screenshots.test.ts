@@ -9,8 +9,12 @@ import {
   buildScreenshotRawUrl,
   cleanupPrScreenshotsFromOrphanBranch,
   filterSelectedDesktopTargets,
+  parseCleanupArgs,
+  parsePublishArgs,
+  parseSelectArgs,
   publishScreenshotsToOrphanBranch,
   resolveStoryImportPath,
+  MAX_SCREENSHOT_STORIES,
   SCREENSHOT_BRANCH,
   selectStoriesForPr,
 } from "./pr-screenshots.ts";
@@ -236,5 +240,45 @@ describe("pr-screenshots", () => {
     } finally {
       rmSync(temp, { recursive: true, force: true });
     }
+  });
+
+  test("reads each command's flags strictly, with CI's environment as the fallback", () => {
+    expect(parseSelectArgs([], {})).toEqual({
+      baseRef: "origin/main",
+      headRef: "HEAD",
+      index: "tooling/storybook/dist/index.json",
+      maxStories: MAX_SCREENSHOT_STORIES,
+    });
+    expect(
+      parseSelectArgs(["--max", "3"], { PR_BASE_SHA: "base", PR_HEAD_SHA: "head" }),
+    ).toMatchObject({ baseRef: "base", headRef: "head", maxStories: 3 });
+    expect(() => parseSelectArgs(["--max", "3.5"], {})).toThrow("--max must be a whole number");
+
+    const publishArgs = ["--results", "r.json", "--out-manifest", "m.json"];
+    expect(
+      parsePublishArgs([...publishArgs, "--story-ids", "a, b,,", "--omitted", "0"], {
+        PR_NUMBER: "12",
+        GITHUB_REPOSITORY: "dmprav/merit",
+      }),
+    ).toEqual({
+      prNumber: 12,
+      repo: "dmprav/merit",
+      results: "r.json",
+      index: "tooling/storybook/dist/index.json",
+      outManifest: "m.json",
+      omittedCount: 0,
+      selectedStoryIds: ["a", "b"],
+    });
+    expect(() => parsePublishArgs(publishArgs, { GITHUB_REPOSITORY: "dmprav/merit" })).toThrow(
+      "publish requires --pr",
+    );
+    expect(() =>
+      parsePublishArgs([...publishArgs, "--pr", "12", "--repo", "a/b", "--omitted", "-1"], {}),
+    ).toThrow("--omitted must be a whole number of at least 0");
+
+    expect(parseCleanupArgs([], { PR_NUMBER: "9" })).toBe(9);
+    expect(parseCleanupArgs(["--pr", "10"], { PR_NUMBER: "9" })).toBe(10);
+    expect(() => parseCleanupArgs([], {})).toThrow("cleanup requires --pr or PR_NUMBER.");
+    expect(() => parseCleanupArgs(["--pr", "NaN"], {})).toThrow("--pr must be a whole number");
   });
 });

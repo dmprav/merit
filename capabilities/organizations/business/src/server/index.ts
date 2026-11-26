@@ -7,3 +7,4 @@ export {
   type InvitationDeliveryInput,
 } from "./commands/delivery";
 export type { InvitationWork } from "./dependencies";
+export { reconcileOrganizationInvitations } from "./commands/reconcile-invitations";

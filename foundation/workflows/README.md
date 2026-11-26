@@ -64,9 +64,7 @@ taskQueue, report })` returns `start(request)`, the one way to start after commi
   `"failed"` (reported by operation name only);
 - it never throws. A start that fails or takes longer than five seconds is passed to `report`
   by its operation name only, and answers `"failed"`. The commit stands, and reconciliation starts
-  the work later where a reconciler exists (reviewer messages and Merit AI turns). A start without
-  a reconciler, such as an organization invitation, is not recovered automatically: the caller
-  directs the person to its recovery path, the administrator's resend
+  reviewer messages, organization invitations and Merit AI turns later
   ([see below](#reconcile-committed-work)). `client` is a function, so missing settings fail
   there, reported, not at startup.
 
@@ -87,10 +85,9 @@ reconcilers, one activity each, that list committed unfinished work in Postgres 
 workflows that are missing. Add a reconciler to
 [`reconcile.workflow.ts`](../../app/src/worker/reconcile.workflow.ts) and its activity to
 [`activities.ts`](../../app/src/worker/activities.ts). The `conversations` reconciler signals
-(signal-with-start) the workflow of every running Merit AI conversation. Organization invitations have no
-reconciler: only the token's hash is stored, and the raw token lives only in the workflow's
-encrypted input, so a start lost between commit and Temporal is recovered by the administrator's
-resend.
+(signal-with-start) the workflow of every running Merit AI conversation. The worker also checks for pending organization invitations on startup while the schedule is active.
+Organization invitations save an encrypted token until Temporal confirms the start. The reconciler
+can recover a lost handoff using that token and the original workflow ID.
 
 ## Write workflow modules
 

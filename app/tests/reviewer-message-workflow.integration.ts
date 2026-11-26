@@ -79,6 +79,7 @@ beforeAll(async () => {
       invitationUrl: (token) => token,
     },
     assistant: { configured: false, running: async () => [], wake: async () => true },
+    invitationDispatch: { invitationKey: () => config.payloadKey, start: async () => false },
     reconcileReviewerMessage: (work) => current.background.reconcileReviewerMessage(work),
   });
   const activities = {
@@ -468,7 +469,11 @@ it("recovers a message whose start was lost by reconciliation", async ({ scenari
     workflowExecutionTimeout: "30 seconds",
   });
 
-  expect(outcome).toEqual({ reviewerMessages: "ok", conversations: "ok" });
+  expect(outcome).toEqual({
+    reviewerMessages: "ok",
+    conversations: "ok",
+    organizationInvitations: "ok",
+  });
   expect(await closed(s.invitation.commandId)).toBe("sent");
   expect(s.mail).toHaveLength(1);
   expect(await s.status(s.invitation.commandId)).toBe("sent");
@@ -569,7 +574,11 @@ it("restarts a pending message whose earlier run completed, by reconciliation", 
     workflowExecutionTimeout: "30 seconds",
   });
 
-  expect(outcome).toEqual({ reviewerMessages: "ok", conversations: "ok" });
+  expect(outcome).toEqual({
+    reviewerMessages: "ok",
+    conversations: "ok",
+    organizationInvitations: "ok",
+  });
   expect(await closed(noticeId)).toBe("sent");
   expect(await s.status(noticeId)).toBe("sent");
   expect(s.mail.map(({ id }) => id)).toEqual([noticeId]);

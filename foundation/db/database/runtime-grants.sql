@@ -7,7 +7,7 @@ GRANT SELECT, INSERT ON app_users, guest_sessions, organizations, memberships, o
   material_version_evidence, material_drafts, material_draft_answers, review_assignments,
   review_requests, review_states, reviewer_command_receipts, reviewer_drafts, reviewer_draft_observations,
   reviewer_messages, assessments, assessment_versions, assessment_version_observations,
-  recommendation_versions, audit_events TO :"runtime_role";
+  recommendation_versions, committee_decision_versions, audit_events TO :"runtime_role";
 GRANT UPDATE ON guest_sessions, access_request_limits, demo_entry_limits, grant_navigation_pins,
   contacts, funding_rounds, application_cases, material_drafts, review_assignments,
   review_requests, review_states, reviewer_drafts TO :"runtime_role";
@@ -25,3 +25,5 @@ GRANT EXECUTE ON FUNCTION public.merit_running_assistant_conversations(integer, 
 GRANT EXECUTE ON FUNCTION public.merit_pending_reviewer_messages(integer, uuid) TO :"runtime_role";
 GRANT EXECUTE ON FUNCTION public.merit_retry_reviewer_message(uuid) TO :"runtime_role";
 GRANT EXECUTE ON FUNCTION public.merit_workspace_running_assistant_conversations() TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.merit_pending_invitation_dispatches(integer, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.merit_acknowledge_invitation_dispatch(text, text) TO :"runtime_role";

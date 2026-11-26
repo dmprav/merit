@@ -13,7 +13,8 @@ Use the named entries in the [export map](package.json), such as
 `@merit/grantmaking-web/applications` for composed reading views. Intake uses
 `@merit/applications-web/intake`, preparation uses `@merit/rounds-web/preparation`,
 reviews and participation use `@merit/reviews-web/reviews` and `/reviewer`, and
-recommendations use `@merit/recommendations-web/recommendations`. Each workflow
+recommendations use `@merit/recommendations-web/recommendations`, and committee
+decisions use `@merit/decisions-web/work`. Each workflow
 exports its data adapter through `/data` and its messages through `/messages`.
 The product's [data composition](../../../interfaces/product/src/features/grantmaking/data/workspace-data.ts)
 binds capability adapters to Start functions and supplies query options and cache
@@ -22,7 +23,9 @@ operations through browser-safe contracts, and views invoke their actions.
 
 Preserve cache effects when changing a binding. Recommendation saves update the
 application cache and invalidate the workspace's round reads. Intake changes and
-contact changes use the product's shared grant-work scope. Query infrastructure
+contact changes use the product's shared grant-work scope. A decision save does the same
+for the application and also updates the round's committed totals; it never changes the
+recommendation or its proposed totals. Query infrastructure
 owns the [account and fetched-data lifecycle](../../../foundation/query/README.md).
 
 ## Compare applications

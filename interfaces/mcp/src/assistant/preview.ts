@@ -44,6 +44,25 @@ const applicationChanges = async (
   await reviewChanges(ctx, preview, applicationId);
 };
 
+/** The revision a write is bound to: the record the tool changes, not the application as a whole. */
+const targetRevision = (
+  { name, input }: AssistantPreview,
+  app: {
+    recommendationRevision: number;
+    decisionRevision: number;
+    reviewRevision: number;
+    intakeRevision: number;
+  },
+) => {
+  if (name === "save_recommendation") {
+    return app.recommendationRevision;
+  }
+  if (name === "record_committee_decision") {
+    return app.decisionRevision;
+  }
+  return "expectedReviewRevision" in input ? app.reviewRevision : app.intakeRevision;
+};
+
 const applicationPreview = async (
   ctx: PreviewContext,
   preview: AssistantPreview,
@@ -60,6 +79,7 @@ const applicationPreview = async (
     expectedIntakeRevision: app.intakeRevision,
     expectedReviewRevision: app.reviewRevision,
     expectedRecommendationRevision: app.recommendationRevision,
+    expectedDecisionRevision: app.decisionRevision,
   };
   for (const [key, version] of Object.entries(versions)) {
     if (key in input) {
@@ -77,18 +97,7 @@ const applicationPreview = async (
   if (name === "edit_application" || name === "select_application_contact") {
     input.expectedIntakeRevision = app.intakeRevision;
   }
-  targets.push(
-    target(
-      "application",
-      applicationId,
-      app.title,
-      name === "save_recommendation"
-        ? app.recommendationRevision
-        : "expectedReviewRevision" in input
-          ? app.reviewRevision
-          : app.intakeRevision,
-    ),
-  );
+  targets.push(target("application", applicationId, app.title, targetRevision(preview, app)));
   await applicationChanges(ctx, preview, applicationId, app.title);
 };
 
