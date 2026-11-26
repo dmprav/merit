@@ -30,8 +30,9 @@ coverage/
 *.sln
 *.sw?
 
-# AI agent worktrees
+# AI agent worktrees and temporary local state (worktrees, ui-verify, ledgers, handoffs)
 .claude/worktrees/
+.tmp/
 
 # React Email preview build
 .react-email/

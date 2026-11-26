@@ -1,6 +1,7 @@
 import { openNavigation, closeNavigation } from "@merit/test-support/browser/navigation";
 
 import { openDemo, openDemoApplication } from "./demo-navigation.ts";
+import { workspaceOrigin, workspacePort } from "./ports.ts";
 import { test, expect } from "./workspace-test.ts";
 
 test(
@@ -140,7 +141,7 @@ test(
     await page.goto("/app");
 
     await expect(page.getByRole("main")).toBeFocused();
-    await expect(page).toHaveURL("http://127.0.0.1:3002/app/alder/rounds");
+    await expect(page).toHaveURL(`${workspaceOrigin}/app/alder/rounds`);
     await expect(page).toHaveTitle("Funding rounds · Merit");
 
     // AppPage focuses main after hydration and after each pathname change.
@@ -297,7 +298,9 @@ test(
     expect(denied.status()).toBe(403);
 
     // MCP's configured local resource uses localhost, independently of the web fixture origin.
-    const mcp = await request.post("/mcp/workspace", { headers: { Host: "localhost:3002" } });
+    const mcp = await request.post("/mcp/workspace", {
+      headers: { Host: `localhost:${workspacePort}` },
+    });
 
     expect([401, 503]).toContain(mcp.status());
     expect(clerkRequests).toEqual([]);

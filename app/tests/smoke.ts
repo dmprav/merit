@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
+import { resolve } from "node:path";
 
-const baseUrl = process.env.MERIT_BASE_URL ?? "http://localhost:3000";
+import { loadEnvLocalFiles, readPort } from "@merit/test-support/env";
+
+loadEnvLocalFiles([
+  resolve(import.meta.dirname, "../.env.local"),
+  resolve(import.meta.dirname, "../../.env.local"),
+]);
+
+const baseUrl =
+  process.env.MERIT_BASE_URL ?? `http://localhost:${readPort(process.env.MERIT_DEV_PORT, 3000)}`;
 
 const publicHttps = new URL(baseUrl).protocol === "https:";
 

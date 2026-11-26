@@ -116,6 +116,9 @@ export default defineConfig({
         command: "node tooling/agents/prune-verifications.ts",
         cache: false,
       },
+      "worktree:create": { command: "vpx tooling/agents/worktree.ts create", cache: false },
+      "worktree:clean": { command: "vpx tooling/agents/worktree.ts clean", cache: false },
+      "worktree:list": { command: "vpx tooling/agents/worktree.ts list", cache: false },
       "db:reset": { command: "vpx tooling/scripts/reset-db.ts", cache: false },
       "services:start": { command: "vpx tooling/scripts/start-services.ts", cache: false },
       "test:browser:tooling": "vp run @merit/test-support#test:browser",
@@ -142,7 +145,7 @@ export default defineConfig({
       "test:hooks": { command: "vp test tooling/verification/hooks.test.ts", cache: false },
       "test:agents": {
         command:
-          "vp test tooling/agents/proposal.test.ts tooling/agents/scout.test.ts tooling/agents/queue.test.ts tooling/agents/prune-verifications.test.ts",
+          "vp test tooling/agents/proposal.test.ts tooling/agents/scout.test.ts tooling/agents/queue.test.ts tooling/agents/prune-verifications.test.ts tooling/agents/worktree.test.ts",
         cache: false,
       },
       "test:ci": {

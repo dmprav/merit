@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import { sql } from "drizzle-orm";
 
 import { removeDemoAudit } from "@merit/audit/server/demo";
@@ -6,6 +8,12 @@ import { removeDemoContacts } from "@merit/contacts/server/demo";
 import { withDatabase } from "@merit/db";
 import { removeDemoFunding } from "@merit/grantmaking/server/demo";
 import { canRemoveGuest, removeExpiredDemos } from "@merit/organizations/server/demo";
+import { loadEnvLocalFiles } from "@merit/test-support/env";
+
+loadEnvLocalFiles([
+  resolve(import.meta.dirname, "../.env.local"),
+  resolve(import.meta.dirname, "../../.env.local"),
+]);
 
 const connectionString = process.env.DATABASE_URL ?? "postgres://merit:merit@127.0.0.1:55432/merit";
 await withDatabase(connectionString, async (db) => {

@@ -69,8 +69,18 @@ that assumption directly.
 ## 5. Prove and clean up
 
 1. Run the reproduction and confirm it passes.
-2. Confirm it fails without the fix: set aside only the non-test changes, run the
-   reproduction, and see the assertion fail on the wrong value. Restore the fix.
+2. Confirm it fails without the fix: either test in an isolated worktree
+   (`vp run worktree:create <slug> --base <rev>` checks out the committed
+   revision `<rev>` containing the regression—not always `origin/main`, such as
+   when a feature branch introduced it—without uncommitted changes; `--base`
+   resolves against the primary repository, so pass a branch name or full commit
+   SHA from `git rev-parse HEAD` run in the diagnosed checkout rather than
+   literal `HEAD` from a linked worktree; copy the reproduction test and any new
+   test-only fixtures or helpers it imports (not the production fix) into the
+   worktree, run the check, then run `vp run worktree:clean <slug>`) or set
+   aside only the non-test changes, run the reproduction, and see the assertion
+   fail on the wrong value before restoring the fix. Use `vp run worktree:list`
+   to inspect active worktrees.
    This is the [focused mutation check](../../../docs/guides/testing.md#focused-mutation-checks)
    applied to the fix itself.
 3. Search for the tag (`git grep -n 'DEBUG-a4f2'`) and remove every instrumented

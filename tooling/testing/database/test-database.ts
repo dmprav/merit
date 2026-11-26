@@ -4,7 +4,10 @@ import { Client } from "pg";
 
 import { grantRuntimePrivileges } from "@merit/db/runtime-grants";
 
+import { loadRepoEnvLocal } from "../env.ts";
+
 export const createTestDatabase = async () => {
+  loadRepoEnvLocal();
   const url = new URL(
     process.env.TEST_DATABASE_URL ?? "postgres://merit:merit@127.0.0.1:55432/merit",
   );

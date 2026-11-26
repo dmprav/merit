@@ -115,7 +115,12 @@ The approved brief is the contract for the builder, the reviewer, and the PR.
 
 Start the builder with the approved brief, the base branch, and a screenshot
 directory outside the repository. Send nothing else: no conversation summary or
-extra advice. Anything the builder needs belongs in the brief.
+extra advice. Anything the builder needs belongs in the brief. When running
+parallel workers or isolating a mutating worker from the primary checkout, create
+a dedicated worktree with `vp run worktree:create <slug>` (which allocates
+collision-free ports and a dedicated Postgres database), inspect active worktrees
+with `vp run worktree:list`, and remove it afterward with
+`vp run worktree:clean <slug>`.
 
 The builder stops and returns a question instead of guessing when it meets a
 behavior choice the brief does not settle or a departure the brief does not

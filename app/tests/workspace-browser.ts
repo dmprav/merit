@@ -1,12 +1,18 @@
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { drizzle } from "drizzle-orm/node-postgres";
 
 import { migrate } from "@merit/db/migrate";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
+import { loadEnvLocalFiles } from "@merit/test-support/env";
 import { createTestDatabase } from "@merit/test-support/test-database";
+
+loadEnvLocalFiles([
+  resolve(import.meta.dirname, "../.env.local"),
+  resolve(import.meta.dirname, "../../.env.local"),
+]);
 
 const database = await createTestDatabase();
 const output = join(

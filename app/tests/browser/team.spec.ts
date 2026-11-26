@@ -3,6 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { openNavigation, closeNavigation } from "@merit/test-support/browser/navigation";
 
 import { invitationLink } from "./mailpit.ts";
+import { workspaceOrigin } from "./ports.ts";
 import { test, expect } from "./workspace-test.ts";
 
 test("owner invites an administrator, grant access is explicit, and removal explains handover", async ({
@@ -21,7 +22,7 @@ test("owner invites an administrator, grant access is explicit, and removal expl
       {
         name: "merit-local-person",
         value: person,
-        url: "http://127.0.0.1:3002",
+        url: workspaceOrigin,
         sameSite: "Strict",
       },
     ]);
