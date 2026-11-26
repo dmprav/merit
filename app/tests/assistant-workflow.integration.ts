@@ -5,17 +5,19 @@ import { z } from "zod";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { changeWorkspaceContact } from "@merit/contacts/server";
-import { withDatabase } from "@merit/db";
+import { withDatabase, type Database } from "@merit/db";
 import { contactWork } from "@merit/grantmaking/testing/contact-work";
 import { roundTest } from "@merit/grantmaking/testing/rounds";
 import { actor, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
+import { inlineReviewerDelivery } from "@merit/reviews/testing";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import { createAssistantHost } from "../src/server/assistant/host.server";
 import type { AssistantCommand } from "../src/server/assistant/http.server";
 import type { EmailSender } from "../src/server/email-delivery.server";
+import { reviewerMessageDelivery } from "../src/server/services.server";
 
 const it = roundTest.extend("committee", async ({ db, database, rounds }) => {
   const address = await rounds.createApplication("Community gardens");
@@ -174,11 +176,23 @@ it(
     };
 
     const runtime = await database.createRuntimeConnection();
+
+    const database_ = <T>(operation: (db: Database) => Promise<T>) =>
+      withDatabase(runtime, operation);
+
     const host = createAssistantHost(
       {
-        database: (operation) => withDatabase(runtime, operation),
+        database: database_,
         invitationOrigin: "https://merit.test",
         sendEmail,
+        startReviewerMessage: inlineReviewerDelivery(
+          reviewerMessageDelivery({
+            database: database_,
+            invitationOrigin: "https://merit.test",
+            sendEmail,
+          }),
+        ),
+        committedDeliveryWait: { timeoutMs: 0, intervalMs: 0 },
       },
       { apiKey: "test", model: "scripted" },
     );

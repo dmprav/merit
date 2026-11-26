@@ -36,6 +36,18 @@ draft text remains available for correction.
 reviewer submission advance this revision under the case lock; assignment and
 private-draft revisions retain their independent meanings.
 
+Reviewer invitation and submission emails are delivered by the `reviewer-message:<messageId>`
+[workflow](src/server/reviewer-message.workflow.ts), started after the message commits. Its
+[activities](src/server/commands/reviewer-delivery.ts) recheck the message, the assignment and the
+member's access before every attempt, send with the message ID as the provider's idempotency key,
+and record the outcome through `merit_finish_reviewer_message` with the message's delivery token.
+The message stays `pending` during about fifteen minutes of automatic retries, then becomes
+`failed`; resend queues a newer message with its own workflow and `retry_notification` runs the
+failed message's workflow again. Requests wait briefly for the first outcome by polling Postgres.
+A privileged `merit_pending_reviewer_messages` function lists, across workspaces, identifiers
+of the newest unfinished message per kind and assignment, so reconciliation can start missing
+workflows. `/server/testing` supplies an inline stand-in for the workflow in business tests.
+
 `/api` is browser-safe. `/server` exports the manager and reviewer service factories
 and authorized operations. Approved composition reads use `/schema`, `/scope`,
 `/participation-schema`, and `/readers`. `/server/integrations` exposes the

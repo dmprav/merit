@@ -22,3 +22,4 @@ GRANT DELETE ON memberships, access_request_limits, grant_navigation_pins, fundi
 GRANT SELECT, INSERT, DELETE ON assistant_consents, assistant_conversations TO :"runtime_role";
 GRANT UPDATE (status, state, revision, updated_at) ON assistant_conversations TO :"runtime_role";
 GRANT EXECUTE ON FUNCTION public.merit_running_assistant_conversations(integer, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.merit_pending_reviewer_messages(integer, uuid) TO :"runtime_role";

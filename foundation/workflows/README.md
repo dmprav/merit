@@ -100,7 +100,7 @@ connection you own.
 
 The application worker is [`app/src/worker/main.ts`](../../app/src/worker/main.ts). It
 registers `workerHealth`, which proves the path from client to worker, activity, and result;
-and `reconcile`. Each capability adds the workflows for the work it owns. The process exits once the worker stops, with a non-zero code when
+`reconcile`; and each capability's workflows, starting with Reviews' `reviewerMessage`. The process exits once the worker stops, with a non-zero code when
 the worker failed. Run it with `vp run @merit/app#worker`, or let
 [`vp run dev`](../../docs/guides/development.md#start-and-seed-postgresql) start it.
 

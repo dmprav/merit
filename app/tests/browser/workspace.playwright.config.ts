@@ -26,7 +26,9 @@ export default defineConfig(browserConfig, {
   workers: 1,
   use: { baseURL: "http://127.0.0.1:3002" },
   webServer: {
-    command: "../node_modules/.bin/vp dev --mode local-workspace --port 3002",
+    // The worker runs beside the web server, as in development, so background work is delivered.
+    command:
+      "../node_modules/.bin/vpx scripts/with-worker.ts ../node_modules/.bin/vp dev --mode local-workspace --port 3002",
     cwd: host,
     url: "http://127.0.0.1:3002/app",
     reuseExistingServer: false,

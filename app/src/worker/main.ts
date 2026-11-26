@@ -3,17 +3,10 @@ import { env } from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { reportError } from "@merit/telemetry/errors";
-import {
-  createWorkflowClient,
-  describeError,
-  ensureSchedule,
-  readTemporalConfig,
-  runWorker,
-  type WorkerLogger,
-} from "@merit/workflows";
+import { describeError, ensureSchedule, runWorker, type WorkerLogger } from "@merit/workflows";
 
-import * as activities from "./activities.ts";
 import { reconcileScheduleId } from "./reconcile.workflow.ts";
+import { createWorkerRuntime } from "./runtime.ts";
 import { taskQueue } from "./task-queue.ts";
 
 const reconcileEvery = 60_000;
@@ -52,8 +45,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 let exitCode = 0;
 try {
   // The development and preview commands set MERIT_LOCAL_WORKER; a deployed worker must not.
-  const config = readTemporalConfig(env, { local: env.MERIT_LOCAL_WORKER === "1" });
-  const client = createWorkflowClient(config);
+  const { config, client, activities } = createWorkerRuntime(env);
   await runWorker(
     {
       config,

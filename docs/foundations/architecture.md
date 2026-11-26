@@ -337,7 +337,11 @@ and one Node.js process. [Application assembly](../../app/src/server.ts)
 creates services per request and supplies identity and external-service adapters.
 Browser and MCP transports call the same business operations. A separate
 [worker process](../../app/src/worker/main.ts) runs [Temporal](../decisions/0016-temporal-background-work.md)
-workflows; it currently registers only a health workflow, and no business work has moved to it.
+workflows. After a business change commits, the web server starts the workflow for that work with
+an ID derived from the committed record; the worker also runs a reconciliation Schedule that starts
+workflows for committed work that has none. Reviewer invitation and submission emails run this way
+today, retrying for about fifteen minutes before the message is recorded as failed. A request waits
+about five seconds, polling Postgres, for the first outcome and returns what it finds.
 
 ```mermaid
 flowchart LR

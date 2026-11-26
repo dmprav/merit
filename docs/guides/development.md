@@ -117,7 +117,8 @@ A dev worker from another worktree can pick up your work, running its code again
 checkout. Stop other worktrees' workers while you work on workflows.
 
 Each worker start ensures one Temporal Schedule, `merit-reconcile`, which runs the `reconcile`
-workflow every minute. Its activities list committed unfinished work in Postgres and start the workflow of anything that has none. This is how
+workflow every minute. Its activities list committed unfinished work in Postgres, such as
+reviewer messages still `pending`, and start the workflow of anything that has none. This is how
 work recovers when Temporal was unreachable at commit, or the process stopped between commit and
 start. Starting a workflow that already ran is a no-op. The Schedule shows in the Temporal UI; pausing
 it pauses recovery only. A new kind of work joins reconciliation by adding a reconciler to the

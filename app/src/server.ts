@@ -8,11 +8,17 @@ import { createDatabasePool, createRequestDatabase } from "@merit/db";
 import { mcpResourceMetadata } from "@merit/mcp";
 import { reportError } from "@merit/telemetry/errors";
 import { traceServerRequest } from "@merit/telemetry/server";
+import {
+  createWorkflowClient,
+  readTemporalConfig,
+  type WorkflowClient,
+} from "@merit/workflows/client";
 
 import { readAnalyticsConfig } from "./analytics-config";
 import type { ApplicationRequestContext } from "./request-context";
 import { createAssistantHost } from "./server/assistant/host.server";
 import { handleAssistantHttp } from "./server/assistant/http.server";
+import { createBackgroundWork } from "./server/background-work.server";
 import { createDemoServices, demoCookie } from "./server/demo.server";
 import { createEmailSender } from "./server/email-delivery.server";
 import { applySecurityHeaders, createDocumentPolicy } from "./server/http-headers.server";
@@ -42,9 +48,21 @@ const sendEmail = createEmailSender({
   mailpitUrl: import.meta.env.DEV ? (env.MAILPIT_URL ?? "http://127.0.0.1:8025") : undefined,
 });
 
+// Created on first use, so a missing Temporal setting is a reported start failure, not a crash
+// that keeps requests from committing.
+let workflowClient: WorkflowClient | undefined;
+const { startReviewerMessage } = createBackgroundWork({
+  client: () =>
+    (workflowClient ??= createWorkflowClient(
+      readTemporalConfig(env, {
+        local: Boolean(import.meta.env.DEV) || env.MERIT_LOCAL_PREVIEW === "1",
+      }),
+    )),
+});
+
 // Detached turns check out connections from the process pool after their HTTP request ends.
 const assistant = createAssistantHost(
-  { database, analytics, sendEmail, invitationOrigin: origin },
+  { database, analytics, sendEmail, startReviewerMessage, invitationOrigin: origin },
   {
     apiKey: env.OPENAI_API_KEY ?? "",
     model: env.MERIT_AI_MODEL ?? "",
@@ -85,6 +103,7 @@ export default createServerEntry({
               invitationOrigin: import.meta.env.DEV ? url.origin : origin,
               networkAddress: import.meta.env.DEV ? "local" : peerAddress(request),
               sendEmail,
+              startReviewerMessage,
             };
             if (url.pathname === "/mcp/workspace") {
               return await handleMcp(request, clerkConfig, dependencies);

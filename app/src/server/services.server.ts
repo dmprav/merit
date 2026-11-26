@@ -15,7 +15,11 @@ import { createRecommendationsService } from "@merit/recommendations/server";
 import { applicationRecommendationWork } from "@merit/recommendations/server/integrations";
 import type { ReviewerMessage } from "@merit/reviews/api";
 import { createReviewService } from "@merit/reviews/server";
-import { createReviewerService, type ReviewerDelivery } from "@merit/reviews/server";
+import {
+  createReviewerService,
+  type ReviewerDelivery,
+  type ReviewerMessageWork,
+} from "@merit/reviews/server";
 import {
   applicationReviewWork,
   contactReviewWork,
@@ -24,6 +28,7 @@ import {
 } from "@merit/reviews/server/integrations";
 import { createRoundsService } from "@merit/rounds/server";
 import { instrumentService } from "@merit/telemetry";
+import type { OutcomeWait } from "@merit/workflows/outcome";
 
 import type { EmailSender } from "./email-delivery.server";
 import type { OrganizationIdentity } from "./identity.server";
@@ -36,10 +41,18 @@ type Dependencies = {
   invitationOrigin: string;
   networkAddress?: string;
   sendEmail: EmailSender;
+  /**
+   * Starts a reviewer message's delivery workflow after its record commits. It never rejects
+   * and answers whether the work runs or ran.
+   */
+  startReviewerMessage: (work: ReviewerMessageWork) => Promise<boolean>;
+  /** How long a request waits for the first delivery outcome. */
+  deliveryWait?: OutcomeWait;
   deferReviewerDelivery?: (delivery: ReviewerDelivery) => void;
 };
 
-export const reviewerDelivery = ({
+/** What the delivery activities, which run in the worker, need to send a reviewer message. */
+export const reviewerMessageDelivery = ({
   database,
   invitationOrigin,
   sendEmail,
@@ -60,6 +73,8 @@ export const createApplicationServices = ({
   invitationOrigin,
   networkAddress,
   sendEmail,
+  startReviewerMessage,
+  deliveryWait,
   deferReviewerDelivery,
 }: Dependencies) => {
   const observe = (event: GrantOutcome["event"]): WorkspaceChangeObserver | undefined =>
@@ -92,7 +107,9 @@ export const createApplicationServices = ({
   const reviewer = instrumentService(
     "reviewer",
     createReviewerService({
-      ...reviewerDelivery({ database, invitationOrigin, sendEmail }),
+      database,
+      start: startReviewerMessage,
+      wait: deliveryWait,
       deferDelivery: deferReviewerDelivery,
       onSubmitted: observe("assessment_submitted"),
     }),

@@ -18,8 +18,9 @@ import { getFundingApplicationPage, getFundingRoundPage } from "@merit/grantmaki
 import { seedExampleRounds } from "@merit/grantmaking/testing";
 import { createOrganizationService } from "@merit/organizations/server";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
-import { createReviewerService, saveApplicationReview } from "@merit/reviews/server";
+import { saveApplicationReview } from "@merit/reviews/server";
 import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
+import { createInlineReviewerService } from "@merit/reviews/testing";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit/rounds/server";
 import { createTestDatabase } from "@merit/test-support/test-database";
@@ -524,7 +525,7 @@ it("allows independent application creates and rejects a competing cross-round r
 });
 
 const reviewerService = (connection: Database) =>
-  createReviewerService({
+  createInlineReviewerService({
     database: async (operation) => operation(connection),
     send: async () => {},
     reviewerUrl: (_, id) => `https://merit.test/work/${id}`,

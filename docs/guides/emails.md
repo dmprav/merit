@@ -61,6 +61,16 @@ and defaults.
   invitation URL to organizations, and composes the renderer with the selected sender. Mailpit and Resend have separate adapters and configuration;
   production sends through Resend with the invitation's idempotency key.
 
+Reviewer invitations and submission notices are sent by the [worker](../../app/src/worker/main.ts),
+not inside the request. After the message commits, the web server starts the
+`reviewer-message:<messageId>` workflow, which Reviews owns, and the request waits about five seconds
+for the first outcome. Each attempt rereads the assignment and the message and sends with a
+10-second timeout and the message ID as the provider's idempotency key. A failed attempt is retried with
+backoff for about fifteen minutes while the message stays pending, then recorded as failed.
+The worker reads the same sender settings as the web server (`EMAIL_FROM`, `RESEND_API_KEY`, and
+Mailpit locally) and `APP_ORIGIN` for links. Only identifiers reach Temporal; the rendered email is built from
+Postgres inside the activity.
+
 Sending failures leave the saved invitation available for recovery. Application diagnostics
 distinguish rendering, sender configuration, network requests, and provider rejection.
 They include only fixed messages, provider names, and HTTP status codes, never

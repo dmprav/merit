@@ -1,3 +1,7 @@
+import { proxyActivities } from "@temporalio/workflow";
+
+import type { ReconcileActivities } from "./activities.ts";
+
 /** The Schedule that starts reconciliation, and the workflow it runs. */
 export const reconcileScheduleId = "merit-reconcile";
 
@@ -6,11 +10,17 @@ export const reconcileScheduleId = "merit-reconcile";
  * Postgres lists the work and each start is idempotent, so a run that overlaps another, repeats,
  * or finds nothing to do changes nothing.
  *
- * Add a reconciler by adding its activity to the activities module and registering it here under
- * a name. Each runs independently: one failing does not keep the others from running.
+ * Add a reconciler by adding its activity to {@link ReconcileActivities} and its name here.
+ * Each runs independently: one failing does not keep the others from running.
  */
 export const reconcile = async () => {
-  const reconcilers: Record<string, () => Promise<unknown>> = {};
+  const activities = proxyActivities<ReconcileActivities>({
+    startToCloseTimeout: "2 minutes",
+    retry: { initialInterval: "5 seconds", maximumAttempts: 3 },
+  });
+  const reconcilers = {
+    reviewerMessages: activities.reconcileReviewerMessages,
+  };
   const results: Record<string, "ok" | "failed"> = {};
   for (const [name, run] of Object.entries(reconcilers)) {
     results[name] = await run().then(

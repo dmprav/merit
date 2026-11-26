@@ -3,10 +3,11 @@ import type { Database } from "@merit/db";
 import { createAssistantCatalog } from "@merit/mcp/assistant";
 import { AssistantStoreError, createAssistantStore } from "@merit/organizations/server/assistant";
 import { productLinks } from "@merit/product/links";
-import { sendCommittedReviewerMessage, type ReviewerDelivery } from "@merit/reviews/server";
+import { deliverCommittedReviewerMessage, type ReviewerDelivery } from "@merit/reviews/server";
 import { reportError } from "@merit/telemetry/errors";
+import type { OutcomeWait } from "@merit/workflows/outcome";
 
-import { createApplicationServices, reviewerDelivery } from "../services.server";
+import { createApplicationServices } from "../services.server";
 import { assistantJson, type AssistantCommand } from "./http.server";
 import { createOpenAiAssistantModel } from "./openai.server";
 import { createAssistantWorker } from "./scheduler.server";
@@ -17,12 +18,20 @@ import {
 } from "./turns.server";
 import { watchAssistant } from "./watch.server";
 
-type Dependencies = Omit<Parameters<typeof createApplicationServices>[0], "identity">;
+type Dependencies = Omit<Parameters<typeof createApplicationServices>[0], "identity"> & {
+  /** How long an approved invitation stays `delivering`: the workflow's retries plus a margin. */
+  committedDeliveryWait?: OutcomeWait;
+};
+
+const committedDeliveryWait: OutcomeWait = { timeoutMs: 16 * 60_000, intervalMs: 2000 };
 
 type Config = { apiKey: string; model: string };
 
 const catalogFor = (dependencies: Dependencies) => {
-  const delivery = reviewerDelivery(dependencies);
+  const delivery = {
+    database: dependencies.database,
+    start: dependencies.startReviewerMessage,
+  };
 
   return (actor: Actor, workspace: string, transaction?: Database): AssistantRuntimeCatalog => {
     let ticket: ReviewerDelivery | undefined;
@@ -61,7 +70,13 @@ const catalogFor = (dependencies: Dependencies) => {
         const result = await tools.execute(preview);
         return ticket ? { ...result, delivery: ticket } : result;
       },
-      deliver: (pending) => sendCommittedReviewerMessage(delivery, actor.userId, pending),
+      deliver: (pending) =>
+        deliverCommittedReviewerMessage(
+          delivery,
+          actor.userId,
+          pending,
+          dependencies.committedDeliveryWait ?? committedDeliveryWait,
+        ),
     };
   };
 };

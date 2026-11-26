@@ -11,8 +11,9 @@ import { createOrganizationService } from "@merit/organizations/server";
 import { actor } from "@merit/organizations/testing/workspace";
 import type { ReviewerMessage } from "@merit/reviews/api";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
-import { createReviewerService, saveApplicationReview } from "@merit/reviews/server";
+import { listPendingReviewerMessageWork, saveApplicationReview } from "@merit/reviews/server";
 import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
+import { createInlineReviewerService } from "@merit/reviews/testing";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { editFundingRound } from "@merit/rounds/server";
 
@@ -71,7 +72,7 @@ const it = roundTest.extend("reviewerScenario", async ({ db, database, rounds })
   const requestId = await requestReview(address);
   const messages: ReviewerMessage[] = [];
   let failDelivery = false;
-  const service = createReviewerService({
+  const service = createInlineReviewerService({
     database: async (operation) => operation(db),
     send: async (message) => {
       if (failDelivery) {
@@ -693,7 +694,7 @@ it("records an accepted reviewer message after the sender loses workspace access
   await database.client.query("UPDATE reviewer_messages SET status = 'pending' WHERE id = $1", [
     s.invitation.commandId,
   ]);
-  const service = createReviewerService({
+  const service = createInlineReviewerService({
     database: (operation) => withDatabase(runtimeUrl, operation),
     send: async () => {
       await database.client.query(
@@ -1199,4 +1200,85 @@ it("permanently ends assignments on role loss, preserves private work, and attri
   ).toEqual({ status: "not_found" });
   expect(await s.manage("reinstate")).toMatchObject({ status: "ok" });
   expect((await s.read()).draft).toEqual(original.draft);
+});
+
+it("lists unfinished reviewer messages across workspaces for reconciliation, newest and deliverable only", async ({
+  db,
+  database,
+  reviewerScenario: s,
+}) => {
+  const pending = () => listPendingReviewerMessageWork((operation) => operation(db), 100);
+
+  const status = (id: string, value: string) =>
+    database.client.query("UPDATE reviewer_messages SET status = $2 WHERE id = $1", [id, value]);
+
+  const invitationId = s.invitation.commandId;
+
+  expect(await pending()).toEqual([]);
+
+  // A message acknowledged by nobody is listed with the member it acts for: the manager.
+  await status(invitationId, "pending");
+  expect(await pending()).toEqual([
+    {
+      messageId: invitationId,
+      assignmentId: s.assignmentId,
+      kind: "invitation",
+      userId: actor.userId,
+    },
+  ]);
+
+  // A newer invitation replaces it.
+  await database.client.query(
+    "UPDATE reviewer_messages SET created_at = now() - interval '2 minutes' WHERE assignment_id = $1",
+    [s.assignmentId],
+  );
+  expect(await s.manage("resend")).toMatchObject({ status: "ok" });
+  const newer = (
+    await database.client.query<{ id: string }>(
+      "SELECT id FROM reviewer_messages WHERE assignment_id = $1 AND id <> $2",
+      [s.assignmentId, invitationId],
+    )
+  ).rows[0]!.id;
+  await status(newer, "pending");
+  expect((await pending()).map((work) => work.messageId)).toEqual([newer]);
+
+  // A failed or sent message is finished, and an expired invitation cannot be delivered.
+  await status(newer, "failed");
+  expect(await pending()).toEqual([]);
+  await status(newer, "pending");
+  await database.client.query(
+    "UPDATE review_assignments SET expires_at = now() - interval '1 minute' WHERE id = $1",
+    [s.assignmentId],
+  );
+  expect(await pending()).toEqual([]);
+});
+
+it("lists a pending submission notice under the submitting reviewer", async ({
+  db,
+  database,
+  reviewerScenario: s,
+}) => {
+  await s.respond("accept");
+  await s.save();
+  expect(await s.submit()).toMatchObject({ status: "ok" });
+  await database.client.query(
+    "UPDATE reviewer_messages SET status = 'pending' WHERE assignment_id = $1 AND kind = 'submission'",
+    [s.assignmentId],
+  );
+
+  const work = await listPendingReviewerMessageWork((operation) => operation(db), 100);
+
+  expect(work).toEqual([
+    expect.objectContaining({
+      assignmentId: s.assignmentId,
+      kind: "submission",
+      userId: sam.userId,
+    }),
+  ]);
+  const page = await listPendingReviewerMessageWork(
+    (operation) => operation(db),
+    100,
+    work[0]?.messageId,
+  );
+  expect(page).toEqual([]);
 });

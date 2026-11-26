@@ -7,9 +7,13 @@ import type { Database } from "@merit/db";
 import { roundTest } from "@merit/grantmaking/testing/rounds";
 import { handleWorkspaceMcp, mcpScopes } from "@merit/mcp";
 import { productLinks } from "@merit/product/links";
+import { inlineReviewerDelivery } from "@merit/reviews/testing";
 
 import { createAccountDemoServices } from "../../src/server/demo-workspace.server";
-import { createApplicationServices } from "../../src/server/services.server";
+import {
+  createApplicationServices,
+  reviewerMessageDelivery,
+} from "../../src/server/services.server";
 
 const session = vi.hoisted(() => ({ userId: "seed_alder" as string | null }));
 vi.mock("@clerk/tanstack-react-start/server", () => ({
@@ -43,6 +47,14 @@ export const createTransport = (
     analytics,
     invitationOrigin: "http://localhost:3000",
     sendEmail,
+    startReviewerMessage: inlineReviewerDelivery(
+      reviewerMessageDelivery({
+        database: async (operation) => operation(db),
+        invitationOrigin: "http://localhost:3000",
+        sendEmail,
+      }),
+    ),
+    deliveryWait: { timeoutMs: 0, intervalMs: 0 },
     networkAddress: "integration",
   });
   const services = {

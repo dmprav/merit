@@ -14,10 +14,19 @@ const workflowsPath = fileURLToPath(
 );
 
 let worker: TestWorker;
+let reconciled = 0;
 const scheduleId = `${reconcileScheduleId}-test-${crypto.randomUUID()}`;
 
 beforeAll(async () => {
-  worker = await startTestWorker(config, { workflows: { workflowsPath } });
+  worker = await startTestWorker(config, {
+    workflows: { workflowsPath },
+    activities: {
+      reconcileReviewerMessages: async () => {
+        reconciled += 1;
+        return { listed: 0, started: 0 };
+      },
+    },
+  });
 }, 120_000);
 
 afterAll(async () => {
@@ -66,18 +75,9 @@ it("updates an existing Schedule in place and keeps it paused when it was", asyn
 });
 
 it("runs the reconcile workflow on its Schedule", async () => {
-  const handle = worker.client.schedule.getHandle(scheduleId);
+  const before = reconciled;
 
-  await handle.trigger();
+  await worker.client.schedule.getHandle(scheduleId).trigger();
 
-  await expect
-    .poll(async () => (await handle.describe()).info.recentActions.length, { timeout: 15_000 })
-    .toBeGreaterThan(0);
-  const [recent] = (await handle.describe()).info.recentActions;
-  const started = recent?.action;
-  expect(started?.type).toBe("startWorkflow");
-  const outcome: unknown = await worker.client.workflow
-    .getHandle(started?.type === "startWorkflow" ? started.workflow.workflowId : "")
-    .result();
-  expect(outcome).toEqual({});
+  await expect.poll(() => reconciled, { timeout: 15_000 }).toBeGreaterThan(before);
 });
