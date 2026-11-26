@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
-import { readFlagValue, readIntegerFlag } from "../cli.ts";
+import { parseCliArgs, parseWholeNumber, stripLeadingSeparator } from "../cli.ts";
 import {
   extractLinkedIssueNumbers,
   TRUSTED_AUTHOR_ASSOCIATIONS,
@@ -835,24 +835,189 @@ export type RecordShepherdOptions = {
   ifUninitialized: boolean;
 };
 
+/** Reads the command's single positional as a whole number, so "12abc" is an error rather than #12. */
+const readNumberPositional = (positionals: readonly string[], name: string, usage: string) => {
+  const [raw, ...extra] = positionals;
+  if (raw === undefined || extra.length > 0) {
+    throw new Error(usage);
+  }
+  return parseWholeNumber(raw, `<${name}>`);
+};
+
 /** Validates `record-shepherd` arguments before any GitHub call, so bad input records nothing. */
 export const parseRecordShepherdArgs = (args: readonly string[]): RecordShepherdOptions => {
-  const prNumber = Number(args[0]);
-  const round = readIntegerFlag(args, "--round", 0);
-  if (!/^[1-9]\d*$/.test(args[0] ?? "") || round === null) {
+  const { values, positionals } = parseCliArgs(args, {
+    options: {
+      round: { type: "string" },
+      sha: { type: "string" },
+      issue: { type: "string" },
+      "flake-reruns": { type: "string" },
+      "if-uninitialized": { type: "boolean" },
+    },
+    usage: RECORD_SHEPHERD_USAGE,
+    allowPositionals: true,
+  });
+  const prNumber = readNumberPositional(positionals, "pr-number", RECORD_SHEPHERD_USAGE);
+  if (values.round === undefined) {
     throw new Error(RECORD_SHEPHERD_USAGE);
   }
-  const sha = readFlagValue(args, "--sha");
-  const issueNumber = readIntegerFlag(args, "--issue", 1);
-  const flakeReruns = readIntegerFlag(args, "--flake-reruns", 0);
   return {
     prNumber,
-    round,
-    ...(sha !== null ? { sha } : {}),
-    ...(issueNumber !== null ? { issueNumber } : {}),
-    ...(flakeReruns !== null ? { flakeReruns } : {}),
-    ifUninitialized: args.includes("--if-uninitialized"),
+    round: parseWholeNumber(values.round, "--round", 0),
+    ...(values.sha !== undefined ? { sha: values.sha } : {}),
+    ...(values.issue !== undefined
+      ? { issueNumber: parseWholeNumber(values.issue, "--issue") }
+      : {}),
+    ...(values["flake-reruns"] !== undefined
+      ? { flakeReruns: parseWholeNumber(values["flake-reruns"], "--flake-reruns", 0) }
+      : {}),
+    ifUninitialized: values["if-uninitialized"] ?? false,
   };
+};
+
+export type QueueCommand =
+  | { command: "next"; apply: boolean }
+  | { command: "issue"; issueNumber: number }
+  | { command: "claim"; issueNumber: number; renewRunId?: string }
+  | {
+      command: "open-pr";
+      title: string;
+      head: string;
+      base: string;
+      bodyFile?: string;
+      body: string;
+    }
+  | { command: "escalate"; targetNumber: number; reason: string }
+  | ({ command: "record-shepherd" } & RecordShepherdOptions)
+  | { command: "threads"; prNumber: number }
+  | { command: "reply-thread"; prNumber: number; commentId: number; body: string };
+
+const ISSUE_USAGE = "Usage: queue.ts issue <issue-number>";
+const CLAIM_USAGE = "Usage: queue.ts claim <issue-number> [--renew <runId>]";
+const OPEN_PR_USAGE =
+  "Usage: queue.ts open-pr --title <title> --head <branch> [--base main] (--body-file <path> | --body <text>)";
+const ESCALATE_USAGE = "Usage: queue.ts escalate <issue-or-pr-number> --reason <text>";
+const THREADS_USAGE = "Usage: queue.ts threads <pr-number>";
+const REPLY_THREAD_USAGE = "Usage: queue.ts reply-thread <pr-number> <comment-id> --body <summary>";
+
+const parseClaimArgs = (args: readonly string[]): QueueCommand => {
+  const { values, positionals } = parseCliArgs(args, {
+    options: { renew: { type: "string" } },
+    usage: CLAIM_USAGE,
+    allowPositionals: true,
+  });
+  const issueNumber = readNumberPositional(positionals, "issue-number", CLAIM_USAGE);
+  if (values.renew !== undefined && !values.renew.trim()) {
+    throw new Error("--renew requires a non-empty runId.");
+  }
+  return {
+    command: "claim",
+    issueNumber,
+    ...(values.renew !== undefined ? { renewRunId: values.renew } : {}),
+  };
+};
+
+const parseOpenPrArgs = (args: readonly string[]): QueueCommand => {
+  const { values } = parseCliArgs(args, {
+    options: {
+      title: { type: "string" },
+      head: { type: "string" },
+      base: { type: "string" },
+      "body-file": { type: "string" },
+      body: { type: "string" },
+    },
+    usage: OPEN_PR_USAGE,
+  });
+  if (!values.title || !values.head) {
+    throw new Error(OPEN_PR_USAGE);
+  }
+  return {
+    command: "open-pr",
+    title: values.title,
+    head: values.head,
+    base: values.base ?? "main",
+    ...(values["body-file"] ? { bodyFile: values["body-file"] } : {}),
+    body: values.body ?? "",
+  };
+};
+
+const parseEscalateArgs = (args: readonly string[]): QueueCommand => {
+  const { values, positionals } = parseCliArgs(args, {
+    options: { reason: { type: "string" } },
+    usage: ESCALATE_USAGE,
+    allowPositionals: true,
+  });
+  const targetNumber = readNumberPositional(positionals, "issue-or-pr-number", ESCALATE_USAGE);
+  const reason = values.reason?.trim();
+  if (!reason) {
+    throw new Error(ESCALATE_USAGE);
+  }
+  return { command: "escalate", targetNumber, reason };
+};
+
+const parseReplyThreadArgs = (args: readonly string[]): QueueCommand => {
+  const { values, positionals } = parseCliArgs(args, {
+    options: { body: { type: "string" } },
+    usage: REPLY_THREAD_USAGE,
+    allowPositionals: true,
+  });
+  const [prRaw, commentRaw, ...extra] = positionals;
+  if (prRaw === undefined || commentRaw === undefined || extra.length > 0 || !values.body?.trim()) {
+    throw new Error(REPLY_THREAD_USAGE);
+  }
+  return {
+    command: "reply-thread",
+    prNumber: parseWholeNumber(prRaw, "<pr-number>"),
+    commentId: parseWholeNumber(commentRaw, "<comment-id>"),
+    body: values.body,
+  };
+};
+
+/** Validates a queue command line before any GitHub call, so a typo acts on nothing. */
+export const parseQueueArgs = (args: readonly string[]): QueueCommand => {
+  const [command, ...rest] = stripLeadingSeparator(args);
+  switch (command) {
+    case "next": {
+      const { values } = parseCliArgs(rest, {
+        options: { apply: { type: "boolean" } },
+        usage: "Usage: queue.ts next [--apply]",
+      });
+      return { command, apply: values.apply ?? false };
+    }
+    case "issue": {
+      const { positionals } = parseCliArgs(rest, {
+        options: {},
+        usage: ISSUE_USAGE,
+        allowPositionals: true,
+      });
+      return {
+        command,
+        issueNumber: readNumberPositional(positionals, "issue-number", ISSUE_USAGE),
+      };
+    }
+    case "claim":
+      return parseClaimArgs(rest);
+    case "open-pr":
+      return parseOpenPrArgs(rest);
+    case "escalate":
+      return parseEscalateArgs(rest);
+    case "record-shepherd":
+      return { command, ...parseRecordShepherdArgs(rest) };
+    case "threads": {
+      const { positionals } = parseCliArgs(rest, {
+        options: {},
+        usage: THREADS_USAGE,
+        allowPositionals: true,
+      });
+      return { command, prNumber: readNumberPositional(positionals, "pr-number", THREADS_USAGE) };
+    }
+    case "reply-thread":
+      return parseReplyThreadArgs(rest);
+    default:
+      throw new Error(
+        `Unknown queue command "${command ?? ""}". Expected "next", "issue", "claim", "open-pr", "escalate", "record-shepherd", "threads", or "reply-thread".`,
+      );
+  }
 };
 
 const applyQueueOrder = (repoRoot: string, repo: RepoIdentity, order: QueueWorkOrder) => {
@@ -877,27 +1042,23 @@ const applyQueueOrder = (repoRoot: string, repo: RepoIdentity, order: QueueWorkO
 
 const runCli = () => {
   const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
-  const [command, ...rest] = process.argv.slice(2);
+  const parsed = parseQueueArgs(process.argv.slice(2));
   const repo = getRepoIdentity(repoRoot);
 
-  if (command === "next") {
-    const apply = rest.includes("--apply");
+  if (parsed.command === "next") {
     const order = selectNextWork({
       openAgentPrs: fetchOpenAgentPrs(repoRoot, repo),
       readyIssues: fetchReadyIssues(repoRoot, repo),
     });
-    if (apply) {
+    if (parsed.apply) {
       applyQueueOrder(repoRoot, repo, order);
     }
     console.log(JSON.stringify(order, null, 2));
     return;
   }
 
-  if (command === "issue") {
-    const issueNumber = Number.parseInt(rest[0] ?? "", 10);
-    if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
-      throw new Error("Usage: queue.ts issue <issue-number>");
-    }
+  if (parsed.command === "issue") {
+    const { issueNumber } = parsed;
     const issue = restIssueItemSchema.parse(
       ghApiJson(repoRoot, [`repos/${repo.owner}/${repo.name}/issues/${issueNumber}`]),
     );
@@ -919,21 +1080,14 @@ const runCli = () => {
     return;
   }
 
-  if (command === "claim") {
-    const issueNumber = Number.parseInt(rest[0] ?? "", 10);
-    const renewRunId = readFlagValue(rest, "--renew");
-    if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
-      throw new Error("Usage: queue.ts claim <issue-number> [--renew <runId>]");
-    }
+  if (parsed.command === "claim") {
+    const { issueNumber, renewRunId } = parsed;
     const now = Date.now();
     const existingOwner = findEarliestActiveClaimRunId(
       fetchIssueComments(repoRoot, repo, issueNumber),
       now,
     );
-    if (renewRunId !== null) {
-      if (!renewRunId.trim()) {
-        throw new Error("--renew requires a non-empty runId.");
-      }
+    if (renewRunId !== undefined) {
       if (existingOwner !== null && existingOwner !== renewRunId) {
         console.log(
           JSON.stringify({ status: "lost_race", issueNumber, winningRunId: existingOwner }),
@@ -966,7 +1120,7 @@ const runCli = () => {
     }
     console.log(
       JSON.stringify({
-        status: renewRunId !== null ? "renewed" : "claimed",
+        status: renewRunId !== undefined ? "renewed" : "claimed",
         issueNumber,
         claim,
       }),
@@ -974,18 +1128,9 @@ const runCli = () => {
     return;
   }
 
-  if (command === "open-pr") {
-    const title = readFlagValue(rest, "--title");
-    const head = readFlagValue(rest, "--head");
-    const base = readFlagValue(rest, "--base") ?? "main";
-    const bodyFile = readFlagValue(rest, "--body-file");
-    const bodyInline = readFlagValue(rest, "--body");
-    const body = bodyFile ? readFileSync(bodyFile, "utf8") : (bodyInline ?? "");
-    if (!title || !head) {
-      throw new Error(
-        "Usage: queue.ts open-pr --title <title> --head <branch> [--base main] (--body-file <path> | --body <text>)",
-      );
-    }
+  if (parsed.command === "open-pr") {
+    const { title, head, base } = parsed;
+    const body = parsed.bodyFile ? readFileSync(parsed.bodyFile, "utf8") : parsed.body;
     const existingPrs = z
       .array(restCreatedPrSchema)
       .parse(
@@ -1034,20 +1179,16 @@ const runCli = () => {
     return;
   }
 
-  if (command === "escalate") {
-    const targetNumber = Number.parseInt(rest[0] ?? "", 10);
-    const reason = readFlagValue(rest, "--reason");
-    if (!Number.isInteger(targetNumber) || targetNumber <= 0 || !reason?.trim()) {
-      throw new Error("Usage: queue.ts escalate <issue-or-pr-number> --reason <text>");
-    }
+  if (parsed.command === "escalate") {
+    const { targetNumber, reason } = parsed;
     addIssueLabels(repoRoot, repo, targetNumber, ["agent:needs-human"]);
-    postIssueComment(repoRoot, repo, targetNumber, `Escalating to human: ${reason.trim()}`);
+    postIssueComment(repoRoot, repo, targetNumber, `Escalating to human: ${reason}`);
     console.log(JSON.stringify({ status: "escalated", number: targetNumber }));
     return;
   }
 
-  if (command === "record-shepherd") {
-    const { prNumber, ifUninitialized, ...updates } = parseRecordShepherdArgs(rest);
+  if (parsed.command === "record-shepherd") {
+    const { prNumber, ifUninitialized, ...updates } = parsed;
     const comments = fetchIssueComments(repoRoot, repo, prNumber);
     const previous = parseAgentPrState(comments);
     if (ifUninitialized && hasAgentPrState(comments)) {
@@ -1065,43 +1206,20 @@ const runCli = () => {
     return;
   }
 
-  if (command === "threads") {
-    const prNumber = Number.parseInt(rest[0] ?? "", 10);
-    if (!Number.isInteger(prNumber) || prNumber <= 0) {
-      throw new Error("Usage: queue.ts threads <pr-number>");
-    }
-    console.log(JSON.stringify(fetchUnaddressedThreads(repoRoot, repo, prNumber), null, 2));
+  if (parsed.command === "threads") {
+    console.log(JSON.stringify(fetchUnaddressedThreads(repoRoot, repo, parsed.prNumber), null, 2));
     return;
   }
 
-  if (command === "reply-thread") {
-    const prNumber = Number.parseInt(rest[0] ?? "", 10);
-    const commentId = Number.parseInt(rest[1] ?? "", 10);
-    const body = readFlagValue(rest, "--body");
-    if (
-      !Number.isInteger(prNumber) ||
-      prNumber <= 0 ||
-      !Number.isInteger(commentId) ||
-      commentId <= 0 ||
-      !body?.trim()
-    ) {
-      throw new Error("Usage: queue.ts reply-thread <pr-number> <comment-id> --body <summary>");
-    }
-    const replyBody = formatAddressedReplyBody(body);
-    ghApiJson(repoRoot, [
-      `repos/${repo.owner}/${repo.name}/pulls/${prNumber}/comments/${commentId}/replies`,
-      "-X",
-      "POST",
-      "-f",
-      `body=${replyBody}`,
-    ]);
-    console.log(JSON.stringify({ status: "replied", prNumber, commentId }));
-    return;
-  }
-
-  throw new Error(
-    `Unknown queue command "${command ?? ""}". Expected "next", "issue", "claim", "open-pr", "escalate", "record-shepherd", "threads", or "reply-thread".`,
-  );
+  const { prNumber, commentId, body } = parsed;
+  ghApiJson(repoRoot, [
+    `repos/${repo.owner}/${repo.name}/pulls/${prNumber}/comments/${commentId}/replies`,
+    "-X",
+    "POST",
+    "-f",
+    `body=${formatAddressedReplyBody(body)}`,
+  ]);
+  console.log(JSON.stringify({ status: "replied", prNumber, commentId }));
 };
 
 if (import.meta.main) {

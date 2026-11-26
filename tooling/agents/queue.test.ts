@@ -16,6 +16,7 @@ import {
   normalizeStatusCheckRollup,
   parseAgentPrState,
   parseGitHubRemote,
+  parseQueueArgs,
   parseRecordShepherdArgs,
   selectNextWork,
   type OpenAgentPr,
@@ -648,7 +649,84 @@ describe("record-shepherd arguments", () => {
     },
     { args: ["221", "--round", "1", "--flake-reruns"], error: "--flake-reruns requires a value." },
     { args: ["221", "--round", "--sha", "abc123"], error: "--round requires a value." },
+    {
+      args: ["221", "--round", "0", "--if-uninitialised"],
+      error: "Unknown option '--if-uninitialised'",
+    },
+    {
+      args: ["221abc", "--round", "0"],
+      error: '<pr-number> must be a whole number of at least 1 (got "221abc").',
+    },
+    { args: ["--round", "0"], error: /Usage: queue\.ts record-shepherd/ },
   ])("rejects $args", ({ args, error }) => {
     expect(() => parseRecordShepherdArgs(args)).toThrow(error);
+  });
+});
+
+describe("queue arguments", () => {
+  test("parses each command's positionals and options", () => {
+    expect(parseQueueArgs(["next"])).toEqual({ command: "next", apply: false });
+    expect(parseQueueArgs(["next", "--apply"])).toEqual({ command: "next", apply: true });
+    expect(parseQueueArgs(["issue", "130"])).toEqual({ command: "issue", issueNumber: 130 });
+    expect(parseQueueArgs(["claim", "130"])).toEqual({ command: "claim", issueNumber: 130 });
+    expect(parseQueueArgs(["claim", "130", "--renew", "run-1"])).toEqual({
+      command: "claim",
+      issueNumber: 130,
+      renewRunId: "run-1",
+    });
+    expect(parseQueueArgs(["escalate", "221", "--reason", " CI is red "])).toEqual({
+      command: "escalate",
+      targetNumber: 221,
+      reason: "CI is red",
+    });
+    expect(parseQueueArgs(["threads", "221"])).toEqual({ command: "threads", prNumber: 221 });
+    expect(parseQueueArgs(["reply-thread", "221", "9001", "--body", "- fixed the guard"])).toEqual({
+      command: "reply-thread",
+      prNumber: 221,
+      commentId: 9001,
+      body: "- fixed the guard",
+    });
+  });
+
+  // Number.parseInt("12abc") is 12, so a typo would claim or escalate a different issue.
+  test.each([
+    {
+      args: ["issue", "12abc"],
+      error: '<issue-number> must be a whole number of at least 1 (got "12abc").',
+    },
+    {
+      args: ["claim", "12abc"],
+      error: '<issue-number> must be a whole number of at least 1 (got "12abc").',
+    },
+    {
+      args: ["claim", "1e3"],
+      error: '<issue-number> must be a whole number of at least 1 (got "1e3").',
+    },
+    {
+      args: ["escalate", "12.5", "--reason", "stuck"],
+      error: '<issue-or-pr-number> must be a whole number of at least 1 (got "12.5").',
+    },
+    {
+      args: ["threads", "0x10"],
+      error: '<pr-number> must be a whole number of at least 1 (got "0x10").',
+    },
+    {
+      args: ["reply-thread", "221", "9001abc", "--body", "done"],
+      error: '<comment-id> must be a whole number of at least 1 (got "9001abc").',
+    },
+  ])("rejects a malformed number in $args", ({ args, error }) => {
+    expect(() => parseQueueArgs(args)).toThrow(error);
+  });
+
+  // An ignored typo would apply work orders, or re-record shepherd state, the caller did not ask for.
+  test.each([
+    { args: ["next", "--aply"], error: /Unknown option '--aply'/ },
+    { args: ["claim", "130", "--renwe", "run-1"], error: /Unknown option '--renwe'/ },
+    { args: ["claim", "130", "131"], error: /Usage: queue\.ts claim/ },
+    { args: ["claim"], error: /Usage: queue\.ts claim/ },
+    { args: ["escalate", "221"], error: /Usage: queue\.ts escalate/ },
+    { args: ["unknown"], error: /Unknown queue command "unknown"/ },
+  ])("rejects $args", ({ args, error }) => {
+    expect(() => parseQueueArgs(args)).toThrow(error);
   });
 });

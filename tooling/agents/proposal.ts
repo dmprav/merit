@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
-import { normalizeRepoPath, readFlagValue } from "../cli.ts";
+import { normalizeRepoPath, parseCliArgs } from "../cli.ts";
 import {
   ALLOW_PROTECTED_LABEL,
   findProtectedPaths,
@@ -435,12 +435,29 @@ const listExistingIssues = (repoRoot: string): ExistingIssueSummary[] => {
   return [...byNumber.values()];
 };
 
+export type ProposalCliOptions = { file?: string; dryRun: boolean; tier2Only: boolean };
+
+/** Rejects unknown flags before any GitHub call, so a misspelt `--dry-run` never files an issue. */
+export const parseProposalArgs = (args: readonly string[]): ProposalCliOptions => {
+  const { values } = parseCliArgs(args, {
+    options: {
+      file: { type: "string" },
+      "dry-run": { type: "boolean" },
+      "tier2-only": { type: "boolean" },
+    },
+    usage:
+      "Usage: proposal.ts [--file <proposal.json>] [--dry-run] [--tier2-only] (reads stdin without --file)",
+  });
+  return {
+    ...(values.file !== undefined ? { file: values.file } : {}),
+    dryRun: values["dry-run"] ?? false,
+    tier2Only: values["tier2-only"] ?? false,
+  };
+};
+
 const runCli = () => {
   const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
-  const args = process.argv.slice(2);
-  const filePath = readFlagValue(args, "--file");
-  const dryRun = args.includes("--dry-run");
-  const tier2Only = args.includes("--tier2-only");
+  const { file: filePath, dryRun, tier2Only } = parseProposalArgs(process.argv.slice(2));
 
   const rawInput = filePath ? readFileSync(filePath, "utf8") : readFileSync(0, "utf8");
   const proposal = proposalInputSchema.parse(JSON.parse(rawInput));

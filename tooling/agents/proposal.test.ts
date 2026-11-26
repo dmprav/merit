@@ -8,6 +8,7 @@ import {
   classifyProposalTier,
   findDuplicateProposal,
   isProposalCapReached,
+  parseProposalArgs,
   proposalInputSchema,
   renderProposalMarkdown,
   resolveScoutGhEnv,
@@ -324,5 +325,28 @@ describe("proposal", () => {
         multiMarkerIssue,
       ).duplicate,
     ).toBe(false);
+  });
+});
+
+describe("proposal arguments", () => {
+  test("reads the input file, dry-run, and tier-2 override flags", () => {
+    expect(parseProposalArgs([])).toEqual({ dryRun: false, tier2Only: false });
+    expect(parseProposalArgs(["--file", "finding.json", "--dry-run", "--tier2-only"])).toEqual({
+      file: "finding.json",
+      dryRun: true,
+      tier2Only: true,
+    });
+  });
+
+  // A misspelt --dry-run must not fall through to filing a real GitHub issue.
+  test.each([["--dry-rn"], ["--tier2only"], ["--dry-run", "extra"]])(
+    "rejects %j before any GitHub call",
+    (...args) => {
+      expect(() => parseProposalArgs(args)).toThrow(/Usage: proposal\.ts/);
+    },
+  );
+
+  test("rejects --file without a path", () => {
+    expect(() => parseProposalArgs(["--file", "--dry-run"])).toThrow("--file requires a value.");
   });
 });
