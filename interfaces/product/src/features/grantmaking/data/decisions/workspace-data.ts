@@ -27,12 +27,15 @@ export const workspaceDecisionData = (
         }
         // A refresh or another tab may already hold this revision or a newer one.
         const head = cached.decision.versions[0];
-        if (head && saved.decision.revision <= head.revision) {
+        if (head && saved.decision.revision < head.revision) {
           return cached;
         }
-        const versions = saved.recorded
-          ? [saved.decision, ...cached.decision.versions]
-          : cached.decision.versions;
+        // An equal revision keeps the cached versions but still takes the round facts the save read.
+        const isNewer = !head || saved.decision.revision > head.revision;
+        const versions =
+          saved.recorded && isNewer
+            ? [saved.decision, ...cached.decision.versions]
+            : cached.decision.versions;
         const current = versions[0]?.decision;
         return {
           ...cached,

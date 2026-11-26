@@ -54,13 +54,23 @@ const setup = ({
             key: string,
             value: DecisionDraft | undefined,
             nextBaseline: typeof baseline,
+            replaceBaseline = false,
           ) => {
-            setDraft(key, value, nextBaseline);
+            setDraft(key, value, nextBaseline, replaceBaseline);
+            // Like the keyed store, keep the original baseline unless asked to replace it.
             setStored((current) => {
-              const { [key]: _removed, ...rest } = current;
+              const { [key]: previous, ...rest } = current;
               return value === undefined
                 ? rest
-                : { ...rest, [key]: { value, baseline: nextBaseline } };
+                : {
+                    ...rest,
+                    [key]: {
+                      value,
+                      baseline: replaceBaseline
+                        ? nextBaseline
+                        : (previous?.baseline ?? nextBaseline),
+                    },
+                  };
             });
           },
           clearDrafts: vi.fn(),
@@ -185,5 +195,10 @@ it("does nothing to keep a draft that no longer exists", () => {
 it("updates the draft against the current revision", () => {
   const { result, setDraft } = setup({ drafts: {}, revision: 6 });
   act(() => result.current.updateDraft(draft));
-  expect(setDraft).toHaveBeenCalledExactlyOnceWith("application", draft, { expectedRevision: 6 });
+  expect(setDraft).toHaveBeenCalledExactlyOnceWith(
+    "application",
+    draft,
+    { expectedRevision: 6 },
+    false,
+  );
 });

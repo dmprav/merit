@@ -117,3 +117,14 @@ it("keeps a newer cached revision from another tab as the head", async () => {
   expect(page?.intake.decisions?.hasCommitment).toBe(false);
   expect(page?.round.totals).toEqual(pageWith(cached).round.totals);
 });
+
+it("takes the round totals from a save whose revision the cache already holds", async () => {
+  const cached = { revision: 2, versions: [decision(2, "Fund"), decision(1, "Defer")] };
+  const response = saved(2);
+  const page = await submit(cached, response);
+
+  expect(page?.decision).toEqual(cached);
+  expect(page?.round.budget).toEqual(response.budget);
+  expect(page?.round.totals.committed).toEqual(response.totals.committed);
+  expect(page?.round.totals.available).toEqual(response.totals.available);
+});
