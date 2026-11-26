@@ -204,6 +204,8 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
     "utf8",
   );
   expect(visualContainerScript).toContain(storybookImage);
+  expect(reviewPacketWorkflow).toContain(storybookImage);
+  expect(reviewPacketWorkflow).toContain("cleanup-screenshots:");
 
   // Extract top-level job IDs under `jobs:` and ensure the `verify` aggregator awaits all others.
   const jobsBlock = workflow.split(/^jobs:\r?\n/m)[1] ?? "";

@@ -8,6 +8,7 @@ import { z } from "zod";
 import { normalizeRepoPath, readFlagValue } from "../cli.ts";
 import { findProtectedPaths, parseNameStatusZ } from "./agent-policy.ts";
 import { classifyChangedPaths, type MatchedMechanism } from "./architecture/mechanisms.ts";
+import { prScreenshotManifestSchema, type PrScreenshot } from "./pr-screenshots.ts";
 import {
   EXEMPT_AUTHORS,
   extractRecordSections,
@@ -63,6 +64,8 @@ export type ReviewPacketInput = {
   headRuntimeGrantsSql?: string;
   recordContent?: string;
   recordFilePath?: string;
+  screenshots?: readonly PrScreenshot[];
+  omittedScreenshotCount?: number;
 };
 
 const isTestPath = (path: string) =>
@@ -742,22 +745,43 @@ const renderVerificationIntegritySection = (
   return bullets.length > 0 ? ["### Verification Integrity", ...bullets] : [];
 };
 
-const renderUiSection = (changedFiles: readonly ChangedFile[]): string[] => {
+const escapeMarkdownAlt = (text: string) => text.replaceAll("[", "(").replaceAll("]", ")");
+
+const renderUiSection = (
+  changedFiles: readonly ChangedFile[],
+  screenshots: readonly PrScreenshot[] = [],
+  omittedScreenshotCount = 0,
+): string[] => {
   const paths = [...new Set(changedFiles.map((file) => file.path))];
   const uiFiles = paths.filter(isUiProdPath).sort();
   const storyFiles = paths.filter(isStoryPath).sort();
-  if (uiFiles.length === 0 && storyFiles.length === 0) {
+  if (uiFiles.length === 0 && storyFiles.length === 0 && screenshots.length === 0) {
     return [];
   }
 
-  const bullets: string[] = [];
+  const lines: string[] = ["### UI Touched"];
   if (uiFiles.length > 0) {
-    bullets.push(`- **UI modules (${uiFiles.length}):** ${formatCappedList(uiFiles)}`);
+    lines.push(`- **UI modules (${uiFiles.length}):** ${formatCappedList(uiFiles)}`);
   }
   if (storyFiles.length > 0) {
-    bullets.push(`- **Stories (${storyFiles.length}):** ${formatCappedList(storyFiles)}`);
+    lines.push(`- **Stories (${storyFiles.length}):** ${formatCappedList(storyFiles)}`);
   }
-  return ["### UI Touched", ...bullets];
+  if (screenshots.length > 0) {
+    lines.push("", "#### Desktop Screenshots");
+    for (const shot of screenshots) {
+      const label = shot.title ? `${shot.title} — ${shot.name}` : shot.storyId;
+      const status = shot.passed ? "passed" : "audit warnings";
+      lines.push(
+        "",
+        `**${label}** (\`${shot.storyId}\` · ${status})`,
+        `![${escapeMarkdownAlt(label)}](${shot.url})`,
+      );
+    }
+    if (omittedScreenshotCount > 0) {
+      lines.push("", `_+${omittedScreenshotCount} more affected stories omitted._`);
+    }
+  }
+  return lines;
 };
 
 /** Renders the complete exception-only sticky PR Review Packet markdown. */
@@ -781,7 +805,11 @@ export const renderReviewPacket = (input: ReviewPacketInput): string => {
     blocks.push(dbBlock);
   }
 
-  const uiBlock = renderUiSection(input.changedFiles);
+  const uiBlock = renderUiSection(
+    input.changedFiles,
+    input.screenshots,
+    input.omittedScreenshotCount,
+  );
   if (uiBlock.length > 0) {
     blocks.push(uiBlock);
   }
@@ -967,6 +995,9 @@ const runCli = async () => {
   const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
   const author = readFlagValue(args, "--author") ?? process.env.PR_AUTHOR ?? "";
   if (author && EXEMPT_AUTHORS.has(author)) {
+    if (process.env.GITHUB_OUTPUT) {
+      appendFileSync(process.env.GITHUB_OUTPUT, "has_ui_changes=false\n");
+    }
     process.stdout.write(`Skipping Review Packet for exempt author ${author}.\n`);
     return;
   }
@@ -975,6 +1006,7 @@ const runCli = async () => {
   const headRef = readFlagValue(args, "--head") ?? process.env.PR_HEAD_SHA ?? "HEAD";
   const prRaw = readFlagValue(args, "--pr") ?? process.env.PR_NUMBER;
   const prNumber = prRaw ? Number.parseInt(prRaw, 10) : undefined;
+  const screenshotsManifestFlag = readFlagValue(args, "--screenshots-manifest");
   const shouldPost = args.includes("--post");
 
   const mergeBase = gitRead(repoRoot, ["merge-base", baseRef, headRef]).trim();
@@ -985,6 +1017,16 @@ const runCli = async () => {
   const numstat = parseNumstatZ(gitRead(repoRoot, ["diff", "--numstat", "-z", range]));
   const addedLines = parseAddedDiffLines(gitRead(repoRoot, ["diff", "-U0", range]));
   const hasDbChanges = changedFiles.some((file) => isDbPath(file.path));
+  const hasUiChanges = changedFiles.some(
+    (file) => file.status !== "deleted" && (isUiProdPath(file.path) || isStoryPath(file.path)),
+  );
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(
+      process.env.GITHUB_OUTPUT,
+      `has_ui_changes=${hasUiChanges ? "true" : "false"}\n`,
+    );
+  }
+
   const baseMigrationSql = hasDbChanges ? readCombinedMigrationSql(repoRoot, mergeBase) : "";
   const headMigrationSql = hasDbChanges ? readCombinedMigrationSql(repoRoot, headRef) : "";
   const baseRuntimeGrantsSql = hasDbChanges
@@ -994,6 +1036,19 @@ const runCli = async () => {
     ? readGitFileOrEmpty(repoRoot, headRef, "foundation/db/database/runtime-grants.sql")
     : "";
   const record = readVerificationRecord(repoRoot, headRef, prNumber);
+
+  let screenshots: PrScreenshot[] = [];
+  let omittedScreenshotCount = 0;
+  if (screenshotsManifestFlag) {
+    const manifestPath = resolve(repoRoot, screenshotsManifestFlag);
+    if (existsSync(manifestPath)) {
+      const parsed = prScreenshotManifestSchema.parse(
+        JSON.parse(readFileSync(manifestPath, "utf8")),
+      );
+      screenshots = parsed.screenshots;
+      omittedScreenshotCount = parsed.omittedCount;
+    }
+  }
 
   const markdown = renderReviewPacket({
     changedFiles,
@@ -1005,6 +1060,8 @@ const runCli = async () => {
     headRuntimeGrantsSql,
     recordContent: record.content,
     recordFilePath: record.path,
+    screenshots,
+    omittedScreenshotCount,
   });
 
   if (process.env.GITHUB_STEP_SUMMARY) {
