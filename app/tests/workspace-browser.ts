@@ -64,17 +64,23 @@ try {
 
   process.exitCode = result.status ?? 1;
 } finally {
-  // The worker's Schedule outlives it, and would keep firing on a queue nothing polls.
-  const client = createWorkflowClient(readTemporalConfig(process.env, { local: true }));
   try {
-    // A server that accepts the connection and stops answering must not keep cleanup from the
-    // database disposal below, so the request has a deadline.
-    await client.connection.withDeadline(Date.now() + scheduleDeleteDeadlineMs, () =>
-      client.schedule.getHandle(work.MERIT_RECONCILE_SCHEDULE_ID).delete(),
-    );
+    // The worker's Schedule outlives it, and would keep firing on a queue nothing polls. A bad
+    // Temporal configuration or an unreachable server must not keep the database from disposal.
+    const client = createWorkflowClient(readTemporalConfig(process.env, { local: true }));
+    try {
+      // A server that accepts the connection and stops answering must not hold cleanup, so the
+      // request has a deadline.
+      await client.connection.withDeadline(Date.now() + scheduleDeleteDeadlineMs, () =>
+        client.schedule.getHandle(work.MERIT_RECONCILE_SCHEDULE_ID).delete(),
+      );
+    } catch {
+      // Temporal was not reached, did not answer in time, or the worker never created the Schedule.
+    }
+    await client.connection.close().catch(() => undefined);
   } catch {
-    // Temporal was not reached, did not answer in time, or the worker never created the Schedule.
+    // The Temporal configuration is invalid, so there is no Schedule to delete.
+  } finally {
+    await database.dispose();
   }
-  await client.connection.close().catch(() => undefined);
-  await database.dispose();
 }
