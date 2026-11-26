@@ -61,10 +61,8 @@ const main = async () => {
   for (const font of fonts) {
     await cp(font.path, path.join(project, font.face.file));
   }
-  const tokens = buildTokens(
-    tokensCss,
-    meta,
-    {
+  const tokens = buildTokens(tokensCss, meta, {
+    provenance: {
       source: "github",
       repo: "dmprav/merit",
       ref: `${git("rev-parse", "--abbrev-ref", "HEAD")}@${git("rev-parse", "--short", "HEAD")}`,
@@ -72,8 +70,8 @@ const main = async () => {
       producer: "tooling/storybook/design-system",
       synced: new Date().toISOString().slice(0, 10),
     },
-    fonts.map((font) => font.face),
-  );
+    fonts: fonts.map((font) => font.face),
+  });
   await writeFile(path.join(project, "tokens.json"), `${JSON.stringify(tokens, null, 2)}\n`);
 
   await cp(path.join(here, "content/README.md"), path.join(project, "README.md"));
