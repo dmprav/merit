@@ -28,7 +28,7 @@ import {
   filterStoryTargets,
   formatMarkdownReport,
   inferAppMode,
-  parseCliArgs,
+  parseUiVerifyArgs,
   runUiVerify,
   sanitizeTargetName,
   spawnManagedProcess,
@@ -95,7 +95,7 @@ vi.mock("../agents/file-lock.ts", async (importOriginal) => {
 
 /** Runs ui:verify's quick container delegation against `outDir` with a succeeding container. */
 const runContainerDelegation = (outDir: string) =>
-  runUiVerify(parseCliArgs(["--container", "--out", outDir]), {
+  runUiVerify(parseUiVerifyArgs(["--container", "--out", outDir]), {
     repoRoot: outDir,
     runContainer: () => 0,
     log: () => undefined,
@@ -146,9 +146,9 @@ const baseSnapshot = (overrides: Partial<FocusVisualSnapshot> = {}): FocusVisual
   ...overrides,
 });
 
-describe("parseCliArgs", () => {
+describe("parseUiVerifyArgs", () => {
   it("applies defaults when invoked with no arguments", () => {
-    expect(parseCliArgs([])).toEqual({
+    expect(parseUiVerifyArgs([])).toEqual({
       stories: [],
       routes: [],
       mode: undefined,
@@ -163,7 +163,7 @@ describe("parseCliArgs", () => {
 
   it("parses repeatable, comma-separated, equals-style flags and leading separator", () => {
     expect(
-      parseCliArgs([
+      parseUiVerifyArgs([
         "--",
         "--story",
         "button,dialog",
@@ -192,40 +192,40 @@ describe("parseCliArgs", () => {
   });
 
   it("splits comma-separated --story patterns and rejects /regex/ filters", () => {
-    expect(parseCliArgs(["--story", "button, components-*,text-field"]).stories).toEqual([
+    expect(parseUiVerifyArgs(["--story", "button, components-*,text-field"]).stories).toEqual([
       "button",
       "components-*",
       "text-field",
     ]);
-    expect(() => parseCliArgs(["--story", "/Button/i"])).toThrow(
+    expect(() => parseUiVerifyArgs(["--story", "/Button/i"])).toThrow(
       /\/regex\/ filters are not supported/,
     );
-    expect(() => parseCliArgs(["--story", "dialog,/^components-button/"])).toThrow(
+    expect(() => parseUiVerifyArgs(["--story", "dialog,/^components-button/"])).toThrow(
       /Invalid --story "\/\^components-button\/"/,
     );
   });
 
   it("rejects invalid flags, modes, viewports, routes, and container+route combinations", () => {
-    expect(() => parseCliArgs(["--unknown"])).toThrow(/Unknown option/);
-    expect(() => parseCliArgs(["--story"])).toThrow(/--story requires a value/);
-    expect(() => parseCliArgs(["--mode", "prod"])).toThrow(/Invalid --mode/);
-    expect(() => parseCliArgs(["--viewport", "tablet"])).toThrow(/Invalid --viewport/);
-    expect(() => parseCliArgs(["--route", "demo"])).toThrow(/Routes must start with "\/"/);
-    expect(() => parseCliArgs(["--route", "//evil.test/app"])).toThrow(
+    expect(() => parseUiVerifyArgs(["--unknown"])).toThrow(/Unknown option/);
+    expect(() => parseUiVerifyArgs(["--story"])).toThrow(/--story requires a value/);
+    expect(() => parseUiVerifyArgs(["--mode", "prod"])).toThrow(/Invalid --mode/);
+    expect(() => parseUiVerifyArgs(["--viewport", "tablet"])).toThrow(/Invalid --viewport/);
+    expect(() => parseUiVerifyArgs(["--route", "demo"])).toThrow(/Routes must start with "\/"/);
+    expect(() => parseUiVerifyArgs(["--route", "//evil.test/app"])).toThrow(
       /Protocol-relative routes are not allowed/,
     );
-    expect(() => parseCliArgs(["--route", "/\\evil.test/app"])).toThrow(
+    expect(() => parseUiVerifyArgs(["--route", "/\\evil.test/app"])).toThrow(
       /Protocol-relative routes are not allowed/,
     );
-    expect(() => parseCliArgs(["--route", "/app\nfoo"])).toThrow(/control characters/);
-    expect(() => parseCliArgs(["--story", ","])).toThrow(/Invalid --story/);
-    expect(() => parseCliArgs(["--story", " , "])).toThrow(/Invalid --story/);
-    expect(() => parseCliArgs(["--story=,"])).toThrow(/Invalid --story/);
-    expect(() => parseCliArgs(["--container", "--update", "--story", " , "])).toThrow(
+    expect(() => parseUiVerifyArgs(["--route", "/app\nfoo"])).toThrow(/control characters/);
+    expect(() => parseUiVerifyArgs(["--story", ","])).toThrow(/Invalid --story/);
+    expect(() => parseUiVerifyArgs(["--story", " , "])).toThrow(/Invalid --story/);
+    expect(() => parseUiVerifyArgs(["--story=,"])).toThrow(/Invalid --story/);
+    expect(() => parseUiVerifyArgs(["--container", "--update", "--story", " , "])).toThrow(
       /Invalid --story/,
     );
-    expect(() => parseCliArgs(["--route", " , "])).toThrow(/Invalid --route/);
-    expect(() => parseCliArgs(["--container", "--route", "/demo"])).toThrow(
+    expect(() => parseUiVerifyArgs(["--route", " , "])).toThrow(/Invalid --route/);
+    expect(() => parseUiVerifyArgs(["--container", "--route", "/demo"])).toThrow(
       /--container delegates Storybook visual baselines/,
     );
   });
@@ -661,7 +661,7 @@ describe("container delegation and proof reporting", () => {
   // Playwright matches a bare --grep case-insensitively against the project name, the file
   // name, and the test title joined with spaces.
   const containerSelection = (cliArgs: string[]) => {
-    const args = buildContainerDelegationArgs(parseCliArgs(["--container", ...cliArgs]));
+    const args = buildContainerDelegationArgs(parseUiVerifyArgs(["--container", ...cliArgs]));
     const grepIndex = args.indexOf("--grep");
     const grep = grepIndex === -1 ? undefined : new RegExp(args[grepIndex + 1] ?? "", "i");
     return visualSpecTitles().filter((title) =>
@@ -674,7 +674,7 @@ describe("container delegation and proof reporting", () => {
   it("builds container delegation arguments forwarding update, viewport, and story filters", () => {
     expect(
       buildContainerDelegationArgs(
-        parseCliArgs(["--container", "--update", "--viewport", "mobile", "--story", "button"]),
+        parseUiVerifyArgs(["--container", "--update", "--viewport", "mobile", "--story", "button"]),
       ).slice(0, 3),
     ).toEqual(["--update-snapshots", "--project", "mobile"]);
     expect(containerSelection(["--story", "button"])).toEqual([
@@ -696,13 +696,13 @@ describe("container delegation and proof reporting", () => {
       "appearance: patterns-form-dialog--with-context",
     ]);
 
-    expect(buildContainerDelegationArgs(parseCliArgs(["--container"]))).toEqual([]);
+    expect(buildContainerDelegationArgs(parseUiVerifyArgs(["--container"]))).toEqual([]);
   });
 
   it("rejects a container story filter that matches only Playwright project or file names", () => {
     for (const story of ["desktop", "mobile", "visual", "spec", "dialog.open", "constructor"]) {
       expect(
-        () => buildContainerDelegationArgs(parseCliArgs(["--container", "--story", story])),
+        () => buildContainerDelegationArgs(parseUiVerifyArgs(["--container", "--story", story])),
         story,
       ).toThrow(`--story "${story}" matches no visual baseline story`);
     }
@@ -891,7 +891,7 @@ describe("container delegation and proof reporting", () => {
 
       process.env.MERIT_STORYBOOK_PREBUILT = "1";
       const results = await runUiVerify(
-        parseCliArgs([
+        parseUiVerifyArgs([
           "--update",
           "--viewport",
           "desktop",
@@ -1002,7 +1002,7 @@ describe("container delegation and proof reporting", () => {
     });
     try {
       await runUiVerify(
-        { ...parseCliArgs(["--out", outDir]), routes: ["//evil.test/app"] },
+        { ...parseUiVerifyArgs(["--out", outDir]), routes: ["//evil.test/app"] },
         {
           repoRoot: tempDir,
           log: (line) => {
@@ -1035,7 +1035,7 @@ describe("container delegation and proof reporting", () => {
         listenersDuringTeardown = process.listenerCount("SIGINT");
       };
       const results = await runUiVerify(
-        { ...parseCliArgs(["--out", outDir]), routes: ["//evil.test/app"] },
+        { ...parseUiVerifyArgs(["--out", outDir]), routes: ["//evil.test/app"] },
         { repoRoot: tempDir, log: () => undefined },
       );
 
@@ -1116,7 +1116,7 @@ describe("container delegation and proof reporting", () => {
 
       process.env.MERIT_STORYBOOK_PREBUILT = "1";
       const results = await runUiVerify(
-        parseCliArgs(["--story", "does-not-exist", "--out", outDir]),
+        parseUiVerifyArgs(["--story", "does-not-exist", "--out", outDir]),
         {
           repoRoot: tempDir,
           log: () => undefined,
@@ -1151,7 +1151,7 @@ describe("container delegation and proof reporting", () => {
     try {
       const receivedArgs: string[][] = [];
       const results = await runUiVerify(
-        parseCliArgs(["--container", "--update", "--out", tempDir]),
+        parseUiVerifyArgs(["--container", "--update", "--out", tempDir]),
         {
           repoRoot: tempDir,
           runContainer: (args) => {

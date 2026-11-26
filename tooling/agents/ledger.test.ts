@@ -262,9 +262,11 @@ describe("ledger helpers", () => {
       decision: "-remove dead branch",
       evidence: "--reslut=ok",
     });
-    expect(() => parseLogArgs(["--slug", "feat-one", "--bogus", "1"])).toThrow(/Unknown argument/);
+    expect(() => parseLogArgs(["--slug", "feat-one", "--bogus", "1"])).toThrow(
+      /Unknown option '--bogus'/,
+    );
     expect(() => parseLogArgs(["--slug", "feat-one", "--json=true"])).toThrow(
-      /--json does not accept a value/,
+      /Option '--json' does not take an argument/,
     );
 
     expect(parseTailArgs(["--slug", "feat-one"])).toEqual({
@@ -279,10 +281,14 @@ describe("ledger helpers", () => {
       limit: 5,
       json: true,
     });
-    expect(() => parseTailArgs(["--slug", "feat-one", "--limit", "0"])).toThrow(/Invalid --limit/);
-    expect(() => parseTailArgs(["--slug", "feat-one", "--limit", "-3"])).toThrow(/Invalid --limit/);
+    expect(() => parseTailArgs(["--slug", "feat-one", "--limit", "0"])).toThrow(
+      /--limit must be a whole number of at least 1/,
+    );
+    expect(() => parseTailArgs(["--slug", "feat-one", "--limit", "-3"])).toThrow(
+      /--limit must be a whole number of at least 1/,
+    );
     expect(() => parseTailArgs(["--slug", "feat-one", "--limit", "10abc"])).toThrow(
-      /Invalid --limit/,
+      /--limit must be a whole number of at least 1/,
     );
 
     expect(parseSummaryArgs(["--slug", "feat-one", "--json"])).toEqual({

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
-import { errorMessage, normalizeRepoPath, readFlagValue, readIntegerFlag } from "../cli.ts";
+import { errorMessage, normalizeRepoPath, parseCliArgs, parseWholeNumber } from "../cli.ts";
 import { parseProposalMarker, TRUSTED_AUTHOR_ASSOCIATIONS } from "../verification/agent-policy.ts";
 import { classifyChangedPaths } from "../verification/architecture/mechanisms.ts";
 import { MAX_OPEN_PROPOSALS, runScoutGh, SCOUT_LENSES, type ScoutLens } from "./proposal.ts";
@@ -1294,22 +1294,24 @@ const isCommitAncestor = (repoRoot: string, sha: string, ref: string): boolean =
   }
 };
 
-export const parseContextLensFlag = (args: readonly string[]): ScoutLens | "auto" => {
-  const raw = readFlagValue(args, "--lens");
-  if (raw === "auto") {
-    return "auto";
+const CONTEXT_USAGE = `Usage: scout.ts context --lens <auto|${SCOUT_LENSES.join("|")}>`;
+const ADVANCE_USAGE = `Usage: scout.ts advance --lens <${SCOUT_LENSES.join("|")}> --commit <scanTipSha> [--target <rotationTarget>] [--pr <n>]`;
+
+const requireLens = (lens: string | undefined, usage: string): string => {
+  if (lens === undefined) {
+    throw new Error(`Missing required --lens flag.\n${usage}`);
   }
-  return lensNameSchema.parse(raw);
+  return lens;
 };
 
-export const parseAdvanceLensFlag = (args: readonly string[]): ScoutLens => {
-  const raw = readFlagValue(args, "--lens");
-  if (raw === "auto") {
-    throw new Error(
-      'Cannot pass "--lens auto" to advance. Pass the explicit lens emitted by "scout.ts context".',
-    );
-  }
-  return lensNameSchema.parse(raw);
+/** Reads `context` arguments; `--lens auto` lets the command pick the next lens. */
+export const parseContextArgs = (args: readonly string[]): ScoutLens | "auto" => {
+  const { values } = parseCliArgs(args, {
+    options: { lens: { type: "string" } },
+    usage: CONTEXT_USAGE,
+  });
+  const lens = requireLens(values.lens, CONTEXT_USAGE);
+  return lens === "auto" ? "auto" : lensNameSchema.parse(lens);
 };
 
 const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") => {
@@ -1508,27 +1510,48 @@ const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") 
   console.log(JSON.stringify(context, null, 2));
 };
 
-export type AdvanceOptions = { commitSha: string; target?: string; prNumber?: number };
+export type AdvanceOptions = {
+  lens: ScoutLens;
+  commitSha: string;
+  target?: string;
+  prNumber?: number;
+};
 
 /** Validates `advance` arguments before the state issue is read or rewritten. */
 export const parseAdvanceArgs = (args: readonly string[]): AdvanceOptions => {
-  const commitSha = readFlagValue(args, "--commit");
-  if (!commitSha) {
+  const { values } = parseCliArgs(args, {
+    options: {
+      lens: { type: "string" },
+      commit: { type: "string" },
+      target: { type: "string" },
+      pr: { type: "string" },
+    },
+    usage: ADVANCE_USAGE,
+  });
+  const lens = requireLens(values.lens, ADVANCE_USAGE);
+  if (lens === "auto") {
+    throw new Error(
+      'Cannot pass "--lens auto" to advance. Pass the explicit lens emitted by "scout.ts context".',
+    );
+  }
+  if (!values.commit) {
     throw new Error(
       'Missing required --commit <scanTipSha> flag. Pass the scanTipSha emitted by "scout.ts context".',
     );
   }
-  const target = readFlagValue(args, "--target")?.trim();
-  const prNumber = readIntegerFlag(args, "--pr", 1);
+  const target = values.target?.trim();
   return {
-    commitSha,
+    lens: lensNameSchema.parse(lens),
+    commitSha: values.commit,
     ...(target ? { target } : {}),
-    ...(prNumber !== null ? { prNumber } : {}),
+    ...(values.pr !== undefined ? { prNumber: parseWholeNumber(values.pr, "--pr") } : {}),
   };
 };
 
-const runAdvanceCommand = (repoRoot: string, lens: ScoutLens, args: readonly string[]) => {
-  const { commitSha, target, prNumber } = parseAdvanceArgs(args);
+const runAdvanceCommand = (
+  repoRoot: string,
+  { lens, commitSha, target, prNumber }: AdvanceOptions,
+) => {
   const stateIssue = fetchScoutStateIssue(repoRoot);
   const { body, cursor } = advanceScoutStateBody({
     issueNumber: stateIssue.number,
@@ -1564,11 +1587,11 @@ const runCli = () => {
   const [command, ...rest] = process.argv.slice(2);
 
   if (command === "context") {
-    runContextCommand(repoRoot, parseContextLensFlag(rest));
+    runContextCommand(repoRoot, parseContextArgs(rest));
     return;
   }
   if (command === "advance") {
-    runAdvanceCommand(repoRoot, parseAdvanceLensFlag(rest), rest);
+    runAdvanceCommand(repoRoot, parseAdvanceArgs(rest));
     return;
   }
   throw new Error(`Unknown scout command "${command ?? ""}". Expected "context" or "advance".`);

@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
-import { errorMessage, stripLeadingSeparator } from "../cli.ts";
+import { errorMessage, parseCliArgs, parseWholeNumber, stripLeadingSeparator } from "../cli.ts";
 import { type FileLockOptions, getErrnoCode, withFileLock } from "./file-lock.ts";
 
 export const LEDGER_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -38,32 +38,14 @@ export const LEDGER_HEADER = LEDGER_COLUMNS.join("\t");
 const DEFAULT_REPO_ROOT = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const FORMULA_PREFIX_PATTERN = /^[=+\-@"]/;
 const NON_WHITESPACE_TOKEN_PATTERN = /^\S+$/;
-const LONG_OPTION_TOKEN_PATTERN = /^--[a-z0-9]/i;
 const MAX_SYMLINK_HOPS = 40;
 const isoTimestampSchema = z.union([z.iso.datetime({ offset: true }), z.iso.date()]);
-const POSITIVE_INT_PATTERN = /^\d+$/;
 
 const DEFAULT_LEDGER_LOCK_INITIAL_DELAY_MS = 15;
 const DEFAULT_LEDGER_LOCK_MAX_DELAY_MS = 150;
 // Ledger paths may never enter this directory, so a lock path cannot name another ledger.
 const LEDGER_LOCK_DIRECTORY = ".ledger-locks";
 const strictUtf8Decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
-
-const KNOWN_CLI_FLAGS = new Set([
-  "--slug",
-  "--file",
-  "--run-id",
-  "--phase",
-  "--decision",
-  "--why",
-  "--evidence",
-  "--result",
-  "--ts",
-  "--limit",
-  "--json",
-  "--help",
-  "-h",
-]);
 
 const isControlCharCode = (code: number): boolean =>
   code <= 0x1f || code === 0x7f || code === 0x2028 || code === 0x2029;
@@ -724,219 +706,86 @@ export const summarizeLedger = ({
   });
 };
 
-const splitFlagToken = (token: string): { flag: string; inlineValue?: string } => {
-  const eqIndex = token.indexOf("=");
-  if (eqIndex === -1) {
-    return { flag: token };
-  }
-  return { flag: token.slice(0, eqIndex), inlineValue: token.slice(eqIndex + 1) };
-};
+const COMMAND_USAGE = {
+  log: "(--slug <slug> | --file <path>) --run-id <id> --phase <phase> --decision <decision> --why <why> [--evidence <evidence>] [--result <result>] [--ts <iso>] [--json]",
+  tail: "(--slug <slug> | --file <path>) [--limit <n>] [--json]",
+  summary: "(--slug <slug> | --file <path>) [--json]",
+} as const;
 
-const readOptionValue = (
-  args: readonly string[],
-  index: number,
-  flag: string,
-  inlineValue: string | undefined,
-): { value: string; nextIndex: number } => {
-  if (inlineValue !== undefined) {
-    return { value: inlineValue, nextIndex: index };
-  }
-  const value = args[index + 1];
-  if (value === undefined || KNOWN_CLI_FLAGS.has(splitFlagToken(value).flag)) {
-    throw new Error(`${flag} requires a value.`);
-  }
-  if (LONG_OPTION_TOKEN_PATTERN.test(value)) {
-    throw new Error(
-      `${flag} requires a value (got option-like token "${value}"; use ${flag}=${value} to pass it literally).`,
-    );
-  }
-  return { value, nextIndex: index + 1 };
-};
+const TARGET_OPTIONS = {
+  slug: { type: "string" },
+  file: { type: "string" },
+  json: { type: "boolean" },
+} as const;
 
-export const parseLogArgs = (rawArgs: readonly string[]): LedgerLogCliOptions => {
-  const args = stripLeadingSeparator(rawArgs);
-  let slug: string | undefined;
-  let file: string | undefined;
-  let runId: string | undefined;
-  let phase: string | undefined;
-  let decision: string | undefined;
-  let why: string | undefined;
-  let evidence: string | undefined;
-  let result: string | undefined;
-  let ts: string | undefined;
-  let json = false;
+const ledgerUsage = (command: keyof typeof COMMAND_USAGE) =>
+  `Usage: agent:ledger ${command} ${COMMAND_USAGE[command]}`;
 
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index] ?? "";
-    const { flag, inlineValue } = splitFlagToken(token);
-
-    if (flag === "--json") {
-      if (inlineValue !== undefined) {
-        throw new Error("--json does not accept a value.");
-      }
-      json = true;
-      continue;
-    }
-
-    if (
-      flag === "--slug" ||
-      flag === "--file" ||
-      flag === "--run-id" ||
-      flag === "--phase" ||
-      flag === "--decision" ||
-      flag === "--why" ||
-      flag === "--evidence" ||
-      flag === "--result" ||
-      flag === "--ts"
-    ) {
-      const parsed = readOptionValue(args, index, flag, inlineValue);
-      index = parsed.nextIndex;
-      if (flag === "--slug") {
-        slug = parsed.value;
-      } else if (flag === "--file") {
-        file = parsed.value;
-      } else if (flag === "--run-id") {
-        runId = parsed.value;
-      } else if (flag === "--phase") {
-        phase = parsed.value;
-      } else if (flag === "--decision") {
-        decision = parsed.value;
-      } else if (flag === "--why") {
-        why = parsed.value;
-      } else if (flag === "--evidence") {
-        evidence = parsed.value;
-      } else if (flag === "--result") {
-        result = parsed.value;
-      } else if (flag === "--ts") {
-        ts = parsed.value;
-      }
-      continue;
-    }
-
-    throw new Error(
-      `Unknown argument "${token}". Usage: agent:ledger log (--slug <slug> | --file <path>) --run-id <id> --phase <phase> --decision <decision> --why <why> [--evidence <evidence>] [--result <result>] [--ts <iso>] [--json]`,
-    );
-  }
-
+const requireTarget = ({ slug, file }: { slug?: string; file?: string }) => {
   if (!slug && !file) {
     throw new Error("Missing --slug <slug> (or --file <path>).");
   }
   if (slug !== undefined) {
     validateLedgerSlug(slug);
   }
+  return { slug, file };
+};
+
+const requireOption = (value: string | undefined, option: string): string => {
+  if (!value) {
+    throw new Error(`Missing required option --${option} <${option}>.`);
+  }
+  return value;
+};
+
+export const parseLogArgs = (args: readonly string[]): LedgerLogCliOptions => {
+  const { values } = parseCliArgs(args, {
+    options: {
+      ...TARGET_OPTIONS,
+      "run-id": { type: "string" },
+      phase: { type: "string" },
+      decision: { type: "string" },
+      why: { type: "string" },
+      evidence: { type: "string" },
+      result: { type: "string" },
+      ts: { type: "string" },
+    },
+    usage: ledgerUsage("log"),
+  });
+  const target = requireTarget(values);
+  const runId = values["run-id"];
   if (runId === undefined) {
     throw new Error("Missing required option --run-id <id>.");
   }
-  validateLedgerRunId(runId);
-  if (!phase) {
-    throw new Error("Missing required option --phase <phase>.");
-  }
-  if (!decision) {
-    throw new Error("Missing required option --decision <decision>.");
-  }
-  if (!why) {
-    throw new Error("Missing required option --why <why>.");
-  }
-
-  return { slug, file, runId, phase, decision, why, evidence, result, ts, json };
+  return {
+    ...target,
+    runId: validateLedgerRunId(runId),
+    phase: requireOption(values.phase, "phase"),
+    decision: requireOption(values.decision, "decision"),
+    why: requireOption(values.why, "why"),
+    evidence: values.evidence,
+    result: values.result,
+    ts: values.ts,
+    json: values.json ?? false,
+  };
 };
 
-export const parseTailArgs = (rawArgs: readonly string[]): LedgerTailCliOptions => {
-  const args = stripLeadingSeparator(rawArgs);
-  let slug: string | undefined;
-  let file: string | undefined;
-  let limit = DEFAULT_TAIL_LIMIT;
-  let json = false;
-
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index] ?? "";
-    const { flag, inlineValue } = splitFlagToken(token);
-
-    if (flag === "--json") {
-      if (inlineValue !== undefined) {
-        throw new Error("--json does not accept a value.");
-      }
-      json = true;
-      continue;
-    }
-
-    if (flag === "--slug" || flag === "--file" || flag === "--limit") {
-      const parsed = readOptionValue(args, index, flag, inlineValue);
-      index = parsed.nextIndex;
-      if (flag === "--slug") {
-        slug = parsed.value;
-      } else if (flag === "--file") {
-        file = parsed.value;
-      } else {
-        if (!POSITIVE_INT_PATTERN.test(parsed.value)) {
-          throw new Error(`Invalid --limit "${parsed.value}". Expected a positive integer.`);
-        }
-        const numeric = Number.parseInt(parsed.value, 10);
-        if (!Number.isSafeInteger(numeric) || numeric <= 0) {
-          throw new Error(`Invalid --limit "${parsed.value}". Expected a positive integer.`);
-        }
-        limit = numeric;
-      }
-      continue;
-    }
-
-    throw new Error(
-      `Unknown argument "${token}". Usage: agent:ledger tail (--slug <slug> | --file <path>) [--limit <n>] [--json]`,
-    );
-  }
-
-  if (!slug && !file) {
-    throw new Error("Missing --slug <slug> (or --file <path>).");
-  }
-  if (slug !== undefined) {
-    validateLedgerSlug(slug);
-  }
-
-  return { slug, file, limit, json };
+export const parseTailArgs = (args: readonly string[]): LedgerTailCliOptions => {
+  const { values } = parseCliArgs(args, {
+    options: { ...TARGET_OPTIONS, limit: { type: "string" } },
+    usage: ledgerUsage("tail"),
+  });
+  return {
+    ...requireTarget(values),
+    limit:
+      values.limit === undefined ? DEFAULT_TAIL_LIMIT : parseWholeNumber(values.limit, "--limit"),
+    json: values.json ?? false,
+  };
 };
 
-export const parseSummaryArgs = (rawArgs: readonly string[]): LedgerSummaryCliOptions => {
-  const args = stripLeadingSeparator(rawArgs);
-  let slug: string | undefined;
-  let file: string | undefined;
-  let json = false;
-
-  for (let index = 0; index < args.length; index += 1) {
-    const token = args[index] ?? "";
-    const { flag, inlineValue } = splitFlagToken(token);
-
-    if (flag === "--json") {
-      if (inlineValue !== undefined) {
-        throw new Error("--json does not accept a value.");
-      }
-      json = true;
-      continue;
-    }
-
-    if (flag === "--slug" || flag === "--file") {
-      const parsed = readOptionValue(args, index, flag, inlineValue);
-      index = parsed.nextIndex;
-      if (flag === "--slug") {
-        slug = parsed.value;
-      } else {
-        file = parsed.value;
-      }
-      continue;
-    }
-
-    throw new Error(
-      `Unknown argument "${token}". Usage: agent:ledger summary (--slug <slug> | --file <path>) [--json]`,
-    );
-  }
-
-  if (!slug && !file) {
-    throw new Error("Missing --slug <slug> (or --file <path>).");
-  }
-  if (slug !== undefined) {
-    validateLedgerSlug(slug);
-  }
-
-  return { slug, file, json };
+export const parseSummaryArgs = (args: readonly string[]): LedgerSummaryCliOptions => {
+  const { values } = parseCliArgs(args, { options: TARGET_OPTIONS, usage: ledgerUsage("summary") });
+  return { ...requireTarget(values), json: values.json ?? false };
 };
 
 const formatEntryLine = (entry: LedgerEntry): string => {
@@ -1017,9 +866,9 @@ const USAGE_TEXT = [
   "Usage: vp run agent:ledger -- <command> [options]",
   "",
   "Commands:",
-  "  log      (--slug <slug> | --file <path>) --run-id <id> --phase <phase> --decision <decision> --why <why> [--evidence <evidence>] [--result <result>] [--ts <iso>] [--json]",
-  "  tail     (--slug <slug> | --file <path>) [--limit <n>] [--json]",
-  "  summary  (--slug <slug> | --file <path>) [--json]",
+  `  log      ${COMMAND_USAGE.log}`,
+  `  tail     ${COMMAND_USAGE.tail}`,
+  `  summary  ${COMMAND_USAGE.summary}`,
 ].join("\n");
 
 export const executeLedgerCli = async (

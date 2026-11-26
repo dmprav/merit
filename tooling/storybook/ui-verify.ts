@@ -21,7 +21,7 @@ import { loadEnvLocalFiles } from "@merit/test-support/env";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
 import { acquireFileLock, FileLockBusyError } from "../agents/file-lock.ts";
-import { errorMessage, stripLeadingSeparator } from "../cli.ts";
+import { errorMessage, parseCliArgs } from "../cli.ts";
 import { VISUAL_TARGETS } from "./visual-targets.ts";
 
 const REPO_ROOT = resolve(fileURLToPath(new URL("../../", import.meta.url)));
@@ -231,27 +231,6 @@ const splitCommaValues = (raw: string): string[] =>
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
 
-const readFlagValue = (
-  args: readonly string[],
-  index: number,
-  flag: string,
-): { value: string; nextIndex: number } => {
-  const token = args[index] ?? "";
-  const eqIndex = token.indexOf("=");
-  if (eqIndex !== -1) {
-    const value = token.slice(eqIndex + 1).trim();
-    if (!value) {
-      throw new Error(`${flag} requires a value.`);
-    }
-    return { value, nextIndex: index };
-  }
-  const next = args[index + 1];
-  if (!next || next.startsWith("-")) {
-    throw new Error(`${flag} requires a value.`);
-  }
-  return { value: next, nextIndex: index + 1 };
-};
-
 export const normalizeRoutePattern = (raw: string): string => {
   const trimmed = raw.trim();
   if (!trimmed.startsWith("/")) {
@@ -280,100 +259,73 @@ export const normalizeRoutePattern = (raw: string): string => {
   return trimmed;
 };
 
-export const parseCliArgs = (rawArgs: readonly string[]): UiVerifyCliOptions => {
-  const args = stripLeadingSeparator(rawArgs);
-  const stories: string[] = [];
-  const routes: string[] = [];
-  let mode: AppMode | undefined;
-  let viewport: ViewportOption = "both";
-  let update = false;
-  let container = false;
-  let outDir = DEFAULT_OUT_DIR;
-  let json = false;
-  let help = false;
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index] ?? "";
-    if (arg === "--help" || arg === "-h") {
-      help = true;
-      continue;
-    }
-    if (arg === "--story" || arg.startsWith("--story=")) {
-      const { value, nextIndex } = readFlagValue(args, index, "--story");
-      const parsedPatterns = splitCommaValues(value);
-      if (parsedPatterns.length === 0) {
-        throw new Error(`Invalid --story "${value}". Expected at least one non-empty pattern.`);
-      }
-      const regexPattern = parsedPatterns.find((pattern) => pattern.startsWith("/"));
-      if (regexPattern) {
-        throw new Error(
-          `Invalid --story "${regexPattern}". Use a substring or glob (* and ?); /regex/ filters are not supported.`,
-        );
-      }
-      stories.push(...parsedPatterns);
-      index = nextIndex;
-      continue;
-    }
-    if (arg === "--route" || arg.startsWith("--route=")) {
-      const { value, nextIndex } = readFlagValue(args, index, "--route");
-      const parsedRoutes = splitCommaValues(value);
-      if (parsedRoutes.length === 0) {
-        throw new Error(
-          `Invalid --route "${value}". Expected at least one route starting with "/".`,
-        );
-      }
-      for (const route of parsedRoutes) {
-        routes.push(normalizeRoutePattern(route));
-      }
-      index = nextIndex;
-      continue;
-    }
-    if (arg === "--mode" || arg.startsWith("--mode=")) {
-      const { value, nextIndex } = readFlagValue(args, index, "--mode");
-      if (value !== "demo" && value !== "workspace") {
-        throw new Error(`Invalid --mode "${value}". Expected "demo" or "workspace".`);
-      }
-      mode = value;
-      index = nextIndex;
-      continue;
-    }
-    if (arg === "--viewport" || arg.startsWith("--viewport=")) {
-      const { value, nextIndex } = readFlagValue(args, index, "--viewport");
-      if (value !== "desktop" && value !== "mobile" && value !== "both") {
-        throw new Error(`Invalid --viewport "${value}". Expected "desktop", "mobile", or "both".`);
-      }
-      viewport = value;
-      index = nextIndex;
-      continue;
-    }
-    if (arg === "--out" || arg.startsWith("--out=")) {
-      const { value, nextIndex } = readFlagValue(args, index, "--out");
-      outDir = value;
-      index = nextIndex;
-      continue;
-    }
-    if (arg === "--update") {
-      update = true;
-      continue;
-    }
-    if (arg === "--container") {
-      container = true;
-      continue;
-    }
-    if (arg === "--json") {
-      json = true;
-      continue;
-    }
-    throw new Error(`Unknown option "${arg}".\n${USAGE}`);
+const parseStoryPatterns = (value: string): string[] => {
+  const patterns = splitCommaValues(value);
+  if (patterns.length === 0) {
+    throw new Error(`Invalid --story "${value}". Expected at least one non-empty pattern.`);
   }
+  const regexPattern = patterns.find((pattern) => pattern.startsWith("/"));
+  if (regexPattern) {
+    throw new Error(
+      `Invalid --story "${regexPattern}". Use a substring or glob (* and ?); /regex/ filters are not supported.`,
+    );
+  }
+  return patterns;
+};
 
+const parseRoutePatterns = (value: string): string[] => {
+  const routes = splitCommaValues(value);
+  if (routes.length === 0) {
+    throw new Error(`Invalid --route "${value}". Expected at least one route starting with "/".`);
+  }
+  return routes.map(normalizeRoutePattern);
+};
+
+export const parseUiVerifyArgs = (args: readonly string[]): UiVerifyCliOptions => {
+  const { values } = parseCliArgs(args, {
+    options: {
+      story: { type: "string", multiple: true },
+      route: { type: "string", multiple: true },
+      mode: { type: "string" },
+      viewport: { type: "string" },
+      update: { type: "boolean" },
+      container: { type: "boolean" },
+      out: { type: "string" },
+      json: { type: "boolean" },
+      help: { type: "boolean", short: "h" },
+    },
+    usage: USAGE,
+  });
+  const { mode, viewport = "both" } = values;
+  if (mode !== undefined && mode !== "demo" && mode !== "workspace") {
+    throw new Error(`Invalid --mode "${mode}". Expected "demo" or "workspace".`);
+  }
+  if (viewport !== "desktop" && viewport !== "mobile" && viewport !== "both") {
+    throw new Error(`Invalid --viewport "${viewport}". Expected "desktop", "mobile", or "both".`);
+  }
+  const outDir = values.out?.trim() ?? DEFAULT_OUT_DIR;
+  if (!outDir) {
+    throw new Error("--out requires a value.");
+  }
+  const routes = (values.route ?? []).flatMap(parseRoutePatterns);
+  const container = values.container ?? false;
   if (container && routes.length > 0) {
     throw new Error(
       "--container delegates Storybook visual baselines and cannot combine with --route.",
     );
   }
 
-  return { stories, routes, mode, viewport, update, container, outDir, json, help };
+  return {
+    stories: (values.story ?? []).flatMap(parseStoryPatterns),
+    routes,
+    mode,
+    viewport,
+    update: values.update ?? false,
+    container,
+    outDir,
+    json: values.json ?? false,
+    help: values.help ?? false,
+  };
 };
 
 export const inferAppMode = (routes: readonly string[], explicitMode?: AppMode): AppMode => {
@@ -2436,7 +2388,7 @@ export const runUiVerify = async (
 };
 
 const main = async () => {
-  const options = parseCliArgs(process.argv.slice(2));
+  const options = parseUiVerifyArgs(process.argv.slice(2));
   if (options.help) {
     process.stdout.write(`${USAGE}\n`);
     return;

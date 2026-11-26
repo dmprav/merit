@@ -17,7 +17,7 @@ import { parseEnv } from "node:util";
 
 import { z } from "zod";
 
-import { errorMessage, stripLeadingSeparator } from "../cli.ts";
+import { errorMessage, parseCliArgs } from "../cli.ts";
 import {
   assertSafeManagedDatabaseName,
   buildLocalDatabaseUrl,
@@ -197,137 +197,78 @@ export const databaseNameForSlug = (slug: string): string => {
   return name;
 };
 
-export const parseCreateArgs = (rawArgs: readonly string[]): CreateCliOptions => {
-  const args = stripLeadingSeparator(rawArgs);
-  let slug: string | undefined;
-  let base: string | undefined;
-  let branch: string | undefined;
-  let dir: string | undefined;
-  let withDb = false;
-  let noDb = false;
-  let doctor = false;
-  let json = false;
+const CREATE_USAGE =
+  "Usage: worktree:create <slug> [--base <ref>] [--branch <name>] [--dir <path>] [--with-db | --no-db] [--doctor] [--json]";
+const CLEAN_USAGE = "Usage: worktree:clean <slug> [--keep-branch] [--json]";
 
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index] ?? "";
-    if (arg === "--base") {
-      const value = args[index + 1];
-      if (!value || value.startsWith("-")) {
-        throw new Error("--base requires a git ref value.");
-      }
-      base = value;
-      index += 1;
-      continue;
-    }
-    if (arg === "--branch") {
-      const value = args[index + 1];
-      if (!value || value.startsWith("-")) {
-        throw new Error("--branch requires a branch name.");
-      }
-      branch = value;
-      index += 1;
-      continue;
-    }
-    if (arg === "--dir") {
-      const value = args[index + 1];
-      if (!value || value.startsWith("-")) {
-        throw new Error("--dir requires a directory path.");
-      }
-      dir = value;
-      index += 1;
-      continue;
-    }
-    if (arg === "--with-db") {
-      withDb = true;
-      continue;
-    }
-    if (arg === "--no-db") {
-      noDb = true;
-      continue;
-    }
-    if (arg === "--doctor") {
-      doctor = true;
-      continue;
-    }
-    if (arg === "--json") {
-      json = true;
-      continue;
-    }
-    if (arg.startsWith("-")) {
-      throw new Error(
-        `Unknown option "${arg}". Usage: worktree:create <slug> [--base <ref>] [--branch <name>] [--dir <path>] [--with-db | --no-db] [--doctor] [--json]`,
-      );
-    }
-    if (slug !== undefined) {
-      throw new Error(`Unexpected extra positional argument "${arg}".`);
-    }
-    slug = arg;
-  }
-
+const readSlug = (positionals: readonly string[], usage: string): string => {
+  const [slug, extra] = positionals;
   if (!slug) {
-    throw new Error(
-      "Missing <slug>. Usage: worktree:create <slug> [--base <ref>] [--branch <name>] [--dir <path>] [--with-db | --no-db] [--doctor] [--json]",
-    );
+    throw new Error(`Missing <slug>. ${usage}`);
   }
-  if (withDb && noDb) {
+  if (extra !== undefined) {
+    throw new Error(`Unexpected extra positional argument "${extra}".`);
+  }
+  return validateWorktreeSlug(slug);
+};
+
+/** Git would read a ref or path that starts with "-" as one of its own options. */
+const readGitArgument = (value: string | undefined, flag: string): string | undefined => {
+  if (value !== undefined && (value === "" || value.startsWith("-"))) {
+    throw new Error(`${flag} requires a value that does not start with "-" (got "${value}").`);
+  }
+  return value;
+};
+
+export const parseCreateArgs = (args: readonly string[]): CreateCliOptions => {
+  const { values, positionals } = parseCliArgs(args, {
+    options: {
+      base: { type: "string" },
+      branch: { type: "string" },
+      dir: { type: "string" },
+      "with-db": { type: "boolean" },
+      "no-db": { type: "boolean" },
+      doctor: { type: "boolean" },
+      json: { type: "boolean" },
+    },
+    usage: CREATE_USAGE,
+    allowPositionals: true,
+  });
+  const slug = readSlug(positionals, CREATE_USAGE);
+  if (values["with-db"] && values["no-db"]) {
     throw new Error("Cannot combine --with-db and --no-db.");
   }
 
   return {
-    slug: validateWorktreeSlug(slug),
-    base,
-    branch,
-    dir,
-    dbMode: withDb ? "required" : noDb ? "skip" : "auto",
-    doctor,
-    json,
+    slug,
+    base: readGitArgument(values.base, "--base"),
+    branch: readGitArgument(values.branch, "--branch"),
+    dir: readGitArgument(values.dir, "--dir"),
+    dbMode: values["with-db"] ? "required" : values["no-db"] ? "skip" : "auto",
+    doctor: values.doctor ?? false,
+    json: values.json ?? false,
   };
 };
 
-export const parseListArgs = (rawArgs: readonly string[]): ListCliOptions => {
-  const args = stripLeadingSeparator(rawArgs);
-  let json = false;
-  for (const arg of args) {
-    if (arg === "--json") {
-      json = true;
-      continue;
-    }
-    throw new Error(`Unknown option "${arg}". Usage: worktree:list [--json]`);
-  }
-  return { json };
+export const parseListArgs = (args: readonly string[]): ListCliOptions => {
+  const { values } = parseCliArgs(args, {
+    options: { json: { type: "boolean" } },
+    usage: "Usage: worktree:list [--json]",
+  });
+  return { json: values.json ?? false };
 };
 
-export const parseCleanArgs = (rawArgs: readonly string[]): CleanCliOptions => {
-  const args = stripLeadingSeparator(rawArgs);
-  let slug: string | undefined;
-  let keepBranch = false;
-  let json = false;
-
-  for (const arg of args) {
-    if (arg === "--keep-branch") {
-      keepBranch = true;
-      continue;
-    }
-    if (arg === "--json") {
-      json = true;
-      continue;
-    }
-    if (arg.startsWith("-")) {
-      throw new Error(
-        `Unknown option "${arg}". Usage: worktree:clean <slug> [--keep-branch] [--json]`,
-      );
-    }
-    if (slug !== undefined) {
-      throw new Error(`Unexpected extra positional argument "${arg}".`);
-    }
-    slug = arg;
-  }
-
-  if (!slug) {
-    throw new Error("Missing <slug>. Usage: worktree:clean <slug> [--keep-branch] [--json]");
-  }
-
-  return { slug: validateWorktreeSlug(slug), keepBranch, json };
+export const parseCleanArgs = (args: readonly string[]): CleanCliOptions => {
+  const { values, positionals } = parseCliArgs(args, {
+    options: { "keep-branch": { type: "boolean" }, json: { type: "boolean" } },
+    usage: CLEAN_USAGE,
+    allowPositionals: true,
+  });
+  return {
+    slug: readSlug(positionals, CLEAN_USAGE),
+    keepBranch: values["keep-branch"] ?? false,
+    json: values.json ?? false,
+  };
 };
 
 const canonicalPath = (targetPath: string): string => {

@@ -196,6 +196,13 @@ describe("worktree helpers", () => {
     );
     expect(() => parseCreateArgs([])).toThrow(/Missing <slug>/);
     expect(() => parseCreateArgs(["feat-two", "--unknown"])).toThrow(/Unknown option/);
+    expect(() => parseCreateArgs(["feat-two", "--base"])).toThrow("--base requires a value.");
+    expect(() => parseCreateArgs(["feat-two", "--branch", "-x"])).toThrow(
+      '--branch requires a value that does not start with "-" (got "-x").',
+    );
+    expect(() => parseCreateArgs(["feat-two", "feat-three"])).toThrow(
+      'Unexpected extra positional argument "feat-three".',
+    );
 
     expect(parseListArgs(["--json"])).toEqual({ json: true });
     expect(() => parseListArgs(["--bad"])).toThrow(/Unknown option/);

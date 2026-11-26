@@ -252,3 +252,14 @@ it("ignores provider prefixes inside identifiers and short placeholders", () => 
   const result = repo.scan();
   expect(result.status, result.output).toBe(0);
 });
+
+it("rejects an unknown scan mode or option instead of scanning", () => {
+  const repo = repository();
+
+  for (const mode of ["stagd", "--history"]) {
+    const result = repo.scan(mode);
+    expect(result.status, result.output).toBe(1);
+    expect(result.output).toContain("Usage: secrets.ts [files|staged|history]");
+    expect(result.output).not.toContain("Secretlint found no secrets");
+  }
+});

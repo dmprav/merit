@@ -3,7 +3,7 @@ import { existsSync, globSync, readFileSync, statSync } from "node:fs";
 import { join, matchesGlob, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { normalizeRepoPath } from "../../cli.ts";
+import { normalizeRepoPath, parseCliArgs } from "../../cli.ts";
 import {
   MAX_INVARIANT_LENGTH,
   MAX_INVARIANTS_PER_MECHANISM,
@@ -266,57 +266,90 @@ export const formatMechanismReport = (classification: MechanismClassification) =
   return lines.join("\n");
 };
 
-const readFlagValues = (args: readonly string[], flag: string) => {
-  const idx = args.indexOf(flag);
-  if (idx === -1) {
-    return null;
+const MECHANISMS_USAGE =
+  "Usage: mechanisms.ts --check | --paths <paths...> [--json] | --base <ref> [--head <ref>] [--json]";
+
+export type MechanismCommand =
+  | { mode: "check" }
+  | { mode: "paths"; paths: string[]; json: boolean }
+  | { mode: "diff"; base: string; head: string; json: boolean };
+
+/** Requires one explicit mode, so a stray `--head` cannot silently fall back to `--check`. */
+export const parseMechanismArgs = (args: readonly string[]): MechanismCommand => {
+  const { values, positionals } = parseCliArgs(args, {
+    options: {
+      check: { type: "boolean" },
+      paths: { type: "boolean" },
+      base: { type: "string" },
+      head: { type: "string" },
+      json: { type: "boolean" },
+    },
+    usage: MECHANISMS_USAGE,
+    allowPositionals: true,
+  });
+  const { check = false, paths = false, base, head, json = false } = values;
+
+  const fail = (message: string) => new Error(`${message}\n${MECHANISMS_USAGE}`);
+
+  if (head !== undefined && base === undefined) {
+    throw fail("--head requires --base.");
   }
-  const values: string[] = [];
-  for (const arg of args.slice(idx + 1)) {
-    if (arg.startsWith("--")) {
-      break;
+  if ([check, paths, base !== undefined].filter(Boolean).length !== 1) {
+    throw fail("Choose exactly one of --check, --paths, or --base.");
+  }
+  if (paths) {
+    if (positionals.length === 0) {
+      throw fail("--paths requires at least one path.");
     }
-    values.push(arg);
+    return { mode: "paths", paths: positionals, json };
   }
-  return values;
+  if (positionals.length > 0) {
+    throw fail(`Unexpected argument "${positionals[0]}"; only --paths takes paths.`);
+  }
+  if (base !== undefined) {
+    return { mode: "diff", base, head: head ?? "HEAD", json };
+  }
+  if (json) {
+    throw fail("--json applies to --paths or --base.");
+  }
+  return { mode: "check" };
+};
+
+const runCheck = (repoRoot: string) => {
+  const errors = validateMechanismMap(MECHANISMS, repoRoot);
+  if (errors.length > 0) {
+    console.error(`mechanisms check failed (${errors.length} problem(s)):`);
+    for (const error of errors) {
+      console.error(`  - ${error}`);
+    }
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`mechanisms ok (${MECHANISMS.length} cross-cutting mechanisms)`);
 };
 
 const runCli = () => {
   const repoRoot = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
-  const args = process.argv.slice(2);
-  const baseValues = readFlagValues(args, "--base");
-  const headValues = readFlagValues(args, "--head");
-  const explicitPaths = readFlagValues(args, "--paths");
-  const jsonOut = args.includes("--json");
-
-  if (args.includes("--check") || (!baseValues && !explicitPaths)) {
-    const errors = validateMechanismMap(MECHANISMS, repoRoot);
-    if (errors.length > 0) {
-      console.error(`mechanisms check failed (${errors.length} problem(s)):`);
-      for (const error of errors) {
-        console.error(`  - ${error}`);
-      }
-      process.exitCode = 1;
-      return;
-    }
-    console.log(`mechanisms ok (${MECHANISMS.length} cross-cutting mechanisms)`);
+  const command = parseMechanismArgs(process.argv.slice(2));
+  if (command.mode === "check") {
+    runCheck(repoRoot);
     return;
   }
 
   const paths =
-    explicitPaths ??
-    execFileSync(
-      "git",
-      ["diff", "--name-only", `${baseValues?.[0] ?? "origin/main"}...${headValues?.[0] ?? "HEAD"}`],
-      { cwd: repoRoot, encoding: "utf8" },
-    )
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
+    command.mode === "paths"
+      ? command.paths
+      : execFileSync("git", ["diff", "--name-only", `${command.base}...${command.head}`], {
+          cwd: repoRoot,
+          encoding: "utf8",
+        })
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean);
 
   const classification = classifyChangedPaths({ paths, mechanisms: MECHANISMS });
 
-  if (jsonOut) {
+  if (command.json) {
     console.log(JSON.stringify(classification, null, 2));
     return;
   }

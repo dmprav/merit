@@ -3,7 +3,7 @@ import { basename, join, relative } from "node:path";
 
 import { z } from "zod";
 
-import { readFlagValue } from "../cli.ts";
+import { parseCliArgs } from "../cli.ts";
 
 const playwrightErrorSchema = z.object({ message: z.string().optional() });
 
@@ -351,15 +351,17 @@ export type CiSummaryOptions = { title: string; scanVitestFilename?: string };
 
 /** Reads `[title] [--scan-vitest <report-file>]`, in either order. */
 export const parseCiSummaryArgs = (args: readonly string[]): CiSummaryOptions => {
-  const scanVitestFilename = readFlagValue(args, "--scan-vitest");
-  const flagIndex = args.indexOf("--scan-vitest");
-  const positional = args.filter(
-    (_, index) => flagIndex === -1 || (index !== flagIndex && index !== flagIndex + 1),
-  );
-  return {
-    title: positional[0] ?? "Verification",
-    ...(scanVitestFilename !== null ? { scanVitestFilename } : {}),
-  };
+  const { values, positionals } = parseCliArgs(args, {
+    options: { "scan-vitest": { type: "string" } },
+    usage: "Usage: ci-summary.ts [title] [--scan-vitest <report-file>]",
+    allowPositionals: true,
+  });
+  const [title = "Verification", extra] = positionals;
+  if (extra !== undefined) {
+    throw new Error(`Unexpected argument "${extra}"; quote a title that contains spaces.`);
+  }
+  const scanVitestFilename = values["scan-vitest"];
+  return { title, ...(scanVitestFilename !== undefined ? { scanVitestFilename } : {}) };
 };
 
 const runCli = () => {

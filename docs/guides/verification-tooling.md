@@ -24,9 +24,14 @@ Keep conventional tool configuration files at the repository root. Application s
 scripts remain with the application, and migrations remain with the database
 package. Shared compiler options stay in `tooling/react-compiler.ts`, and
 argument and path helpers shared by tooling CLIs stay in [`tooling/cli.ts`](../../tooling/cli.ts).
+Parse a CLI's arguments with its `parseCliArgs`, a strict `util.parseArgs` wrapper:
+declare every option, and unknown flags, missing values, and unexpected positionals
+fail with the command's usage before any side effect. Read issue numbers, counts,
+and other integers with `parseWholeNumber`, which rejects text such as `12abc`.
 Start a CLI with `if (import.meta.main)` rather than comparing `process.argv[1]`
-with the module path. Scripts that CI runs before installing dependencies import only
-Node built-ins, so they keep local copies of these helpers.
+with the module path, and keep argument validation inside that entry point rather
+than at import time. Scripts that CI runs before installing dependencies import only
+Node built-ins, so they call `util.parseArgs` directly and keep local copies of these helpers.
 Capability web, product, and app Vitest configurations use
 [`webTestConfig`](../../tooling/testing/web-config.ts); business configurations use
 [`businessTestConfig`](../../tooling/verification/business-test-config.ts). Package

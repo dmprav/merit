@@ -16,9 +16,8 @@ import {
   listDocAreas,
   listPackageSlices,
   parseAdvanceArgs,
-  parseAdvanceLensFlag,
   parseCommitLog,
-  parseContextLensFlag,
+  parseContextArgs,
   parseScoutState,
   pickNextRotationItem,
   resolveRotationTarget,
@@ -524,10 +523,16 @@ describe("scout", () => {
   });
 
   test("allows --lens auto for context and rejects --lens auto for advance", () => {
-    expect(parseContextLensFlag(["--lens", "auto"])).toBe("auto");
-    expect(parseContextLensFlag(["--lens", "security"])).toBe("security");
-    expect(parseAdvanceLensFlag(["--lens", "security"])).toBe("security");
-    expect(() => parseAdvanceLensFlag(["--lens", "auto"])).toThrow(/Cannot pass "--lens auto"/);
+    expect(parseContextArgs(["--lens", "auto"])).toBe("auto");
+    expect(parseContextArgs(["--lens", "security"])).toBe("security");
+    expect(parseAdvanceArgs(["--lens", "security", "--commit", "abc123"]).lens).toBe("security");
+    expect(() => parseAdvanceArgs(["--lens", "auto", "--commit", "abc123"])).toThrow(
+      /Cannot pass "--lens auto"/,
+    );
+    expect(() => parseContextArgs([])).toThrow("Missing required --lens flag.");
+    expect(() => parseContextArgs(["--lens", "auto", "--commit", "abc123"])).toThrow(
+      "Unknown option '--commit'",
+    );
   });
 });
 
@@ -544,8 +549,9 @@ describe("advance arguments", () => {
         "--pr",
         "88",
       ]),
-    ).toEqual({ commitSha: "abc123", target: "apps", prNumber: 88 });
+    ).toEqual({ lens: "security", commitSha: "abc123", target: "apps", prNumber: 88 });
     expect(parseAdvanceArgs(["--lens", "security", "--commit", "abc123"])).toEqual({
+      lens: "security",
       commitSha: "abc123",
     });
   });
@@ -553,10 +559,17 @@ describe("advance arguments", () => {
   test.each([
     { args: ["--lens", "security"], error: "Missing required --commit <scanTipSha> flag." },
     {
-      args: ["--commit", "abc123", "--pr", "next"],
+      args: ["--lens", "security", "--commit", "abc123", "--pr", "next"],
       error: '--pr must be a whole number of at least 1 (got "next").',
     },
-    { args: ["--commit", "abc123", "--target"], error: "--target requires a value." },
+    {
+      args: ["--lens", "security", "--commit", "abc123", "--target"],
+      error: "--target requires a value.",
+    },
+    {
+      args: ["--lens", "security", "--commit", "abc123", "--pr", "88", "--dry-run"],
+      error: "Unknown option '--dry-run'",
+    },
   ])("rejects $args", ({ args, error }) => {
     expect(() => parseAdvanceArgs(args)).toThrow(error);
   });
