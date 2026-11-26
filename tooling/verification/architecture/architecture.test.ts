@@ -157,6 +157,15 @@ const collaborationFiles = {
   ),
 };
 
+// runLinter kills the linter after linterTimeout. Vitest's 5 s default is too short on 2-vCPU
+// agents, where concurrent oxlint runs compete for CPU, so each test gets that budget per check()
+// plus a margin for check()'s fixture setup, which runs before the kill timer starts. A hung
+// linter then fails with runLinter's "Timed out running …" error and output, not a Vitest timeout.
+const linterTimeout = 15_000;
+const checkSetupMargin = 5_000;
+
+const checkTimeout = (checks = 1) => checks * (linterTimeout + checkSetupMargin);
+
 const runLinter = (args: string[], cwd: string) =>
   new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(process.execPath, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
@@ -165,7 +174,7 @@ const runLinter = (args: string[], cwd: string) =>
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
       reject(new Error(`Timed out running ${args.join(" ")}:\n${stderr}${stdout}`));
-    }, 15_000);
+    }, linterTimeout);
 
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
@@ -271,14 +280,14 @@ const check = async (files: Record<string, string>, message?: string, viaVp = fa
   }
 };
 
-describe.concurrent("architecture rules", () => {
+describe.concurrent("architecture rules", { timeout: checkTimeout() }, () => {
   test("applies the boundaries configuration through vp lint", async () => {
     await check(
       { [source]: 'export { server } from "@merit/contacts/server";' },
       "Browser code",
       true,
     );
-  }, 15_000);
+  });
 
   test("public package exports authorize re-exported implementation without a second file list", async () => {
     await check({ [source]: 'export { value } from "@merit/contacts/domain";' });
@@ -1006,21 +1015,25 @@ describe.concurrent("architecture rules", () => {
     },
   );
 
-  test("contacts service interfaces are browser-safe while server types need no context exception", async () => {
-    await check({
-      ...contactsFiles,
-      "interfaces/product/src/shared/request-context.ts":
-        'export type { Value } from "@merit/contacts/api";',
-    });
-    await check(
-      {
+  test(
+    "contacts service interfaces are browser-safe while server types need no context exception",
+    async () => {
+      await check({
         ...contactsFiles,
         "interfaces/product/src/shared/request-context.ts":
-          'export type { Value } from "@merit/contacts/server";',
-      },
-      "Browser code",
-    );
-  });
+          'export type { Value } from "@merit/contacts/api";',
+      });
+      await check(
+        {
+          ...contactsFiles,
+          "interfaces/product/src/shared/request-context.ts":
+            'export type { Value } from "@merit/contacts/server";',
+        },
+        "Browser code",
+      );
+    },
+    checkTimeout(2),
+  );
 
   test("contacts commands, queries and assembly can use the host grant-work interface", async () => {
     await check({
@@ -1599,48 +1612,60 @@ describe.concurrent("architecture rules", () => {
     );
   });
 
-  test("recommendation record codecs share pure round validation without importing round persistence", async () => {
-    await check({
-      ...extractedCapabilityFiles,
-      "capabilities/recommendations/business/src/domain/encoding.ts":
-        'export { value } from "@merit/rounds/domain";',
-    });
-    await check(
-      {
+  test(
+    "recommendation record codecs share pure round validation without importing round persistence",
+    async () => {
+      await check({
         ...extractedCapabilityFiles,
         "capabilities/recommendations/business/src/domain/encoding.ts":
-          'export { value } from "@merit/rounds/schema";',
-      },
-      "Business rules and contracts cannot depend on UI or infrastructure",
-    );
-  });
+          'export { value } from "@merit/rounds/domain";',
+      });
+      await check(
+        {
+          ...extractedCapabilityFiles,
+          "capabilities/recommendations/business/src/domain/encoding.ts":
+            'export { value } from "@merit/rounds/schema";',
+        },
+        "Business rules and contracts cannot depend on UI or infrastructure",
+      );
+    },
+    checkTimeout(2),
+  );
 
-  test("grantmaking readers and demo seeding use Applications' owned history codec", async () => {
-    await check({
-      ...extractedCapabilityFiles,
-      "capabilities/grantmaking/business/src/server/queries/probe.ts":
-        'export { value as history } from "@merit/applications/history";',
-      "capabilities/grantmaking/business/src/server/demo.ts":
-        'export { value } from "@merit/applications/history";',
-    });
-    await check(
-      {
+  test(
+    "grantmaking readers and demo seeding use Applications' owned history codec",
+    async () => {
+      await check({
         ...extractedCapabilityFiles,
-        "capabilities/grantmaking/business/src/server/commands/probe.ts":
+        "capabilities/grantmaking/business/src/server/queries/probe.ts":
+          'export { value as history } from "@merit/applications/history";',
+        "capabilities/grantmaking/business/src/server/demo.ts":
           'export { value } from "@merit/applications/history";',
-      },
-      crossCapabilityMessage,
-    );
-  });
-  test("isolates posthog-js inside foundation/analytics", async () => {
-    await check({
-      "foundation/analytics/src/posthog.ts": 'export { posthog } from "posthog-js";',
-    });
-    await check(
-      {
-        "interfaces/product/src/probe.ts": 'export { posthog } from "posthog-js";',
-      },
-      "PostHog belongs in foundation/analytics",
-    );
-  });
+      });
+      await check(
+        {
+          ...extractedCapabilityFiles,
+          "capabilities/grantmaking/business/src/server/commands/probe.ts":
+            'export { value } from "@merit/applications/history";',
+        },
+        crossCapabilityMessage,
+      );
+    },
+    checkTimeout(2),
+  );
+  test(
+    "isolates posthog-js inside foundation/analytics",
+    async () => {
+      await check({
+        "foundation/analytics/src/posthog.ts": 'export { posthog } from "posthog-js";',
+      });
+      await check(
+        {
+          "interfaces/product/src/probe.ts": 'export { posthog } from "posthog-js";',
+        },
+        "PostHog belongs in foundation/analytics",
+      );
+    },
+    checkTimeout(2),
+  );
 });
