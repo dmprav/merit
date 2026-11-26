@@ -107,9 +107,25 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
     .sort();
   expect(workflowFiles).toContain("verify.yml");
   expect(workflowFiles).toContain("prune-verifications.yml");
+  expect(workflowFiles).toContain("review-packet.yml");
   const workflowContents = await Promise.all(
     workflowFiles.map((name) => readFile(`${repoRoot}/.github/workflows/${name}`, "utf8")),
   );
+  const reviewPacketWorkflow = await readFile(
+    `${repoRoot}/.github/workflows/review-packet.yml`,
+    "utf8",
+  );
+  expect(
+    reviewPacketWorkflow
+      .split(/\r?\n/)
+      .map((line) => line.replace(/#.*$/, "").trimEnd())
+      .filter((line) => line.startsWith("permissions:")),
+  ).toEqual(["permissions: {}"]);
+  expect(reviewPacketWorkflow).toContain(
+    "github.event.pull_request.head.repo.full_name == github.repository",
+  );
+  expect(reviewPacketWorkflow).toContain("persist-credentials: false");
+  expect(reviewPacketWorkflow).toContain("fetch-depth: 0");
   const pruneWorkflow = await readFile(
     `${repoRoot}/.github/workflows/prune-verifications.yml`,
     "utf8",
