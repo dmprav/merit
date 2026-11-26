@@ -321,4 +321,5 @@ Cursor Cloud Agents), configure a fine-grained PAT scoped to `dmprav/merit` with
 `Issues: Read and write` in the `MERIT_SCOUT_GH_TOKEN` secret. Both
 [scout.ts](../../tooling/agents/scout.ts) and
 [proposal.ts](../../tooling/agents/proposal.ts) prefer `MERIT_SCOUT_GH_TOKEN`
-automatically when invoking `gh`.
+automatically when invoking `gh` through the issue client in
+[github.ts](../../tooling/agents/github.ts).

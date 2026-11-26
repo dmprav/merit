@@ -9,13 +9,13 @@ fixtures, and coverage policy. Run commands from the repository root.
 
 Keep tooling with the responsibility it supports:
 
-| Location               | Owns                                                                                                                 |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `tooling/verification` | Repository checks and their regression tests; architecture policy and its resolver live together in `architecture/`. |
-| `tooling/testing`      | The `@merit/test-support` package, with explicit database, component setup, and browser exports.                     |
-| `tooling/storybook`    | Preview configuration, story execution, browser suites grouped by behavior, and visual baselines.                    |
-| `tooling/agents`       | Stateless maintenance CLIs (`scout.ts`, `proposal.ts`, `queue.ts`) and their unit tests.                             |
-| `tooling/scripts`      | Repository operations such as resetting the local Compose database.                                                  |
+| Location               | Owns                                                                                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `tooling/verification` | Repository checks and their regression tests; architecture policy and its resolver live together in `architecture/`.                  |
+| `tooling/testing`      | The `@merit/test-support` package, with explicit database, component setup, and browser exports.                                      |
+| `tooling/storybook`    | Preview configuration, story execution, browser suites grouped by behavior, and visual baselines.                                     |
+| `tooling/agents`       | Stateless maintenance CLIs (`scout.ts`, `proposal.ts`, `queue.ts`), the GitHub client they share (`github.ts`), and their unit tests. |
+| `tooling/scripts`      | Repository operations such as resetting the local Compose database.                                                                   |
 
 The root [Vite configuration](../../vite.config.ts) owns command orchestration
 and imports ordinary [lint policy](../../tooling/verification/lint.ts). Architecture

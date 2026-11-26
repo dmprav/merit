@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
 import { describe, expect, test } from "vite-plus/test";
 
 import {
@@ -15,7 +12,6 @@ import {
   normalizeRestChecks,
   normalizeStatusCheckRollup,
   parseAgentPrState,
-  parseGitHubRemote,
   parseQueueArgs,
   parseRecordShepherdArgs,
   selectNextWork,
@@ -415,22 +411,6 @@ describe("queue", () => {
     });
   });
 
-  test("parses GitHub owner/repo from SSH, HTTPS, and cloud proxy remote URLs", () => {
-    expect(parseGitHubRemote("git@github.com:dmprav/merit.git")).toEqual({
-      owner: "dmprav",
-      name: "merit",
-    });
-    expect(parseGitHubRemote("https://github.com/dmprav/merit.git")).toEqual({
-      owner: "dmprav",
-      name: "merit",
-    });
-    expect(parseGitHubRemote("http://local_proxy@127.0.0.1:41234/git/dmprav/merit")).toEqual({
-      owner: "dmprav",
-      name: "merit",
-    });
-    expect(parseGitHubRemote("https://example.com/not-a-repo")).toBeNull();
-  });
-
   test("deduplicates REST check runs by latest id per name and merges commit statuses", () => {
     const normalized = normalizeRestChecks({
       checkRuns: [
@@ -593,12 +573,6 @@ describe("queue", () => {
       flakeReruns: 1,
       lastHeadSha: "abcdef2",
     });
-  });
-
-  test("uses only GitHub REST endpoints so Claude Code cloud proxy never rejects GraphQL calls", () => {
-    const source = readFileSync(fileURLToPath(new URL("./queue.ts", import.meta.url)), "utf8");
-    expect(source).not.toMatch(/execFileSync\("gh",\s*\[\s*"(?:pr|issue|repo)"/);
-    expect(source).not.toContain('"graphql"');
   });
 });
 

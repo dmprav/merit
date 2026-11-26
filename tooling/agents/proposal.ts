@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 import { z } from "zod";
@@ -14,6 +13,7 @@ import {
   classifyChangedPaths,
   type MechanismClassification,
 } from "../verification/architecture/mechanisms.ts";
+import { createGitHubIssueCliClient, type GitHubIssueCliClient } from "./github.ts";
 
 export const SCOUT_LENSES = [
   "docs",
@@ -374,61 +374,15 @@ export const renderProposalMarkdown = (
   ].join("\n");
 };
 
-const ghIssuesSchema = z.array(
-  z.object({
-    number: z.number(),
-    title: z.string(),
-    state: z.enum(["OPEN", "CLOSED"]),
-    body: z.string().optional(),
-    labels: z.array(z.object({ name: z.string() })),
-  }),
-);
+const countOpenProposedIssues = (client: GitHubIssueCliClient): number =>
+  client.listIssues({ state: "open", label: AGENT_LABELS.proposed }).length;
 
-export const SCOUT_GH_TOKEN_ENV = "MERIT_SCOUT_GH_TOKEN";
-
-/** Prefers `MERIT_SCOUT_GH_TOKEN` over injected integration tokens (such as Cursor's `GH_TOKEN`) when running `gh`. */
-export const resolveScoutGhEnv = (env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv => {
-  const scoutToken = env[SCOUT_GH_TOKEN_ENV]?.trim();
-  if (!scoutToken) {
-    return env;
-  }
-  return {
-    ...env,
-    GH_TOKEN: scoutToken,
-  };
-};
-
-export const runScoutGh = (repoRoot: string, args: readonly string[]): string =>
-  execFileSync("gh", args, { cwd: repoRoot, encoding: "utf8", env: resolveScoutGhEnv() });
-
-const queryIssues = (repoRoot: string, extraArgs: readonly string[]): ExistingIssueSummary[] => {
-  const raw = runScoutGh(repoRoot, [
-    "issue",
-    "list",
-    "--limit",
-    "200",
-    "--json",
-    "number,title,state,labels,body",
-    ...extraArgs,
-  ]);
-  return ghIssuesSchema.parse(JSON.parse(raw)).map((issue) => ({
-    number: issue.number,
-    title: issue.title,
-    state: issue.state,
-    body: issue.body,
-    labels: issue.labels.map((label) => label.name),
-  }));
-};
-
-const countOpenProposedIssues = (repoRoot: string): number =>
-  queryIssues(repoRoot, ["--state", "open", "--label", AGENT_LABELS.proposed]).length;
-
-const listExistingIssues = (repoRoot: string): ExistingIssueSummary[] => {
+const listExistingIssues = (client: GitHubIssueCliClient): ExistingIssueSummary[] => {
   const byNumber = new Map<number, ExistingIssueSummary>();
   for (const issue of [
-    ...queryIssues(repoRoot, ["--state", "open"]),
-    ...queryIssues(repoRoot, ["--state", "closed", "--label", AGENT_LABELS.wontfix]),
-    ...queryIssues(repoRoot, ["--state", "closed", "--label", AGENT_LABELS.duplicate]),
+    ...client.listIssues({ state: "open" }),
+    ...client.listIssues({ state: "closed", label: AGENT_LABELS.wontfix }),
+    ...client.listIssues({ state: "closed", label: AGENT_LABELS.duplicate }),
   ]) {
     byNumber.set(issue.number, issue);
   }
@@ -496,8 +450,9 @@ const runCli = () => {
     return;
   }
 
+  const client = createGitHubIssueCliClient({ repoRoot: REPO_ROOT });
   if (classification.targetLabel === AGENT_LABELS.proposed) {
-    const openProposedCount = countOpenProposedIssues(REPO_ROOT);
+    const openProposedCount = countOpenProposedIssues(client);
     if (isProposalCapReached(openProposedCount)) {
       console.log(
         JSON.stringify({
@@ -510,7 +465,7 @@ const runCli = () => {
     }
   }
 
-  const existingIssues = listExistingIssues(REPO_ROOT);
+  const existingIssues = listExistingIssues(client);
   const dup = findDuplicateProposal(proposal, existingIssues);
   if (dup.duplicate) {
     console.log(
@@ -523,11 +478,7 @@ const runCli = () => {
     return;
   }
 
-  const ghArgs = ["issue", "create", "--title", proposal.title, "--body", markdown];
-  for (const label of labels) {
-    ghArgs.push("--label", label);
-  }
-  const url = runScoutGh(REPO_ROOT, ghArgs).trim();
+  const url = client.createIssue({ title: proposal.title, body: markdown, labels });
   console.log(
     JSON.stringify({
       status: "created",

@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
@@ -12,6 +11,13 @@ import {
   TRUSTED_AUTHOR_ASSOCIATIONS,
   type IssueCommentRecord,
 } from "../verification/agent-policy.ts";
+import {
+  createGitHubRestClient,
+  type GitHubRestClient,
+  type RestCheckRun,
+  type RestCommitStatus,
+  type RestPullReviewComment,
+} from "./github.ts";
 
 export const MAX_OPEN_AGENT_PRS = 2;
 export const MAX_SHEPHERD_ROUNDS = 2;
@@ -52,29 +58,6 @@ export type RawStatusCheckEntry = {
   conclusion?: string | null;
 };
 
-export type RestCheckRun = {
-  id: number;
-  name: string;
-  status: string;
-  conclusion: string | null;
-};
-
-export type RestCommitStatus = {
-  context: string;
-  state: string;
-};
-
-export type RestPullReviewComment = {
-  id: number;
-  in_reply_to_id?: number | null;
-  path: string;
-  line?: number | null;
-  original_line?: number | null;
-  author_association: string;
-  user: { login: string } | null;
-  body: string;
-};
-
 export type ReviewThreadSummary = {
   id: string;
   path: string;
@@ -110,11 +93,6 @@ export type ReadyIssueCandidate = {
   title: string;
   labels: string[];
   comments: IssueCommentRecord[];
-};
-
-export type RepoIdentity = {
-  owner: string;
-  name: string;
 };
 
 export type QueueWorkOrder =
@@ -156,24 +134,6 @@ export type QueueWorkOrder =
       reason: "wip_limit_reached" | "no_work" | "waiting_for_checks";
       openAgentPrCount: number;
     };
-
-/** Parses GitHub owner/repo from HTTPS, SSH, or cloud-proxy git remote URLs without invoking GraphQL. */
-export const parseGitHubRemote = (remoteUrl: string): RepoIdentity | null => {
-  const trimmed = remoteUrl.trim().replace(/\.git$/, "");
-  const sshMatch = /^git@github\.com:([^/]+)\/([^/]+)$/.exec(trimmed);
-  if (sshMatch?.[1] && sshMatch[2]) {
-    return { owner: sshMatch[1], name: sshMatch[2] };
-  }
-  const httpsMatch = /^https?:\/\/(?:[^@]+@)?github\.com\/([^/]+)\/([^/]+)$/.exec(trimmed);
-  if (httpsMatch?.[1] && httpsMatch[2]) {
-    return { owner: httpsMatch[1], name: httpsMatch[2] };
-  }
-  const proxyMatch = /^https?:\/\/[^/]+\/git\/([^/]+)\/([^/]+)$/.exec(trimmed);
-  if (proxyMatch?.[1] && proxyMatch[2]) {
-    return { owner: proxyMatch[1], name: proxyMatch[2] };
-  }
-  return null;
-};
 
 export const parseClaimMarker = (commentBody: string): ClaimMarker | null => {
   const match = CLAIM_MARKER_PATTERN.exec(commentBody);
@@ -561,266 +521,61 @@ export const selectNextWork = ({
   };
 };
 
-const restLabelSchema = z.object({ name: z.string() });
+const fetchUnaddressedThreads = (client: GitHubRestClient, prNumber: number) =>
+  extractUnaddressedReviewThreads(client.listReviewComments(prNumber));
 
-const restCommentSchema = z.object({
-  body: z.string().nullable().default(""),
-  author_association: z.string().default(""),
-});
-
-const restIssueItemSchema = z.object({
-  number: z.number(),
-  state: z.string(),
-  title: z.string(),
-  body: z.string().nullable().default(""),
-  labels: z.array(restLabelSchema),
-  comments: z.number().default(0),
-  pull_request: z.unknown().optional(),
-});
-
-const restPullDetailSchema = z.object({
-  number: z.number(),
-  title: z.string(),
-  body: z.string().nullable().default(""),
-  draft: z.boolean().default(false),
-  created_at: z.string(),
-  updated_at: z.string(),
-  labels: z.array(restLabelSchema),
-  head: z.object({
-    ref: z.string(),
-    sha: z.string(),
-  }),
-});
-
-const restCheckRunsPageSchema = z.object({
-  check_runs: z.array(
-    z.object({
-      id: z.number(),
-      name: z.string(),
-      status: z.string(),
-      conclusion: z.string().nullable(),
-    }),
-  ),
-});
-
-const restCommitStatusSchema = z.object({
-  statuses: z.array(
-    z.object({
-      context: z.string(),
-      state: z.string(),
-    }),
-  ),
-});
-
-const restPullReviewCommentSchema = z.object({
-  id: z.number(),
-  in_reply_to_id: z.number().nullable().optional(),
-  path: z.string(),
-  line: z.number().nullable().optional(),
-  original_line: z.number().nullable().optional(),
-  author_association: z.string().default(""),
-  user: z.object({ login: z.string() }).nullable(),
-  body: z.string(),
-});
-
-const restWorkflowRunsSchema = z.object({
-  workflow_runs: z.array(
-    z.object({
-      id: z.number(),
-      run_attempt: z.number().int().positive(),
-      conclusion: z.string().nullable(),
-    }),
-  ),
-});
-
-const restCreatedPrSchema = z.object({
-  number: z.number(),
-  html_url: z.string(),
-  head: z.object({ ref: z.string() }),
-});
-
-const ghApiJson = (repoRoot: string, args: readonly string[]): unknown => {
-  const raw = execFileSync("gh", ["api", ...args], { cwd: repoRoot, encoding: "utf8" });
-  return raw.trim() ? JSON.parse(raw) : null;
-};
-
-const ghApiPaginatedArray = <T>(
-  repoRoot: string,
-  endpoint: string,
-  itemSchema: z.ZodType<T>,
-): T[] => {
-  const pages = z
-    .array(z.array(itemSchema))
-    .parse(ghApiJson(repoRoot, ["--paginate", "--slurp", endpoint]));
-  return pages.flat();
-};
-
-const getRepoIdentity = (repoRoot: string): RepoIdentity => {
-  const envRepo = process.env.GITHUB_REPOSITORY;
-  if (envRepo && /^[^/]+\/[^/]+$/.test(envRepo)) {
-    const [owner, name] = envRepo.split("/");
-    if (owner && name) {
-      return { owner, name };
-    }
-  }
-  const remoteUrl = execFileSync("git", ["remote", "get-url", "origin"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  }).trim();
-  const parsed = parseGitHubRemote(remoteUrl);
-  if (!parsed) {
-    throw new Error(`Could not determine GitHub owner/repo from origin remote "${remoteUrl}".`);
-  }
-  return parsed;
-};
-
-const fetchIssueComments = (
-  repoRoot: string,
-  repo: RepoIdentity,
-  number: number,
-): IssueCommentRecord[] =>
-  ghApiPaginatedArray(
-    repoRoot,
-    `repos/${repo.owner}/${repo.name}/issues/${number}/comments?per_page=100`,
-    restCommentSchema,
-  ).map((comment) => ({
-    body: comment.body ?? "",
-    authorAssociation: comment.author_association,
-  }));
-
-const fetchUnaddressedThreads = (
-  repoRoot: string,
-  repo: RepoIdentity,
-  prNumber: number,
-): ReviewThreadSummary[] => {
-  const comments = ghApiPaginatedArray(
-    repoRoot,
-    `repos/${repo.owner}/${repo.name}/pulls/${prNumber}/comments?per_page=100`,
-    restPullReviewCommentSchema,
-  );
-  return extractUnaddressedReviewThreads(comments);
-};
-
-const fetchCommitChecks = (
-  repoRoot: string,
-  repo: RepoIdentity,
-  headSha: string,
-): PrCheckStatus[] => {
-  const checkPages = z
-    .array(restCheckRunsPageSchema)
-    .parse(
-      ghApiJson(repoRoot, [
-        "--paginate",
-        "--slurp",
-        `repos/${repo.owner}/${repo.name}/commits/${headSha}/check-runs?per_page=100`,
-      ]),
-    );
-  const checkRuns = checkPages.flatMap((page) => page.check_runs);
-  const statusPages = z
-    .array(restCommitStatusSchema)
-    .parse(
-      ghApiJson(repoRoot, [
-        "--paginate",
-        "--slurp",
-        `repos/${repo.owner}/${repo.name}/commits/${headSha}/status?per_page=100`,
-      ]),
-    );
-  const statuses = statusPages.flatMap((page) => page.statuses);
-  return normalizeRestChecks({ checkRuns, statuses });
-};
+const fetchCommitChecks = (client: GitHubRestClient, headSha: string): PrCheckStatus[] =>
+  normalizeRestChecks(client.listCommitChecks(headSha));
 
 const fetchLatestFailedVerifyRun = (
-  repoRoot: string,
-  repo: RepoIdentity,
+  client: GitHubRestClient,
   headSha: string,
 ): FailedVerifyRun | null => {
-  const parsed = restWorkflowRunsSchema.parse(
-    ghApiJson(repoRoot, [
-      `repos/${repo.owner}/${repo.name}/actions/workflows/verify.yml/runs?head_sha=${encodeURIComponent(headSha)}&per_page=10`,
-    ]),
-  );
-  const failedRun = parsed.workflow_runs.find((run) => run.conclusion === "failure");
-  return failedRun ? { databaseId: failedRun.id, attempt: failedRun.run_attempt } : null;
+  const failedRun = client
+    .listWorkflowRuns("verify.yml", headSha)
+    .find((run) => run.conclusion === "failure");
+  return failedRun ? { databaseId: failedRun.id, attempt: failedRun.attempt } : null;
 };
 
-const fetchOpenAgentPrs = (repoRoot: string, repo: RepoIdentity): OpenAgentPr[] => {
-  const labeledItems = ghApiPaginatedArray(
-    repoRoot,
-    `repos/${repo.owner}/${repo.name}/issues?state=open&labels=${AGENT_LABELS.pr}&per_page=100`,
-    restIssueItemSchema,
-  );
-  const prItems = labeledItems.filter((item) => item.pull_request !== undefined);
+const fetchOpenAgentPrs = (client: GitHubRestClient): OpenAgentPr[] =>
+  client
+    .listOpenIssues(AGENT_LABELS.pr)
+    .filter((item) => item.isPullRequest)
+    .map((item) => {
+      const pr = client.getPull(item.number);
+      const comments = client.listIssueComments(pr.number);
+      const checks = fetchCommitChecks(client, pr.headSha);
+      const { hasPending, onlyBrowserFailures } = inspectPrChecks(checks);
+      const failedVerifyRun =
+        !hasPending && onlyBrowserFailures ? fetchLatestFailedVerifyRun(client, pr.headSha) : null;
+      return {
+        number: pr.number,
+        title: pr.title,
+        body: pr.body,
+        headRefName: pr.headRefName,
+        headSha: pr.headSha,
+        isDraft: pr.draft,
+        stateInitialized: hasAgentPrState(comments),
+        createdAt: pr.createdAt,
+        updatedAt: pr.updatedAt,
+        labels: pr.labels,
+        checks,
+        unresolvedThreads: fetchUnaddressedThreads(client, pr.number),
+        state: parseAgentPrState(comments),
+        failedVerifyRun,
+      };
+    });
 
-  return prItems.map((item) => {
-    const pr = restPullDetailSchema.parse(
-      ghApiJson(repoRoot, [`repos/${repo.owner}/${repo.name}/pulls/${item.number}`]),
-    );
-    const comments = fetchIssueComments(repoRoot, repo, pr.number);
-    const checks = fetchCommitChecks(repoRoot, repo, pr.head.sha);
-    const { hasPending, onlyBrowserFailures } = inspectPrChecks(checks);
-    const failedVerifyRun =
-      !hasPending && onlyBrowserFailures
-        ? fetchLatestFailedVerifyRun(repoRoot, repo, pr.head.sha)
-        : null;
-    return {
-      number: pr.number,
-      title: pr.title,
-      body: pr.body ?? "",
-      headRefName: pr.head.ref,
-      headSha: pr.head.sha,
-      isDraft: pr.draft,
-      stateInitialized: hasAgentPrState(comments),
-      createdAt: pr.created_at,
-      updatedAt: pr.updated_at,
-      labels: pr.labels.map((label) => label.name),
-      checks,
-      unresolvedThreads: fetchUnaddressedThreads(repoRoot, repo, pr.number),
-      state: parseAgentPrState(comments),
-      failedVerifyRun,
-    };
-  });
-};
-
-const fetchReadyIssues = (repoRoot: string, repo: RepoIdentity): ReadyIssueCandidate[] => {
-  const items = ghApiPaginatedArray(
-    repoRoot,
-    `repos/${repo.owner}/${repo.name}/issues?state=open&labels=${AGENT_LABELS.ready}&per_page=100`,
-    restIssueItemSchema,
-  );
-  return items
-    .filter((item) => item.pull_request === undefined)
+const fetchReadyIssues = (client: GitHubRestClient): ReadyIssueCandidate[] =>
+  client
+    .listOpenIssues(AGENT_LABELS.ready)
+    .filter((item) => !item.isPullRequest)
     .map((item) => ({
       number: item.number,
       title: item.title,
-      labels: item.labels.map((label) => label.name),
-      comments: item.comments > 0 ? fetchIssueComments(repoRoot, repo, item.number) : [],
+      labels: item.labels,
+      comments: item.commentCount > 0 ? client.listIssueComments(item.number) : [],
     }));
-};
-
-const postIssueComment = (repoRoot: string, repo: RepoIdentity, number: number, body: string) => {
-  ghApiJson(repoRoot, [
-    `repos/${repo.owner}/${repo.name}/issues/${number}/comments`,
-    "-X",
-    "POST",
-    "-f",
-    `body=${body}`,
-  ]);
-};
-
-const addIssueLabels = (
-  repoRoot: string,
-  repo: RepoIdentity,
-  number: number,
-  labels: readonly string[],
-) => {
-  const labelArgs = labels.flatMap((label) => ["-f", `labels[]=${label}`]);
-  ghApiJson(repoRoot, [
-    `repos/${repo.owner}/${repo.name}/issues/${number}/labels`,
-    "-X",
-    "POST",
-    ...labelArgs,
-  ]);
-};
 
 const RECORD_SHEPHERD_USAGE =
   "Usage: queue.ts record-shepherd <pr-number> --round <n> [--sha <sha>] [--issue <n>] [--flake-reruns <n>] [--if-uninitialized]";
@@ -1019,37 +774,33 @@ export const parseQueueArgs = (args: readonly string[]): QueueCommand => {
   }
 };
 
-const applyQueueOrder = (repoRoot: string, repo: RepoIdentity, order: QueueWorkOrder) => {
+const applyQueueOrder = (client: GitHubRestClient, order: QueueWorkOrder) => {
   if (order.kind === "escalate") {
-    addIssueLabels(repoRoot, repo, order.prNumber, [AGENT_LABELS.needsHuman]);
-    postIssueComment(repoRoot, repo, order.prNumber, `Escalating to human: ${order.reason}`);
+    client.addLabels(order.prNumber, [AGENT_LABELS.needsHuman]);
+    client.postIssueComment(order.prNumber, `Escalating to human: ${order.reason}`);
     return;
   }
   if (order.kind === "rerun_flake") {
-    ghApiJson(repoRoot, [
-      `repos/${repo.owner}/${repo.name}/actions/runs/${order.runId}/rerun-failed-jobs`,
-      "-X",
-      "POST",
-    ]);
+    client.rerunFailedJobs(order.runId);
     const nextState = mergeAgentPrState(order.state, {
       lastHeadSha: order.headSha,
       flakeReruns: order.state.flakeReruns + 1,
     });
-    postIssueComment(repoRoot, repo, order.prNumber, formatAgentPrStateComment(nextState));
+    client.postIssueComment(order.prNumber, formatAgentPrStateComment(nextState));
   }
 };
 
 const runCli = () => {
   const parsed = parseQueueArgs(process.argv.slice(2));
-  const repo = getRepoIdentity(REPO_ROOT);
+  const client = createGitHubRestClient({ repoRoot: REPO_ROOT });
 
   if (parsed.command === "next") {
     const order = selectNextWork({
-      openAgentPrs: fetchOpenAgentPrs(REPO_ROOT, repo),
-      readyIssues: fetchReadyIssues(REPO_ROOT, repo),
+      openAgentPrs: fetchOpenAgentPrs(client),
+      readyIssues: fetchReadyIssues(client),
     });
     if (parsed.apply) {
-      applyQueueOrder(REPO_ROOT, repo, order);
+      applyQueueOrder(client, order);
     }
     console.log(JSON.stringify(order, null, 2));
     return;
@@ -1057,18 +808,16 @@ const runCli = () => {
 
   if (parsed.command === "issue") {
     const { issueNumber } = parsed;
-    const issue = restIssueItemSchema.parse(
-      ghApiJson(REPO_ROOT, [`repos/${repo.owner}/${repo.name}/issues/${issueNumber}`]),
-    );
-    const comments = issue.comments > 0 ? fetchIssueComments(REPO_ROOT, repo, issueNumber) : [];
+    const issue = client.getIssue(issueNumber);
+    const comments = issue.commentCount > 0 ? client.listIssueComments(issueNumber) : [];
     console.log(
       JSON.stringify(
         {
           number: issue.number,
           state: issue.state.toUpperCase(),
           title: issue.title,
-          body: issue.body ?? "",
-          labels: issue.labels.map((label) => label.name),
+          body: issue.body,
+          labels: issue.labels,
           comments,
         },
         null,
@@ -1081,10 +830,7 @@ const runCli = () => {
   if (parsed.command === "claim") {
     const { issueNumber, renewRunId } = parsed;
     const now = Date.now();
-    const existingOwner = findEarliestActiveClaimRunId(
-      fetchIssueComments(REPO_ROOT, repo, issueNumber),
-      now,
-    );
+    const existingOwner = findEarliestActiveClaimRunId(client.listIssueComments(issueNumber), now);
     if (renewRunId !== undefined) {
       if (existingOwner !== null && existingOwner !== renewRunId) {
         console.log(
@@ -1104,10 +850,10 @@ const runCli = () => {
       claimedAt: new Date(now).toISOString(),
       expiresAt: new Date(now + CLAIM_TTL_MS).toISOString(),
     });
-    postIssueComment(REPO_ROOT, repo, issueNumber, formatClaimComment(claim));
+    client.postIssueComment(issueNumber, formatClaimComment(claim));
 
     const winnerAfterWrite = findEarliestActiveClaimRunId(
-      fetchIssueComments(REPO_ROOT, repo, issueNumber),
+      client.listIssueComments(issueNumber),
       Date.now(),
     );
     if (winnerAfterWrite !== claim.runId) {
@@ -1129,49 +875,27 @@ const runCli = () => {
   if (parsed.command === "open-pr") {
     const { title, head, base } = parsed;
     const body = parsed.bodyFile ? readFileSync(parsed.bodyFile, "utf8") : parsed.body;
-    const existingPrs = z
-      .array(restCreatedPrSchema)
-      .parse(
-        ghApiJson(REPO_ROOT, [
-          `repos/${repo.owner}/${repo.name}/pulls?state=open&head=${encodeURIComponent(`${repo.owner}:${head}`)}&base=${encodeURIComponent(base)}&per_page=10`,
-        ]),
-      );
-    const pr =
-      existingPrs[0] ??
-      restCreatedPrSchema.parse(
-        ghApiJson(REPO_ROOT, [
-          `repos/${repo.owner}/${repo.name}/pulls`,
-          "-X",
-          "POST",
-          "-f",
-          `title=${title}`,
-          "-f",
-          `head=${head}`,
-          "-f",
-          `base=${base}`,
-          "-f",
-          `body=${body}`,
-        ]),
-      );
+    const existingPr = client.findOpenPull({ head, base });
+    const pr = existingPr ?? client.createPull({ title, head, base, body });
     try {
-      addIssueLabels(REPO_ROOT, repo, pr.number, [AGENT_LABELS.pr]);
+      client.addLabels(pr.number, [AGENT_LABELS.pr]);
     } catch (error) {
       console.error(
         JSON.stringify({
           status: "created_unlabeled",
           number: pr.number,
-          url: pr.html_url,
-          headRefName: pr.head.ref,
+          url: pr.url,
+          headRefName: pr.headRefName,
         }),
       );
       throw error;
     }
     console.log(
       JSON.stringify({
-        status: existingPrs[0] ? "reused" : "created",
+        status: existingPr ? "reused" : "created",
         number: pr.number,
-        url: pr.html_url,
-        headRefName: pr.head.ref,
+        url: pr.url,
+        headRefName: pr.headRefName,
       }),
     );
     return;
@@ -1179,15 +903,15 @@ const runCli = () => {
 
   if (parsed.command === "escalate") {
     const { targetNumber, reason } = parsed;
-    addIssueLabels(REPO_ROOT, repo, targetNumber, [AGENT_LABELS.needsHuman]);
-    postIssueComment(REPO_ROOT, repo, targetNumber, `Escalating to human: ${reason}`);
+    client.addLabels(targetNumber, [AGENT_LABELS.needsHuman]);
+    client.postIssueComment(targetNumber, `Escalating to human: ${reason}`);
     console.log(JSON.stringify({ status: "escalated", number: targetNumber }));
     return;
   }
 
   if (parsed.command === "record-shepherd") {
     const { prNumber, ifUninitialized, ...updates } = parsed;
-    const comments = fetchIssueComments(REPO_ROOT, repo, prNumber);
+    const comments = client.listIssueComments(prNumber);
     const previous = parseAgentPrState(comments);
     if (ifUninitialized && hasAgentPrState(comments)) {
       console.log(JSON.stringify({ status: "already_initialized", prNumber, state: previous }));
@@ -1199,24 +923,18 @@ const runCli = () => {
       ...(updates.sha ? { lastHeadSha: updates.sha } : {}),
       ...(updates.issueNumber !== undefined ? { issueNumber: updates.issueNumber } : {}),
     });
-    postIssueComment(REPO_ROOT, repo, prNumber, formatAgentPrStateComment(state));
+    client.postIssueComment(prNumber, formatAgentPrStateComment(state));
     console.log(JSON.stringify({ status: "recorded", prNumber, state }));
     return;
   }
 
   if (parsed.command === "threads") {
-    console.log(JSON.stringify(fetchUnaddressedThreads(REPO_ROOT, repo, parsed.prNumber), null, 2));
+    console.log(JSON.stringify(fetchUnaddressedThreads(client, parsed.prNumber), null, 2));
     return;
   }
 
   const { prNumber, commentId, body } = parsed;
-  ghApiJson(REPO_ROOT, [
-    `repos/${repo.owner}/${repo.name}/pulls/${prNumber}/comments/${commentId}/replies`,
-    "-X",
-    "POST",
-    "-f",
-    `body=${formatAddressedReplyBody(body)}`,
-  ]);
+  client.replyToReviewComment(prNumber, commentId, formatAddressedReplyBody(body));
   console.log(JSON.stringify({ status: "replied", prNumber, commentId }));
 };
 
