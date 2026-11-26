@@ -55,3 +55,29 @@ it("gives the work the activity's cancellation signal", async () => {
 
   await expect(withHeartbeat(async (signal) => signal)).resolves.toBe(cancellationSignal);
 });
+
+it("heartbeats three times per heartbeat timeout of the activity", async () => {
+  vi.useFakeTimers();
+  const heartbeat = vi.fn();
+  sdk.current.mockReturnValue({ heartbeat, info: { heartbeatTimeoutMs: 1500 } });
+
+  let finish!: (value: string) => void;
+  const running = withHeartbeat(() => new Promise<string>((resolve) => (finish = resolve)));
+  await vi.advanceTimersByTimeAsync(1600);
+  expect(heartbeat).toHaveBeenCalledTimes(3);
+  finish("done");
+  await running;
+});
+
+it("heartbeats at most every five seconds", async () => {
+  vi.useFakeTimers();
+  const heartbeat = vi.fn();
+  sdk.current.mockReturnValue({ heartbeat, info: { heartbeatTimeoutMs: 60_000 } });
+
+  let finish!: (value: string) => void;
+  const running = withHeartbeat(() => new Promise<string>((resolve) => (finish = resolve)));
+  await vi.advanceTimersByTimeAsync(5100);
+  expect(heartbeat).toHaveBeenCalledTimes(1);
+  finish("done");
+  await running;
+});

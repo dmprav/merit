@@ -58,9 +58,10 @@ export type ReviewerDeliveryDependencies = {
   database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
   /**
    * Start the delivery workflow for a committed message, again if its last run closed: a manual
-   * retry of a failed message runs under the same ID. Starting what already runs is a no-op, and a failure to start is reported by the implementation and never thrown: the
-   * commit stands and reconciliation starts the work later. It answers whether the work
-   * runs or ran, so a request does not wait for a workflow that never started.
+   * retry of a failed message runs under the same ID. Starting what already runs is a no-op, and
+   * a failure to start is reported by the implementation and never thrown: the commit stands and
+   * reconciliation starts the work later. It answers whether the work runs or ran, so a request
+   * does not wait for a workflow that never started.
    */
   start: (work: ReviewerMessageWork) => Promise<boolean>;
   /** How long a request waits for the first outcome. Tests inject short durations. */

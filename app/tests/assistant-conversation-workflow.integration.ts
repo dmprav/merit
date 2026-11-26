@@ -11,7 +11,7 @@ import { contactWork } from "@merit/grantmaking/testing/contact-work";
 import { roundTest } from "@merit/grantmaking/testing/rounds";
 import { actor, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
-import { saveApplicationReview } from "@merit/reviews/server";
+import { saveApplicationReview, type ReviewerMessageWork } from "@merit/reviews/server";
 import { inlineReviewerDelivery } from "@merit/reviews/testing";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import {
@@ -41,7 +41,8 @@ const queues = { main: uniqueName("assistant"), turns: uniqueName("assistant-tur
 // Short pacing keeps each test to seconds; production waits longer between looks.
 const timing = {
   stepTimeoutMs: 60_000,
-  heartbeatTimeoutMs: 10_000,
+  // The turn activity heartbeats three times per timeout, so a cancelled step ends within 1 s.
+  heartbeatTimeoutMs: 3000,
   idleInitialMs: 100,
   idleMaxMs: 300,
   maxFailures: 3,
@@ -209,19 +210,37 @@ const it = roundTest
     const run = <T>(operation: (db: Database) => Promise<T>) => withDatabase(runtime, operation);
 
     const delivered: string[] = [];
+    // `hold` keeps an assistant invitation pending until the test lets the email through, as a
+    // slow provider does; `failing` makes the send fail, so the message is recorded as failed.
+    const mail: { hold: boolean; failing: boolean; held?: ReviewerMessageWork } = {
+      hold: false,
+      failing: false,
+    };
     const deliverInline = inlineReviewerDelivery(
       reviewerMessageDelivery({
         database: run,
         invitationOrigin: "https://merit.test",
         sendEmail: async ({ to }) => {
+          if (mail.failing) {
+            throw new Error("The provider is down.");
+          }
           delivered.push(to);
         },
       }),
     );
+
+    const startInline = async (work: ReviewerMessageWork) => {
+      if (mail.hold) {
+        mail.held = work;
+        return true;
+      }
+      return deliverInline(work);
+    };
+
     const dependencies = {
       database: run,
       invitationOrigin: "https://merit.test",
-      startReviewerMessage: deliverInline,
+      startReviewerMessage: startInline,
       startOrganizationInvitation: async () => true,
     };
     const model = { apiKey: "test", model: "scripted" };
@@ -297,6 +316,19 @@ const it = roundTest
       rounds,
       database,
       delivered,
+      mail,
+      release: async () => {
+        // The conversation asks for the message, which starts it, within a step or two of Stop.
+        const held = await vi.waitFor(
+          () => {
+            assert(mail.held);
+            return mail.held;
+          },
+          { timeout: 10_000, interval: 50 },
+        );
+        mail.hold = false;
+        await deliverInline(held);
+      },
       driver,
       background,
       fetchModel,
@@ -449,7 +481,7 @@ it(
 
     // The web process holds no request: the workflow cancels the activity, which aborts it.
     await vi.waitFor(() => expect(requests[0]?.aborted).toBe(true), {
-      timeout: 15_000,
+      timeout: 10_000,
       interval: 50,
     });
     await s.closed(id);
@@ -471,7 +503,7 @@ it(
     expect((await s.command({ action: "delete", id })).status).toBe(200);
 
     await vi.waitFor(() => expect(requests[0]?.aborted).toBe(true), {
-      timeout: 15_000,
+      timeout: 10_000,
       interval: 50,
     });
     await s.closed(id);
@@ -514,7 +546,7 @@ it(
     expect((await s.command({ action: "set_consent", enabled: false }, s.admin)).status).toBe(200);
 
     await vi.waitFor(() => expect(requests[0]?.aborted).toBe(true), {
-      timeout: 15_000,
+      timeout: 10_000,
       interval: 50,
     });
     await s.closed(id);
@@ -625,5 +657,91 @@ it(
       workflowId: uniqueName("reconcile"),
     });
     expect((await s.settled(id)).messages.at(-1)?.text).toBe("Back.");
+  },
+);
+
+/** The conversation's invitation action, once it has reached `status`. */
+const actionIn = async (
+  s: { open: (id: string) => Promise<z.infer<typeof snapshot>> },
+  id: string,
+  status: string,
+) =>
+  vi.waitFor(
+    async () => {
+      const action = (await s.open(id)).groups[0]?.actions[0];
+      expect(action?.status).toBe(status);
+      return action;
+    },
+    { timeout: 15_000, interval: 50 },
+  );
+
+const invitation = (s: { applicationId: string; requestId: string }) =>
+  calls([
+    "invite_reviewer",
+    {
+      applicationId: s.applicationId,
+      requestId: s.requestId,
+      commandId: randomUUID(),
+      dueDate: null,
+    },
+  ]);
+
+it(
+  "records an invitation that is sent after Stop, and finishes once it has",
+  { timeout: 30_000 },
+  async ({ scenario: s }) => {
+    s.fetchModel.mockResolvedValueOnce(invitation(s));
+    const id = await s.create();
+    await s.begin(id, "Invite Sam.");
+    const [group] = (await s.settled(id)).groups;
+    assert(group);
+    s.mail.hold = true;
+    expect((await s.command({ action: "approve", id, previewId: group.id })).status).toBe(202);
+    await actionIn(s, id, "delivering");
+
+    expect((await s.command({ action: "stop", id })).status).toBe(200);
+    expect((await s.open(id)).status).toBe("stopped");
+    // The workflow stays up only to settle the delivery: it makes no model call.
+    expect(await s.status(id)).toBe("RUNNING");
+
+    await s.release();
+    await actionIn(s, id, "succeeded");
+    expect((await s.open(id)).status).toBe("stopped");
+    expect(s.delivered).toEqual(["sam@example.test"]);
+    await s.closed(id);
+    expect(s.fetchModel).toHaveBeenCalledTimes(1);
+  },
+);
+
+it(
+  "records an invitation that fails after Stop and lets the chat retry it",
+  { timeout: 30_000 },
+  async ({ scenario: s }) => {
+    s.fetchModel.mockResolvedValueOnce(invitation(s));
+    const id = await s.create();
+    await s.begin(id, "Invite Sam.");
+    const [group] = (await s.settled(id)).groups;
+    assert(group);
+    s.mail.hold = true;
+    s.mail.failing = true;
+    expect((await s.command({ action: "approve", id, previewId: group.id })).status).toBe(202);
+    await actionIn(s, id, "delivering");
+    expect((await s.command({ action: "stop", id })).status).toBe(200);
+
+    await s.release();
+    const failed = await actionIn(s, id, "failed");
+    assert(failed);
+    expect((await s.open(id)).status).toBe("stopped");
+    await s.closed(id);
+    expect(s.delivered).toEqual([]);
+
+    s.mail.failing = false;
+    s.fetchModel.mockImplementationOnce(cited("Sam was invited."));
+    expect(
+      (await s.command({ action: "retry", id, previewId: group.id, actionId: failed.id })).status,
+    ).toBe(202);
+    expect((await s.settled(id)).status).toBe("completed");
+    expect((await s.open(id)).groups[0]?.actions[0]?.status).toBe("succeeded");
+    expect(s.delivered).toEqual(["sam@example.test"]);
   },
 );

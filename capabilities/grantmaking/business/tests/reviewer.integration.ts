@@ -786,6 +786,44 @@ it("revives only the newest failed message of its kind", async ({
   expect(await reset(newer)).toBe(false);
 });
 
+it.for([
+  ["expired", "UPDATE review_assignments SET expires_at = now() - interval '1 hour' WHERE id = $1"],
+  ["revoked", "UPDATE review_assignments SET status = 'cancelled' WHERE id = $1"],
+] as const)(
+  "does not revive a failed invitation that is %s",
+  async ([, change], { database, runtimeUrl, reviewerScenario: s }) => {
+    const id = s.invitation.commandId;
+    await database.client.query("UPDATE reviewer_messages SET status = 'failed' WHERE id = $1", [
+      id,
+    ]);
+
+    const stored = async () =>
+      (
+        await database.client.query<{ status: string; delivery_token: string }>(
+          "SELECT status, delivery_token FROM reviewer_messages WHERE id = $1",
+          [id],
+        )
+      ).rows[0]!;
+
+    const reset = () =>
+      withDatabase(runtimeUrl, (db) =>
+        writeScoped(db, { kind: "workspace", userId: actor.userId, slug: "alder" }, async (tx) => {
+          const [row] = (
+            await tx.execute<{ reset: boolean }>(
+              sql`select merit_retry_reviewer_message(${id}) as reset`,
+            )
+          ).rows;
+          return row?.reset;
+        }),
+      );
+
+    const before = await stored();
+    await database.client.query(change, [s.assignmentId]);
+    expect(await reset()).toBe(false);
+    expect(await stored()).toEqual(before);
+  },
+);
+
 it("keeps a failed notice available for the manager when an amendment email is suppressed", async ({
   reviewerScenario: s,
 }) => {

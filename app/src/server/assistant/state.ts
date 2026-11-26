@@ -47,7 +47,9 @@ const action = z.object({
   result: fields.optional(),
   retry: assistantPreviewSchema.optional(),
   delivery: deliveryTicket.optional(),
-  deliveryAttempt: z.object({ id: z.string(), until: z.number().optional() }).optional(),
+  deliveryAttempt: z
+    .object({ id: z.string(), until: z.number().optional(), errors: z.number().optional() })
+    .optional(),
 });
 const group = z.object({ id: z.string(), actions: z.array(action) });
 export const conversationState = z.object({

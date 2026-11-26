@@ -6,11 +6,12 @@ import { Context } from "@temporalio/activity";
  * the whole start-to-close timeout. Outside an activity, such as in a unit test, it only runs
  * the work. Temporal delivers a cancellation with the next heartbeat's answer, so the work
  * receives the activity's cancellation signal and a cancelled workflow step ends within about
- * one heartbeat.
+ * one heartbeat. Unless told otherwise it heartbeats three times per heartbeat timeout of the
+ * activity, and at most every 5 seconds, so a short timeout also shortens that wait.
  */
 export const withHeartbeat = async <T>(
   work: (cancellation?: AbortSignal) => Promise<T>,
-  everyMs = 5000,
+  everyMs?: number,
 ): Promise<T> => {
   let context: Context;
   try {
@@ -18,7 +19,9 @@ export const withHeartbeat = async <T>(
   } catch {
     return work();
   }
-  const timer = setInterval(() => context.heartbeat(), everyMs);
+  const timeout = context.info?.heartbeatTimeoutMs;
+  const interval = everyMs ?? (timeout ? Math.min(5000, timeout / 3) : 5000);
+  const timer = setInterval(() => context.heartbeat(), interval);
   try {
     return await work(context.cancellationSignal);
   } finally {

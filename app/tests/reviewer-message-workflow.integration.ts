@@ -600,6 +600,20 @@ it("lists a pending message only while its actor could still deliver it", async 
   await s.database.client.query("UPDATE app_users SET active = true WHERE id = $1", [actor.userId]);
   expect(await listed()).toEqual([s.invitation.commandId]);
 
+  // The acting manager must still belong to the workspace.
+  await s.database.client.query(
+    "CREATE TEMP TABLE removed AS SELECT * FROM memberships WHERE organization_id = 'alder' AND user_id = $1",
+    [actor.userId],
+  );
+  await s.database.client.query(
+    "DELETE FROM memberships WHERE organization_id = 'alder' AND user_id = $1",
+    [actor.userId],
+  );
+  expect(await listed()).toEqual([]);
+  await s.database.client.query("INSERT INTO memberships SELECT * FROM removed");
+  await s.database.client.query("DROP TABLE removed");
+  expect(await listed()).toEqual([s.invitation.commandId]);
+
   await s.database.client.query(
     "UPDATE organizations SET kind = 'demo', demo_expires_at = now() - interval '1 hour', demo_seed_version = 1 WHERE id = 'alder'",
   );

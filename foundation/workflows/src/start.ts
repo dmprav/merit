@@ -27,7 +27,10 @@ export type StartRequest = {
 export type StartOutcome =
   /** This call started the workflow, or signaled the one that was running. */
   | "started"
-  /** The workflow already ran or is running, so nothing changed. */
+  /**
+   * The workflow is running, or closed in a way its `closed` policy does not run again
+   * (`keep` runs again only after a failure; `restart` after any close), so nothing changed.
+   */
   | "exists"
   /** Temporal could not be reached; the failure was reported and the work waits for reconciliation. */
   | "failed";
@@ -76,9 +79,9 @@ const within = async <T>(work: Promise<T>, ms: number) => {
 };
 
 /**
- * Start workflows after the business change commits. Starting is idempotent: work that already
- * exists is a no-op. It never throws, and a failure never undoes the commit; it is reported
- * and left to reconciliation. `client` is read on each start so that a missing setting
+ * Start workflows after the business change commits. Starting is idempotent: starting work that
+ * is running, or that closed and may not run again, is a no-op (`exists`). It never throws, and
+ * a failure never undoes the commit; it is reported and left to reconciliation. `client` is read on each start so that a missing setting
  * fails there, reported, rather than when the process starts.
  */
 export const createWorkflowStarter = ({

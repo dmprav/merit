@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { change, type Access, type Stored } from "./access.server";
-import { deliverNext } from "./delivery.server";
+import { deliverNext, settleStopped, unsettledDelivery } from "./delivery.server";
 import {
   applyDecision,
   executeNext,
@@ -100,7 +100,8 @@ const step = async (
 
 /**
  * What one step did. `finished` means there is nothing to drive: the conversation is gone,
- * stopped, unavailable or no longer running, or consent was withdrawn.
+ * unavailable or no longer running, or consent was withdrawn; a stopped conversation finishes
+ * once its started deliveries have settled.
  */
 export type TurnStep = "progressed" | "waiting" | "finished";
 
@@ -111,7 +112,19 @@ export const advanceTurn = async (
   cancellation?: AbortSignal,
 ): Promise<TurnStep> => {
   const row = await access.read();
-  if (!row || row.status !== "running" || !(await access.consent())) {
+  if (!row || !(await access.consent())) {
+    return "finished";
+  }
+  if (row.status === "stopped") {
+    // Stop ends all work except recording how an email already sent settles. No model call, no
+    // new action: the step only asks where the message stands.
+    return unsettledDelivery(conversationState.parse(row.state))
+      ? (await settleStopped(access, row))
+        ? "progressed"
+        : "waiting"
+      : "finished";
+  }
+  if (row.status !== "running") {
     return "finished";
   }
   return (await step(access, row, model, cancellation)) ? "progressed" : "waiting";

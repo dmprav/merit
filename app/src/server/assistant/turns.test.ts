@@ -473,40 +473,101 @@ it("keeps an invitation delivering while its message is pending and records the 
   expect(ctx.catalog.execute).toHaveBeenCalledTimes(1);
 });
 
-it("records a delivery already in flight when Stop cancels the rest of the group", async () => {
+it("records a delivery that settles after Stop, and does nothing else for the stopped chat", async () => {
   const ctx = await fixture();
   ctx.model.mockResolvedValueOnce(calls("invite", "first", "second"));
   ctx.catalog.execute.mockImplementation(async (preview) => ({
     ...ok,
     delivery: { kind: "invitation", assignmentId: "A", messageId: String(preview.input.to) },
   }));
-
-  let release = () => {};
-
-  let announce = () => {};
-
-  const started = new Promise<void>((resolve) => {
-    announce = resolve;
-  });
-  ctx.catalog.deliver.mockImplementationOnce(() => {
-    announce();
-    return new Promise((resolve) => {
-      release = () => resolve("sent");
-    });
-  });
+  ctx.catalog.deliver.mockResolvedValueOnce("pending").mockResolvedValue("sent");
   await ctx.run();
   const group = (await ctx.open())?.groups[0];
   assert.isDefined(group);
   await ctx.turns.approve(...address, { previewId: group.id });
-  const running = ctx.run();
-  await started;
+  await ctx.run();
+  expect((await ctx.open())?.groups[0]?.actions.map((item) => item.status)).toEqual([
+    "delivering",
+    "approved",
+  ]);
+
   await ctx.turns.stop(...address);
-  release();
-  await running;
+  const stopped = await ctx.open();
+  expect(stopped?.status).toBe("stopped");
+  expect(stopped?.groups[0]?.actions.map((item) => item.status)).toEqual(["stopped", "stopped"]);
+
+  expect(await ctx.turns.advance(...address)).toBe("progressed");
   const chat = await ctx.open();
   expect(chat?.status).toBe("stopped");
   expect(chat?.groups[0]?.actions.map((item) => item.status)).toEqual(["succeeded", "stopped"]);
-  expect(ctx.catalog.deliver).toHaveBeenCalledTimes(1);
+  // Nothing more to settle: the stopped chat is finished, and no model or action ran.
+  expect(await ctx.turns.advance(...address)).toBe("finished");
+  expect(ctx.catalog.deliver).toHaveBeenCalledTimes(2);
+  expect(ctx.catalog.execute).toHaveBeenCalledTimes(1);
+  expect(ctx.model).toHaveBeenCalledTimes(1);
+});
+
+it("records a failed delivery after Stop so the invitation can be retried from the chat", async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValueOnce(calls("invite", "only"));
+  ctx.catalog.execute.mockImplementation(async () => ({
+    ...ok,
+    delivery: { kind: "invitation", assignmentId: "A", messageId: "only" },
+  }));
+  ctx.catalog.deliver.mockResolvedValueOnce("pending").mockResolvedValue("failed");
+  await ctx.run();
+  const group = (await ctx.open())?.groups[0];
+  assert.isDefined(group);
+  await ctx.turns.approve(...address, { previewId: group.id });
+  await ctx.run();
+  await ctx.turns.stop(...address);
+  expect(await ctx.turns.advance(...address)).toBe("progressed");
+  const action = (await ctx.open())?.groups[0]?.actions[0];
+  expect(action).toMatchObject({ status: "failed", canRetry: true });
+});
+
+it("records a failed delivery when its message cannot be read repeatedly, without writing while it waits", async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValueOnce(calls("invite", "only"));
+  ctx.catalog.execute.mockImplementation(async () => ({
+    ...ok,
+    delivery: { kind: "invitation", assignmentId: "A", messageId: "only" },
+  }));
+  ctx.catalog.deliver.mockResolvedValueOnce("pending").mockRejectedValue(new Error("down"));
+  await ctx.run();
+  const group = (await ctx.open())?.groups[0];
+  assert.isDefined(group);
+  await ctx.turns.approve(...address, { previewId: group.id });
+  await ctx.run();
+  for (let attempt = 0; attempt < 9; attempt++) {
+    expect(await ctx.turns.advance(...address)).toBe("waiting");
+  }
+  expect((await ctx.open())?.groups[0]?.actions[0]?.status).toBe("delivering");
+  expect(await ctx.turns.advance(...address)).toBe("progressed");
+  expect((await ctx.open())?.groups[0]?.actions[0]).toMatchObject({
+    status: "failed",
+    canRetry: true,
+  });
+});
+
+it("does not write the chat while a delivery is still pending", async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValueOnce(calls("invite", "only"));
+  ctx.catalog.execute.mockImplementation(async () => ({
+    ...ok,
+    delivery: { kind: "invitation", assignmentId: "A", messageId: "only" },
+  }));
+  ctx.catalog.deliver.mockResolvedValue("pending");
+  await ctx.run();
+  const group = (await ctx.open())?.groups[0];
+  assert.isDefined(group);
+  await ctx.turns.approve(...address, { previewId: group.id });
+  await ctx.run();
+  const before = await ctx.open();
+  expect(before?.revision).toBeTypeOf("number");
+  expect(await ctx.turns.advance(...address)).toBe("waiting");
+  expect(await ctx.turns.advance(...address)).toBe("waiting");
+  expect((await ctx.open())?.revision).toBe(before?.revision);
 });
 
 it("pages a large saved private draft through provider calls and cites the original observation", async () => {

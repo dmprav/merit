@@ -120,21 +120,6 @@ const unavailable = () => assistantJson({ status: "provider_unconfigured" }, 503
 
 const show = (value: unknown) => (value == null ? missing() : assistantJson(value));
 
-/** The running conversations of one workspace, whoever owns them, through the privileged read. */
-const runningIn = async (store: Backend["store"], workspace: string) => {
-  const ids: string[] = [];
-  let after: string | undefined;
-  for (;;) {
-    const page = await store.running(100, after);
-    ids.push(...page.filter((chat) => chat.workspaceSlug === workspace).map((chat) => chat.id));
-    const last = page.at(-1);
-    if (!last || page.length < 100) {
-      return ids;
-    }
-    after = last.id;
-  }
-};
-
 const settings = async (
   { configured, model, store, cancel }: Backend,
   actor: Actor,
@@ -144,14 +129,13 @@ const settings = async (
   if (input.action === "set_consent" && input.enabled && !configured) {
     return unavailable();
   }
-  // Withdrawn consent ends every member's running chats in the workspace, and the read that
-  // finds them only lists chats while consent still stands, so it comes first.
-  const ending =
-    input.action === "set_consent" && !input.enabled ? await runningIn(store, workspace) : [];
-  const enabled =
-    input.action === "settings"
-      ? await store.getConsent(actor, workspace)
-      : await store.setConsent(actor, workspace, input.enabled);
+  if (input.action === "settings") {
+    const enabled = await store.getConsent(actor, workspace);
+    return assistantJson({ provider: "OpenAI", model: model || null, configured, enabled });
+  }
+  // Withdrawn consent ends every member's running chats in the workspace. The administrator's
+  // own authorized change reports which ones, so no caller can list them without authority.
+  const { enabled, ending } = await store.setConsent(actor, workspace, input.enabled);
   await Promise.all(ending.map((id) => cancel(id)));
   return assistantJson({ provider: "OpenAI", model: model || null, configured, enabled });
 };

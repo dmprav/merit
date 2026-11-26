@@ -44,10 +44,13 @@ and record the outcome through `merit_finish_reviewer_message` with the message'
 The message stays `pending` during about fifteen minutes of automatic retries, then becomes
 `failed`; resend queues a newer message with its own workflow. `retry_notification` resets the
 failed message to `pending` with a fresh delivery token through `merit_retry_reviewer_message`, in
-the command's transaction, then runs its workflow again under the same ID; a run still open when the retry happens delivers it again
-before it closes, and reconciliation restarts any pending message whose run has closed. The assistant's retry of a failed invitation it saved uses the same function, in its own
-transaction. The function revives only the newest message of its kind in a workspace the member can
-access, and a workflow sends only a message that is still `pending`. Requests wait briefly for the first outcome by polling Postgres.
+the command's transaction, then runs its workflow again under the same ID; a run still open when
+the retry happens delivers it again before it closes, and reconciliation restarts any pending
+message whose run has closed. The assistant's retry of a failed invitation it saved uses the same
+function, in its own transaction. The function revives only the newest message of its kind in a
+workspace the member can access, and an invitation only while its assignment is still invited and
+unexpired. A workflow sends only a message that is still `pending`. Requests wait briefly for the
+first outcome by polling Postgres.
 A privileged `merit_pending_reviewer_messages` function lists, across workspaces, identifiers
 of the newest unfinished message per kind and assignment whose acting member is active with a
 membership in an active workspace, so reconciliation can start missing

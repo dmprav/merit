@@ -107,7 +107,10 @@ const commands = (deps: TurnDependencies, args: Address) => {
 const stopActions = (state: ConversationState) => {
   state.deferred = [];
   for (const action of state.groups.flatMap((item) => item.actions)) {
-    if (action.deliveryAttempt) {
+    if (action.status === "delivering" && action.delivery) {
+      // The message is committed and still sends. Keep its ticket and an attempt, so the
+      // conversation records the outcome once it settles even though it is stopped.
+      action.deliveryAttempt ??= { id: randomUUID() };
       action.result = { ...action.result, delivery: "unconfirmed" };
     }
     if (["approved", "waiting", "delivering"].includes(action.status)) {

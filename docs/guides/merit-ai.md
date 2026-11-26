@@ -26,7 +26,7 @@ reconciliation Schedule wakes every running conversation. The worker reads `OPEN
 mid-turn leaves the turn running in PostgreSQL, and another worker resumes it once the stopped
 step's lease expires. Closing a request or browser tab never stops a turn; `stop` does. `stop`,
 `delete`, and withdrawn workspace consent also signal the conversation's workflow, which cancels
-the step in flight: the turn activity heartbeats every few seconds, receives the cancellation
+the step in flight: the turn activity heartbeats several times per heartbeat timeout, receives the cancellation
 with the next heartbeat, and aborts the model request, so a stopped turn stops spending tokens
 and frees its slot within about ten seconds instead of at the provider timeout.
 
@@ -36,7 +36,14 @@ message stands without waiting for it, so a slow email never holds one of the fo
 It records `succeeded` or `failed` once the message settles, up to about fifteen minutes after
 the first send fails. A message already recorded as failed is never sent again behind the
 assistant's own `retry` action, which resets that message to pending in its own transaction before
-its workflow delivers it again.
+its workflow delivers it again. `stop` ends all other work at once, but the email is already
+committed and still sends, so a stopped conversation keeps asking where the message stands, with
+no model call and no new action, and records `succeeded` or `failed` when it settles; a failed
+message can then be retried from the chat. A step that cannot read the message ten times in a row
+records the delivery as failed, and the action can be retried. Withdrawing consent reports the
+workspace's running conversations to the administrator's own change, so only an authorized
+administrator learns which conversations to cancel. A retry of an invitation that has since
+expired or been revoked revives nothing; the action reports it as unavailable.
 
 In each workspace, read `settings` to show the configured provider and model to
 an organization administrator or owner. Send `set_consent` with `enabled: true`

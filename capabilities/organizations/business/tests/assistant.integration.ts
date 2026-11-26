@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { expect } from "vite-plus/test";
 
 import { withDatabase } from "@merit/db";
@@ -65,10 +65,13 @@ it("requires administrator consent for the specific workspace", async ({
     .update(memberships)
     .set({ administration: "administrator" })
     .where(eq(memberships.userId, actor.userId));
-  expect(await store.setConsent(actor, workspaceSlug, true)).toBe(true);
+  expect(await store.setConsent(actor, workspaceSlug, true)).toEqual({ enabled: true, ending: [] });
   expect(await store.getConsent(actor, workspaceSlug)).toBe(true);
   expect(await store.getConsent(admin, "birch")).toBe(false);
-  expect(await store.setConsent(actor, workspaceSlug, false)).toBe(false);
+  expect(await store.setConsent(actor, workspaceSlug, false)).toEqual({
+    enabled: false,
+    ending: [],
+  });
 });
 
 it("isolates chat content and worker discovery by workspace, owner and membership lifetime", async ({
@@ -103,6 +106,48 @@ it("isolates chat content and worker discovery by workspace, owner and membershi
     .values({ organizationId: "birch", userId: actor.userId, role: "reviewer" });
   expect(await store.running()).toEqual([]);
   expect(await store.read(actor, "birch", chat.id)).toBeNull();
+});
+
+it("tells only an administrator which running chats of their workspace consent withdrawal ends", async ({
+  db,
+  store,
+  runtimeUrl,
+}) => {
+  await db
+    .insert(memberships)
+    .values({ organizationId: "birch", userId: actor.userId, role: "reviewer" });
+  await store.setConsent(admin, "birch", true);
+  const chat = await store.create(actor, "birch", { status: "running", state: {} });
+  await store.create(actor, "birch", { status: "completed", state: {} });
+
+  const listed = (userId: string, slug: string) =>
+    withDatabase(runtimeUrl, (runtime) =>
+      readWorkspace(runtime, userId, slug, async (tx) =>
+        (
+          await tx.execute<{ id: string }>(
+            sql`select merit_workspace_running_assistant_conversations() as id`,
+          )
+        ).rows.map((row) => row.id),
+      ),
+    );
+
+  // A member who is not an administrator learns nothing, even of their own chat.
+  expect(await listed(actor.userId, "birch")).toEqual([]);
+  // An administrator of another workspace learns nothing about this one.
+  await db
+    .update(memberships)
+    .set({ administration: "administrator" })
+    .where(and(eq(memberships.userId, actor.userId), eq(memberships.organizationId, "alder")));
+  expect(await listed(actor.userId, workspaceSlug)).toEqual([]);
+  expect(await listed(admin.userId, "birch")).toEqual([chat.id]);
+
+  await expect(store.setConsent(actor, "birch", false)).rejects.toMatchObject({
+    code: "forbidden",
+  });
+  expect(await store.setConsent(admin, "birch", false)).toEqual({
+    enabled: false,
+    ending: [chat.id],
+  });
 });
 
 it("commits one competing worker, rolls back failed commands, and fences stale or deleted work", async ({

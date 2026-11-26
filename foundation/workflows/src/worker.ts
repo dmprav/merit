@@ -118,11 +118,6 @@ export const runWorkers = async (workers: Worker[]) => {
 };
 
 /**
- * Keep the SDK's bundler output and state changes out of the console. Warnings and errors
- * remain, with their level, workflow or activity type and identifiers, but never failure
- * text or stack traces: those can carry what the encrypted history protects.
- */
-/**
  * Options of the SDK Runtime: its logger writes through {@link writeSafeLogEntry}, and the
  * native core's own logs, which would otherwise go straight to the console with task tokens and
  * failure text, are forwarded to that logger.
@@ -134,6 +129,11 @@ const runtimeOptions = (): RuntimeOptions => ({
   },
 });
 
+/**
+ * Keep the SDK's bundler output and state changes out of the console. Warnings and errors
+ * remain, with their level, workflow or activity type and identifiers, but never failure
+ * text or stack traces: those can carry what the encrypted history protects.
+ */
 export const quietRuntime = () => {
   try {
     Runtime.install(runtimeOptions());
