@@ -27,6 +27,29 @@ export const recordPath = (prNumber: number) => `${RECORD_DIRECTORY}/${prNumber}
 
 const isRecordPath = (path: string) => path.startsWith(`${RECORD_DIRECTORY}/`);
 
+/** Renames and copies name a source and a destination path; every other status names one path. */
+const pathCountFor = (status: string) => (status.startsWith("R") || status.startsWith("C") ? 2 : 1);
+
+/** A rename removes its source and adds its destination; a copy only adds its destination. */
+const changedFilesFor = (status: string, [first = "", second = ""]: string[]): ChangedFile[] => {
+  if (status.startsWith("R") && first && second) {
+    return [
+      { status: "deleted", path: first },
+      { status: "added", path: second },
+    ];
+  }
+  if (pathCountFor(status) === 2) {
+    return second ? [{ status: "added", path: second }] : [];
+  }
+  if (!first) {
+    return [];
+  }
+  if (status.startsWith("D")) {
+    return [{ status: "deleted", path: first }];
+  }
+  return [{ status: status.startsWith("A") ? "added" : "modified", path: first }];
+};
+
 /**
  * Parses NUL-delimited `git diff -z --name-status` output, whose paths are never
  * quoted; a rename removes the old path and adds the new one.
@@ -34,39 +57,15 @@ const isRecordPath = (path: string) => path.startsWith(`${RECORD_DIRECTORY}/`);
 export const parseNameStatusZ = (raw: string): ChangedFile[] => {
   const tokens = raw.split("\0");
   const files: ChangedFile[] = [];
-  let index = 0;
-
-  while (index < tokens.length) {
+  for (let index = 0; index < tokens.length;) {
     const status = tokens[index] ?? "";
     index += 1;
-    if (!status) {
-      continue;
-    }
-    if (status.startsWith("R") || status.startsWith("C")) {
-      const first = tokens[index] ?? "";
-      const second = tokens[index + 1] ?? "";
-      index += 2;
-      if (status.startsWith("R") && first && second) {
-        files.push({ status: "deleted", path: first }, { status: "added", path: second });
-      } else if (second) {
-        files.push({ status: "added", path: second });
-      }
-      continue;
-    }
-    const path = tokens[index] ?? "";
-    index += 1;
-    if (!path) {
-      continue;
-    }
-    if (status.startsWith("D")) {
-      files.push({ status: "deleted", path });
-    } else if (status.startsWith("A")) {
-      files.push({ status: "added", path });
-    } else {
-      files.push({ status: "modified", path });
+    if (status) {
+      const pathCount = pathCountFor(status);
+      files.push(...changedFilesFor(status, tokens.slice(index, index + pathCount)));
+      index += pathCount;
     }
   }
-
   return files;
 };
 
@@ -104,35 +103,43 @@ const visibleText = (line: string, inComment: boolean) => {
   return { visible, inComment: commented };
 };
 
+type RecordLine = { kind: "heading"; heading: string } | { kind: "content"; hasText: boolean };
+
 /**
- * Collects level-two sections, treating fenced code as section content rather
- * than headings and ignoring HTML comments.
+ * Classifies each line as a level-two heading or section content, treating fenced
+ * code as content rather than headings and ignoring HTML comments.
  */
-const recordSections = (content: string): Section[] => {
-  const sections: Section[] = [];
+const readRecordLines = (content: string): RecordLine[] => {
+  const lines: RecordLine[] = [];
   let fence: RegExp | null = null;
   let inComment = false;
-
   for (const line of content.split(/\r?\n/)) {
-    const current = sections.at(-1);
     if (fence) {
       fence = fence.test(line) ? null : fence;
-      if (current) {
-        current.hasContent = true;
-      }
+      lines.push({ kind: "content", hasText: true });
       continue;
     }
-
     const text = visibleText(line, inComment);
     inComment = text.inComment;
-    const closer = codeFenceCloser(text.visible);
-    const heading = /^## +(.+?)\s*$/.exec(text.visible)?.[1];
-    if (closer) {
-      fence = closer;
-    }
-    if (heading && !closer) {
-      sections.push({ heading, hasContent: false });
-    } else if (current && text.visible.trim()) {
+    fence = codeFenceCloser(text.visible);
+    const heading = fence ? undefined : /^## +(.+?)\s*$/.exec(text.visible)?.[1];
+    lines.push(
+      heading
+        ? { kind: "heading", heading }
+        : { kind: "content", hasText: text.visible.trim().length > 0 },
+    );
+  }
+  return lines;
+};
+
+/** Collects level-two sections and whether each has any visible content. */
+const recordSections = (content: string): Section[] => {
+  const sections: Section[] = [];
+  for (const line of readRecordLines(content)) {
+    const current = sections.at(-1);
+    if (line.kind === "heading") {
+      sections.push({ heading: line.heading, hasContent: false });
+    } else if (current && line.hasText) {
       current.hasContent = true;
     }
   }
