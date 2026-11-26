@@ -19,6 +19,9 @@ type ExecFile = (
   options: { cwd: string; encoding: "utf8"; env?: NodeJS.ProcessEnv },
 ) => string;
 
+/** How a client's default `gh` runner reads the environment and spawns `gh`; tests replace both. */
+type GhProcess = { env?: NodeJS.ProcessEnv; execFile?: ExecFile };
+
 /** Issue list queries return at most this many issues; `gh issue list` does not page beyond it. */
 export const ISSUE_LIST_LIMIT = 200;
 
@@ -407,8 +410,10 @@ export type GitHubRestClient = ReturnType<typeof createGitHubRestClient>;
 export const createGitHubRestClient = ({
   repoRoot,
   repo = resolveRepoIdentity(repoRoot),
-  exec = createGhExec({ repoRoot, auth: "ambient" }),
-}: {
+  env,
+  execFile,
+  exec = createGhExec({ repoRoot, auth: "ambient", env, execFile }),
+}: GhProcess & {
   repoRoot: string;
   repo?: RepoIdentity;
   exec?: GhExec;
@@ -510,8 +515,10 @@ export type GitHubIssueCliClient = ReturnType<typeof createGitHubIssueCliClient>
 
 export const createGitHubIssueCliClient = ({
   repoRoot,
-  exec = createGhExec({ repoRoot, auth: "scout" }),
-}: {
+  env,
+  execFile,
+  exec = createGhExec({ repoRoot, auth: "scout", env, execFile }),
+}: GhProcess & {
   repoRoot: string;
   exec?: GhExec;
 }) => ({

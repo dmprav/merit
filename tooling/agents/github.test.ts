@@ -265,6 +265,42 @@ describe("gh credentials", () => {
       { file: "gh", args: ["api"], cwd: "/repo" },
     ]);
   });
+
+  const recordGhEnvs = (response: string) => {
+    const envs: Array<NodeJS.ProcessEnv | undefined> = [];
+
+    const execFile = (
+      _file: string,
+      _args: readonly string[],
+      options: { env?: NodeJS.ProcessEnv },
+    ) => {
+      envs.push(options.env);
+      return response;
+    };
+
+    return { envs, execFile };
+  };
+
+  const clientEnv = { GH_TOKEN: "injected", [SCOUT_GH_TOKEN_ENV]: "scout-token" };
+
+  test("files issues with the scout token by default", () => {
+    const { envs, execFile } = recordGhEnvs("https://github.com/dmprav/merit/issues/9\n");
+    const client = createGitHubIssueCliClient({ repoRoot: "/repo", env: clientEnv, execFile });
+
+    client.createIssue({ title: "t", body: "b", labels: [] });
+
+    expect(envs).toHaveLength(1);
+    expect(envs[0]?.GH_TOKEN).toBe("scout-token");
+  });
+
+  test("sends REST requests with the ambient credentials by default", () => {
+    const { envs, execFile } = recordGhEnvs("");
+    const client = createGitHubRestClient({ repoRoot: "/repo", repo, env: clientEnv, execFile });
+
+    client.rerunFailedJobs(9);
+
+    expect(envs).toEqual([undefined]);
+  });
 });
 
 describe("GitHub issue CLI client", () => {
