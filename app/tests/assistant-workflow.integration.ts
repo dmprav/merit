@@ -192,6 +192,7 @@ it(
             sendEmail,
           }),
         ),
+        startOrganizationInvitation: async () => true,
         committedDeliveryWait: { timeoutMs: 0, intervalMs: 0 },
       },
       { apiKey: "test", model: "scripted" },

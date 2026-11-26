@@ -2,3 +2,4 @@
 export { workerHealth } from "./health.workflow.ts";
 export { reconcile } from "./reconcile.workflow.ts";
 export { reviewerMessage } from "@merit/reviews/server/workflow";
+export { organizationInvitation } from "@merit/organizations/server/workflow";

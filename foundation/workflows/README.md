@@ -76,7 +76,10 @@ keeping its paused state, so every worker start can call it. The application wor
 reconcilers, one activity each, that list committed unfinished work in Postgres and start the
 workflows that are missing. Add a reconciler to
 [`reconcile.workflow.ts`](../../app/src/worker/reconcile.workflow.ts) and its activity to
-[`activities.ts`](../../app/src/worker/activities.ts).
+[`activities.ts`](../../app/src/worker/activities.ts). Organization invitations have no
+reconciler: only the token's hash is stored, and the raw token lives only in the workflow's
+encrypted input, so a start lost between commit and Temporal is recovered by the administrator's
+resend.
 
 ## Write workflow modules
 

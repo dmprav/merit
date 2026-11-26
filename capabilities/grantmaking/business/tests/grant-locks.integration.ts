@@ -16,7 +16,7 @@ import type { Database } from "@merit/db";
 import { migrate } from "@merit/db/migrate";
 import { getFundingApplicationPage, getFundingRoundPage } from "@merit/grantmaking/server";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
-import { createOrganizationService } from "@merit/organizations/server";
+import { createInlineOrganizationService } from "@merit/organizations/server/testing";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
@@ -374,7 +374,7 @@ const revoke = async (connection: Database) => {
 
   assert.isDefined(member);
 
-  const service = createOrganizationService({
+  const service = createInlineOrganizationService({
     revokeReviewAccess: revokeMembershipReviews,
     database: async (operation) => operation(connection),
     isOperator: async () => false,

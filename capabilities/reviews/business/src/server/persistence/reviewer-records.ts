@@ -343,7 +343,7 @@ export const readReviewerAssessment = async (db: Database, record: ReviewerRecor
   return assessment ? reviewStateSchema.shape.assessments.element.parse(assessment) : null;
 };
 
-export type PendingReviewerMessage = {
+type PendingReviewerMessage = {
   messageId: string;
   assignmentId: string;
   kind: "invitation" | "submission";

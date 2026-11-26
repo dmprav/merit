@@ -197,7 +197,7 @@ export const deliverCommittedReviewerMessage = async (
  * member's current access, so a revoked invitation, a newer message, a lost membership or an
  * earlier success stops the work. A send failure throws, so the activity retries with backoff.
  */
-export const sendReviewerMessage = async (
+const sendReviewerMessage = async (
   dependencies: ReviewerMessageActivityDependencies,
   work: ReviewerMessageWork,
 ): Promise<"sent" | "stopped"> => {
@@ -238,7 +238,7 @@ export const sendReviewerMessage = async (
 };
 
 /** Record the final failure after the retry window, unless the message was sent or replaced. */
-export const failReviewerMessage = async (
+const failReviewerMessage = async (
   dependencies: Pick<ReviewerMessageActivityDependencies, "database">,
   work: ReviewerMessageWork,
 ): Promise<"failed" | "sent" | "stopped"> => {

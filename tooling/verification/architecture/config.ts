@@ -170,11 +170,29 @@ const serverImports: DependenciesPolicy[] = [
     "@merit/reviews/server",
     business("reviews", "assembly"),
   ),
+  permitServer(
+    {
+      file: {
+        path: ["app/src/server/background-work.server.ts", "app/src/worker/activities.ts"],
+      },
+    },
+    "@merit/organizations/server",
+    business("organizations", "assembly"),
+  ),
   // The worker bundles each capability's workflow module from its own entry.
   permitServer(
     { file: { path: "app/src/worker/workflows.workflow.ts" } },
     "@merit/reviews/server/workflow",
     { file: { path: "capabilities/reviews/business/src/server/reviewer-message.workflow.ts" } },
+  ),
+  permitServer(
+    { file: { path: "app/src/worker/workflows.workflow.ts" } },
+    "@merit/organizations/server/workflow",
+    {
+      file: {
+        path: "capabilities/organizations/business/src/server/organization-invitation.workflow.ts",
+      },
+    },
   ),
   permitServer(
     { file: { path: "app/src/server/assistant/{host,access}.server.ts" } },

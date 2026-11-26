@@ -71,6 +71,11 @@ beforeAll(async () => {
       reviewerUrl: (slug, id) => `https://merit.test/app/${slug}/work/${id}`,
       managerUrl: (slug, id) => `https://merit.test/app/${slug}/applications/${id}`,
     },
+    invitations: {
+      database,
+      sendInvitation: async () => {},
+      invitationUrl: (token) => token,
+    },
     reconcileReviewerMessage: (work) => current.background.reconcileReviewerMessage(work),
   });
   worker = await startTestWorker(config, { workflows: { workflowsPath }, activities });

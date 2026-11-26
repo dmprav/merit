@@ -51,7 +51,7 @@ const sendEmail = createEmailSender({
 // Created on first use, so a missing Temporal setting is a reported start failure, not a crash
 // that keeps requests from committing.
 let workflowClient: WorkflowClient | undefined;
-const { startReviewerMessage } = createBackgroundWork({
+const { startReviewerMessage, startOrganizationInvitation } = createBackgroundWork({
   client: () =>
     (workflowClient ??= createWorkflowClient(
       readTemporalConfig(env, {
@@ -62,7 +62,14 @@ const { startReviewerMessage } = createBackgroundWork({
 
 // Detached turns check out connections from the process pool after their HTTP request ends.
 const assistant = createAssistantHost(
-  { database, analytics, sendEmail, startReviewerMessage, invitationOrigin: origin },
+  {
+    database,
+    analytics,
+    sendEmail,
+    startReviewerMessage,
+    startOrganizationInvitation,
+    invitationOrigin: origin,
+  },
   {
     apiKey: env.OPENAI_API_KEY ?? "",
     model: env.MERIT_AI_MODEL ?? "",
@@ -104,6 +111,7 @@ export default createServerEntry({
               networkAddress: import.meta.env.DEV ? "local" : peerAddress(request),
               sendEmail,
               startReviewerMessage,
+              startOrganizationInvitation,
             };
             if (url.pathname === "/mcp/workspace") {
               return await handleMcp(request, clerkConfig, dependencies);

@@ -6,12 +6,14 @@ import { currentAccount } from "@merit/auth/session";
 import type { Database } from "@merit/db";
 import { roundTest } from "@merit/grantmaking/testing/rounds";
 import { handleWorkspaceMcp, mcpScopes } from "@merit/mcp";
+import { inlineInvitationDelivery } from "@merit/organizations/server/testing";
 import { productLinks } from "@merit/product/links";
 import { inlineReviewerDelivery } from "@merit/reviews/testing";
 
 import { createAccountDemoServices } from "../../src/server/demo-workspace.server";
 import {
   createApplicationServices,
+  organizationInvitationDelivery,
   reviewerMessageDelivery,
 } from "../../src/server/services.server";
 
@@ -49,6 +51,13 @@ export const createTransport = (
     sendEmail,
     startReviewerMessage: inlineReviewerDelivery(
       reviewerMessageDelivery({
+        database: async (operation) => operation(db),
+        invitationOrigin: "http://localhost:3000",
+        sendEmail,
+      }),
+    ),
+    startOrganizationInvitation: inlineInvitationDelivery(
+      organizationInvitationDelivery({
         database: async (operation) => operation(db),
         invitationOrigin: "http://localhost:3000",
         sendEmail,

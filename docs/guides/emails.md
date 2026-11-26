@@ -71,12 +71,20 @@ The worker reads the same sender settings as the web server (`EMAIL_FROM`, `RESE
 Mailpit locally) and `APP_ORIGIN` for links. Only identifiers reach Temporal; the rendered email is built from
 Postgres inside the activity.
 
+Organization invitation emails follow the same path. After the invitation commits, the web server
+starts the `organization-invitation:<invitationId>` workflow, which Organizations owns, and the
+request waits about five seconds for the first outcome. Its activity rereads the invitation before
+every attempt and stops once it is revoked, accepted, or expired. The raw invitation token is the one
+sensitive field in the workflow input; the payload codec encrypts it, and only its hash is stored in
+Postgres. Reconciliation therefore cannot recover a lost start: the invitation stays unconfirmed and
+the administrator resends it. Resend creates a new invitation with its own workflow.
+
 Sending failures leave the saved invitation available for recovery. Application diagnostics
 distinguish rendering, sender configuration, network requests, and provider rejection.
 They include only fixed messages, provider names, and HTTP status codes, never
-recipients, invitation links, message content, credentials, or raw errors. A separate
-diagnostic reports failure to record the delivery outcome; the invitation then remains
-delivery-unconfirmed. Sender configuration is checked when sending, so missing email
+recipients, invitation links, message content, credentials, or raw errors. If the outcome
+cannot be recorded even after the recording activity's retries, the workflow fails in Temporal;
+the invitation then remains delivery-unconfirmed. Sender configuration is checked when sending, so missing email
 credentials do not prevent unrelated requests from running.
 
 ## Verify a change

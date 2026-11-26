@@ -27,6 +27,7 @@ const dependencies = (db: Database) => ({
   invitationOrigin: endpoint.origin,
   sendEmail: async () => {},
   startReviewerMessage: async () => true,
+  startOrganizationInvitation: async () => true,
 });
 
 it("assembles real MCP services with each bearer's workspace and scopes despite browser cookies", async ({

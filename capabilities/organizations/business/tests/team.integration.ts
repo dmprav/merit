@@ -5,7 +5,7 @@ import { assert, beforeAll, afterAll, beforeEach, describe, expect, it } from "v
 import { withDatabase } from "@merit/db";
 import { migrate } from "@merit/db/migrate";
 import type { InvitationMessage } from "@merit/organizations/api";
-import { createOrganizationService } from "@merit/organizations/server";
+import { createInlineOrganizationService } from "@merit/organizations/server/testing";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -14,7 +14,7 @@ let messages: InvitationMessage[];
 let sendingFails: boolean;
 
 const service = (emails?: string[]) =>
-  createOrganizationService({
+  createInlineOrganizationService({
     revokeReviewAccess: async () => {},
     database: (operation) => withDatabase(runtimeUrl, operation),
     isOperator: async (actor) => actor.userId === "operator",
@@ -421,7 +421,7 @@ describe("organization team", () => {
 
   it("delivers the committed team invitation and retains its responsibilities when resending", async () => {
     const delivered: InvitationMessage[] = [];
-    const invitations = createOrganizationService({
+    const invitations = createInlineOrganizationService({
       revokeReviewAccess: async () => {},
       database: (operation) => withDatabase(runtimeUrl, operation),
       isOperator: async () => false,

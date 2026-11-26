@@ -7,7 +7,7 @@ import { materialVersionSchema } from "@merit/applications/domain";
 import { editFundingApplication } from "@merit/applications/server";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { withDatabase } from "@merit/db";
-import { createOrganizationService } from "@merit/organizations/server";
+import { createInlineOrganizationService } from "@merit/organizations/server/testing";
 import { actor } from "@merit/organizations/testing/workspace";
 import type { ReviewerMessage } from "@merit/reviews/api";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
@@ -1085,7 +1085,7 @@ it("keeps an unaccepted assignment ended after removal and rejoining until expli
   database,
   reviewerScenario: s,
 }) => {
-  const organizations = createOrganizationService({
+  const organizations = createInlineOrganizationService({
     database: (operation) => operation(db),
     revokeReviewAccess: revokeMembershipReviews,
     isOperator: async () => false,
@@ -1146,7 +1146,7 @@ it("permanently ends assignments on role loss, preserves private work, and attri
   database,
   reviewerScenario: s,
 }) => {
-  const organizations = createOrganizationService({
+  const organizations = createInlineOrganizationService({
     database: (operation) => operation(db),
     revokeReviewAccess: revokeMembershipReviews,
     isOperator: async () => false,

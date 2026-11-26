@@ -41,10 +41,17 @@ Membership changes, invitation changes, and audit events commit together.
 The required `revokeReviewAccess` collaborator ends review assignments in that
 transaction when qualifying responsibilities are removed. Assembly supplies Reviews’
 implementation; Organizations never writes review tables.
-Invitation delivery runs after the invitation transaction completes; failed
-sending leaves the saved invitation recoverable. Delivery status is recorded in
-a separate transaction. Retrying the same creation request preserves its
-invitation and does not send it again.
+Invitation delivery runs after the invitation transaction completes, in the
+[`organization-invitation:<invitationId>` workflow](src/server/organization-invitation.workflow.ts)
+that Organizations owns. Its [activities](src/server/commands/delivery.ts) reread the invitation
+before every attempt and stop once it is revoked, accepted, or expired. They send through
+`sendInvitation` and record the outcome with `recordDelivery` in a separate transaction. The
+invitation stays `pending` during about fifteen minutes of automatic retries, then becomes `failed`.
+Requests wait about five seconds, polling Postgres, for the first outcome. The raw token is the only
+sensitive workflow input, protected by the payload codec. Because only the token hash is stored,
+reconciliation cannot restart delivery: a lost start leaves the invitation `pending` until an
+administrator resends it. Retrying the same creation request preserves its invitation and does not
+send it again. `/server/testing` supplies an inline stand-in for the workflow in business tests.
 
 [Invitation issuance](src/server/commands/issue-invitation.ts) checks delivery limits,
 constructs a complete invitation, and stores it in the caller's transaction.

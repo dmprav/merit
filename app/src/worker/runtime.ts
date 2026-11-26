@@ -6,7 +6,7 @@ import { createWorkflowClient, readTemporalConfig, type TemporalConfig } from "@
 import { createBackgroundWork } from "../server/background-work.server";
 import { createEmailSender } from "../server/email-delivery.server";
 import { readAppOrigin, readDatabaseUrl } from "../server/runtime-config.server";
-import { reviewerMessageDelivery } from "../server/services.server";
+import { organizationInvitationDelivery, reviewerMessageDelivery } from "../server/services.server";
 import { createActivities } from "./activities";
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -31,6 +31,11 @@ export const createWorkerRuntime = (
   const activities = createActivities({
     database,
     reviewerMessages: reviewerMessageDelivery({
+      database,
+      invitationOrigin: readAppOrigin(),
+      sendEmail,
+    }),
+    invitations: organizationInvitationDelivery({
       database,
       invitationOrigin: readAppOrigin(),
       sendEmail,

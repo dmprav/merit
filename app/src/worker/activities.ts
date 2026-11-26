@@ -1,5 +1,9 @@
 import type { Database } from "@merit/db";
 import {
+  createInvitationActivities,
+  type InvitationActivityDependencies,
+} from "@merit/organizations/server";
+import {
   createReviewerMessageActivities,
   listPendingReviewerMessageWork,
   type ReviewerMessageActivityDependencies,
@@ -17,6 +21,7 @@ export const confirmWorkerHealth = async (probeId: string) => {
 export type WorkerActivityDependencies = {
   database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
   reviewerMessages: ReviewerMessageActivityDependencies;
+  invitations: InvitationActivityDependencies;
   /** Starts a reviewer message's workflow unless one ran or runs; the outcome says which. */
   reconcileReviewerMessage: (work: ReviewerMessageWork) => Promise<StartOutcome>;
 };
@@ -53,6 +58,7 @@ const reconcileReviewerMessages = async ({
 export const createActivities = (dependencies: WorkerActivityDependencies) => ({
   confirmWorkerHealth,
   ...createReviewerMessageActivities(dependencies.reviewerMessages),
+  ...createInvitationActivities(dependencies.invitations),
   reconcileReviewerMessages: () => reconcileReviewerMessages(dependencies),
 });
 

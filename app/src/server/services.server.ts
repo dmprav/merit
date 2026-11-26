@@ -8,8 +8,9 @@ import { createContactService } from "@merit/contacts/server";
 import type { Database } from "@merit/db";
 import { renderReviewerEmail } from "@merit/emails/reviewer";
 import { createGrantmakingService, createNavigationService } from "@merit/grantmaking/server";
+import type { InvitationMessage } from "@merit/organizations/api";
 import type { WorkspaceChangeObserver } from "@merit/organizations/domain";
-import { createOrganizationService } from "@merit/organizations/server";
+import { createOrganizationService, type InvitationWork } from "@merit/organizations/server";
 import { productLinks } from "@merit/product/links";
 import { createRecommendationsService } from "@merit/recommendations/server";
 import { applicationRecommendationWork } from "@merit/recommendations/server/integrations";
@@ -46,6 +47,8 @@ type Dependencies = {
    * and answers whether the work runs or ran.
    */
   startReviewerMessage: (work: ReviewerMessageWork) => Promise<boolean>;
+  /** Starts an organization invitation's delivery workflow after it commits; it never rejects. */
+  startOrganizationInvitation: (work: InvitationWork) => Promise<boolean>;
   /** How long a request waits for the first delivery outcome. */
   deliveryWait?: OutcomeWait;
   deferReviewerDelivery?: (delivery: ReviewerDelivery) => void;
@@ -66,14 +69,24 @@ export const reviewerMessageDelivery = ({
     sendEmail({ id: message.id, to: message.to, ...(await renderReviewerEmail(message)) }),
 });
 
+/** What the delivery activities, which run in the worker, need to send an organization invitation. */
+export const organizationInvitationDelivery = ({
+  database,
+  invitationOrigin,
+  sendEmail,
+}: Pick<Dependencies, "database" | "invitationOrigin" | "sendEmail">) => ({
+  database,
+  invitationUrl: (token: string) => new URL(productLinks.invitation(token), invitationOrigin).href,
+  sendInvitation: (message: InvitationMessage) => sendInvitationEmail(message, sendEmail),
+});
+
 export const createApplicationServices = ({
   database,
   analytics,
   identity,
-  invitationOrigin,
   networkAddress,
-  sendEmail,
   startReviewerMessage,
+  startOrganizationInvitation,
   deliveryWait,
   deferReviewerDelivery,
 }: Dependencies) => {
@@ -128,8 +141,8 @@ export const createApplicationServices = ({
       database,
       ...identity,
       networkAddress,
-      invitationUrl: (token) => new URL(productLinks.invitation(token), invitationOrigin).href,
-      sendInvitation: (message) => sendInvitationEmail(message, sendEmail),
+      start: startOrganizationInvitation,
+      wait: deliveryWait,
     }),
   );
 

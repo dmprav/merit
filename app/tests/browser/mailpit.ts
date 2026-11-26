@@ -36,7 +36,9 @@ export const invitationLink = async (
       const detail = await request.get(`http://127.0.0.1:8025/api/v1/message/${message.ID}`);
       expect(detail.ok()).toBe(true);
       const { Text } = messageSchema.parse(await detail.json());
-      link = Text.match(/http:\/\/127\.0\.0\.1:3002\/invitations\/[a-f0-9]{64}/)?.[0];
+      // The worker builds links from APP_ORIGIN, not from the request, so only the path is checked.
+      const path = Text.match(/https?:\/\/[^\s/]+(\/invitations\/[a-f0-9]{64})/)?.[1];
+      link = path ? `http://127.0.0.1:3002${path}` : undefined;
       return Boolean(link);
     })
     .toBe(true);
