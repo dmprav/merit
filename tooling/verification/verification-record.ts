@@ -7,6 +7,7 @@ export const RECORD_DIRECTORY = "verifications";
 
 /** Sections every record contains, in this order; the verification guide defines each one. */
 export const RECORD_SECTIONS = [
+  "Behavioral decisions",
   "Checks run",
   "Could not verify",
   "Did not verify",
@@ -48,7 +49,7 @@ export const parseNameStatus = (raw: string): ChangedFile[] =>
       return [{ status: "modified", path: first }];
     });
 
-type Section = { heading: string; hasContent: boolean };
+type Section = { heading: string; lines: string[]; hasContent: boolean };
 
 /** Removes HTML comment text from a line, tracking comments that span lines. */
 const visibleText = (line: string, inComment: boolean) => {
@@ -81,6 +82,7 @@ const recordSections = (content: string): Section[] => {
     if (fence) {
       fence = fence.test(line) ? null : fence;
       if (current) {
+        current.lines.push(line);
         current.hasContent = true;
       }
       continue;
@@ -94,12 +96,35 @@ const recordSections = (content: string): Section[] => {
       fence = new RegExp(`^ {0,3}${opening[0]}{${opening.length},}\\s*$`);
     }
     if (heading && !opening) {
-      sections.push({ heading, hasContent: false });
-    } else if (current && text.visible.trim()) {
-      current.hasContent = true;
+      sections.push({ heading, lines: [], hasContent: false });
+    } else if (current) {
+      if (text.visible.trim()) {
+        current.lines.push(text.visible);
+        current.hasContent = true;
+      } else if (current.lines.length > 0) {
+        current.lines.push("");
+      }
     }
   }
   return sections;
+};
+
+/** Extracts trimmed visible body text keyed by level-two heading. */
+export const extractRecordSections = (content: string): Map<string, string> => {
+  const result = new Map<string, string>();
+  for (const section of recordSections(content)) {
+    result.set(section.heading, section.lines.join("\n").trim());
+  }
+  return result;
+};
+
+/** True when a verification record section is empty or explicitly states "None.". */
+export const isNoneSection = (body: string | undefined): boolean => {
+  if (!body) {
+    return true;
+  }
+  const normalized = body.trim().replace(/^[-*]\s+/, "");
+  return /^none\.?$/iu.test(normalized);
 };
 
 /** Returns a problem for each missing, reordered, unexpected, or empty section. */

@@ -104,6 +104,12 @@ coding agents use to find guidance, while Git, formatting, the documentation che
 and secret scanning still include the records. The regression tests assert that
 entry remains.
 
+The separate [Review Packet workflow](../../.github/workflows/review-packet.yml)
+runs [`pr-review-packet.ts`](../../tooling/verification/pr-review-packet.ts) on
+same-repo pull requests with `pull-requests: write` while keeping `verify.yml`
+read-only. Run `vp run ci:review-packet -- --base origin/main --head HEAD` to
+preview the sticky comment locally, and run `vp run test:ci` after changing it.
+
 ## Check architecture enforcement
 
 [Architecture checks](architecture-checks.md#change-a-guarantee-deliberately)
