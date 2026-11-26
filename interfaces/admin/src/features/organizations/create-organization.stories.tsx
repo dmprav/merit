@@ -20,6 +20,7 @@ const meta = {
         <AdminDrafts>
           <ApplicationStage>
             <ApplicationPage
+              width="full"
               locationKey="organizations"
               breadcrumb={null}
               breadcrumbLabel="Breadcrumb"
@@ -32,10 +33,12 @@ const meta = {
     ),
   ],
   beforeEach: () => {
-    mocked(createOrganization).mockResolvedValue({
-      status: "ok",
-      value: { organizationId: "org-1" },
-    });
+    mocked(createOrganization)
+      .mockReset()
+      .mockResolvedValue({
+        status: "ok",
+        value: { organizationId: "org-1" },
+      });
   },
 } satisfies Meta<typeof OrganizationList>;
 

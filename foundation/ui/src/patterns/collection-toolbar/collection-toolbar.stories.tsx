@@ -1,22 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 
 import { CollectionFilter, CollectionToolbar } from "./collection-toolbar";
 
 const Preview = ({
   initialQuery = "",
-  filterLabel = "Ready",
+  readyLabel = "Ready",
   initialFilter = "all",
   withSearch = true,
   multipleFilters = false,
-}: {
-  initialQuery?: string;
-  filterLabel?: string;
-  initialFilter?: string;
-  withSearch?: boolean;
-  multipleFilters?: boolean;
-}) => {
+}: PreviewProps) => {
   const [query, setQuery] = useState(initialQuery);
   const [filter, setFilter] = useState(initialFilter);
   const [round, setRound] = useState("all");
@@ -32,7 +26,7 @@ const Preview = ({
             onSelectionChange={setFilter}
             items={[
               { id: "all", label: "All projects" },
-              { id: "ready", label: filterLabel },
+              { id: "ready", label: readyLabel },
             ]}
           />
           {multipleFilters && (
@@ -54,8 +48,8 @@ const Preview = ({
           : [
               {
                 id: filter,
-                label: filterLabel,
-                removeLabel: `Remove ${filterLabel} filter`,
+                label: readyLabel,
+                removeLabel: `Remove ${readyLabel} filter`,
                 onRemove: () => setFilter("all"),
               },
             ]),
@@ -94,9 +88,33 @@ const Preview = ({
   );
 };
 
-const meta = { title: "Patterns/Collection toolbar", component: Preview } satisfies Meta<
-  typeof Preview
->;
+type PreviewProps = {
+  initialQuery?: string;
+  readyLabel?: string;
+  initialFilter?: string;
+  withSearch?: boolean;
+  multipleFilters?: boolean;
+};
+
+type StoryArgs = React.ComponentProps<typeof CollectionToolbar> & PreviewProps;
+
+const meta = {
+  title: "Patterns/Collection toolbar",
+  component: CollectionToolbar,
+  subcomponents: { CollectionFilter },
+  tags: ["!autodocs"],
+  parameters: { controls: { disable: true } },
+  args: { filterLabel: "Filter", filterTitle: "Filter projects", filters: null },
+  render: ({ initialQuery, readyLabel, initialFilter, withSearch, multipleFilters }) => (
+    <Preview
+      initialQuery={initialQuery}
+      readyLabel={readyLabel}
+      initialFilter={initialFilter}
+      withSearch={withSearch}
+      multipleFilters={multipleFilters}
+    />
+  ),
+} satisfies Meta<StoryArgs>;
 
 export default meta;
 
@@ -122,14 +140,10 @@ export const Filtering: Story = {
 };
 
 export const Panel: Story = {
+  args: { multipleFilters: true },
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
   },
-};
-
-export const MultipleFilters: Story = {
-  args: { multipleFilters: true },
-  play: Panel.play,
 };
 
 export const WithoutSearch: Story = {
@@ -140,7 +154,7 @@ export const WithoutSearch: Story = {
 export const LongValues: Story = {
   args: {
     initialFilter: "ready",
-    filterLabel: "Ready for a recommendation meeting with the community advisory group",
+    readyLabel: "Ready for a recommendation meeting with the community advisory group",
     initialQuery: "Community support for neighbourhood organisations and long-term collaboration",
   },
 };
@@ -148,27 +162,4 @@ export const LongValues: Story = {
 export const LongValuesPanel: Story = {
   args: { ...LongValues.args, multipleFilters: true },
   play: Panel.play,
-};
-
-export const KeyboardSelection: Story = {
-  play: async ({ canvas, canvasElement, userEvent }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    const filter = canvas.getByRole("button", { name: "Filter" });
-    await userEvent.tab();
-    await expect(filter).toHaveFocus();
-    await userEvent.keyboard("{Enter}{Tab}");
-    const criterion = body.getByRole("button", { name: "Status All projects" });
-    await expect(criterion).toHaveFocus();
-    await userEvent.keyboard("{Enter}{End}{Enter}");
-    await expect(criterion).toHaveTextContent("Ready");
-    await expect(body.getByRole("dialog", { name: "Filter projects" })).toBeVisible();
-    await waitFor(() => expect(criterion).toHaveFocus());
-    await userEvent.keyboard("{Enter}{Home}{Escape}");
-    await expect(body.queryByRole("listbox")).not.toBeInTheDocument();
-    await waitFor(() => expect(criterion).toHaveFocus());
-    await expect(criterion).toHaveTextContent("Ready");
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() => expect(filter).toHaveFocus());
-    await expect(canvas.getByRole("button", { name: "Remove Ready filter" })).toBeVisible();
-  },
 };

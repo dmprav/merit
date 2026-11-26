@@ -2,7 +2,12 @@ import { Children, type ReactNode } from "react";
 
 import styles from "./breadcrumbs.module.css";
 
-/** Supply parent links in hierarchy order, followed by a non-link current-page label. */
+/**
+ * Show meaningful parent destinations in hierarchy order, followed by the current page as plain
+ * text. Supply a translated navigation label and native or router links; features own destinations
+ * and preserved route context. Keep tabs and editing states outside the trail. An empty trail
+ * renders nothing.
+ */
 export const Breadcrumbs = ({ label, items }: { label: string; items: readonly ReactNode[] }) => {
   const crumbs = Children.toArray(items);
   if (!crumbs.length) {

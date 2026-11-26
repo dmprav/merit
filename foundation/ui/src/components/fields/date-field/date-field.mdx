@@ -1,4 +1,4 @@
-import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import { ArgTypes, Canvas, Meta } from "@storybook/addon-docs/blocks";
 import * as DateFields from "./date-field.stories";
 
 <Meta of={DateFields} />
@@ -29,5 +29,9 @@ Use `FormDateField` from `@merit/forms` to connect the field to a form.
 ## Commit a single property
 
 Use `DateChoice` to edit a single date property. The
-[editing pattern](../../../patterns/editing/editing.mdx) owns its Save, Cancel, and
+[editing pattern](?path=/docs/patterns-editing--docs) owns its Save, Cancel, and
 recovery conventions.
+
+## API
+
+<ArgTypes of={DateFields} />

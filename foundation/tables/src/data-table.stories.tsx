@@ -131,9 +131,12 @@ const meta = {
     emptyMessage: "No projects yet.",
   },
   argTypes: {
+    data: { control: false },
     columns: { control: false },
     getRowId: { control: false },
     sorting: { control: false },
+    state: { control: false },
+    stickyHeader: { control: false },
   },
 } satisfies Meta<typeof DataTable<Item>>;
 

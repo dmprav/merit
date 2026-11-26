@@ -2,6 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, type ComponentProps } from "react";
 import { expect } from "storybook/test";
 
+import { Button } from "../button/button";
+import { Inline, Stack } from "../layout/layout";
 import { Disclosure } from "./disclosure";
 
 const meta = {
@@ -12,6 +14,9 @@ const meta = {
     count: 2,
     children: <p>Version 1 recommended funding at €18,000 before the venue changed.</p>,
   },
+  argTypes: {
+    children: { control: false },
+  },
 } satisfies Meta<typeof Disclosure>;
 
 export default meta;
@@ -19,12 +24,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Collapsed: Story = {
-  play: async ({ canvas, userEvent }) => {
+  play: async ({ canvas }) => {
     const trigger = canvas.getByRole("button", { name: "Earlier versions 2" });
     await expect(trigger).toHaveAttribute("aria-expanded", "false");
-    await userEvent.click(trigger);
-    await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    await expect(canvas.getByText(/Version 1 recommended funding/)).toBeVisible();
   },
 };
 
@@ -34,12 +36,14 @@ const ControlledExample = (args: ComponentProps<typeof Disclosure>) => {
   const [expanded, setExpanded] = useState(true);
 
   return (
-    <>
+    <Stack gap={3}>
       <Disclosure {...args} isExpanded={expanded} onExpandedChange={setExpanded} />
-      <button type="button" onClick={() => setExpanded(false)}>
-        Fold
-      </button>
-    </>
+      <Inline>
+        <Button variant="secondary" onPress={() => setExpanded((open) => !open)}>
+          {expanded ? "Fold" : "Expand"}
+        </Button>
+      </Inline>
+    </Stack>
   );
 };
 

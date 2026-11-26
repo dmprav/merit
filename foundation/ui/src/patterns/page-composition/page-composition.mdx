@@ -1,6 +1,5 @@
-import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import { ArgTypes, Canvas, Meta } from "@storybook/addon-docs/blocks";
 import * as Pages from "./page-composition.stories";
-import * as PageLayout from "./page-layout.stories";
 
 <Meta of={Pages} />
 
@@ -95,9 +94,9 @@ and editing. The header owns typography, wrapping action groups, and the space
 before content. Place it within a workspace through the surrounding layout, such
 as an inset element around a pane's header; feature CSS should not restyle it.
 
-<Canvas of={PageLayout.Standard} story={{ inline: false, height: "460px" }} />
+<Canvas of={Pages.Standard} story={{ inline: false, height: "460px" }} />
 
-<Canvas of={PageLayout.FullWidth} story={{ inline: false, height: "460px" }} />
+<Canvas of={Pages.FullWidth} story={{ inline: false, height: "460px" }} />
 
 The [long-title example](?path=/story/patterns-page-composition--long-title) shows title and
 action wrapping, and the [compact header](?path=/story/patterns-page-composition--compact)
@@ -127,6 +126,12 @@ with labels above their values. It owns the native description-list structure,
 typography, value height, and wrapping; a feature can place the list in a sidebar
 or arrange its items into responsive columns.
 
+Use `PropertiesLayout` to pair a record's main work beside a panel of its properties,
+choosing `stackedPlacement` by whether the properties orient the reader before or after
+the main body on narrow screens.
+
+<Canvas of={Pages.PropertiesFirstWhenStacked} />
+
 Keep editable property rows with their editing component. Their arrangement needs
 control labels, feedback, and responsive behavior suited to the task. Use native
 `dl`, `dt`, and `dd` for factual structure, and keep field labels associated with
@@ -148,3 +153,7 @@ state; award amendments are not available product functionality.
 
 Use the [confirmation pattern](?path=/docs/patterns-confirmation-dialog--docs) for the
 commitment and [feedback pattern](?path=/docs/patterns-feedback--docs) for its outcome.
+
+## API
+
+<ArgTypes of={Pages} />

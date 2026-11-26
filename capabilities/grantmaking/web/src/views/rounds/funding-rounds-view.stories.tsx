@@ -34,7 +34,7 @@ const FundingRoundsPreview = ({
 const meta = {
   title: "Features/Funding rounds/List",
   tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   component: FundingRoundsPreview,
   args: {
     rounds: [round],
@@ -63,7 +63,6 @@ const meta = {
 
 export default meta;
 
-export const Default: StoryObj<typeof meta> = {};
 export const MultipleRounds: StoryObj<typeof meta> = {
   args: {
     rounds: [
@@ -100,4 +99,5 @@ export const MultipleRounds: StoryObj<typeof meta> = {
     ],
   },
 };
+export const Default: StoryObj<typeof meta> = {};
 export const Empty: StoryObj<typeof meta> = { args: { rounds: [] } };

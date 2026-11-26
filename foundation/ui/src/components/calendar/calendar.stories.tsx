@@ -10,6 +10,7 @@ const meta = {
   title: "Components/Calendar",
   component: Calendar,
   args: { label: "Date", value: "2027-01-21", onChange: fn() },
+  argTypes: { value: { control: false } },
   decorators: [
     (Story) => (
       <MessagesProvider messages={{}}>
