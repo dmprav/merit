@@ -95,6 +95,34 @@ describe("createCleanupStack", () => {
     expect(events).toEqual(["first release", "late stop started", "late stop finished", "drained"]);
   });
 
+  it("finishes a release registered while the drain runs before releasing older resources", async () => {
+    const { registerCleanup, runCleanups } = createCleanupStack(() => undefined);
+    const events: string[] = [];
+
+    let finishLateStop: (() => void) | undefined;
+
+    registerCleanup(async () => {
+      events.push("output lock released");
+    });
+    registerCleanup(async () => {
+      // A server whose spawn was already under way registers its stop during the drain.
+      registerCleanup(async () => {
+        await new Promise<void>((resolve) => {
+          finishLateStop = resolve;
+        });
+        events.push("late stop finished");
+      });
+    });
+
+    const drained = runCleanups();
+    await vi.waitFor(() => expect(finishLateStop).toBeDefined());
+    await Promise.resolve();
+    expect(events).toEqual([]);
+    finishLateStop?.();
+    await drained;
+    expect(events).toEqual(["late stop finished", "output lock released"]);
+  });
+
   it("logs a failed release and still runs the releases after it", async () => {
     const lines: string[] = [];
     const { registerCleanup, runCleanups } = createCleanupStack((line) => lines.push(line));

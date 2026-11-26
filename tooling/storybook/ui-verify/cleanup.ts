@@ -15,8 +15,9 @@ export type RunContext = {
 /**
  * Releases resources in reverse registration order. A resource registered while the drain runs,
  * such as a server whose spawn was already under way, starts releasing at once, and the drain
- * waits for it too, so the process never exits with that release unfinished. A failed release is
- * logged and the drain continues with the rest.
+ * waits for it before releasing anything older, so the output lock outlasts it and the process
+ * never exits with that release unfinished. A failed release is logged and the drain continues
+ * with the rest.
  */
 export const createCleanupStack = (
   log: Log,
@@ -49,13 +50,14 @@ export const createCleanupStack = (
     return idempotent;
   };
 
+  // A late release is newer than every entry still on the stack, so it finishes first.
   const drain = async () => {
     while (cleanups.length > 0 || lateCleanups.length > 0) {
-      const cleanup = cleanups.pop();
-      if (cleanup) {
-        await cleanup().catch(reportFailure);
+      const late = lateCleanups.shift();
+      if (late) {
+        await late;
       } else {
-        await lateCleanups.shift();
+        await cleanups.pop()?.().catch(reportFailure);
       }
     }
   };
