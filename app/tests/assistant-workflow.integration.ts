@@ -9,7 +9,7 @@ import { withDatabase } from "@merit/db";
 import { contactWork } from "@merit/grantmaking/testing/contact-work";
 import { roundTest } from "@merit/grantmaking/testing/rounds";
 import { actor, workspaceSlug } from "@merit/organizations/testing/workspace";
-import { reviewRevisionSchema } from "@merit/reviews/domain";
+import { reviewRevisionSchema, type AiReviewerRequest } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
@@ -17,73 +17,75 @@ import { createAssistantHost } from "../src/server/assistant/host.server";
 import type { AssistantCommand } from "../src/server/assistant/http.server";
 import type { EmailSender } from "../src/server/email-delivery.server";
 
-const it = roundTest.extend("committee", async ({ db, database, rounds }) => {
-  const address = await rounds.createApplication("Community gardens");
-  const assessmentId = randomUUID();
-  const reviewers = [];
-  for (const [index, name] of ["Alex", "Jo", "Sam", "Lee"].entries()) {
-    const userId = name.toLowerCase();
-    const email = userId + "@example.test";
-    const contactId = randomUUID();
-    const contact = await changeWorkspaceContact(
-      db,
-      actor,
-      {
-        workspaceSlug,
-        contactId,
-        action: "create",
-        details: { name, email, affiliation: "" },
-      },
-      contactWork,
-    );
-    assert(contact.status === "ok");
-    const basis = {
-      ...address,
-      expectedRevision: reviewRevisionSchema.parse(index),
-      expectedApplicationVersion: materialVersionSchema.parse(1),
-      expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-    };
-    if (index === 0) {
-      const assessment = await saveApplicationReview(db, actor, {
-        ...basis,
-        change: {
-          action: "record",
-          id: assessmentId,
+const it = roundTest
+  .extend("runtime", { scope: "file" }, async ({ database }) => database.createRuntimeConnection())
+  .extend("committee", async ({ db, database, rounds }) => {
+    const address = await rounds.createApplication("Community gardens");
+    const assessmentId = randomUUID();
+    const reviewers = [];
+    for (const [index, name] of ["Alex", "Jo", "Sam", "Lee"].entries()) {
+      const userId = name.toLowerCase();
+      const email = userId + "@example.test";
+      const contactId = randomUUID();
+      const contact = await changeWorkspaceContact(
+        db,
+        actor,
+        {
+          workspaceSlug,
           contactId,
-          requestId: null,
-          previousId: null,
-          content: {
-            applicationVersion: basis.expectedApplicationVersion,
-            criteriaVersion: basis.expectedCriteriaVersion,
-            date: null,
-            position: null,
-            amount: null,
-            reasoning: "Volunteer cover needs clarification.",
-            observations: [],
-          },
+          action: "create",
+          details: { name, email, affiliation: "" },
         },
+        contactWork,
+      );
+      assert(contact.status === "ok");
+      const basis = {
+        ...address,
+        expectedRevision: reviewRevisionSchema.parse(index),
+        expectedApplicationVersion: materialVersionSchema.parse(1),
+        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+      };
+      if (index === 0) {
+        const assessment = await saveApplicationReview(db, actor, {
+          ...basis,
+          change: {
+            action: "record",
+            id: assessmentId,
+            contactId,
+            requestId: null,
+            previousId: null,
+            content: {
+              applicationVersion: basis.expectedApplicationVersion,
+              criteriaVersion: basis.expectedCriteriaVersion,
+              date: null,
+              position: null,
+              amount: null,
+              reasoning: "Volunteer cover needs clarification.",
+              observations: [],
+            },
+          },
+        });
+        assert(assessment.status === "ok");
+        continue;
+      }
+      await database.client.query(
+        "insert into app_users (id, name, clerk_user_id) values ($1, $2, $1)",
+        [userId, name],
+      );
+      await database.client.query(
+        "insert into memberships (organization_id, user_id, email, role) values ('alder', $1, $2, 'reviewer')",
+        [userId, email],
+      );
+      const requestId = randomUUID();
+      const request = await saveApplicationReview(db, actor, {
+        ...basis,
+        change: { action: "request", id: requestId, contactId, replacesId: null },
       });
-      assert(assessment.status === "ok");
-      continue;
+      assert(request.status === "ok");
+      reviewers.push({ contactId, requestId, name, email });
     }
-    await database.client.query(
-      "insert into app_users (id, name, clerk_user_id) values ($1, $2, $1)",
-      [userId, name],
-    );
-    await database.client.query(
-      "insert into memberships (organization_id, user_id, email, role) values ('alder', $1, $2, 'reviewer')",
-      [userId, email],
-    );
-    const requestId = randomUUID();
-    const request = await saveApplicationReview(db, actor, {
-      ...basis,
-      change: { action: "request", id: requestId, contactId, replacesId: null },
-    });
-    assert(request.status === "ok");
-    reviewers.push({ contactId, requestId, name, email });
-  }
-  return { applicationId: address.publicId, assessmentId, reviewers };
-});
+    return { applicationId: address.publicId, assessmentId, reviewers };
+  });
 
 const calls = (...tools: Array<[string, Record<string, unknown>]>) =>
   Response.json({
@@ -154,7 +156,7 @@ const snapshot = z.object({
 it(
   "investigates committee evidence, previews three invitations, and recovers only the failed email after disconnect",
   { timeout: 30_000 },
-  async ({ database, rounds, committee: { applicationId, assessmentId, reviewers } }) => {
+  async ({ database, runtime, rounds, committee: { applicationId, assessmentId, reviewers } }) => {
     const fetchModel = vi.fn<typeof fetch>();
     vi.stubGlobal("fetch", fetchModel);
     onTestFinished(() => {
@@ -173,7 +175,6 @@ it(
       delivered.push(to);
     };
 
-    const runtime = await database.createRuntimeConnection();
     const host = createAssistantHost(
       {
         database: (operation) => withDatabase(runtime, operation),
@@ -409,5 +410,116 @@ it(
       originalMessage.id,
     ]);
     expect(delivered.toSorted()).toEqual(reviewers.map((reviewer) => reviewer.email).toSorted());
+  },
+);
+
+it(
+  "previews an AI review run, saves it only on approval and cites it as an AI review",
+  { timeout: 30_000 },
+  async ({ database, runtime, committee: { applicationId } }) => {
+    const fetchModel = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchModel);
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    const review = vi.fn(async ({ input }: AiReviewerRequest) => ({
+      criteria: [
+        {
+          criterionId: null,
+          claims: [
+            {
+              text: "Activities run weekly.",
+              citations: [
+                {
+                  source: input.application.answers[0]?.questionId,
+                  quote: "Weekly community activities",
+                },
+              ],
+            },
+          ],
+          gaps: ["Volunteer cover is not described."],
+          strengths: [],
+          weaknesses: [],
+          concerns: [],
+        },
+      ],
+      questions: [],
+      reasoning: "Weekly and clear.",
+      position: "Fund",
+      amount: { minorUnits: "8000", currency: "EUR" },
+    }));
+    const host = createAssistantHost(
+      {
+        database: (operation) => withDatabase(runtime, operation),
+        invitationOrigin: "https://merit.test",
+        sendEmail: async () => {},
+        aiReviewer: { provider: "OpenAI", model: "scripted", review },
+      },
+      { apiKey: "test", model: "scripted" },
+    );
+    onTestFinished(() => host.close());
+
+    const command = (input: AssistantCommand, who = actor) =>
+      host.command(who, workspaceSlug, input, new AbortController().signal);
+
+    await database.client.query(
+      "insert into memberships (organization_id, user_id, role, administration) values ('alder','birch-manager','member','administrator')",
+    );
+    expect(
+      (await command({ action: "set_consent", enabled: true }, { userId: "birch-manager" })).status,
+    ).toBe(200);
+    const { id } = snapshot.parse(await (await command({ action: "create" })).json());
+
+    const settled = async () =>
+      vi.waitFor(
+        async () => {
+          const saved = snapshot.parse(await (await command({ action: "open", id })).json());
+          expect(saved.status).not.toBe("running");
+          return saved;
+        },
+        { timeout: 10_000, interval: 50 },
+      );
+
+    const savedRows = async () =>
+      (
+        await database.client.query<{ provenance_interface: string }>(
+          "select provenance_interface from ai_reviews",
+        )
+      ).rows;
+
+    fetchModel.mockResolvedValueOnce(calls(["run_ai_review", { applicationId }]));
+    expect(
+      (await command({ action: "start", id, message: "Run an AI review of this application." }))
+        .status,
+    ).toBe(202);
+    const waiting = await settled();
+    expect(waiting.status).toBe("awaiting_approval");
+    const [group] = waiting.groups;
+    assert(group);
+    expect(group.actions[0]?.preview).toMatchObject({
+      name: "run_ai_review",
+      effects: [
+        "Sends this application's current material and the round's criteria to OpenAI (scripted).",
+        "Saves a new AI review.",
+      ],
+      targets: [{ kind: "application", id: applicationId, version: "application version 1" }],
+    });
+    expect(review).not.toHaveBeenCalled();
+    expect(await savedRows()).toEqual([]);
+
+    fetchModel.mockImplementationOnce(async (...args) => {
+      const sources = (await receipts(...args)).flatMap((item) => item.evidence);
+      const saved = sources.find((item) => item.kind === "ai_review");
+      assert(saved);
+      return answer(`Merit AI proposes funding in full [${saved.key}].`);
+    });
+    expect((await command({ action: "approve", id, previewId: group.id })).status).toBe(202);
+    const completed = await settled();
+    expect(completed.status).toBe("completed");
+    expect(completed.messages.at(-1)?.citations).toMatchObject([
+      { kind: "ai_review", version: "1" },
+    ]);
+    expect(review).toHaveBeenCalledOnce();
+    expect(await savedRows()).toEqual([{ provenance_interface: "web" }]);
   },
 );

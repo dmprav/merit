@@ -1,3 +1,4 @@
+import { aiReviewCases } from "./workflows/ai-reviews.cases.ts";
 import { applicationReadCases } from "./workflows/application-reads.cases.ts";
 import { contactCases } from "./workflows/contacts.cases.ts";
 import { discoveryCases } from "./workflows/discovery.cases.ts";
@@ -20,4 +21,5 @@ export const evalCases = [
   ...reviewerCases,
   ...reviewRequestCases,
   ...recommendationCases,
+  ...aiReviewCases,
 ];

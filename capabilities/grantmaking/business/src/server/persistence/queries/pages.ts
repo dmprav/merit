@@ -7,9 +7,9 @@ import {
   roundWithdrawnCount,
 } from "@merit/applications/scope";
 import type { Database } from "@merit/db";
-import { authorizedWorkspaces } from "@merit/organizations/scope";
+import { authorizedWorkspaces, readAssistantConsent } from "@merit/organizations/scope";
 import { readCurrentRecommendationsMap, readRoundAllocations } from "@merit/recommendations/scope";
-import { readReviewsByCasesMap } from "@merit/reviews/scope";
+import { readAiReviewRecords, readReviewsByCasesMap } from "@merit/reviews/scope";
 import { fundingRounds } from "@merit/rounds/schema";
 import {
   assembleRoundRecord,
@@ -71,6 +71,7 @@ export const readApplicationDetail = async (
       foundation: workspace.name,
       withdrawnApplications: roundWithdrawnCount(fundingRounds),
       workspaceSlug: workspace.slug,
+      workspaceKind: workspace.kind,
     })
     .from(applicationCases)
     .innerJoin(
@@ -94,6 +95,8 @@ export const readApplicationDetail = async (
     allocations,
     workingRevisionsMap,
     versionRows,
+    aiReviews,
+    aiConsent,
   ] = await Promise.all([
     readCriteriaVersionsMap(db, [row.roundRow.id]),
     readIntakeApplicationsMap(db, row.caseRow.organizationId, [row.caseRow]),
@@ -106,6 +109,8 @@ export const readApplicationDetail = async (
       .from(materialVersions)
       .where(eq(materialVersions.caseId, row.caseRow.id))
       .orderBy(asc(materialVersions.version)),
+    readAiReviewRecords(db, row.caseRow.organizationId, row.caseRow.id),
+    readAssistantConsent(db, row.caseRow.organizationId),
   ]);
 
   const intake = intakeMap.get(row.caseRow.id);
@@ -121,6 +126,9 @@ export const readApplicationDetail = async (
     allocations,
     withdrawnApplications: row.withdrawnApplications,
     workspaceSlug: row.workspaceSlug,
+    workspaceKind: row.workspaceKind,
+    aiReviews,
+    aiConsent,
     publicId: row.caseRow.id,
     recommendationVersion: recommendation?.revision ?? 0,
     intakeRevision: row.caseRow.revision,

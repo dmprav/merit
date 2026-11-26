@@ -1,5 +1,7 @@
 import { assert, expect, it, vi } from "vite-plus/test";
 
+import { aiReviewEntrySchema } from "@merit/reviews/domain";
+
 import { testOperations } from "../../tests/operations";
 import { publication } from "../app/publication";
 import { createAssistantCatalog, type AssistantOperations } from "./catalog";
@@ -473,4 +475,116 @@ it("keeps a refused draft operation from invalidating the reviewer's conversatio
       })
     ).preview,
   ).toBeDefined();
+});
+
+const aiReview = aiReviewEntrySchema.parse({
+  id: "5a2cb9b7-4a6e-4f5a-a0f2-b0f3a1c0e100",
+  applicationVersion: 3,
+  criteriaVersion: 1,
+  provider: "OpenAI",
+  model: "merit-test",
+  runBy: { userId: "manager", name: "Dana Reed" },
+  provenance: { interface: "web" },
+  recordedAt: "2027-01-18T10:00:00.000Z",
+  position: "Defer",
+  amount: { minorUnits: "0", currency: "EUR" },
+  reasoning: "The venue is not confirmed.",
+  criteria: [
+    {
+      criterionId: null,
+      title: "Whole application",
+      claims: [],
+      gaps: ["No dates."],
+      strengths: [],
+      weaknesses: [],
+      concerns: [],
+    },
+  ],
+  questions: [],
+  basisComparison: { applicationVersion: "same", criteriaVersion: "same", criteriaContent: "same" },
+  freshness: "current",
+});
+
+it("previews an AI review run with its external effect and cites saved AI reviews as such", async () => {
+  const { ops, catalog } = setup();
+  vi.mocked(ops.grantmaking.readApplication).mockImplementation(
+    vi.fn().mockResolvedValue({
+      status: "ok",
+      application: {
+        applicationId,
+        title: "Community garden",
+        intakeRevision: 2,
+        applicationVersion: 3,
+      },
+    }),
+  );
+  vi.mocked(ops.reviews.runAiReview).mockResolvedValue({ status: "ok", review: aiReview });
+  vi.mocked(ops.reviews.readAiReviews).mockResolvedValue({
+    status: "ok",
+    applicationVersion: 3,
+    reviews: [aiReview],
+  });
+
+  expect((await catalog.read("run_ai_review", { applicationId })).result.status).toBe(
+    "invalid_input",
+  );
+  const { preview } = await catalog.preview("run_ai_review", { applicationId });
+  assert(preview);
+  expect(preview.targets).toEqual([
+    {
+      kind: "application",
+      id: applicationId,
+      label: "Community garden",
+      version: "application version 3",
+    },
+  ]);
+  expect(preview.effects).toEqual([
+    "Sends this application's current material and the round's criteria to OpenAI (merit-test).",
+    "Saves a new AI review.",
+  ]);
+  expect(ops.reviews.runAiReview).not.toHaveBeenCalled();
+
+  const executed = await catalog.execute(preview);
+  expect(ops.reviews.runAiReview).toHaveBeenCalledExactlyOnceWith(actor, {
+    workspaceSlug,
+    publicId: applicationId,
+  });
+  expect(executed.citations).toContainEqual({
+    kind: "ai_review",
+    recordId: aiReview.id,
+    version: "3",
+    label: "AI review (merit-test)",
+  });
+
+  const read = await catalog.read("read_ai_reviews", { applicationId });
+  expect(read.citations).toEqual([
+    { kind: "ai_review", recordId: aiReview.id, version: "3", label: "AI review (merit-test)" },
+  ]);
+  expect(read.citations.some(({ kind }) => kind === "material")).toBe(false);
+
+  ops.reviews.aiReviewProvider = null;
+  expect((await catalog.preview("run_ai_review", { applicationId })).result.status).toBe(
+    "provider_unconfigured",
+  );
+});
+
+it("withholds both AI review tools from a reviewer and refuses them without calling a service", async () => {
+  const { ops, catalog } = setup();
+  ops.readWorkspace.mockResolvedValue({
+    ...workspace,
+    role: "reviewer",
+    canWorkOnGrants: false,
+    canViewTeam: false,
+  });
+  const names = (await catalog.list()).map((tool) => tool.name);
+  expect(names).not.toContain("run_ai_review");
+  expect(names).not.toContain("read_ai_reviews");
+  expect((await catalog.read("read_ai_reviews", { applicationId })).result.status).toBe(
+    "forbidden",
+  );
+  expect((await catalog.preview("run_ai_review", { applicationId })).result.status).toBe(
+    "forbidden",
+  );
+  expect(ops.reviews.readAiReviews).not.toHaveBeenCalled();
+  expect(ops.reviews.runAiReview).not.toHaveBeenCalled();
 });

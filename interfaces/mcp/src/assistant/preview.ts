@@ -14,6 +14,7 @@ import {
   type PreviewContext,
 } from "./preview-records";
 import {
+  aiReviewPreview,
   assignmentPreview,
   invitationPreview,
   withdrawalPreview,
@@ -41,7 +42,26 @@ const applicationChanges = async (
   if (name === "withdraw_application") {
     await withdrawalPreview(ctx, preview, applicationId);
   }
+  if (name === "run_ai_review") {
+    aiReviewPreview(ctx, preview);
+  }
   await reviewChanges(ctx, preview, applicationId);
+};
+
+type LoadedApplication = Extract<
+  Awaited<ReturnType<AssistantContext["ops"]["grantmaking"]["readApplication"]>>,
+  { status: "ok" }
+>["application"];
+
+/** The version a person approves against: the revision the write binds to, or for an AI review the material it reads. */
+const targetVersion = ({ name, input }: AssistantPreview, app: LoadedApplication) => {
+  if (name === "run_ai_review") {
+    return `application version ${app.applicationVersion}`;
+  }
+  if (name === "save_recommendation") {
+    return app.recommendationRevision;
+  }
+  return "expectedReviewRevision" in input ? app.reviewRevision : app.intakeRevision;
 };
 
 const applicationPreview = async (
@@ -77,18 +97,7 @@ const applicationPreview = async (
   if (name === "edit_application" || name === "select_application_contact") {
     input.expectedIntakeRevision = app.intakeRevision;
   }
-  targets.push(
-    target(
-      "application",
-      applicationId,
-      app.title,
-      name === "save_recommendation"
-        ? app.recommendationRevision
-        : "expectedReviewRevision" in input
-          ? app.reviewRevision
-          : app.intakeRevision,
-    ),
-  );
+  targets.push(target("application", applicationId, app.title, targetVersion(preview, app)));
   await applicationChanges(ctx, preview, applicationId, app.title);
 };
 

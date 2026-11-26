@@ -131,6 +131,9 @@ const applicationData = () => {
     status: "ok" as const,
     ...encodeApplicationDetail({ round, application }),
     recommendationVersion: 0,
+    aiReviews: [],
+    aiReviewAvailability: "available" as const,
+    aiReviewProvider: null,
     intake: { revision: 0, workingRevision: null, history: [] },
     workspaceSlug: "alder",
   };

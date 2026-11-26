@@ -86,6 +86,56 @@ optionally fulfilling a follow-up request. Preserve the earlier assessment and i
 basis. Show the latest assessment first with earlier judgments and edit history
 available. Neither action makes the recording manager the author of the judgment.
 
+## Ask Merit AI for another perspective
+
+A program manager can ask Merit AI to review an application against its round's
+current criteria, at intake to find what to ask the applicant for or later as an
+additional perspective beside reviewer assessments. An application that is not yet
+marked ready, or that has no submitted answers, can be reviewed; the review reports
+the gaps. The [decision](../decisions/0016-ai-review.md) explains the choices.
+
+An **AI review** is its own record, shown apart from reviewer assessments with
+"Merit AI" as its author. It is never an assessment, never counts in review
+status, and never changes round allocation or budget totals. It contains:
+
+- for each current criterion, in order, claims with verbatim quoted evidence, gaps,
+  strengths, weaknesses and concerns; a round without criteria receives one
+  whole-application section;
+- questions for the applicant, up to 20;
+- reasoning and an overall funding position and amount, with the same rule as an
+  assessment: Fund and Fund with a condition state a positive amount, Defer and
+  Decline state zero. There are no numeric scores and no ranking.
+
+Merit AI receives only the application's current material version (title,
+applicant, requested amount, project period and submitted answers) and the round's
+criteria. It never receives assessments, recommendations, staff summaries or
+manager notes, contacts, or other applications. Every quotation must appear in the
+field it cites; a review with an unverifiable citation is rejected.
+
+Runs happen only on request through the web or the `run_ai_review` MCP tool,
+and only when all of these hold. Otherwise the application page explains why and the
+tool returns `not_available` with the reason:
+
+| Reason                  | Meaning                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------ |
+| `consent_required`      | An organization owner or administrator has not turned on Merit AI for the workspace. |
+| `provider_unconfigured` | The server has no model provider.                                                    |
+| `withdrawn`             | Withdrawn applications are not reviewed.                                             |
+| `demo`                  | A public demo shows a prepared example for each application and runs no new review.  |
+
+A run takes up to about two minutes. If the provider fails, times out, or returns
+output that does not validate, **nothing is saved** and the manager can try again.
+Permission, consent and withdrawal are checked again when saving. The saved review
+records the application and criteria versions read when the run started, the
+provider and model, who ran it and through which interface. Saved reviews are
+immutable and are removed only with their workspace. Turning consent off blocks
+new runs; saved reviews stay readable.
+
+Freshness follows the [review basis policy](#review-basis-and-freshness-policy)
+unchanged: a saved AI review is current, outdated or unknown. Managers can run
+again at any time, and an outdated review stays readable. Only program managers
+see AI reviews; reviewer members never do.
+
 ## Respond to application and criteria changes
 
 The round's Applications list distinguishes outstanding requests, current and

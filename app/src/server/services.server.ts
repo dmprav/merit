@@ -14,6 +14,7 @@ import { productLinks } from "@merit/product/links";
 import { createRecommendationsService } from "@merit/recommendations/server";
 import { applicationRecommendationWork } from "@merit/recommendations/server/integrations";
 import type { ReviewerMessage } from "@merit/reviews/api";
+import type { AiReviewer } from "@merit/reviews/domain";
 import { createReviewService } from "@merit/reviews/server";
 import { createReviewerService, type ReviewerDelivery } from "@merit/reviews/server";
 import {
@@ -37,6 +38,8 @@ type Dependencies = {
   networkAddress?: string;
   sendEmail: EmailSender;
   deferReviewerDelivery?: (delivery: ReviewerDelivery) => void;
+  /** Absent when no model provider is configured on this server. */
+  aiReviewer?: AiReviewer;
 };
 
 export const reviewerDelivery = ({
@@ -53,19 +56,42 @@ export const reviewerDelivery = ({
     sendEmail({ id: message.id, to: message.to, ...(await renderReviewerEmail(message)) }),
 });
 
-export const createApplicationServices = ({
-  database,
-  analytics,
-  identity,
-  invitationOrigin,
-  networkAddress,
-  sendEmail,
-  deferReviewerDelivery,
-}: Dependencies) => {
-  const observe = (event: GrantOutcome["event"]): WorkspaceChangeObserver | undefined =>
+type Observe = (event: GrantOutcome["event"]) => WorkspaceChangeObserver | undefined;
+
+/** Manager review commands, AI reviews and reviewer participation share one review capability. */
+const createReviewServices = (
+  { database, invitationOrigin, sendEmail, deferReviewerDelivery, aiReviewer }: Dependencies,
+  observe: Observe,
+) => ({
+  reviews: instrumentService(
+    "reviews",
+    createReviewService({
+      database,
+      reviewer: aiReviewer,
+      onAiReviewSaved: observe("ai_review_saved"),
+    }),
+  ),
+  reviewer: instrumentService(
+    "reviewer",
+    createReviewerService({
+      ...reviewerDelivery({ database, invitationOrigin, sendEmail }),
+      deferDelivery: deferReviewerDelivery,
+      onSubmitted: observe("assessment_submitted"),
+    }),
+  ),
+});
+
+export const createApplicationServices = (dependencies: Dependencies) => {
+  const { database, analytics, identity, invitationOrigin, networkAddress, sendEmail } =
+    dependencies;
+
+  const observe: Observe = (event) =>
     analytics && ((workspace) => analytics.captureGrantOutcome({ event, ...workspace }));
 
-  const grantmaking = instrumentService("grantmaking", createGrantmakingService({ database }));
+  const grantmaking = instrumentService(
+    "grantmaking",
+    createGrantmakingService({ database, aiReviewProvider: dependencies.aiReviewer }),
+  );
   const rounds = instrumentService(
     "rounds",
     createRoundsService({ database, roundHasApplications, onCreated: observe("round_created") }),
@@ -86,17 +112,7 @@ export const createApplicationServices = ({
       onSaved: observe("funding_recommendation_saved"),
     }),
   );
-  const reviews = instrumentService("reviews", createReviewService({ database }));
-
   const navigation = instrumentService("navigation", createNavigationService({ database }));
-  const reviewer = instrumentService(
-    "reviewer",
-    createReviewerService({
-      ...reviewerDelivery({ database, invitationOrigin, sendEmail }),
-      deferDelivery: deferReviewerDelivery,
-      onSubmitted: observe("assessment_submitted"),
-    }),
-  );
   const contacts = instrumentService(
     "contacts",
     createContactService({
@@ -121,8 +137,7 @@ export const createApplicationServices = ({
     rounds,
     applications,
     recommendations,
-    reviews,
-    reviewer,
+    ...createReviewServices(dependencies, observe),
     navigation,
     contacts,
     organizations,

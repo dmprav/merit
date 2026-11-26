@@ -57,13 +57,7 @@ export const lockAssistantOwner = async (
   return member;
 };
 
-export const hasAssistantConsent = async (tx: Transaction, organizationId: string) => {
-  const [consent] = await tx
-    .select()
-    .from(assistantConsents)
-    .where(eq(assistantConsents.organizationId, organizationId));
-  return !!consent;
-};
+export { readAssistantConsent as hasAssistantConsent } from "./scope";
 
 export const changeAssistantConsent = async (
   tx: Transaction,

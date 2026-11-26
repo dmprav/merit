@@ -121,6 +121,9 @@ const applicationPageData = () => {
     status: "ok" as const,
     ...encodeApplicationDetail({ round, application: round.applications[0]! }),
     recommendationVersion: 0,
+    aiReviews: [],
+    aiReviewAvailability: "available" as const,
+    aiReviewProvider: null,
     intake: { revision: 0, workingRevision: null, history: [] },
     workspaceSlug: workspace.slug,
   };

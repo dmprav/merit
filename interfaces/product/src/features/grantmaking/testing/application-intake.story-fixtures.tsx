@@ -133,6 +133,9 @@ const fixture = (
     ...encodeApplicationDetail({ application, round }),
     workspaceSlug: "alder",
     recommendationVersion: 0,
+    aiReviews: [],
+    aiReviewAvailability: "available" as const,
+    aiReviewProvider: null,
     intake: {
       revision: 2,
       workingRevision: state === "revision" || state === "correction" ? revision : null,

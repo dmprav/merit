@@ -36,6 +36,7 @@ and omit the key. The key is derived from the stable internal workspace ID.
 | `application_recorded`         | A newly recorded application                                 |
 | `assessment_submitted`         | A reviewer's first submission for an assignment              |
 | `funding_recommendation_saved` | A saved change to a funding recommendation                   |
+| `ai_review_saved`              | A saved AI review run                                        |
 | `mcp_tool_finished`            | One call to a known MCP tool, with its tool name and outcome |
 
 A successful MCP write can produce both a grant outcome and a tool-call event.

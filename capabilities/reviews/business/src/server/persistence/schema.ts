@@ -19,10 +19,12 @@ import { contacts } from "@merit/contacts/schema";
 import {
   enumCheck,
   moneyMinorUnits,
+  nonBlankCheck,
   nonNegativeCheck,
   optimisticRevision,
   positiveCheck,
   recordedAt,
+  uuidPk,
 } from "@merit/db/schema";
 import { fundingRounds, criteriaVersions } from "@merit/rounds/schema";
 
@@ -258,4 +260,183 @@ export const reviewStates = pgTable(
     revision: optimisticRevision(),
   },
   (t) => [nonNegativeCheck("review_states_revision_check", t.revision)],
+);
+
+/** A saved AI review run. Immutable: runs are never edited or deleted, only removed with their workspace. */
+export const aiReviews = pgTable(
+  "ai_reviews",
+  {
+    id: uuidPk(),
+    organizationId: text("organization_id").notNull(),
+    caseId: text("case_id").notNull(),
+    applicationVersion: integer("application_version").notNull(),
+    roundId: text("round_id").notNull(),
+    criteriaVersion: integer("criteria_version").notNull(),
+    provider: text().notNull(),
+    model: text().notNull(),
+    runByUserId: text("run_by_user_id").notNull(),
+    runByName: text("run_by_name").notNull(),
+    provenanceInterface: text("provenance_interface").notNull(),
+    provenanceClientId: text("provenance_client_id"),
+    recordedAt: recordedAt(),
+    position: text().notNull(),
+    amountMinorUnits: moneyMinorUnits("amount_minor_units").notNull(),
+    amountCurrency: text("amount_currency").$type<"EUR">().notNull(),
+    reasoning: text().notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.caseId],
+      foreignColumns: [applicationCases.organizationId, applicationCases.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.organizationId, t.roundId],
+      foreignColumns: [fundingRounds.organizationId, fundingRounds.id],
+    }),
+    foreignKey({
+      columns: [t.caseId, t.applicationVersion],
+      foreignColumns: [materialVersions.caseId, materialVersions.version],
+    }),
+    foreignKey({
+      columns: [t.roundId, t.criteriaVersion],
+      foreignColumns: [criteriaVersions.roundPublicId, criteriaVersions.version],
+    }),
+    index("ai_reviews_case_idx").on(t.organizationId, t.caseId, t.recordedAt.desc()),
+    index("ai_reviews_round_idx").on(t.organizationId, t.roundId),
+    index("ai_reviews_application_idx").on(t.caseId, t.applicationVersion),
+    index("ai_reviews_criteria_idx").on(t.roundId, t.criteriaVersion),
+    positiveCheck("ai_reviews_application_version_check", t.applicationVersion),
+    positiveCheck("ai_reviews_criteria_version_check", t.criteriaVersion),
+    nonBlankCheck("ai_reviews_provider_check", t.provider),
+    nonBlankCheck("ai_reviews_model_check", t.model),
+    enumCheck("ai_reviews_position_check", t.position, [
+      "Fund",
+      "Fund with a condition",
+      "Defer",
+      "Decline",
+    ]),
+    check(
+      "ai_reviews_amount_check",
+      sql`${t.amountMinorUnits} >= 0 and ${t.amountMinorUnits} <> 'NaN' and ${t.amountCurrency} = 'EUR'`,
+    ),
+    check(
+      "ai_reviews_position_amount_check",
+      sql`(${t.position} in ('Decline', 'Defer')) = (${t.amountMinorUnits} = 0)`,
+    ),
+    check(
+      "ai_reviews_reasoning_check",
+      sql`length(btrim(${t.reasoning})) > 0 and length(${t.reasoning}) <= 20000`,
+    ),
+    check(
+      "ai_reviews_provenance_check",
+      sql`(${t.provenanceInterface} = 'web' and ${t.provenanceClientId} is null) or (${t.provenanceInterface} = 'mcp' and ${t.provenanceClientId} is not null and length(btrim(${t.provenanceClientId})) > 0)`,
+    ),
+  ],
+);
+
+export const aiReviewSections = pgTable(
+  "ai_review_sections",
+  {
+    organizationId: text("organization_id").notNull(),
+    aiReviewId: uuid("ai_review_id").notNull(),
+    ordinal: integer().notNull(),
+    // Null stands for the whole application, when the round has no criteria.
+    criterionId: uuid("criterion_id"),
+    criterionTitle: text("criterion_title").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.aiReviewId, t.ordinal] }),
+    foreignKey({
+      columns: [t.aiReviewId],
+      foreignColumns: [aiReviews.id],
+    }).onDelete("cascade"),
+    nonNegativeCheck("ai_review_sections_ordinal_check", t.ordinal),
+    nonBlankCheck("ai_review_sections_title_check", t.criterionTitle),
+    check("ai_review_sections_title_length_check", sql`length(${t.criterionTitle}) <= 200`),
+  ],
+);
+
+const itemKinds = ["claim", "gap", "strength", "weakness", "concern"] as const;
+
+export const aiReviewItems = pgTable(
+  "ai_review_items",
+  {
+    organizationId: text("organization_id").notNull(),
+    aiReviewId: uuid("ai_review_id").notNull(),
+    sectionOrdinal: integer("section_ordinal").notNull(),
+    kind: text({ enum: itemKinds }).notNull(),
+    ordinal: integer().notNull(),
+    text: text().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.aiReviewId, t.sectionOrdinal, t.kind, t.ordinal] }),
+    foreignKey({
+      columns: [t.aiReviewId, t.sectionOrdinal],
+      foreignColumns: [aiReviewSections.aiReviewId, aiReviewSections.ordinal],
+    }).onDelete("cascade"),
+    enumCheck("ai_review_items_kind_check", t.kind, itemKinds),
+    nonNegativeCheck("ai_review_items_ordinal_check", t.ordinal),
+    nonBlankCheck("ai_review_items_text_check", t.text),
+    check("ai_review_items_text_length_check", sql`length(${t.text}) <= 2000`),
+  ],
+);
+
+export const aiReviewCitations = pgTable(
+  "ai_review_citations",
+  {
+    organizationId: text("organization_id").notNull(),
+    aiReviewId: uuid("ai_review_id").notNull(),
+    sectionOrdinal: integer("section_ordinal").notNull(),
+    // Only claims carry citations; the foreign key to the item pins the kind.
+    kind: text({ enum: ["claim"] })
+      .notNull()
+      .default("claim"),
+    itemOrdinal: integer("item_ordinal").notNull(),
+    ordinal: integer().notNull(),
+    source: text().notNull(),
+    quote: text().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.aiReviewId, t.sectionOrdinal, t.itemOrdinal, t.ordinal] }),
+    foreignKey({
+      columns: [t.aiReviewId, t.sectionOrdinal, t.kind, t.itemOrdinal],
+      foreignColumns: [
+        aiReviewItems.aiReviewId,
+        aiReviewItems.sectionOrdinal,
+        aiReviewItems.kind,
+        aiReviewItems.ordinal,
+      ],
+    }).onDelete("cascade"),
+    index("ai_review_citations_claim_idx").on(
+      t.aiReviewId,
+      t.sectionOrdinal,
+      t.kind,
+      t.itemOrdinal,
+    ),
+    enumCheck("ai_review_citations_kind_check", t.kind, ["claim"]),
+    nonNegativeCheck("ai_review_citations_ordinal_check", t.ordinal),
+    nonBlankCheck("ai_review_citations_source_check", t.source),
+    nonBlankCheck("ai_review_citations_quote_check", t.quote),
+    check("ai_review_citations_quote_length_check", sql`length(${t.quote}) <= 500`),
+  ],
+);
+
+export const aiReviewQuestions = pgTable(
+  "ai_review_questions",
+  {
+    organizationId: text("organization_id").notNull(),
+    aiReviewId: uuid("ai_review_id").notNull(),
+    ordinal: integer().notNull(),
+    text: text().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.aiReviewId, t.ordinal] }),
+    foreignKey({
+      columns: [t.aiReviewId],
+      foreignColumns: [aiReviews.id],
+    }).onDelete("cascade"),
+    nonNegativeCheck("ai_review_questions_ordinal_check", t.ordinal),
+    nonBlankCheck("ai_review_questions_text_check", t.text),
+    check("ai_review_questions_text_length_check", sql`length(${t.text}) <= 2000`),
+  ],
 );

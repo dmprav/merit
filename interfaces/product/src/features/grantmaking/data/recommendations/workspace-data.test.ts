@@ -45,6 +45,9 @@ const page = {
   status: "ok" as const,
   ...encodeApplicationDetail({ round, application }),
   recommendationVersion: 3,
+  aiReviews: [],
+  aiReviewAvailability: "available" as const,
+  aiReviewProvider: null,
   intake: { revision: 7, workingRevision: null, history: [] },
   workspaceSlug: "alder",
 };

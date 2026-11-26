@@ -5,6 +5,7 @@ import { accessScope } from "@merit/access/scope";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
 
+import { assistantConsents } from "./assistant-schema";
 import { organizations, memberships } from "./membership-schema";
 
 /** The query joins membership and user records; the policy checks the resource's organization. */
@@ -67,3 +68,12 @@ export const authorizedWorkspaces = (
       ),
     )
     .as("authorized_workspace");
+
+/** Whether the workspace allows Merit to send material to the AI provider; read inside the caller's transaction. */
+export const readAssistantConsent = async (db: Database, organizationId: string) => {
+  const [consent] = await db
+    .select()
+    .from(assistantConsents)
+    .where(eq(assistantConsents.organizationId, organizationId));
+  return !!consent;
+};

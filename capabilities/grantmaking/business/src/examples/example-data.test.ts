@@ -1,7 +1,9 @@
 import { assert, expect, it } from "vite-plus/test";
 
 import { encodeMoney, sum, parseMoney } from "@merit/money";
+import { aiReviewInput, verifyAiReviewOutput } from "@merit/reviews/domain";
 
+import { exampleAiReviewProvider, exampleAiReviews } from "./example-ai-reviews";
 import { getExampleRound } from "./get-example-round";
 
 it("keeps each fictional itemized budget equal to the requested amount", () => {
@@ -72,4 +74,29 @@ it("keeps each read independent", () => {
 
   assert.isDefined(freshEvidence);
   expect(freshEvidence.passage).toContain("We did not count unique people");
+});
+
+it("prepares one AI review per example application, each consistent with its material", () => {
+  const round = getExampleRound();
+  expect(Object.keys(exampleAiReviews).sort()).toEqual(
+    round.applications.map((application) => application.id).sort(),
+  );
+  expect(exampleAiReviewProvider).toEqual({ provider: "Example", model: "Prepared example" });
+  for (const application of round.applications) {
+    const input = aiReviewInput(
+      {
+        title: application.title,
+        version: application.version,
+        requested: application.requested && encodeMoney(application.requested),
+        submission: application.submission,
+        evidence: application.evidence,
+      },
+      round.criteria,
+    );
+    const prepared = exampleAiReviews[application.id];
+    assert.isDefined(prepared);
+    expect(verifyAiReviewOutput(input, prepared)).toMatchObject({ ok: true });
+    expect(prepared.position).toBe(application.managerRecommendation?.position);
+    expect(encodeMoney(application.managerRecommendation!.allocation)).toEqual(prepared.amount);
+  }
 });

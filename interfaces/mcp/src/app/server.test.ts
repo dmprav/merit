@@ -109,6 +109,8 @@ describe("workspace MCP contracts", () => {
   it.each([
     ["create_funding_round", "grants:write", ["workspace:read"]],
     ["list_workspace_activity", "workspace:read", ["grants:write"]],
+    ["run_ai_review", "grants:write", ["workspace:read"]],
+    ["read_ai_reviews", "workspace:read", ["grants:write"]],
     ["get_reviewer_assignment", "reviews:read", ["workspace:read", "grants:write"]],
     ["submit_reviewer_assessment", "reviews:write", ["workspace:read", "grants:write"]],
     ["start_demo", "onboarding:write", ["workspace:read", "grants:write"]],
@@ -148,7 +150,9 @@ describe("workspace MCP contracts", () => {
       expect(challenge).toContain("resource_metadata=");
       for (const service of Object.values(operations)) {
         for (const operation of Object.values(service)) {
-          expect(operation).not.toHaveBeenCalled();
+          if (typeof operation === "function") {
+            expect(operation).not.toHaveBeenCalled();
+          }
         }
       }
     },

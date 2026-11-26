@@ -36,6 +36,7 @@ import {
 } from "@merit/organizations/server/demo";
 import { seedWorkspace } from "@merit/organizations/testing";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
+import { aiReviews } from "@merit/reviews/schema";
 import { isCurrentAssessment } from "@merit/reviews/server/integrations";
 import { databaseTest } from "@merit/test-support/database";
 
@@ -127,6 +128,26 @@ test("creates independent complete examples and resumes concurrent starts", asyn
   expect(detail?.intake.history).toHaveLength(1);
   expect(detail?.intake.history[0]?.actor).toBe("Dana Reed");
   expect(detail?.application.reviews.requests).toHaveLength(2);
+  // Each example carries one prepared AI review; the demo never runs a new one.
+  for (const applicationId of Object.values(ids.applications)) {
+    const prepared = await getFundingApplicationPage(
+      db,
+      { userId: "alice" },
+      { workspaceSlug: first.workspace.slug, publicId: applicationId },
+    );
+    expect(prepared?.aiReviewAvailability).toBe("demo");
+    expect(prepared?.aiReviews).toMatchObject([
+      {
+        provider: "Example",
+        model: "Prepared example",
+        runBy: { name: "Dana Reed" },
+        freshness: "current",
+      },
+    ]);
+  }
+  expect(
+    await db.select().from(aiReviews).where(eq(aiReviews.organizationId, first.workspace.id)),
+  ).toHaveLength(3);
 
   const contacts = await listWorkspaceContacts(
     db,
@@ -196,6 +217,9 @@ test("reset is scoped and retryable, and old workspace requests cannot write", a
 
   await remove(db);
 
+  expect(
+    await db.select().from(aiReviews).where(eq(aiReviews.organizationId, first.workspace.id)),
+  ).toHaveLength(0);
   expect(
     await db.select().from(organizations).where(eq(organizations.id, first.workspace.id)),
   ).toHaveLength(0);

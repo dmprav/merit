@@ -11,6 +11,7 @@ import { traceServerRequest } from "@merit/telemetry/server";
 
 import { readAnalyticsConfig } from "./analytics-config";
 import type { ApplicationRequestContext } from "./request-context";
+import { createOpenAiReviewer } from "./server/ai-reviewer.server";
 import { createAssistantHost } from "./server/assistant/host.server";
 import { handleAssistantHttp } from "./server/assistant/http.server";
 import { createDemoServices, demoCookie } from "./server/demo.server";
@@ -42,13 +43,13 @@ const sendEmail = createEmailSender({
   mailpitUrl: import.meta.env.DEV ? (env.MAILPIT_URL ?? "http://127.0.0.1:8025") : undefined,
 });
 
+const modelProvider = { apiKey: env.OPENAI_API_KEY ?? "", model: env.MERIT_AI_MODEL ?? "" };
+const aiReviewer = createOpenAiReviewer(modelProvider);
+
 // Detached turns check out connections from the process pool after their HTTP request ends.
 const assistant = createAssistantHost(
-  { database, analytics, sendEmail, invitationOrigin: origin },
-  {
-    apiKey: env.OPENAI_API_KEY ?? "",
-    model: env.MERIT_AI_MODEL ?? "",
-  },
+  { database, analytics, sendEmail, invitationOrigin: origin, aiReviewer },
+  modelProvider,
 );
 assistant.start();
 if (import.meta.hot) {
@@ -81,6 +82,7 @@ export default createServerEntry({
           try {
             const dependencies = {
               analytics,
+              aiReviewer,
               database: requestDatabase.run,
               invitationOrigin: import.meta.env.DEV ? url.origin : origin,
               networkAddress: import.meta.env.DEV ? "local" : peerAddress(request),

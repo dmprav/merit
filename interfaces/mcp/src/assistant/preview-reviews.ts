@@ -291,3 +291,15 @@ export const reviewChanges = async (
     }
   }
 };
+
+/** A run sends material to the model provider and saves a new record; the person approves both. */
+export const aiReviewPreview = (ctx: PreviewContext, preview: AssistantPreview) => {
+  const provider = ctx.ops.reviews.aiReviewProvider;
+  if (!provider) {
+    throw new PreviewProblem("provider_unconfigured");
+  }
+  preview.effects.push(
+    `Sends this application's current material and the round's criteria to ${provider.provider} (${provider.model}).`,
+    "Saves a new AI review.",
+  );
+};

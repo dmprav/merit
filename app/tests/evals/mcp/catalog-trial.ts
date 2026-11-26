@@ -5,6 +5,7 @@ import { z } from "zod";
 import { roundTest } from "@merit/grantmaking/testing/rounds";
 import { actor } from "@merit/organizations/testing/workspace";
 
+import { stubAiReviewer } from "../../fixtures/ai-reviewer-stub";
 import { createTransport } from "../../fixtures/transport-test";
 import { gradeTrial } from "./grade";
 import { evalCases } from "./registry";
@@ -27,6 +28,8 @@ export const catalogTest = roundTest.extend(
       async ({ to }) => {
         recipients.push(to);
       },
+      undefined,
+      stubAiReviewer,
     );
     let trialStarted = false;
     let closeServer: (() => Promise<void>) | undefined;
