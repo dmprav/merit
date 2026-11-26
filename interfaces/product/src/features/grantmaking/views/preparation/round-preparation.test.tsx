@@ -324,6 +324,30 @@ it("cancels a typed date through its single dismissal control and restores focus
   expect(screen.getByRole("textbox", { name: "Committee date" })).toHaveValue(round.meetingDate);
 });
 
+it("returns focus to the section's edit button after its editor saves", async () => {
+  vi.mocked(editRound).mockResolvedValue({ status: "ok", revision: 1 });
+  renderPreparation();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Edit purpose" }));
+  await user.type(screen.getByRole("textbox", { name: "Purpose" }), " New detail.");
+  // A frame may run before React commits the edit button that the save re-enables.
+  const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    callback(0);
+    return 0;
+  });
+  try {
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(editRound).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: "Purpose" })).not.toBeInTheDocument(),
+    );
+  } finally {
+    frame.mockRestore();
+  }
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Edit purpose" })).toHaveFocus());
+});
+
 it("opens a searchable person picker and keeps failures visible", async () => {
   vi.mocked(editRound).mockResolvedValue({ status: "unavailable" });
   renderPreparation();

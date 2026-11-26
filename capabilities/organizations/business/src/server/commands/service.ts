@@ -41,7 +41,7 @@ const createProvisioningCommands = (dependencies: Dependencies) => {
         }
 
         const result = await dependencies.database((db) =>
-          provisioning.createOrganization(db, parsed.data, actor),
+          provisioning.createOrganization(db, parsed.data, actor, dependencies.invitationKey),
         );
         if (result.invitation) {
           await deliver(result.invitation);
@@ -71,7 +71,13 @@ const createProvisioningCommands = (dependencies: Dependencies) => {
         }
 
         const result = await dependencies.database((db) =>
-          provisioning.replaceInvitation(db, parsed.data.organizationId, actor, parsed.data.email),
+          provisioning.replaceInvitation(
+            db,
+            parsed.data.organizationId,
+            actor,
+            parsed.data.email,
+            dependencies.invitationKey,
+          ),
         );
         await deliver(result.invitation);
         return null;
@@ -124,7 +130,7 @@ const createTeamCommands = (dependencies: Dependencies) => {
         }
 
         const result = await dependencies.database((db) =>
-          team.inviteMember(db, actor, parsed.data),
+          team.inviteMember(db, actor, parsed.data, dependencies.invitationKey),
         );
         if (result.invitation) {
           await deliver(result.invitation);
@@ -140,7 +146,13 @@ const createTeamCommands = (dependencies: Dependencies) => {
         }
 
         const result = await dependencies.database((db) =>
-          team.resendTeamInvitation(db, parsed.data.workspaceSlug, actor, parsed.data.invitationId),
+          team.resendTeamInvitation(
+            db,
+            parsed.data.workspaceSlug,
+            actor,
+            parsed.data.invitationId,
+            dependencies.invitationKey,
+          ),
         );
         await deliver(result.invitation);
         return {

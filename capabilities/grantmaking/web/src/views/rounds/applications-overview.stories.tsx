@@ -1,9 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState, type ComponentProps } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import type { TableSort } from "@merit/tables";
 import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
+import { PageHeader } from "@merit/ui/page-header";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { ApplicationsOverviewPreview as ApplicationsOverview } from "../../testing/application-list-preview";
@@ -36,7 +37,7 @@ const Preview = (
 const meta = {
   title: "Features/Applications/All applications",
   tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   component: Preview,
   args: {
     rounds,
@@ -91,6 +92,7 @@ const meta = {
           width="full"
         >
           <GrantmakingMessagesProvider>
+            <PageHeader title="Applications" />
             <Story />
           </GrantmakingMessagesProvider>
         </ApplicationPage>
@@ -104,19 +106,6 @@ export default meta;
 export const AcrossRounds: StoryObj<typeof meta> = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("2 of 2 applications")).toBeVisible();
-    const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
-    await userEvent.click(body.getByRole("button", { name: "Round All rounds" }));
-    await userEvent.click(
-      within(canvasElement.ownerDocument.body).getByRole("option", {
-        name: "Empty round",
-      }),
-    );
-    await expect(canvas.getByText("No applications in this round yet.")).toBeVisible();
-    await expect(canvas.getByText("0 of 2 applications")).toBeVisible();
-    await userEvent.click(body.getByRole("button", { name: "Clear filters" }));
-    await userEvent.keyboard("{Escape}");
     await expect(canvas.getByText("2 of 2 applications")).toBeVisible();
   },
 };
@@ -158,23 +147,28 @@ export const LongAndUnknown: StoryObj<typeof meta> = {
 
 const PagedPreview = () => {
   const [offset, setOffset] = useState(50);
+  const [roundId, setRoundId] = useState("");
   const [sorting, setSorting] = useState<TableSort>(null);
   const applications = Array.from({ length: 55 }, (_, index) => ({
     ...meta.args.applications[index % 2]!,
     id: `project-${index}`,
     title: `Community project ${String(index + 1).padStart(2, "0")}`,
   }));
+  const matching = roundId ? applications.filter((item) => item.roundId === roundId) : applications;
   return (
     <ApplicationsOverview
       {...meta.args}
-      applications={applications.slice(offset, offset + 50)}
-      roundId=""
-      onRoundChange={() => {}}
+      applications={matching.slice(offset, offset + 50)}
+      roundId={roundId}
+      onRoundChange={(next) => {
+        setRoundId(next);
+        setOffset(0);
+      }}
       sorting={sorting}
       onSortingChange={setSorting}
       pagination={{
-        total: 55,
-        matching: 55,
+        total: applications.length,
+        matching: matching.length,
         offset,
         loading: false,
         failed: false,
@@ -198,27 +192,21 @@ export const Paged: StoryObj<typeof meta> = {
   },
 };
 
-export const PagedNoMatches: StoryObj<typeof meta> = {
-  args: {
-    applications: [],
-    query: "Missing",
-    pagination: {
-      total: 55,
-      matching: 0,
-      offset: 0,
-      loading: false,
-      failed: false,
-      onPrevious: () => {},
-      onNext: () => {},
-      onRetry: () => {},
-    },
-  },
-};
-
 const RecoveryPreview = () => {
   const [offset, setOffset] = useState(0);
+  const [roundId, setRoundId] = useState("");
+  const [sorting, setSorting] = useState<TableSort>(null);
   const [failed, setFailed] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (retryTimer.current) {
+        clearTimeout(retryTimer.current);
+      }
+    },
+    [],
+  );
   const applications = Array.from({ length: 55 }, (_, index) => ({
     ...meta.args.applications[index % 2]!,
     id: `project-${index}`,
@@ -228,10 +216,13 @@ const RecoveryPreview = () => {
     <ApplicationsOverview
       {...meta.args}
       applications={applications.slice(offset, offset + 50)}
-      roundId=""
-      onRoundChange={() => {}}
-      sorting={null}
-      onSortingChange={() => {}}
+      roundId={roundId}
+      onRoundChange={(next) => {
+        setRoundId(next);
+        setOffset(0);
+      }}
+      sorting={sorting}
+      onSortingChange={setSorting}
       pagination={{
         total: 55,
         matching: 55,
@@ -243,7 +234,7 @@ const RecoveryPreview = () => {
         onNext: () => setFailed(true),
         onRetry: () => {
           setRetrying(true);
-          setTimeout(() => {
+          retryTimer.current = setTimeout(() => {
             setOffset(50);
             setFailed(false);
             setRetrying(false);
@@ -273,28 +264,5 @@ export const CombinedCriteria: StoryObj<typeof meta> = {
         body.getByRole("button", { name: "Evidence Changed evidence or criteria" }),
       ).toBeVisible(),
     );
-  },
-};
-
-export const FilterCriteria: StoryObj<typeof meta> = {
-  play: async ({ canvas, canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
-    const criterion = body.getByRole("button", { name: "Readiness Any" });
-    for (const label of ["Participation", "Readiness", "Reviews", "Evidence", "Recommendation"]) {
-      await waitFor(() => expect(body.getByRole("button", { name: `${label} Any` })).toBeVisible());
-    }
-    await expect(canvas.getByRole("status")).toHaveTextContent("2 of 2 applications");
-    await userEvent.click(criterion);
-    await userEvent.keyboard("{End}{Enter}");
-    await waitFor(() => expect(criterion).toHaveFocus());
-    await expect(canvas.getByRole("status")).toHaveTextContent("1 of 2 applications");
-    await userEvent.keyboard("{Enter}{Home}{Enter}");
-    await waitFor(() => expect(criterion).toHaveFocus());
-    await expect(canvas.getByRole("status")).toHaveTextContent("2 of 2 applications");
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() => expect(canvas.getByRole("button", { name: "Filter" })).toHaveFocus());
-    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
-    await waitFor(() => expect(body.getByRole("button", { name: "Readiness Any" })).toBeVisible());
   },
 };

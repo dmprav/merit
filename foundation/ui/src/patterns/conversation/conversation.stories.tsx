@@ -1,14 +1,25 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect, useState } from "react";
-import { expect } from "storybook/test";
+import { expect, fn } from "storybook/test";
 
+import { Notice } from "../../components/notice/notice";
 import { Conversation, ConversationAction, ConversationMessage } from "./conversation";
 import styles from "./conversation.stories.module.css";
+
+const onCopy = fn();
+const onRetry = fn();
 
 const meta = {
   title: "Patterns/Conversation",
   component: Conversation,
+  subcomponents: { ConversationMessage, ConversationAction },
+  tags: ["!autodocs"],
   args: { label: "Conversation", children: null },
+  argTypes: { children: { control: false }, followKey: { control: false } },
+  beforeEach: () => {
+    onCopy.mockReset();
+    onRetry.mockReset();
+  },
   decorators: [
     (Story) => (
       <div className={styles.frame}>
@@ -40,6 +51,42 @@ export const Turns: Story = {
     await expect(canvas.getAllByRole("listitem")).toHaveLength(2);
     await expect(canvas.getByText("You")).toBeInTheDocument();
     await expect(canvas.getByText("Assistant")).toBeInTheDocument();
+  },
+};
+
+/** Latest assistant turn with quiet actions visible at rest and an inline notice inside the turn. */
+export const WithActionsAndNotice: Story = {
+  render: (args) => (
+    <Conversation {...args}>
+      <ConversationMessage author="person" authorLabel="You">
+        <p>Summarise the latest budget change on Riverside Youth Arts.</p>
+      </ConversationMessage>
+      <ConversationMessage
+        author="assistant"
+        authorLabel="Assistant"
+        actions={
+          <>
+            <ConversationAction icon="copy" label="Copy" onPress={onCopy} />
+            <ConversationAction icon="reset" label="Ask again" onPress={onRetry} />
+          </>
+        }
+      >
+        <p>
+          The applicant increased the requested budget from €18,000 to €22,000 to cover accessible
+          transport for Saturday workshops.
+        </p>
+        <Notice appearance="inline" tone="warning">
+          One existing review assessed an earlier version of the submission.
+        </Notice>
+      </ConversationMessage>
+    </Conversation>
+  ),
+  play: async ({ canvas, userEvent }) => {
+    await expect(
+      canvas.getByText("One existing review assessed an earlier version of the submission."),
+    ).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Copy" }));
+    await expect(onCopy).toHaveBeenCalledOnce();
   },
 };
 

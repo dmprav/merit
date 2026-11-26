@@ -147,7 +147,7 @@ export default defineConfig({
       "test:hooks": { command: "vp test tooling/verification/hooks.test.ts", cache: false },
       "test:agents": {
         command:
-          "vp test tooling/cli.test.ts tooling/agents/github-rest.test.ts tooling/agents/proposal.test.ts tooling/agents/scout.test.ts tooling/agents/queue.test.ts tooling/agents/file-lock.test.ts tooling/agents/ledger.test.ts tooling/agents/prune-verifications.test.ts tooling/agents/worktree.test.ts tooling/storybook/ui-verify.test.ts",
+          "vp test tooling/cli.test.ts tooling/agents/ tooling/storybook/ui-verify.test.ts tooling/storybook/ui-verify/",
         cache: false,
       },
       "test:ci": {
@@ -207,7 +207,7 @@ export default defineConfig({
       "test:docs": { command: "vp test tooling/verification/docs.test.ts", cache: false },
       "test:design-system": {
         command:
-          "vp test tooling/storybook/design-system/tokens.test.ts tooling/storybook/design-system/fonts.test.ts tooling/storybook/design-system/bundle.test.ts",
+          "vp test tooling/storybook/catalog.test.ts tooling/storybook/design-system/tokens.test.ts tooling/storybook/design-system/fonts.test.ts tooling/storybook/design-system/bundle.test.ts tooling/storybook/design-system/build.test.ts",
         cache: false,
       },
       "test:react-compiler": {

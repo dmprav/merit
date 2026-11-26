@@ -10,6 +10,13 @@ import { Judgment, JudgmentChoice } from "./judgment";
 const meta = {
   title: "Patterns/Judgment",
   component: Judgment,
+  subcomponents: { JudgmentChoice },
+  argTypes: {
+    summary: { control: false },
+    basis: { control: false },
+    action: { control: false },
+    children: { control: false },
+  },
   args: {
     author: "Dana Reed",
     meta: "9 November",
@@ -20,14 +27,6 @@ const meta = {
       </>
     ),
     basis: <span>Based on an earlier submission (version 2)</span>,
-  },
-  parameters: {
-    docs: {
-      description: {
-        component:
-          "Judgment presents a person's position, such as a recommendation or assessment: who made it and when, the position and any amount, and its basis only when that qualifies the position, such as an earlier submission. Supporting content, such as reasoning, follows. JudgmentChoice presents the same summary as a control that opens the full judgment. The author remains visible before any judgment exists.",
-      },
-    },
   },
 } satisfies Meta<typeof Judgment>;
 
@@ -52,7 +51,10 @@ export const Recorded: Story = {
   ),
 };
 
+const onChooseJudgment = fn();
+
 export const NotYetRecorded: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <Stack gap={1}>
       <Judgment author="Dana Reed" />
@@ -64,6 +66,7 @@ export const NotYetRecorded: Story = {
 };
 
 export const Choices: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <Stack gap={3}>
       <JudgmentChoice
@@ -80,13 +83,13 @@ export const Choices: Story = {
             <span>Criteria changed since</span>
           </>
         }
-        onPress={fn()}
+        onPress={onChooseJudgment}
       />
       <JudgmentChoice
         author="Priya Shah"
         summary={<strong>Outstanding</strong>}
         basis={<span>Requested on version 3</span>}
-        onPress={fn()}
+        onPress={onChooseJudgment}
       />
     </Stack>
   ),

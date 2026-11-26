@@ -1,0 +1,59 @@
+<!-- @dsCard group="Patterns" height=300 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Conversation — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function noop() {}
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            "div",
+            { style: { maxWidth: 440 } },
+            h(
+              M.Conversation,
+              { label: "Conversation" },
+              h(
+                M.ConversationMessage,
+                { author: "person", authorLabel: "You" },
+                h("p", null, "Which applications in this round still need a second review?"),
+              ),
+              h(
+                M.ConversationMessage,
+                {
+                  author: "assistant",
+                  authorLabel: "Assistant",
+                  actions: h(
+                    React.Fragment,
+                    null,
+                    h(M.ConversationAction, { icon: "copy", label: "Copy", onPress: noop }),
+                    h(M.ConversationAction, { icon: "reset", label: "Ask again", onPress: noop }),
+                  ),
+                },
+                h("p", null, "Three applications have one review so far."),
+                h(
+                  "p",
+                  null,
+                  "Riverside Youth Arts, Harbour Learning Garden, and Northside Repair Cafe.",
+                ),
+                h(
+                  M.Notice,
+                  { appearance: "inline", tone: "warning" },
+                  "One existing review assessed an earlier version of the submission.",
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

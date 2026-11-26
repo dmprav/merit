@@ -84,17 +84,6 @@ export const SaveFailure: Story = {
     );
   },
 };
-export const Saved: Story = {
-  play: async (context) => {
-    await submit(context);
-    await waitFor(() =>
-      expect(
-        within(context.canvasElement.ownerDocument.body).queryByRole("dialog"),
-      ).not.toBeInTheDocument(),
-    );
-    await expect(context.canvas.getByText("Community Kitchen")).toBeVisible();
-  },
-};
 export const ResumedDraft: Story = {
   play: async (context) => {
     const dialog = await change(context);
@@ -129,7 +118,12 @@ export const ConcurrentChanges: Story = {
     });
   },
   play: async (context) => {
-    const dialog = await submit(context);
-    await waitFor(() => expect(dialog.queryByRole("dialog")).not.toBeInTheDocument());
+    await submit(context);
+    await waitFor(() =>
+      expect(
+        within(context.canvasElement.ownerDocument.body).queryByRole("dialog"),
+      ).not.toBeInTheDocument(),
+    );
+    await expect(context.canvas.getByText("Community Kitchen")).toBeVisible();
   },
 };

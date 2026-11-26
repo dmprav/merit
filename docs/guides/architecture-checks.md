@@ -221,10 +221,11 @@ documentation, active decision records, and up to three single-line review
 - Run `vpx tooling/verification/architecture/mechanisms.ts --paths <paths...>`
   before planning or editing to list the guides, decisions, and invariants that
   govern candidate files.
-- Run `vpx tooling/verification/architecture/mechanisms.ts --base <ref>` on a
-  branch to classify touched mechanisms as `extends` (changes to a mechanism's
-  contract) or `composes` (changes to an adapter, view, schema, or controller)
-  and print their `invariants`.
+- Run `vpx tooling/verification/architecture/mechanisms.ts --base <ref>` (with
+  `--head <ref>` to compare a ref other than `HEAD`) on a branch to classify
+  touched mechanisms as `extends` (changes to a mechanism's contract) or
+  `composes` (changes to an adapter, view, schema, or controller) and print
+  their `invariants`.
 - `vp run architecture` runs `--check` to verify pattern matches, documentation
   paths, heading anchors, summary and invariant limits, and active decision
   statuses.

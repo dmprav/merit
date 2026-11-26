@@ -9,6 +9,7 @@ it("discovers operator navigation using the same current policy as administratio
     throw new Error("Navigation must not read tenant data");
   });
   const service = createOrganizationService({
+    invitationKey: () => new Uint8Array(32),
     revokeReviewAccess: async () => {},
     database,
     isOperator: async () => authorized,

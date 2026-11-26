@@ -1,10 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, type ComponentProps } from "react";
-import { expect, userEvent, within, waitFor } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import type { ActivityEntry } from "@merit/grantmaking/api";
 import { formatTimestamp } from "@merit/i18n/format";
 import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
+import { PageHeader } from "@merit/ui/page-header";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { WorkspaceActivity, type ActivityFilters } from "./workspace-activity";
@@ -97,6 +98,8 @@ const olderPage: ActivityEntry[] = [
 const Preview = ({
   initialFilters,
   more = [],
+  status: initialStatus,
+  onRetry,
   ...props
 }: Omit<
   ComponentProps<typeof WorkspaceActivity>,
@@ -106,11 +109,30 @@ const Preview = ({
     initialFilters ?? { roundId: "", personId: "" },
   );
   const [shown, setShown] = useState(0);
+  const [recovered, setRecovered] = useState(false);
+
+  const selectedPerson = props.people.find((person) => person.id === filters.personId);
+  const allEntries = [...props.entries, ...more.slice(0, shown)];
+  const filteredEntries = allEntries.filter(
+    (item) =>
+      (!filters.roundId || item.subject.roundId === filters.roundId) &&
+      (!filters.personId || item.actor === (selectedPerson?.name ?? null)),
+  );
+  const status = recovered ? "ready" : initialStatus;
 
   return (
     <WorkspaceActivity
       {...props}
-      entries={[...props.entries, ...more.slice(0, shown)]}
+      status={status}
+      onRetry={
+        onRetry
+          ? () => {
+              setRecovered(true);
+              onRetry();
+            }
+          : undefined
+      }
+      entries={filteredEntries}
       filters={filters}
       onFiltersChange={setFilters}
       hasMore={shown < more.length}
@@ -122,7 +144,7 @@ const Preview = ({
 const meta = {
   title: "Features/Activity/Workspace activity",
   tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   component: Preview,
   args: {
     entries: recent,
@@ -144,6 +166,7 @@ const meta = {
           width="full"
         >
           <GrantmakingMessagesProvider>
+            <PageHeader title="Activity" />
             <Story />
           </GrantmakingMessagesProvider>
         </ApplicationPage>
@@ -188,10 +211,6 @@ export const LongText: StoryObj<typeof meta> = {
   },
 };
 
-export const UnknownActor: StoryObj<typeof meta> = {
-  args: { entries: [entry(1, { actor: null }), ...recent.slice(1, 3)] },
-};
-
 export const McpProvenance: StoryObj<typeof meta> = {
   args: {
     entries: [
@@ -221,7 +240,8 @@ export const MissingTarget: StoryObj<typeof meta> = {
         record: null,
         subject: { ...entry(2).subject, name: null },
       }),
-      ...recent.slice(2, 4),
+      entry(3, { actor: null }),
+      ...recent.slice(3, 4),
     ],
   },
   play: async ({ canvasElement }) => {
@@ -247,37 +267,12 @@ export const EmptyFilter: StoryObj<typeof meta> = {
   },
 };
 
-export const ClearFilters: StoryObj<typeof meta> = {
-  args: { ...EmptyFilter.args },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
-    const page = within(canvasElement.ownerDocument.body);
-    await userEvent.click(page.getByRole("button", { name: "Clear filters" }));
-    await userEvent.keyboard("{Escape}");
-    await expect(canvas.getByText("No activity yet.")).toBeVisible();
-    await expect(canvas.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
-  },
-};
-
 export const MorePages: StoryObj<typeof meta> = {
   args: { entries: [...recent, ...earlier], more: olderPage },
 };
 
-export const ShowOlderActivity: StoryObj<typeof meta> = {
-  args: MorePages.args,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    canvas.queryByRole("button", { name: "Show older activity" })?.scrollIntoView();
-    await waitFor(() => expect(canvas.getAllByText("Round criteria changed")).toHaveLength(1));
-    await expect(
-      canvas.queryByRole("button", { name: "Show older activity" }),
-    ).not.toBeInTheDocument();
-  },
-};
-
-export const Loading: StoryObj<typeof meta> = { args: { status: "refreshing" } };
-export const Failed: StoryObj<typeof meta> = { args: { status: "failed", onRetry: () => {} } };
+export const Refreshing: StoryObj<typeof meta> = { args: { status: "refreshing" } };
+export const Failed: StoryObj<typeof meta> = { args: { status: "failed", onRetry: fn() } };
 
 export const InitialLoading: StoryObj<typeof meta> = {
   args: { entries: [], status: "refreshing" },

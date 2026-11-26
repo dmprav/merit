@@ -7,14 +7,6 @@ import { Divider } from "./divider";
 const meta = {
   title: "Components/Divider",
   component: Divider,
-  parameters: {
-    docs: {
-      description: {
-        component:
-          "Divider separates blocks of content with a decorative rule; the surrounding Stack spaces it. Use Stack's divided option for rules between list entries, and the emphasis tone only for the rule that marks the recorded side of a comparison.",
-      },
-    },
-  },
 } satisfies Meta<typeof Divider>;
 
 export default meta;
@@ -22,10 +14,10 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const BetweenBlocks: Story = {
-  render: () => (
+  render: (args) => (
     <Stack gap={4}>
       <p>The invitation was sent to dana@example.test.</p>
-      <Divider />
+      <Divider {...args} />
       <div>
         <Button variant="quiet">Revoke invitation</Button>
       </div>

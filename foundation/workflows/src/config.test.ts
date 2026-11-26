@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { readTemporalConfig } from "./config.ts";
+import { readTemporalConfig, readPayloadKey } from "./config.ts";
 
 const productionKey = Buffer.alloc(32, 7).toString("base64");
 const deployed = { TEMPORAL_ADDRESS: "temporal.example:7233", TEMPORAL_PAYLOAD_KEY: productionKey };
@@ -105,4 +105,14 @@ describe("validation", () => {
       ),
     ).toThrow(/^Invalid Temporal configuration: TEMPORAL_ADDRESS\.$/u);
   });
+});
+
+it("requires a valid key for sealing work independently of Temporal connection settings", () => {
+  expect(readPayloadKey(productionKey, { local: false })).toEqual(
+    new Uint8Array(Buffer.from(productionKey, "base64")),
+  );
+  expect(() => readPayloadKey(productionKey + " ", { local: false })).toThrow(
+    "TEMPORAL_PAYLOAD_KEY",
+  );
+  expect(() => readPayloadKey("bad!", { local: false })).toThrow("Invalid TEMPORAL_PAYLOAD_KEY");
 });

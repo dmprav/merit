@@ -137,7 +137,7 @@ const ReviewWorkspaceFrame = ({
   const { t } = useTranslation("reviews");
   return (
     <ReferenceWorkspace after={feedback}>
-      <ReferencePane label={t("title")}>{content()}</ReferencePane>
+      <ReferencePane label={t("reference")}>{content()}</ReferencePane>
       <WorkPane
         label={t("reviewTask")}
         title={active && editorTitle}
@@ -312,6 +312,19 @@ const ReviewActions = ({
   const { draft, editing, pending, saving, beginRequest } = work;
   // Choosing to request a review swaps the menu for the request picker on the same trigger.
   const [requesting, setRequesting] = useState(false);
+  // The menu's trigger replaces the picker's, so keep focus on the Add control. Wait for React to
+  // commit the swap: until then the ref still holds the picker's trigger it is about to remove.
+  const restoreAdd = useRef(false);
+  useEffect(() => {
+    if (!restoreAdd.current || requesting) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      restoreAdd.current = false;
+      actionRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  });
   const add = (
     <Button ref={actionRef} variant="quiet" isDisabled={disabled || saving}>
       <Icon name="add" />
@@ -341,9 +354,8 @@ const ReviewActions = ({
           trigger={add}
           onBegin={beginRequest}
           onClose={() => {
+            restoreAdd.current = true;
             setRequesting(false);
-            // The menu's trigger replaces the picker's, so keep focus on the Add control.
-            requestAnimationFrame(() => actionRef.current?.focus());
           }}
         />
       ) : (

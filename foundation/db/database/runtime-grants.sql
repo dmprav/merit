@@ -25,3 +25,5 @@ GRANT EXECUTE ON FUNCTION public.merit_running_assistant_conversations(integer, 
 GRANT EXECUTE ON FUNCTION public.merit_pending_reviewer_messages(integer, uuid) TO :"runtime_role";
 GRANT EXECUTE ON FUNCTION public.merit_retry_reviewer_message(uuid) TO :"runtime_role";
 GRANT EXECUTE ON FUNCTION public.merit_workspace_running_assistant_conversations() TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.merit_pending_invitation_dispatches(integer, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.merit_acknowledge_invitation_dispatch(text, text) TO :"runtime_role";

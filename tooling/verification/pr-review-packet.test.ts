@@ -4,6 +4,7 @@ import {
   extractSqlDdlDelta,
   parseAddedDiffLines,
   parseNumstatZ,
+  parseReviewPacketArgs,
   renderReviewPacket,
   REVIEW_PACKET_MARKER,
   splitSqlStatements,
@@ -26,6 +27,12 @@ describe("pr-review-packet", () => {
       { path: "capabilities/rounds/business/src/index.ts", additions: 12, deletions: 3 },
       { path: "tooling/storybook/snapshots/a.png", additions: 0, deletions: 0 },
       { path: "new/path.ts", additions: 5, deletions: 2 },
+    ]);
+  });
+
+  test("keeps tabs inside numstat paths", () => {
+    expect(parseNumstatZ(["1\t0\tsrc/example\tcase.test.ts", ""].join("\0"))).toEqual([
+      { path: "src/example\tcase.test.ts", additions: 1, deletions: 0 },
     ]);
   });
 
@@ -392,5 +399,34 @@ None.
         url: "https://api.github.com/repos/dmprav/merit/issues/comments/77",
       },
     ]);
+  });
+
+  test("reads flags strictly and falls back to the pull request environment", () => {
+    const env = { PR_NUMBER: "42", PR_AUTHOR: "octo", PR_BASE_SHA: "base", PR_HEAD_SHA: "head" };
+    expect(parseReviewPacketArgs([], {})).toEqual({
+      author: "",
+      baseRef: "origin/main",
+      headRef: "HEAD",
+      prNumber: undefined,
+      screenshotsManifest: undefined,
+      post: false,
+    });
+    expect(parseReviewPacketArgs(["--post", "--screenshots-manifest", "m.json"], env)).toEqual({
+      author: "octo",
+      baseRef: "base",
+      headRef: "head",
+      prNumber: 42,
+      screenshotsManifest: "m.json",
+      post: true,
+    });
+    expect(parseReviewPacketArgs(["--", "--pr=7", "--base", "main"], env)).toMatchObject({
+      prNumber: 7,
+      baseRef: "main",
+    });
+    expect(() => parseReviewPacketArgs(["--pr", "7abc"], {})).toThrow(
+      '--pr must be a whole number of at least 1 (got "7abc").',
+    );
+    expect(() => parseReviewPacketArgs([], { PR_NUMBER: "0" })).toThrow("PR_NUMBER must be");
+    expect(() => parseReviewPacketArgs(["--psot"], {})).toThrow("Unknown option '--psot'");
   });
 });

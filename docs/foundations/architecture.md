@@ -344,9 +344,9 @@ organization invitation emails, and Merit AI turns run this way today. Merit AI 
 conversation, woken by each request that changes it and by reconciliation of running
 conversations; its worker runs one step per activity on a dedicated task queue limited to four
 concurrent turns. Emails retry for about fifteen minutes before the
-message is recorded as failed. Organization invitations are not reconciled: only the token's hash is
-stored, and the raw token travels only in the workflow's encrypted input, so a start lost between
-commit and Temporal leaves the invitation unconfirmed until an administrator resends it. A request waits
+message is recorded as failed. Organization invitations save their hash and encrypted token together.
+Worker startup and periodic reconciliation recover a lost start under the original invitation ID.
+Acknowledging the start clears the encrypted token from Postgres. A request waits
 about five seconds, polling Postgres, for the first outcome and returns what it finds.
 
 ```mermaid
@@ -462,7 +462,7 @@ bounds how long it is kept; Postgres, not history, is the record. A failed email
 with backoff for about fifteen minutes while the message or invitation stays `pending`, then
 recorded as `failed`; the manager's resend, retry, or the assistant's own retry is the way to
 try again. A once-a-minute reconciliation Schedule restarts committed work that has no running
-workflow, except organization invitations, whose tokens are not stored. The
+workflow, including organization invitations that still await handoff. The
 [email guide](../guides/emails.md#ownership-and-delivery) defines the delivery integration and
 the [workflows package](../../foundation/workflows/README.md) the runtime.
 

@@ -1,12 +1,11 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
-import { normalizeRepoPath, readFlagValue } from "../cli.ts";
+import { normalizeRepoPath, parseCliArgs } from "../cli.ts";
+import { REPO_ROOT } from "../paths.ts";
 import {
-  ALLOW_PROTECTED_LABEL,
+  AGENT_LABELS,
   findProtectedPaths,
   parseProposalMarker,
 } from "../verification/agent-policy.ts";
@@ -14,13 +13,7 @@ import {
   classifyChangedPaths,
   type MechanismClassification,
 } from "../verification/architecture/mechanisms.ts";
-import {
-  getRepoIdentity,
-  ghApiJson,
-  listRestIssues,
-  restLabelSchema,
-  type RepoIdentity,
-} from "./github-rest.ts";
+import { createGitHubIssueClient, type GitHubIssueClient } from "./github.ts";
 
 export const SCOUT_LENSES = [
   "docs",
@@ -35,7 +28,6 @@ export const SCOUT_LENSES = [
 export type ScoutLens = (typeof SCOUT_LENSES)[number];
 
 export const MAX_OPEN_PROPOSALS = 5;
-export const DESIGN_PROPOSAL_LABEL = "agent:design";
 
 const TEST_FILE_PATTERN = /\.(?:test|spec|integration)\.tsx?$/;
 const TIER1_DOC_PATTERN =
@@ -108,9 +100,10 @@ export type ProposalInput = z.output<typeof proposalInputSchema>;
 
 export type ProposalKind = ProposalInput["kind"];
 
+export type ProposalTier = 1 | 2;
+
 export type ProposalTierClassification = {
-  tier: 1 | 2;
-  targetLabel: "agent:ready" | "agent:proposed";
+  tier: ProposalTier;
   reasons: string[];
   protectedPaths: string[];
   mechanisms: MechanismClassification;
@@ -149,6 +142,10 @@ export const isTier1DocPath = (filePath: string): boolean => {
 export const isProposalCapReached = (openProposedCount: number): boolean =>
   openProposedCount >= MAX_OPEN_PROPOSALS;
 
+/** Tier 1 proposals are ready for the queue; Tier 2 proposals wait for a maintainer. */
+export const targetLabelForTier = (tier: ProposalTier) =>
+  tier === 1 ? AGENT_LABELS.ready : AGENT_LABELS.proposed;
+
 export const classifyProposalTier = ({
   paths,
   ambiguous,
@@ -171,7 +168,7 @@ export const classifyProposalTier = ({
 
   const reasons: string[] = [];
   if (kind === "design") {
-    reasons.push(`architecture design or multi-PR proposal (${DESIGN_PROPOSAL_LABEL})`);
+    reasons.push(`architecture design or multi-PR proposal (${AGENT_LABELS.design})`);
   }
   if (ambiguous) {
     reasons.push("proposal marks an unresolved ambiguity or product decision");
@@ -194,10 +191,8 @@ export const classifyProposalTier = ({
     reasons.push("changes production, config, root/record docs, or multi-slice code");
   }
 
-  const tier: 1 | 2 = reasons.length === 0 ? 1 : 2;
   return {
-    tier,
-    targetLabel: tier === 1 ? "agent:ready" : "agent:proposed",
+    tier: reasons.length === 0 ? 1 : 2,
     reasons,
     protectedPaths,
     mechanisms,
@@ -215,7 +210,6 @@ export const applyTier2OnlyOverride = (
   return {
     ...classification,
     tier: 2,
-    targetLabel: "agent:proposed",
     reasons: [...classification.reasons, "calibration mode (--tier2-only)"],
   };
 };
@@ -243,56 +237,129 @@ const jaccard = (left: Set<string>, right: Set<string>): number => {
   return union === 0 ? 0 : intersection / union;
 };
 
+/** Title token similarity at which two proposals touching the same files are duplicates. */
+const DUPLICATE_TITLE_SIMILARITY = 0.6;
+/** Title token similarity at which heavily overlapping file sets mark a duplicate. */
+const RELATED_TITLE_SIMILARITY = 0.25;
+/** Share of the smaller file set that two proposals must have in common to overlap heavily. */
+const DUPLICATE_PATH_OVERLAP = 0.7;
+
+type ProposalFingerprint = {
+  normalizedTitle: string;
+  titleTokens: Set<string>;
+  paths: Set<string>;
+  lens?: ScoutLens;
+};
+
+/** Open issues, and closed issues rejected as won't-fix or duplicate, block a matching proposal. */
+const blocksMatchingProposals = (issue: ExistingIssueSummary) =>
+  issue.state === "OPEN" ||
+  issue.labels.some((label) => label === AGENT_LABELS.wontfix || label === AGENT_LABELS.duplicate);
+
+/** Explains why `issue` duplicates the proposal, or returns null when it does not. */
+const duplicateReason = (
+  proposal: ProposalFingerprint,
+  issue: ExistingIssueSummary,
+): string | null => {
+  if (issue.title.trim().toLowerCase() === proposal.normalizedTitle) {
+    return `matches existing ${issue.state.toLowerCase()} issue #${issue.number} title`;
+  }
+
+  const similarity = jaccard(proposal.titleTokens, tokenize(issue.title));
+  const markerMeta = issue.body ? parseProposalMarker(issue.body) : null;
+  const existingPaths = (markerMeta?.paths ?? []).map(normalizeRepoPath);
+  const sharedPathCount = existingPaths.filter((filePath) => proposal.paths.has(filePath)).length;
+  const pathsCompatible = sharedPathCount > 0 || existingPaths.length === 0;
+  if (similarity >= DUPLICATE_TITLE_SIMILARITY && pathsCompatible) {
+    return `high title similarity (${similarity.toFixed(2)}) with #${issue.number}`;
+  }
+
+  const minPathCount = Math.min(proposal.paths.size, existingPaths.length);
+  const pathOverlap = minPathCount > 0 ? sharedPathCount / minPathCount : 0;
+  const sameLens = !proposal.lens || !markerMeta?.lens || markerMeta.lens === proposal.lens;
+  if (sameLens && pathOverlap >= DUPLICATE_PATH_OVERLAP && similarity >= RELATED_TITLE_SIMILARITY) {
+    return `high path overlap (${Math.round(pathOverlap * 100)}%) and related title (${similarity.toFixed(2)}) with #${issue.number}`;
+  }
+  return null;
+};
+
 export const findDuplicateProposal = (
   proposal: Pick<ProposalInput, "title" | "paths"> & { lens?: ScoutLens },
   existingIssues: readonly ExistingIssueSummary[],
 ): DuplicateCheckResult => {
-  const normalizedTitle = proposal.title.trim().toLowerCase();
-  const titleTokens = tokenize(proposal.title);
-  const proposalPaths = new Set(proposal.paths.map(normalizeRepoPath));
-
-  for (const issue of existingIssues) {
-    const isRelevant =
-      issue.state === "OPEN" ||
-      issue.labels.some((label) => label === "wontfix" || label === "duplicate");
-    if (!isRelevant) {
-      continue;
-    }
-
-    if (issue.title.trim().toLowerCase() === normalizedTitle) {
-      return {
-        duplicate: true,
-        matchedIssue: issue,
-        reason: `matches existing ${issue.state.toLowerCase()} issue #${issue.number} title`,
-      };
-    }
-
-    const similarity = jaccard(titleTokens, tokenize(issue.title));
-    const markerMeta = issue.body ? parseProposalMarker(issue.body) : null;
-    const existingPaths = (markerMeta?.paths ?? []).map(normalizeRepoPath);
-    const sharedPathCount = existingPaths.filter((filePath) => proposalPaths.has(filePath)).length;
-    const sharesPath = sharedPathCount > 0;
-    if (similarity >= 0.6 && (sharesPath || existingPaths.length === 0)) {
-      return {
-        duplicate: true,
-        matchedIssue: issue,
-        reason: `high title similarity (${similarity.toFixed(2)}) with #${issue.number}`,
-      };
-    }
-
-    const minPathCount = Math.min(proposalPaths.size, existingPaths.length);
-    const pathOverlap = minPathCount > 0 ? sharedPathCount / minPathCount : 0;
-    const sameLens = !proposal.lens || !markerMeta?.lens || markerMeta.lens === proposal.lens;
-    if (sameLens && pathOverlap >= 0.7 && similarity >= 0.25) {
-      return {
-        duplicate: true,
-        matchedIssue: issue,
-        reason: `high path overlap (${Math.round(pathOverlap * 100)}%) and related title (${similarity.toFixed(2)}) with #${issue.number}`,
-      };
+  const fingerprint: ProposalFingerprint = {
+    normalizedTitle: proposal.title.trim().toLowerCase(),
+    titleTokens: tokenize(proposal.title),
+    paths: new Set(proposal.paths.map(normalizeRepoPath)),
+    ...(proposal.lens ? { lens: proposal.lens } : {}),
+  };
+  for (const issue of existingIssues.filter(blocksMatchingProposals)) {
+    const reason = duplicateReason(fingerprint, issue);
+    if (reason !== null) {
+      return { duplicate: true, matchedIssue: issue, reason };
     }
   }
-
   return { duplicate: false };
+};
+
+const renderBullets = (items: readonly string[]) =>
+  items.length > 0 ? items.map((item) => `- ${item}`).join("\n") : "- None.";
+
+const renderDetails = (summary: string, body: readonly string[]) => [
+  "<details>",
+  `<summary>${summary}</summary>`,
+  "",
+  ...body,
+  "</details>",
+];
+
+const renderDesignDetails = (
+  design: Extract<ProposalInput, { kind: "design" }>["design"],
+): string[] =>
+  renderDetails("Architecture design & sequencing (not auto-executed)", [
+    "**Options:**",
+    renderBullets(design.options),
+    "",
+    `**Recommendation:** ${design.recommendation}`,
+    "",
+    "**PR sequence:**",
+    ...design.prSequence.map((step, index) => `${index + 1}. ${step}`),
+    "",
+    "**Open questions:**",
+    renderBullets(design.openQuestions),
+    "",
+  ]);
+
+const renderBriefDetails = (brief: Extract<ProposalInput, { kind: "pr" }>["brief"]): string[] =>
+  renderDetails(
+    "Implementer brief (for builder & reviewer)",
+    (
+      [
+        ["Behavior", brief.behavior],
+        ["Out of scope", brief.outOfScope],
+        ["Precedents", brief.precedents],
+        ["Plan", brief.plan],
+        ["Verification", brief.verification],
+      ] as const
+    ).flatMap(([heading, items]) => [`**${heading}:**`, renderBullets(items), ""]),
+  );
+
+/** Summarizes the proposal's tier, kind, lens, size, slices, mechanisms, and protected paths on one line. */
+const renderBlastRadius = (
+  proposal: ProposalInput,
+  classification: ProposalTierClassification,
+  fileCount: number,
+): string => {
+  const mechanismSummary =
+    classification.mechanisms.matched.length > 0
+      ? classification.mechanisms.matched.map((entry) => entry.mechanism.id).join(", ")
+      : "none";
+  const protectedNote =
+    classification.protectedPaths.length > 0
+      ? ` · protected (needs \`${AGENT_LABELS.allowProtected}\`): ${classification.protectedPaths.join(", ")}`
+      : "";
+  const kindBadge = proposal.kind === "design" ? " · design" : "";
+  return `tier:${classification.tier}${kindBadge} · lens:${proposal.lens} · ~${fileCount} file(s) · slices: ${classification.slices.join(", ")} · mechanisms: ${mechanismSummary}${protectedNote}`;
 };
 
 export const renderProposalMarkdown = (
@@ -300,17 +367,6 @@ export const renderProposalMarkdown = (
   classification: ProposalTierClassification,
 ): string => {
   const normalizedPaths = [...new Set(proposal.paths.map(normalizeRepoPath))];
-  const mechanismSummary =
-    classification.mechanisms.matched.length > 0
-      ? classification.mechanisms.matched.map((entry) => entry.mechanism.id).join(", ")
-      : "none";
-  const protectedNote =
-    classification.protectedPaths.length > 0
-      ? ` · protected (needs \`${ALLOW_PROTECTED_LABEL}\`): ${classification.protectedPaths.join(", ")}`
-      : "";
-  const kindBadge = proposal.kind === "design" ? " · design" : "";
-  const blastRadius = `tier:${classification.tier}${kindBadge} · lens:${proposal.lens} · ~${normalizedPaths.length} file(s) · slices: ${classification.slices.join(", ")} · mechanisms: ${mechanismSummary}${protectedNote}`;
-
   const metadata = JSON.stringify({
     kind: proposal.kind,
     lens: proposal.lens,
@@ -318,53 +374,9 @@ export const renderProposalMarkdown = (
     paths: normalizedPaths,
   });
 
-  const renderBullets = (items: readonly string[]) =>
-    items.length > 0 ? items.map((item) => `- ${item}`).join("\n") : "- None.";
-
-  const detailsLines =
-    proposal.kind === "design"
-      ? [
-          "<details>",
-          "<summary>Architecture design & sequencing (not auto-executed)</summary>",
-          "",
-          "**Options:**",
-          renderBullets(proposal.design.options),
-          "",
-          `**Recommendation:** ${proposal.design.recommendation}`,
-          "",
-          "**PR sequence:**",
-          ...proposal.design.prSequence.map((step, index) => `${index + 1}. ${step}`),
-          "",
-          "**Open questions:**",
-          renderBullets(proposal.design.openQuestions),
-          "",
-          "</details>",
-        ]
-      : [
-          "<details>",
-          "<summary>Implementer brief (for builder & reviewer)</summary>",
-          "",
-          "**Behavior:**",
-          renderBullets(proposal.brief.behavior),
-          "",
-          "**Out of scope:**",
-          renderBullets(proposal.brief.outOfScope),
-          "",
-          "**Precedents:**",
-          renderBullets(proposal.brief.precedents),
-          "",
-          "**Plan:**",
-          renderBullets(proposal.brief.plan),
-          "",
-          "**Verification:**",
-          renderBullets(proposal.brief.verification),
-          "",
-          "</details>",
-        ];
-
   return [
     `**${proposal.title}**`,
-    `\`${blastRadius}\``,
+    `\`${renderBlastRadius(proposal, classification, normalizedPaths.length)}\``,
     "",
     `**Why:** ${proposal.why}`,
     `**Evidence:** ${proposal.evidence}`,
@@ -373,180 +385,142 @@ export const renderProposalMarkdown = (
     `**Decision / catch:** ${proposal.decision}`,
     `**Why NOT:** ${proposal.whyNot}`,
     "",
-    ...detailsLines,
+    ...(proposal.kind === "design"
+      ? renderDesignDetails(proposal.design)
+      : renderBriefDetails(proposal.brief)),
     "",
     `<!-- merit-proposal: ${metadata} -->`,
     "",
   ].join("\n");
 };
 
-const restCreatedIssueSchema = z.object({
-  html_url: z.string(),
-  labels: z.array(restLabelSchema).default([]),
-});
+const countOpenProposedIssues = (client: Pick<GitHubIssueClient, "listIssues">): number =>
+  client.listIssues({ state: "open", label: AGENT_LABELS.proposed }).length;
 
-/** Returns any requested labels missing from GitHub's created-issue response (case-insensitive). */
-export const findMissingAppliedLabels = (
-  requestedLabels: readonly string[],
-  appliedLabels: readonly { name: string }[],
-): string[] => {
-  const applied = new Set(appliedLabels.map((label) => label.name.toLowerCase()));
-  return requestedLabels.filter((label) => !applied.has(label.toLowerCase()));
-};
-
-export const SCOUT_GH_TOKEN_ENV = "MERIT_SCOUT_GH_TOKEN";
-
-/** Prefers `MERIT_SCOUT_GH_TOKEN` over injected integration tokens (such as Cursor's `GH_TOKEN`) when running `gh`. */
-export const resolveScoutGhEnv = (env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv => {
-  const scoutToken = env[SCOUT_GH_TOKEN_ENV]?.trim();
-  if (!scoutToken) {
-    return env;
-  }
-  return {
-    ...env,
-    GH_TOKEN: scoutToken,
-  };
-};
-
-const queryIssues = (
-  repoRoot: string,
-  repo: RepoIdentity,
-  options: { state: "open" | "closed"; labels?: readonly string[] },
-): ExistingIssueSummary[] =>
-  listRestIssues({
-    repoRoot,
-    repo,
-    state: options.state,
-    labels: options.labels,
-    env: resolveScoutGhEnv(),
-  }).map((issue) => ({
-    number: issue.number,
-    title: issue.title,
-    state: issue.state.toUpperCase() === "CLOSED" ? "CLOSED" : "OPEN",
-    body: issue.body ?? "",
-    labels: issue.labels.map((label) => label.name),
-  }));
-
-const countOpenProposedIssues = (repoRoot: string, repo: RepoIdentity): number =>
-  queryIssues(repoRoot, repo, { state: "open", labels: ["agent:proposed"] }).length;
-
-const listExistingIssues = (repoRoot: string, repo: RepoIdentity): ExistingIssueSummary[] => {
+const listExistingIssues = (
+  client: Pick<GitHubIssueClient, "listIssues">,
+): ExistingIssueSummary[] => {
   const byNumber = new Map<number, ExistingIssueSummary>();
   for (const issue of [
-    ...queryIssues(repoRoot, repo, { state: "open" }),
-    ...queryIssues(repoRoot, repo, { state: "closed", labels: ["wontfix"] }),
-    ...queryIssues(repoRoot, repo, { state: "closed", labels: ["duplicate"] }),
+    ...client.listIssues({ state: "open" }),
+    ...client.listIssues({ state: "closed", label: AGENT_LABELS.wontfix }),
+    ...client.listIssues({ state: "closed", label: AGENT_LABELS.duplicate }),
   ]) {
     byNumber.set(issue.number, issue);
   }
   return [...byNumber.values()];
 };
 
+export type ProposalCliOptions = { file?: string; dryRun: boolean; tier2Only: boolean };
+
+/** Rejects unknown flags before any GitHub call, so a misspelt `--dry-run` never files an issue. */
+export const parseProposalArgs = (args: readonly string[]): ProposalCliOptions => {
+  const { values } = parseCliArgs(args, {
+    options: {
+      file: { type: "string" },
+      "dry-run": { type: "boolean" },
+      "tier2-only": { type: "boolean" },
+    },
+    usage:
+      "Usage: proposal.ts [--file <proposal.json>] [--dry-run] [--tier2-only] (reads stdin without --file)",
+  });
+  // Only an absent --file reads stdin; an empty one would silently read a different proposal.
+  if (values.file === "") {
+    throw new Error("--file requires a value.");
+  }
+  return {
+    ...(values.file !== undefined ? { file: values.file } : {}),
+    dryRun: values["dry-run"] ?? false,
+    tier2Only: values["tier2-only"] ?? false,
+  };
+};
+
+/** Labels a filed proposal: its tier's workflow label, then design, maintenance, and the scout's extras. */
+export const selectProposalLabels = (
+  proposal: Pick<ProposalInput, "kind" | "extraLabels">,
+  classification: Pick<ProposalTierClassification, "tier">,
+): string[] => [
+  ...new Set([
+    targetLabelForTier(classification.tier),
+    ...(proposal.kind === "design" ? [AGENT_LABELS.design] : []),
+    AGENT_LABELS.maintenance,
+    ...proposal.extraLabels,
+  ]),
+];
+
+export type ProposalOutcome =
+  | {
+      status: "dry_run";
+      kind: ProposalKind;
+      tier: ProposalTier;
+      targetLabel: string;
+      labels: string[];
+      reasons: string[];
+      markdown: string;
+    }
+  | { status: "cap_reached"; openProposedCount: number; maxOpenProposals: number }
+  | { status: "duplicate"; matchedIssue: number; reason: string }
+  | {
+      status: "created";
+      url: string;
+      kind: ProposalKind;
+      tier: ProposalTier;
+      targetLabel: string;
+      labels: string[];
+    };
+
+/**
+ * Classifies and renders a proposal, then files it as an issue unless this is a dry run, a Tier 2
+ * proposal would exceed the open-proposal cap, or an existing issue already covers it.
+ */
+export const fileProposal = (
+  client: Pick<GitHubIssueClient, "listIssues" | "createIssue">,
+  proposal: ProposalInput,
+  { dryRun, tier2Only }: { dryRun: boolean; tier2Only: boolean },
+): ProposalOutcome => {
+  const classification = applyTier2OnlyOverride(
+    classifyProposalTier({
+      paths: proposal.paths,
+      ambiguous: proposal.ambiguous,
+      kind: proposal.kind,
+    }),
+    tier2Only,
+  );
+  const { tier, reasons } = classification;
+  const targetLabel = targetLabelForTier(tier);
+  const markdown = renderProposalMarkdown(proposal, classification);
+  const labels = selectProposalLabels(proposal, classification);
+
+  if (dryRun) {
+    return { status: "dry_run", kind: proposal.kind, tier, targetLabel, labels, reasons, markdown };
+  }
+
+  if (targetLabel === AGENT_LABELS.proposed) {
+    const openProposedCount = countOpenProposedIssues(client);
+    if (isProposalCapReached(openProposedCount)) {
+      return { status: "cap_reached", openProposedCount, maxOpenProposals: MAX_OPEN_PROPOSALS };
+    }
+  }
+
+  const dup = findDuplicateProposal(proposal, listExistingIssues(client));
+  if (dup.duplicate) {
+    return { status: "duplicate", matchedIssue: dup.matchedIssue.number, reason: dup.reason };
+  }
+
+  const url = client.createIssue({ title: proposal.title, body: markdown, labels });
+  return { status: "created", url, kind: proposal.kind, tier, targetLabel, labels };
+};
+
 const runCli = () => {
-  const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
-  const args = process.argv.slice(2);
-  const filePath = readFlagValue(args, "--file");
-  const dryRun = args.includes("--dry-run");
-  const tier2Only = args.includes("--tier2-only");
+  const { file: filePath, dryRun, tier2Only } = parseProposalArgs(process.argv.slice(2));
 
   const rawInput = filePath ? readFileSync(filePath, "utf8") : readFileSync(0, "utf8");
   const proposal = proposalInputSchema.parse(JSON.parse(rawInput));
 
-  const baseClassification = classifyProposalTier({
-    paths: proposal.paths,
-    ambiguous: proposal.ambiguous,
-    kind: proposal.kind,
-  });
-  const classification = applyTier2OnlyOverride(baseClassification, tier2Only);
-  const markdown = renderProposalMarkdown(proposal, classification);
-  const labels = [
-    ...new Set([
-      classification.targetLabel,
-      ...(proposal.kind === "design" ? [DESIGN_PROPOSAL_LABEL] : []),
-      "type:maintenance",
-      ...proposal.extraLabels,
-    ]),
-  ];
-
-  if (dryRun) {
-    console.log(
-      JSON.stringify(
-        {
-          status: "dry_run",
-          kind: proposal.kind,
-          tier: classification.tier,
-          targetLabel: classification.targetLabel,
-          labels,
-          reasons: classification.reasons,
-          markdown,
-        },
-        null,
-        2,
-      ),
-    );
-    return;
-  }
-
-  const repo = getRepoIdentity(repoRoot);
-
-  if (classification.targetLabel === "agent:proposed") {
-    const openProposedCount = countOpenProposedIssues(repoRoot, repo);
-    if (isProposalCapReached(openProposedCount)) {
-      console.log(
-        JSON.stringify({
-          status: "cap_reached",
-          openProposedCount,
-          maxOpenProposals: MAX_OPEN_PROPOSALS,
-        }),
-      );
-      return;
-    }
-  }
-
-  const existingIssues = listExistingIssues(repoRoot, repo);
-  const dup = findDuplicateProposal(proposal, existingIssues);
-  if (dup.duplicate) {
-    console.log(
-      JSON.stringify({
-        status: "duplicate",
-        matchedIssue: dup.matchedIssue.number,
-        reason: dup.reason,
-      }),
-    );
-    return;
-  }
-
-  const created = restCreatedIssueSchema.parse(
-    ghApiJson(
-      repoRoot,
-      [
-        `repos/${repo.owner}/${repo.name}/issues`,
-        "-X",
-        "POST",
-        "-f",
-        `title=${proposal.title}`,
-        "-f",
-        `body=${markdown}`,
-        ...labels.flatMap((label) => ["-f", `labels[]=${label}`]),
-      ],
-      resolveScoutGhEnv(),
-    ),
-  );
-  const missingLabels = findMissingAppliedLabels(labels, created.labels);
-  if (missingLabels.length > 0) {
-    throw new Error(
-      `Issue created at ${created.html_url}, but GitHub did not apply requested label(s): ${missingLabels.join(", ")}. Check token permissions and apply the missing labels manually.`,
-    );
-  }
+  const client = createGitHubIssueClient({ repoRoot: REPO_ROOT });
+  const outcome = fileProposal(client, proposal, { dryRun, tier2Only });
   console.log(
-    JSON.stringify({
-      status: "created",
-      url: created.html_url,
-      kind: proposal.kind,
-      tier: classification.tier,
-      targetLabel: classification.targetLabel,
-      labels,
-    }),
+    outcome.status === "dry_run" ? JSON.stringify(outcome, null, 2) : JSON.stringify(outcome),
   );
 };
 

@@ -1,4 +1,4 @@
-import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import { ArgTypes, Canvas, Meta } from "@storybook/addon-docs/blocks";
 import * as Conversation from "./conversation.stories";
 
 <Meta of={Conversation} />
@@ -48,3 +48,7 @@ track of what was already announced with the conversation, not in the panel.
 Long content wraps, and narrow panels keep the same proportions.
 
 <Canvas of={Conversation.LongContent} />
+
+## API
+
+<ArgTypes of={Conversation} />

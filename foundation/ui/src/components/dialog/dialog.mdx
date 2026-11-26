@@ -1,4 +1,4 @@
-import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import { ArgTypes, Canvas, Meta } from "@storybook/addon-docs/blocks";
 import * as Dialog from "./dialog.stories";
 
 <Meta of={Dialog} />
@@ -28,6 +28,9 @@ learn what a centered dialog, a side panel, or a picker means once and recognize
 it everywhere. A new need first looks for the frame whose task it shares; a
 genuinely new task gets a new frame rather than an option on an existing one.
 
+Every titled surface renders through one frame with a header, a body, and a footer:
+the centered dialog, side panel, reference popover, the assistant panel (docked and
+as a sheet), and the panes of a reference workspace. The sections below describe that anatomy.
 Modal frames share their behavior: the backdrop, focus containment, accessible
 title, close control, dismissal, and motion. Each frame owns its surface and layout.
 The application shell's navigation drawer and the search palette build on the same
@@ -57,7 +60,7 @@ inside the body so each destination can also open in another tab.
 
 Use `PopoverDialog` for reference material beside a value. Pass content directly:
 it supplies its own `DialogContent`. Group related information with spacing and
-put utilities in its `footer`.
+put utilities in its `footer`; the popover keeps its heading and footer in view while only its body scrolls.
 
 Use `PickerPopover` for pickers and small filter panels, such as a `ChoiceList`.
 
@@ -65,15 +68,49 @@ Use `PickerPopover` for pickers and small filter panels, such as a `ChoiceList`.
 
 <Canvas of={Dialog.PopoverLongContent} />
 
-<Canvas of={Dialog.Picker} />
+<Canvas of={Dialog.Picker} story={{ inline: false, height: "380px" }} />
+
+## Know the frame anatomy
+
+Each placement sets one gutter, and the header, body, feedback, and footer all use it on
+both sides, so titles, fields, and actions start and end on the same lines. Centered dialogs,
+side panels, and the assistant panel use `--space-6` (`--space-5` on narrow screens), workspace
+panes use the page inset, and the reference popover uses `--space-4`.
+
+- **Header:** at least as tall as the application's top bar (the popover is slimmer), with the
+  title and actions centered. A long title wraps and the bar grows; it is never truncated. The
+  close button is outdented by its own inset, so the glyph ends at the gutter. One title style is
+  used in every frame, and context keeps the caption style.
+- **Body:** the only part that scrolls, as a named region reachable by keyboard. It leaves
+  room under the header and a full space above the footer, so the last line never sits against
+  the actions.
+- **Footer:** even block padding, with feedback above the actions inside the fixed area. A
+  leading quiet button, such as Discard, starts its text at the gutter.
+- **Edges:** overlays show no rules at rest. The header edge appears once content scrolls
+  under it, and the footer edge shows while content continues below. The docked assistant panel and
+  the headers of workspace panes are the exception: they keep a header rule because they continue
+  the application top bar's line.
+
+A centered dialog that fits sits a fifth of the viewport below the top, up to 12rem. A taller one
+moves up so it never ends closer to the bottom edge than it starts from the top.
+
+`FrameFooter` is the footer part on its own, for the rare surface whose body scrolls around it
+rather than inside `DialogContent`. It takes `feedback` (shown above the actions), `children` (the
+actions), `sticky` (stay in view at the end of a scrolling pane, as `Form` does with
+`stickyActions`) and `framed` (default; uses the frame's gutters). Dialogs, popovers and the
+assistant panel need no direct use of it.
 
 ## Keep content and actions reachable
 
 `DialogContent` owns the scrollable body and keeps outcome feedback and actions
 visible while the body scrolls. Put reference material in its children, pass
-outcome feedback through `feedback`, and actions through `footer`. When enlarged
-text or long translations leave too little space for the body, the centered dialog
-or side panel scrolls as one surface, so every field and action stays reachable.
+outcome feedback through `feedback`, and actions through `footer`. At or below 30rem of
+viewport height there is no room to keep a heading and actions beside a reading
+space, so the centered dialog or side panel scrolls as one surface, with its header and
+footer flowing with the content and every field and action reachable. At any height, the
+body keeps at least 4rem: when enlarged text, a long title, or long feedback leave less, the
+whole surface scrolls the same way instead of clipping fields. Both are stylesheet rules, so
+they are the same on every load.
 
 The same layout also works inside a form. `Form` in `@merit/forms` consumes it
 inside `FormDialog`, preserving one native form around its fields and submit
@@ -111,3 +148,7 @@ Resume behavior. The dialog retains its last open content until the exit finishe
 so callers can clear their drafts on dismissal without collapsing the visible form.
 Focus returns to the trigger when it remains available. Omit `trigger` for a dialog
 the feature opens itself; focus then returns to where it was when the dialog opened.
+
+## API
+
+<ArgTypes of={Dialog} />

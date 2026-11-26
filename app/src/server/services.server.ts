@@ -37,8 +37,10 @@ import type { OutcomeWait } from "@merit/workflows/outcome";
 import type { EmailSender } from "./email-delivery.server";
 import type { OrganizationIdentity } from "./identity.server";
 import { sendInvitationEmail } from "./invitation-email.server";
+import { readInvitationKey } from "./runtime-config.server";
 
 type Dependencies = {
+  invitationKey?: () => Uint8Array;
   database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
   analytics?: ServerAnalytics;
   identity: OrganizationIdentity;
@@ -139,6 +141,7 @@ const reportInvitationOutcomeError = reportOutcomeError("organization-invitation
 const reportReviewerOutcomeError = reportOutcomeError("reviewer-message.outcome");
 
 export const createApplicationServices = ({
+  invitationKey = readInvitationKey,
   database,
   analytics,
   identity,
@@ -176,6 +179,7 @@ export const createApplicationServices = ({
   const organizations = instrumentService(
     "organizations",
     createOrganizationService({
+      invitationKey,
       revokeReviewAccess: revokeMembershipReviews,
       database,
       ...identity,

@@ -42,6 +42,7 @@ export const Playground: Story = {};
 
 export const LongLabels: Story = {
   parameters: {
+    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -62,6 +63,7 @@ export const LongLabels: Story = {
 };
 
 export const PlainStatus: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <Stack gap={3}>
       <Badge appearance="plain">

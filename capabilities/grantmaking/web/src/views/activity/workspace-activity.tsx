@@ -314,6 +314,7 @@ const ActivityEvent = ({
   const action = t(actionLabel(entry.action));
   return (
     <TimelineEntry
+      headingLevel={2}
       title={
         <span className={styles.action}>
           <SidePanel

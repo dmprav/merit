@@ -2,11 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, type ReactNode } from "react";
 import { expect, within } from "storybook/test";
 
-import { Brand } from "../../components/brand/brand";
 import { Button } from "../../components/button/button";
-import { Icon } from "../../components/icon/icon";
 import { Stack } from "../../components/layout/layout";
-import { ApplicationPage, ApplicationShell } from "../application-shell/application-shell";
+import { ApplicationPage, ApplicationStage } from "../application-shell/application-shell";
 import { PageHeader } from "../page-header/page-header";
 import {
   ReferencePane,
@@ -17,39 +15,16 @@ import {
 } from "./reference-workspace";
 
 const Frame = ({ children }: { children: ReactNode }) => (
-  <ApplicationShell
-    brand={
-      <a href="#main">
-        <Brand />
-      </a>
-    }
-    contextLabel="Alder Foundation"
-    openNavigationLabel="Open navigation"
-    closeNavigationLabel="Close navigation"
-    navigation={
-      <>
-        <a href="#main">
-          <Icon name="layers" />
-          Funding rounds
-        </a>
-        <a href="#main" aria-current="page">
-          <Icon name="application" />
-          Applications
-        </a>
-      </>
-    }
-    navigationLabel="Main navigation"
-    skipLabel="Skip to content"
-  >
+  <ApplicationStage>
     <ApplicationPage
       contained
       locationKey="reference-workspace"
-      breadcrumb={["Applications", "Neighbour Table"]}
+      breadcrumb={null}
       breadcrumbLabel="Breadcrumb"
     >
       {children}
     </ApplicationPage>
-  </ApplicationShell>
+  </ApplicationStage>
 );
 
 const header = (
@@ -132,10 +107,10 @@ const Example = () => {
 const meta = {
   title: "Patterns/Reference workspace",
   component: ReferenceWorkspace,
+  subcomponents: { ReferencePane, WorkPane, ReferenceSwitcher },
   tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   args: { children: null },
-  argTypes: { children: { control: false }, header: { control: false } },
 } satisfies Meta<typeof ReferenceWorkspace>;
 
 export default meta;

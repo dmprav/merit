@@ -263,3 +263,54 @@ it("announces draft status in the footer beside Discard, not in the fields", asy
   expect(footer).toContainElement(screen.getByRole("button", { name: "Discard changes" }));
   expect(screen.getByRole("group", { name: "Status example" })).not.toContainElement(status);
 });
+
+it("keeps sticky actions, save status, and a save error together in the frame footer", async () => {
+  const StickyExample = () => {
+    const { form, submission } = useForm({
+      defaultValues: { title: "A grant" },
+      schema: z.object({ title: z.string() }),
+      onSubmit: () => "Could not save. Try again.",
+      submitErrorMessage: "Could not save. Try again.",
+    });
+
+    return (
+      <Form
+        label="Sticky example"
+        submission={submission}
+        stickyActions
+        actions={
+          <FormActions
+            submission={submission}
+            status="Draft kept in this tab"
+            discard={{ label: "Discard changes", onPress: () => {} }}
+            onCancel={() => {}}
+            cancelLabel="Close"
+            submitLabel="Save"
+            submittingLabel="Saving…"
+          />
+        }
+      >
+        <form.Field name="title">
+          {(field) => <FormTextField field={field} label="Title" />}
+        </form.Field>
+      </Form>
+    );
+  };
+
+  const user = userEvent.setup();
+  render(<StickyExample />);
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  const alert = await screen.findByRole("alert");
+  const footer = alert.closest("[data-frame-footer]");
+
+  expect(footer).not.toBeNull();
+  expect(footer).toHaveAttribute("data-sticky");
+  expect(footer).toContainElement(screen.getByRole("status"));
+  expect(footer).toContainElement(screen.getByRole("button", { name: "Save" }));
+  expect(footer).toContainElement(screen.getByRole("button", { name: "Discard changes" }));
+  // The error sits directly above the actions, not in the middle of the fields.
+  expect(alert.closest("[data-dialog-feedback]")?.nextElementSibling).toBe(
+    screen.getByRole("button", { name: "Save" }).closest("[data-dialog-footer]"),
+  );
+  expect(screen.getByLabelText("Title").closest("[data-frame-footer]")).toBeNull();
+});

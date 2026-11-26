@@ -11,10 +11,10 @@ const settings = {
   workflowId: "merit-reconcile",
 };
 
-const setup = () => {
+const setup = (paused = true) => {
   const update = vi.fn(
     async (change: (previous: { state: { paused: boolean } }) => unknown) =>
-      void change({ state: { paused: true } }),
+      void change({ state: { paused } }),
   );
   const schedule = { create: vi.fn(), getHandle: vi.fn(() => ({ update })) };
   return { schedule, update, client: { schedule } as never };
@@ -24,7 +24,7 @@ describe("ensuring a Schedule", () => {
   it("creates it with an interval, the workflow and no overlapping runs", async () => {
     const { schedule, client } = setup();
 
-    await ensureSchedule(client, settings);
+    expect(await ensureSchedule(client, settings)).toBe(true);
 
     expect(schedule.create).toHaveBeenCalledExactlyOnceWith({
       scheduleId: "merit-reconcile",
@@ -45,7 +45,7 @@ describe("ensuring a Schedule", () => {
     const { schedule, update, client } = setup();
     schedule.create.mockRejectedValue(new ScheduleAlreadyRunning("exists", "merit-reconcile"));
 
-    await ensureSchedule(client, { ...settings, everyMs: 120_000 });
+    expect(await ensureSchedule(client, { ...settings, everyMs: 120_000 })).toBe(false);
 
     expect(schedule.getHandle).toHaveBeenCalledWith("merit-reconcile");
     expect(update).toHaveBeenCalledOnce();
@@ -54,6 +54,12 @@ describe("ensuring a Schedule", () => {
       spec: { intervals: [{ every: 120_000 }] },
       state: { paused: true },
     });
+  });
+
+  it("enables startup recovery when an existing schedule is active", async () => {
+    const { schedule, client } = setup(false);
+    schedule.create.mockRejectedValue(new ScheduleAlreadyRunning("exists", "merit-reconcile"));
+    expect(await ensureSchedule(client, settings)).toBe(true);
   });
 
   it("does not hide other failures", async () => {

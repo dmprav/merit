@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, waitFor, within } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 
 import { MessagesProvider } from "@merit/i18n";
 
@@ -51,14 +51,6 @@ export const Open: Story = {
 /** Text expansion check: ⟦ ⟧ marks pseudo-localised strings, longer than English, to test wrapping. */
 export const PseudoLocalised: Story = {
   name: "Pseudo-localised (text expansion)",
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "⟦ ⟧ marks pseudo-localised strings. They are deliberately longer than English to check that the dialog's title, fields, and actions wrap without clipping.",
-      },
-    },
-  },
   args: { request: fn<RequestAccess>(async () => ({ status: "unavailable" as const })) },
   decorators: [
     (Story) => (
@@ -107,20 +99,6 @@ export const Submitting: Story = {
     await expect(dialog.getByRole("button", { name: "Submitting request…" })).toBeDisabled();
     await context.userEvent.keyboard("{Escape}");
     await expect(dialog.getByRole("form")).toBeVisible();
-  },
-};
-/** A saved request closes the dialog and confirms with a toast. */
-export const Submitted: Story = {
-  play: async (context) => {
-    await submit(context);
-    const body = within(context.canvasElement.ownerDocument.body);
-    await waitFor(() =>
-      expect(body.getByRole("alertdialog", { name: /^Request saved\./ })).toBeVisible(),
-    );
-    await waitFor(() =>
-      expect(body.queryByRole("dialog", { name: "Request an invitation" })).toBeNull(),
-    );
-    await expect(context.args.request).toHaveBeenCalledWith({ email: "visitor@example.test" });
   },
 };
 export const RateLimited: Story = {

@@ -839,10 +839,20 @@ it("returns focus to Add after a reviewer is chosen and the request is saved", a
   const { user, data } = renderReview({}, "dana", source);
   await user.click(await screen.findByRole("button", { name: "Add" }));
   await user.click(await screen.findByRole("menuitem", { name: "Request review" }));
-  await user.click(await screen.findByRole("option", { name: /Sam Morgan/ }));
+  const option = await screen.findByRole("option", { name: /Sam Morgan/ });
+  // A frame may run before React commits the menu trigger that replaces the picker's.
+  const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    callback(0);
+    return 0;
+  });
+  try {
+    await user.click(option);
+    await waitFor(() => expect(data.save).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  } finally {
+    frame.mockRestore();
+  }
 
-  await waitFor(() => expect(data.save).toHaveBeenCalled());
-  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toHaveFocus());
 });
 

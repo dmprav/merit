@@ -1,6 +1,7 @@
 import { defaultPayloadConverter, type Payload } from "@temporalio/common";
 import { describe, expect, it } from "vite-plus/test";
 
+import { decryptBytes, encryptBytes } from "./encryption.ts";
 import { failureConverter } from "./failure-converter.ts";
 import {
   createClientDataConverter,
@@ -101,4 +102,12 @@ describe("failure conversion", () => {
     expect(client.payloadCodecs).toHaveLength(1);
     expect(Reflect.get(client, "failureConverter")).toBe(failureConverter);
   });
+});
+
+it("authenticates the record context of a pending handoff", () => {
+  const data = Buffer.from("private token");
+  const sealed = encryptBytes(key, data, "invitation-1");
+  expect(decryptBytes(key, sealed, "invitation-1").equals(data)).toBe(true);
+  expect(() => decryptBytes(key, sealed, "invitation-2")).toThrow();
+  expect(() => decryptBytes(key, sealed)).toThrow();
 });

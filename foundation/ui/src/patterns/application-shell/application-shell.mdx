@@ -88,17 +88,17 @@ scrolls on its own, and the page narrows to make room instead of being covered. 
 person opens it, its column widens from the edge as it fades in, so the page is pushed aside
 rather than jumping; it appears in place for people who ask for reduced motion, and when the
 page loads with it already open. Its header is as tall as the page's top bar, with the same
-rule below. Toasts stay centered on the page. Below 1400 pixels it opens as a modal sheet like a
+rule below, and it shares the dialog frame's header, body, and footer. Toasts stay centered on the page. Below 1400 pixels it opens as a modal sheet like a
 [side panel](?path=/docs/components-dialog--docs): the page is inert, focus stays inside,
-and Escape, the close button, or a click outside closes it. The sheet is 400 pixels wide,
+and Escape, the close button, or a click outside closes it. The sheet is as wide as a side panel,
 or the full width of a narrower screen. Crossing 1400 pixels while it is open changes
 the presentation and keeps it open.
 
 In the pushed presentation a separator on the panel's left edge resizes it between 400
-and 560 pixels, starting at `width` (416 by default). Dragging, or the arrow keys on the focused
+and 560 pixels, starting at `width` (448 by default). Dragging, or the arrow keys on the focused
 separator (16 pixels a step, Home and End for the limits), reports each committed width
 through `onWidthChange`. Pointer dragging has a non-drag path: pressing the separator
-without dragging toggles between the default 416 pixels and the 560 widest. The shell does not save it; the caller decides whether to.
+without dragging toggles between the default 448 pixels and the 560 widest. The shell does not save it; the caller decides whether to.
 
 <Canvas of={Shell.AssistantPanelWidest} story={{ inline: false, height: "540px" }} />
 

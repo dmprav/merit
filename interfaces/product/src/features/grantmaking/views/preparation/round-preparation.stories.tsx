@@ -6,7 +6,7 @@ import { expect, fn, waitFor, mocked, within } from "storybook/test";
 
 import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
 import { FundingRoundPreview as FundingRoundView } from "@merit/grantmaking-web/testing";
-import { roundView, type RoundView } from "@merit/grantmaking/api";
+import { encodeRoundPage, roundView, type RoundView } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import type { PreparationState } from "@merit/rounds-web/contracts";
@@ -22,6 +22,7 @@ import { PageHeader } from "@merit/ui/page-header";
 
 import { StoryEnvironment } from "../../../../../tests/storybook";
 import { workspacePreparationData } from "../../data/preparation/workspace-data";
+import { readFundingRoundPage } from "../../data/server/funding-round.functions";
 import { readBudgetHistory } from "../../data/server/history.functions";
 import { deleteRound, editRound } from "../../data/server/preparation/preparation.functions";
 
@@ -156,13 +157,21 @@ const meta = {
   component: RoundManagementPreview,
   parameters: { layout: "fullscreen", controls: { disable: true } },
   beforeEach: () => {
-    mocked(readBudgetHistory).mockResolvedValue({
+    mocked(readBudgetHistory).mockReset().mockResolvedValue({
       status: "ok",
       entries: preparation.budgetHistory,
       nextCursor: null,
     });
-    mocked(editRound).mockResolvedValue({ status: "unavailable" });
-    mocked(deleteRound).mockResolvedValue({ status: "unavailable" });
+    mocked(readFundingRoundPage)
+      .mockReset()
+      .mockResolvedValue({
+        status: "ok",
+        workspaceSlug: "alder",
+        round: encodeRoundPage(example),
+        preparation,
+      });
+    mocked(editRound).mockReset().mockResolvedValue({ status: "ok", revision: 3 });
+    mocked(deleteRound).mockReset().mockResolvedValue({ status: "ok" });
   },
 } satisfies Meta<typeof RoundManagementPreview>;
 
@@ -306,6 +315,9 @@ export const DeleteEmptyRound: Story = {
 };
 export const DeleteFailure: Story = {
   args: { empty: true },
+  beforeEach: () => {
+    mocked(deleteRound).mockResolvedValueOnce({ status: "unavailable" });
+  },
   play: async (context) => {
     await DeleteEmptyRound.play!(context);
     const dialog = within(within(context.canvasElement.ownerDocument.body).getByRole("dialog"));

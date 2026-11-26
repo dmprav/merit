@@ -121,18 +121,24 @@ test(
       await expect(close).toBeInViewport({ ratio: 1 });
     }
 
-    // With enlarged text, narrow layouts scroll the whole task instead of only its fields.
-    for (const [width, scrollsTask] of [
-      [900, false],
-      [320, true],
+    // With enlarged text the task scrolls as a whole: a short viewport lets the body flow with the
+    // heading and actions, and a taller one keeps the body room while the long feedback and stacked
+    // actions push the frame to scroll.
+    const body = dialog.locator("[data-frame-body]");
+    for (const [height, shortViewport] of [
+      [1000, false],
+      [440, true],
     ] as const) {
-      await page.setViewportSize({ width, height: 1000 });
-      // The dialog changes its scrolling in a later frame; focusing before then reveals the
-      // field in the outgoing layout.
-      if (scrollsTask) {
-        await expect(dialog).toHaveAttribute("data-scroll-content");
+      await page.setViewportSize({ width: 320, height });
+      if (shortViewport) {
+        await expect(body).toHaveCSS("overflow-y", "visible");
       } else {
-        await expect(dialog).not.toHaveAttribute("data-scroll-content");
+        const rootSize = await page.evaluate(() =>
+          Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+        );
+        await expect
+          .poll(() => body.evaluate((node) => node.getBoundingClientRect().height))
+          .toBeGreaterThanOrEqual(4 * rootSize - 1);
       }
       await input.focus();
       await expect(input).toBeInViewport({ ratio: 1 });
@@ -205,7 +211,7 @@ test(
   "invitation recovery separates status from identity and keeps recipients readable",
   { tag: "@cross-browser" },
   async ({ page }, testInfo) => {
-    await page.goto("/iframe.html?id=features-team-invitations--delivery-states&viewMode=story");
+    await page.goto("/iframe.html?id=features-team-manage-team--delivery-states&viewMode=story");
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
 
     const table = page.getByRole("table", { name: "Invitations" });
@@ -328,7 +334,8 @@ test(
   "contact application side panel bounds a long list and keeps the close action reachable",
   { tag: "@cross-browser" },
   async ({ page }) => {
-    await page.setViewportSize({ width: page.viewportSize()!.width, height: 360 });
+    // Above 30rem of height only the list scrolls; shorter viewports scroll the whole panel.
+    await page.setViewportSize({ width: page.viewportSize()!.width, height: 520 });
     await page.goto(
       "/iframe.html?id=features-contacts-directory--many-applications&viewMode=story",
     );
@@ -424,12 +431,7 @@ test("administration invitation states and organization lists remain readable an
   page,
 }, testInfo) => {
   for (const id of [
-    "features-administration-owner-invitation--sending-failed",
-    "features-administration-owner-invitation--sending-unconfirmed",
-    "features-administration-owner-invitation--expired",
-    "features-administration-owner-invitation--joined",
-    "features-administration-owner-invitation--revoked",
-    "features-administration-owner-invitation--needs-administrator",
+    "features-administration-owner-invitation--states",
     "features-administration-owner-invitation--long-email",
     "features-administration-organizations--populated",
     "features-administration-organizations--empty",
@@ -439,7 +441,7 @@ test("administration invitation states and organization lists remain readable an
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
 
     await checkPage(page);
-    if (id.endsWith("--populated") || id.endsWith("--sending-failed")) {
+    if (id.endsWith("--populated") || id.endsWith("--states")) {
       await page.screenshot({ path: testInfo.outputPath(`${id}.png`), fullPage: true });
     }
   }
@@ -461,9 +463,9 @@ for (const id of [
   "features-funding-rounds-manage-round--committee-date",
   "features-funding-rounds-manage-round--rename-round",
   "features-applications-manage-intake--working-revision",
-  "features-applications-manage-intake--separate-editing-scopes",
+  "features-applications-manage-intake--reconcile-application-details",
   "features-applications-manage-intake--edit-contact-and-project-dates",
-  "features-applications-manage-intake--history",
+  "features-applications-version-history--recorded-change",
   "features-contacts-edit-contact--resumed-draft",
   "features-contacts-edit-contact--concurrent-changes",
   "features-contacts-contact-picker--add-contact",

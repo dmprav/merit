@@ -28,7 +28,7 @@ export const StoryEnvironment = ({
   children: ReactNode;
   path?: string;
   routePath?: string;
-  loaderData?: { applicationId?: string; title?: string };
+  loaderData?: Record<string, unknown>;
   prepare?: (client: QueryClient) => void;
 }) => {
   const [environment] = useState(() => {
@@ -45,7 +45,11 @@ export const StoryEnvironment = ({
     const fallback = createRoute({
       getParentRoute: () => root,
       path: "/$",
-      component: () => <p>Destination reached. Remount the story to start again.</p>,
+      component: () => (
+        <main style={{ padding: "var(--space-6)" }}>
+          <p>Destination reached. Remount the story to start again.</p>
+        </main>
+      ),
     });
     const router = createRouter({
       routeTree: root.addChildren([product.addChildren([page]), fallback]),

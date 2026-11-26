@@ -130,19 +130,13 @@ const resolveStyle = (style: Record<string, unknown>, base: Declarations) =>
     }),
   );
 
-/**
- * Builds the design system's tokens.json from tokens.css and its classification. Every custom
- * property in the base and theme blocks must be classified, so new tokens cannot be missed.
- */
-export const buildTokens = (
-  css: string,
-  meta: TokenMeta,
-  provenance: Record<string, unknown>,
-  fonts: FontFace[] = [],
-) => {
-  const blocks = readCustomProperties(css);
-  const [baseTheme] = meta.themes;
-  const base = blocks.get(baseTheme?.selector ?? "") ?? new Map<string, string>();
+type Family = z.infer<typeof familySchema>;
+
+/** The parsed stylesheet a token build reads: every block's declarations and the base theme's. */
+type TokenSource = { meta: TokenMeta; blocks: Map<string, Declarations>; base: Declarations };
+
+/** Lists the custom properties the themes declare, requiring each to be classified and every classification to be current. */
+const classifiedProperties = (blocks: Map<string, Declarations>, meta: TokenMeta) => {
   const declared = new Set(
     meta.themes.flatMap((theme) => [...(blocks.get(theme.selector)?.keys() ?? [])]),
   );
@@ -158,8 +152,39 @@ export const buildTokens = (
       `tokens.meta.json lists properties tokens.css no longer declares: ${stale.join(", ")}.`,
     );
   }
+  return declared;
+};
 
-  const families: Record<z.infer<typeof familySchema>, Token[]> = {
+/** Returns the token a classified property contributes, or null for type-family and css-only properties. */
+const propertyToken = (
+  name: string,
+  entry: TokenMeta["variables"][string],
+  { meta, blocks, base }: TokenSource,
+): { family: Family; token: Token } | null => {
+  if (entry.family === "type-family" && meta.type.families[entry.key] !== `--${name}`) {
+    throw new Error(
+      `--${name} is classified as type family "${entry.key}", but tokens.meta.json type.families does not map "${entry.key}" to it.`,
+    );
+  }
+  if (entry.family === "css" || entry.family === "type-family") {
+    return null;
+  }
+  if (!base.has(name)) {
+    // The design system lends a later theme's value to the first theme, so a theme-only token would apply everywhere.
+    throw new Error(
+      `--${name} is declared only in a theme override; declare its base value in ${meta.themes[0]?.selector ?? "the base theme"} or classify it as "css".`,
+    );
+  }
+  const value =
+    entry.family === "color"
+      ? singleOrThemed(themeValues(name, meta, blocks))
+      : sharedLength(name, meta, blocks, base);
+  return { family: entry.family, token: { name, value, usage: entry.usage } };
+};
+
+/** Groups the declared properties' tokens, then tokens.meta.json's extra tokens, by family. */
+const familyTokens = (declared: Iterable<string>, source: TokenSource) => {
+  const families: Record<Family, Token[]> = {
     color: [],
     spacing: [],
     radius: [],
@@ -167,49 +192,54 @@ export const buildTokens = (
     size: [],
   };
   for (const name of declared) {
-    const entry = meta.variables[name];
-    if (entry?.family === "type-family" && meta.type.families[entry.key] !== `--${name}`) {
-      throw new Error(
-        `--${name} is classified as type family "${entry.key}", but tokens.meta.json type.families does not map "${entry.key}" to it.`,
-      );
+    const entry = source.meta.variables[name];
+    const classified = entry ? propertyToken(name, entry, source) : null;
+    if (classified) {
+      families[classified.family].push(classified.token);
     }
-    if (entry === undefined || entry.family === "css" || entry.family === "type-family") {
-      continue;
-    }
-    if (!base.has(name)) {
-      // The design system lends a later theme's value to the first theme, so a theme-only token would apply everywhere.
-      throw new Error(
-        `--${name} is declared only in a theme override; declare its base value in ${baseTheme?.selector ?? "the base theme"} or classify it as "css".`,
-      );
-    }
-    const value =
-      entry.family === "color"
-        ? singleOrThemed(themeValues(name, meta, blocks))
-        : sharedLength(name, meta, blocks, base);
-    families[entry.family].push({ name, value, usage: entry.usage });
   }
-  for (const { family, name, value, usage } of meta.extra) {
+  for (const { family, name, value, usage } of source.meta.extra) {
     families[family].push({ name, value, usage });
   }
+  return families;
+};
 
+const typeTokens = (meta: TokenMeta, base: Declarations, fonts: FontFace[]) => ({
+  fonts,
+  families: Object.fromEntries(
+    Object.entries(meta.type.families).map(([key, variable]) => [
+      key,
+      literalValue(`var(${variable})`, base),
+    ]),
+  ),
+  groups: meta.type.groups.map((group) => ({
+    ...group,
+    styles: group.styles.map((style) => resolveStyle(style, base)),
+  })),
+});
+
+/**
+ * Builds the design system's tokens.json from tokens.css and its classification. Every custom
+ * property in the base and theme blocks must be classified, so new tokens cannot be missed.
+ * `provenance` becomes the file's `meta`, and `fonts` its type fonts.
+ */
+export const buildTokens = (
+  css: string,
+  meta: TokenMeta,
+  {
+    provenance = {},
+    fonts = [],
+  }: { provenance?: Record<string, unknown>; fonts?: FontFace[] } = {},
+) => {
+  const blocks = readCustomProperties(css);
+  const base = blocks.get(meta.themes[0]?.selector ?? "") ?? new Map<string, string>();
+  const families = familyTokens(classifiedProperties(blocks, meta), { meta, blocks, base });
   return {
     name: "Merit",
     version: 1,
     meta: provenance,
     color: { themes: meta.themes.map(({ id, name }) => ({ id, name })), tokens: families.color },
-    type: {
-      fonts,
-      families: Object.fromEntries(
-        Object.entries(meta.type.families).map(([key, variable]) => [
-          key,
-          literalValue(`var(${variable})`, base),
-        ]),
-      ),
-      groups: meta.type.groups.map((group) => ({
-        ...group,
-        styles: group.styles.map((style) => resolveStyle(style, base)),
-      })),
-    },
+    type: typeTokens(meta, base, fonts),
     spacing: { tokens: families.spacing },
     radius: { tokens: families.radius },
     shadow: { tokens: families.shadow },

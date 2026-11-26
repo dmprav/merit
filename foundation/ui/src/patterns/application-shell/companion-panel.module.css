@@ -1,6 +1,5 @@
 /* Push mode: the panel is the shell's third column, sized by the width the document holds. */
 .panel {
-  --dialog-gutter: var(--space-6);
   grid-column: 3;
   /* It keeps its own width while the column opens, so it slides in rather than rewrapping. */
   justify-self: start;
@@ -16,9 +15,6 @@
   font-size: var(--text-body);
   line-height: 1.55;
   outline: none;
-  /* The header divider follows the scrolling body below it. */
-  timeline-scope: --dialog-body;
-  --edge-timeline: --dialog-body;
 }
 
 .panel:focus-visible {
@@ -35,22 +31,6 @@
   from {
     opacity: 0;
   }
-}
-
-/*
- * In both modes the header lines up with the shell's top bar: the same --bar-height and the same
- * rule below, with a title at body weight. The rule stays; the shade appears once the body scrolls.
- */
-:is(.panel, .sheet) [data-dialog-header] {
-  box-shadow: 0 10px 12px -12px var(--edge-shade);
-  align-items: center;
-  min-height: var(--bar-height);
-  padding-block: 0;
-  border-block-end: 1px solid var(--border);
-}
-
-:is(.panel, .sheet) [data-dialog-header] :is(h2, h3) {
-  font-weight: var(--weight-medium);
 }
 
 /* A slim target on the leading edge, wider than the visible line and comfortable for touch. */
@@ -96,66 +76,4 @@
   .separator::after {
     transition: none;
   }
-}
-
-.body {
-  /* See the edge fade below. */
-  --panel-fade: var(--space-6);
-  --panel-fade-end: var(--panel-fade);
-  mask-image: linear-gradient(
-    to bottom,
-    var(--foreground) calc(100% - var(--panel-fade-end)),
-    transparent
-  );
-  flex: 1;
-  min-height: 0;
-  padding: var(--space-5) var(--dialog-gutter);
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  scroll-timeline: --dialog-body block;
-}
-
-/* Below the scrolling body, on the panel's own surface. */
-.footer {
-  flex-shrink: 0;
-  padding: var(--space-3) var(--dialog-gutter) var(--space-4);
-}
-
-/* Modal mode: the sheet keeps the side panel's frame at a fixed width. */
-.sheetOverlay .sheet {
-  width: 400px;
-  max-width: 100%;
-}
-
-/*
- * The thread fades out at the bottom edge while it continues below, so the last visible line meets
- * the box a person asks in softly; at the end it keeps a crisp edge. The header shade covers the top.
- */
-.body:focus-visible {
-  mask-image: none;
-}
-
-@supports (animation-timeline: scroll()) {
-  .body {
-    --panel-fade-end: 0px;
-    animation: panel-fade-end linear both;
-    animation-timeline: scroll(self);
-    animation-range: calc(100% - var(--panel-fade)) 100%;
-  }
-}
-
-@keyframes panel-fade-end {
-  from {
-    --panel-fade-end: var(--panel-fade);
-  }
-
-  to {
-    --panel-fade-end: 0px;
-  }
-}
-
-@property --panel-fade-end {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
 }

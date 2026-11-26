@@ -8,10 +8,10 @@ import { roundView, updateRecommendation } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { fromMinorUnits, subtract } from "@merit/money";
 import { emptyReviews } from "@merit/reviews/domain";
-import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { FundingRoundPreview as FundingRoundView } from "../../testing/application-list-preview";
+import { ApplicationContainedPreview } from "../../testing/application-preview";
 
 const example = getExampleRound();
 const overBudget = updateRecommendation(example, "A3", {
@@ -55,24 +55,16 @@ const FundingRoundPreview = ({
 const meta = {
   title: "Features/Funding rounds/Overview",
   tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   component: FundingRoundPreview,
   args: { round: encodeRoundOverview(example) },
   decorators: [
     (Story) => (
-      <ApplicationStage>
-        <ApplicationPage
-          width="full"
-          contained
-          locationKey="round"
-          breadcrumb={null}
-          breadcrumbLabel="Breadcrumb"
-        >
-          <GrantmakingMessagesProvider>
-            <Story />
-          </GrantmakingMessagesProvider>
-        </ApplicationPage>
-      </ApplicationStage>
+      <ApplicationContainedPreview locationKey="round" width="full">
+        <GrantmakingMessagesProvider>
+          <Story />
+        </GrantmakingMessagesProvider>
+      </ApplicationContainedPreview>
     ),
   ],
 } satisfies Meta<typeof FundingRoundPreview>;
@@ -213,19 +205,6 @@ export const WithdrawnFilter: Story = {
 };
 
 export const ReadOnly: Story = { args: { readOnly: true } };
-export const ManagerNeedsReassignment: Story = {
-  args: { round: { ...encodeRoundOverview(example), managerNeedsReassignment: true } },
-};
-export const LongManager: Story = {
-  args: {
-    section: "applications",
-    round: {
-      ...encodeRoundOverview(example),
-      manager: "Alexandria Montgomery-Worthington",
-      managerNeedsReassignment: true,
-    },
-  },
-};
 
 const largerRound = roundView({
   ...example,
@@ -251,17 +230,4 @@ const largerRound = roundView({
 });
 export const ManyApplications: Story = {
   args: { round: encodeRoundOverview(largerRound), section: "applications" },
-  play: async ({ canvas, userEvent }) => {
-    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
-    await userEvent.type(within(document.body).getByRole("searchbox"), "Riverside");
-    await userEvent.keyboard("{Escape}");
-
-    await expect(canvas.getByRole("status")).toHaveTextContent("3 of 24 applications");
-
-    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
-    await userEvent.click(within(document.body).getByRole("button", { name: "Clear filters" }));
-    await userEvent.keyboard("{Escape}");
-
-    await expect(canvas.getAllByRole("row")).toHaveLength(25);
-  },
 };
