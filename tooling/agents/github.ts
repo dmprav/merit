@@ -66,22 +66,27 @@ export type RepoIdentity = {
   name: string;
 };
 
-/** Parses GitHub owner/repo from HTTPS, SSH, or cloud-proxy git remote URLs without invoking GraphQL. */
+/** Every REST request names this host, so neither `GH_HOST` nor `gh`'s default can redirect it. */
+const GITHUB_HOST = "github.com";
+
+const ownerAndName = (match: RegExpExecArray | null): RepoIdentity | null =>
+  match?.[1] && match[2] ? { owner: match[1], name: match[2] } : null;
+
+/** Parses owner/repo from a github.com HTTPS or SSH URL. */
+const parseGitHubDotComUrl = (url: string): RepoIdentity | null =>
+  ownerAndName(/^git@github\.com:([^/]+)\/([^/]+)$/i.exec(url)) ??
+  ownerAndName(/^https?:\/\/(?:[^@]+@)?github\.com\/([^/]+)\/([^/]+)$/i.exec(url));
+
+/**
+ * Parses GitHub owner/repo from a git remote without invoking GraphQL: a github.com HTTPS or SSH
+ * URL, or the cloud session's proxy URL for this checkout's own origin.
+ */
 export const parseGitHubRemote = (remoteUrl: string): RepoIdentity | null => {
   const trimmed = remoteUrl.trim().replace(/\.git$/, "");
-  const sshMatch = /^git@github\.com:([^/]+)\/([^/]+)$/.exec(trimmed);
-  if (sshMatch?.[1] && sshMatch[2]) {
-    return { owner: sshMatch[1], name: sshMatch[2] };
-  }
-  const httpsMatch = /^https?:\/\/(?:[^@]+@)?github\.com\/([^/]+)\/([^/]+)$/.exec(trimmed);
-  if (httpsMatch?.[1] && httpsMatch[2]) {
-    return { owner: httpsMatch[1], name: httpsMatch[2] };
-  }
-  const proxyMatch = /^https?:\/\/[^/]+\/git\/([^/]+)\/([^/]+)$/.exec(trimmed);
-  if (proxyMatch?.[1] && proxyMatch[2]) {
-    return { owner: proxyMatch[1], name: proxyMatch[2] };
-  }
-  return null;
+  return (
+    parseGitHubDotComUrl(trimmed) ??
+    ownerAndName(/^https?:\/\/[^/]+\/git\/([^/]+)\/([^/]+)$/.exec(trimmed))
+  );
 };
 
 /**
@@ -91,9 +96,10 @@ export const parseGitHubRemote = (remoteUrl: string): RepoIdentity | null => {
  */
 const parseGitHubRepoSpec = (spec: string): RepoIdentity | null => {
   const trimmed = spec.trim().replace(/\.git$/, "");
-  const fromRemote = parseGitHubRemote(trimmed);
-  if (fromRemote) {
-    return fromRemote;
+  // Only github.com URLs: a proxy-shaped URL could name any host, which requests would then ignore.
+  const fromUrl = parseGitHubDotComUrl(trimmed);
+  if (fromUrl) {
+    return fromUrl;
   }
   const segments = trimmed.split("/");
   const isRepoPath =
@@ -326,7 +332,7 @@ const createRestContext = (resolveRepo: () => RepoIdentity, exec: GhExec): RestC
   const repo = () => (resolved ??= resolveRepo());
 
   const api = (args: readonly string[]): unknown => {
-    const raw = exec(["api", ...args]);
+    const raw = exec(["api", "--hostname", GITHUB_HOST, ...args]);
     return raw.trim() ? JSON.parse(raw) : null;
   };
 

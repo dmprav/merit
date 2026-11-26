@@ -163,7 +163,7 @@ describe("GitHub REST client", () => {
 
     expect(calls).toHaveLength(14);
     for (const args of calls) {
-      expect(args[0]).toBe("api");
+      expect(args.slice(0, 3)).toEqual(["api", "--hostname", "github.com"]);
       expect(endpointOf(args)).toMatch(/^repos\/dmprav\/merit\//);
       expect(args).not.toContain("graphql");
     }
@@ -179,6 +179,8 @@ describe("GitHub REST client", () => {
     ]);
     expect(calls.at(-1)).toEqual([
       "api",
+      "--hostname",
+      "github.com",
       "--paginate",
       "--slurp",
       "repos/dmprav/merit/issues/120/comments?per_page=100",
@@ -227,6 +229,8 @@ describe("GitHub REST client", () => {
     expect(calls).toEqual([
       [
         "api",
+        "--hostname",
+        "github.com",
         "repos/dmprav/merit/issues/120/comments",
         "-X",
         "POST",
@@ -235,16 +239,32 @@ describe("GitHub REST client", () => {
       ],
       [
         "api",
+        "--hostname",
+        "github.com",
         "repos/dmprav/merit/issues/120/labels",
         "-X",
         "POST",
         "-f",
         "labels[]=agent:needs-human",
       ],
-      ["api", "repos/dmprav/merit/actions/runs/9/rerun-failed-jobs", "-X", "POST"],
-      ["api", "repos/dmprav/merit/pulls?state=open&head=dmprav%3Aclaude%2Fx&base=main&per_page=10"],
       [
         "api",
+        "--hostname",
+        "github.com",
+        "repos/dmprav/merit/actions/runs/9/rerun-failed-jobs",
+        "-X",
+        "POST",
+      ],
+      [
+        "api",
+        "--hostname",
+        "github.com",
+        "repos/dmprav/merit/pulls?state=open&head=dmprav%3Aclaude%2Fx&base=main&per_page=10",
+      ],
+      [
+        "api",
+        "--hostname",
+        "github.com",
         "repos/dmprav/merit/pulls",
         "-X",
         "POST",
@@ -257,7 +277,16 @@ describe("GitHub REST client", () => {
         "-f",
         "body=B",
       ],
-      ["api", "repos/dmprav/merit/pulls/221/comments/5/replies", "-X", "POST", "-f", "body=fixed"],
+      [
+        "api",
+        "--hostname",
+        "github.com",
+        "repos/dmprav/merit/pulls/221/comments/5/replies",
+        "-X",
+        "POST",
+        "-f",
+        "body=fixed",
+      ],
     ]);
   });
 });
@@ -315,6 +344,8 @@ describe("repository identity", () => {
       "git.example.com/dmprav/merit",
       "https://git.example.com/dmprav/merit.git",
       "git@git.example.com:dmprav/merit.git",
+      "https://git.example.com/git/dmprav/merit",
+      "http://local_proxy@127.0.0.1:41234/git/dmprav/merit",
     ]) {
       expect(() => resolveRepoIdentity("/nonexistent", { GH_REPO: spec })).toThrow(
         /Invalid GH_REPO .*only github\.com repositories are supported/,
@@ -415,7 +446,14 @@ describe("gh credentials", () => {
 
     expect(fixture.readCaptures()).toEqual([
       {
-        argv: ["api", "repos/dmprav/merit/actions/runs/9/rerun-failed-jobs", "-X", "POST"],
+        argv: [
+          "api",
+          "--hostname",
+          "github.com",
+          "repos/dmprav/merit/actions/runs/9/rerun-failed-jobs",
+          "-X",
+          "POST",
+        ],
         token: "runner-token",
       },
     ]);
@@ -458,7 +496,7 @@ describe("GitHub issue client", () => {
 
     expect(calls).toHaveLength(5);
     for (const args of calls) {
-      expect(args[0]).toBe("api");
+      expect(args.slice(0, 3)).toEqual(["api", "--hostname", "github.com"]);
       expect(endpointOf(args)).toMatch(/^repos\/dmprav\/merit\//);
       expect(args).not.toContain("graphql");
     }
@@ -486,12 +524,28 @@ describe("GitHub issue client", () => {
     expect(calls).toEqual([
       [
         "api",
+        "--hostname",
+        "github.com",
         "--paginate",
         "--slurp",
         "repos/dmprav/merit/issues?state=closed&per_page=100&labels=wontfix",
       ],
-      ["api", "--paginate", "--slurp", "repos/dmprav/merit/issues/7/comments?per_page=100"],
-      ["api", "--paginate", "--slurp", "repos/dmprav/merit/issues?state=open&per_page=100"],
+      [
+        "api",
+        "--hostname",
+        "github.com",
+        "--paginate",
+        "--slurp",
+        "repos/dmprav/merit/issues/7/comments?per_page=100",
+      ],
+      [
+        "api",
+        "--hostname",
+        "github.com",
+        "--paginate",
+        "--slurp",
+        "repos/dmprav/merit/issues?state=open&per_page=100",
+      ],
     ]);
   });
 
@@ -508,8 +562,17 @@ describe("GitHub issue client", () => {
     client.editIssueBody(219, "next = state");
 
     expect(calls).toEqual([
-      ["api", "repos/dmprav/merit/issues/219"],
-      ["api", "repos/dmprav/merit/issues/219", "-X", "PATCH", "-f", "body=next = state"],
+      ["api", "--hostname", "github.com", "repos/dmprav/merit/issues/219"],
+      [
+        "api",
+        "--hostname",
+        "github.com",
+        "repos/dmprav/merit/issues/219",
+        "-X",
+        "PATCH",
+        "-f",
+        "body=next = state",
+      ],
     ]);
   });
 
@@ -528,6 +591,8 @@ describe("GitHub issue client", () => {
     expect(calls).toEqual([
       [
         "api",
+        "--hostname",
+        "github.com",
         "repos/dmprav/merit/issues",
         "-X",
         "POST",
