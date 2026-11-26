@@ -18,7 +18,8 @@ Set `OPENAI_API_KEY` on the server and set `MERIT_AI_MODEL` to a model available
 to that account that supports function calling through Chat Completions. Restart
 the app server and the worker. Keep the [worker process](../../app/src/worker/main.ts) running
 beside the server to process queued work: each conversation with work to do runs as a Temporal
-workflow, `assistant-conversation:<id>`, and the worker runs its turns, at most four at once. A
+workflow, `assistant-conversation:<id>`, and each worker process runs its turns, at most four at once; a second worker process adds its own four, and
+there is no shared cap. A
 `start`, `approve`, `decline`, `retry`, or `watch` of a running conversation wakes that workflow. A
 wake lost between commit and Temporal is recovered within a minute, because the worker's
 reconciliation Schedule wakes every running conversation. The worker reads `OPENAI_API_KEY` and
@@ -39,8 +40,11 @@ assistant's own `retry` action, which resets that message to pending in its own 
 its workflow delivers it again. `stop` ends all other work at once, but the email is already
 committed and still sends, so a stopped conversation keeps asking where the message stands, with
 no model call and no new action, and records `succeeded` or `failed` when it settles; a failed
-message can then be retried from the chat. A step that cannot read the message ten times in a row
-records the delivery as failed, and the action can be retried. Withdrawing consent reports the
+message can then be retried from the chat. A new turn after `stop` does not strand it: the
+conversation keeps recording how that email settles, without resuming the stopped action or
+changing the new turn, even after the new turn completes. A step that cannot read the message ten
+times in a row records the delivery as failed, and the action can be retried; one successful read
+resets that count. Withdrawing consent reports the
 workspace's running conversations to the administrator's own change, so only an authorized
 administrator learns which conversations to cancel. A retry of an invitation that has since
 expired or been revoked revives nothing; the action reports it as unavailable.

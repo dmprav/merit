@@ -115,17 +115,17 @@ export const advanceTurn = async (
   if (!row || !(await access.consent())) {
     return "finished";
   }
-  if (row.status === "stopped") {
-    // Stop ends all work except recording how an email already sent settles. No model call, no
-    // new action: the step only asks where the message stands.
-    return unsettledDelivery(conversationState.parse(row.state))
-      ? (await settleStopped(access, row))
-        ? "progressed"
-        : "waiting"
-      : "finished";
+  // A delivery Stop left unconfirmed settles whatever the conversation does next: a new turn,
+  // an approval or a finished answer must not strand it. Asking only reads the message and
+  // records its outcome on that action; it never resumes the action or changes the status.
+  const unsettled = Boolean(unsettledDelivery(conversationState.parse(row.state)));
+  if (unsettled && (await settleStopped(access, row))) {
+    return "progressed";
   }
   if (row.status !== "running") {
-    return "finished";
+    // Stop ends all work except recording how an email already sent settles. No model call, no
+    // new action: the step only asks where the message stands.
+    return unsettled ? "waiting" : "finished";
   }
   return (await step(access, row, model, cancellation)) ? "progressed" : "waiting";
 };

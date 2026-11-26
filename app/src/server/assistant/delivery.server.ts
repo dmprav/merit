@@ -85,9 +85,26 @@ const ask = (access: Access, ticket: DeliveryTicket) =>
     // A read that failed says nothing about the message; the next step asks again.
     .catch(() => "error" as const);
 
+/** Save how many reads of the message failed in a row; zero clears the count. */
+const saveErrors = (access: Access, row: Stored, attemptId: string, errors: number) =>
+  access.locked(row, (state) => {
+    const saved = state.groups
+      .flatMap((group) => group.actions)
+      .find((item) => item.deliveryAttempt?.id === attemptId)?.deliveryAttempt;
+    if (saved) {
+      if (errors) {
+        saved.errors = errors;
+      } else {
+        delete saved.errors;
+      }
+    }
+    return change(state, row.status);
+  });
+
 /**
  * Handle what the message answered: record a final status once, leave a pending one for the next
- * wake without writing, and give up on a message that cannot be read after repeated errors.
+ * wake, and give up on a message that cannot be read after repeated errors. Only consecutive
+ * errors count, so a pending answer clears them; a pending answer with none writes nothing.
  */
 const record = async (
   access: Access,
@@ -96,6 +113,9 @@ const record = async (
   outcome: DeliveryOutcome | "error",
 ) => {
   if (outcome === "pending") {
+    if (attempt.errors) {
+      await saveErrors(access, row, attempt.id, 0);
+    }
     return false;
   }
   if (outcome !== "error") {
@@ -105,15 +125,7 @@ const record = async (
   if (errors >= failedReadLimit) {
     return recordDelivery(access, attempt.id, "failed");
   }
-  await access.locked(row, (state) => {
-    const saved = state.groups
-      .flatMap((group) => group.actions)
-      .find((item) => item.deliveryAttempt?.id === attempt.id)?.deliveryAttempt;
-    if (saved) {
-      saved.errors = errors;
-    }
-    return change(state, row.status);
-  });
+  await saveErrors(access, row, attempt.id, errors);
   return false;
 };
 
