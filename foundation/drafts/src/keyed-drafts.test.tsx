@@ -37,7 +37,7 @@ it("keeps the baseline a draft began from unless asked to replace it", async () 
 });
 
 it("reads the provided store and refuses to run without one", () => {
-  expect(() => renderHook(() => useKeyedDrafts())).toThrow("GrantmakingDrafts is required");
+  expect(() => renderHook(() => useKeyedDrafts())).toThrow("The notes drafts provider is required");
 
   const store = mount();
   const read = renderHook(() => useKeyedDrafts(), {

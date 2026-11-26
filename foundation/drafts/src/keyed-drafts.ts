@@ -72,7 +72,7 @@ export const createKeyedDrafts = <Draft, Baseline>(
   const useKeyedDrafts = () => {
     const value = useContext(DraftContext);
     if (!value) {
-      throw new Error("GrantmakingDrafts is required");
+      throw new Error(`The ${kind} drafts provider is required`);
     }
     return value;
   };
