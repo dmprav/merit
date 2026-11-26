@@ -47,15 +47,8 @@ const entry = (index: number, overrides: Partial<ActivityEntry> = {}): ActivityE
 };
 
 const recent: ActivityEntry[] = [
-  entry(0, { action: "decision.recorded", record: workshop }),
   entry(1, { action: "recommendation.recorded" }),
   entry(2, { action: "assessment.submitted", actor: "Sam Morgan", record: neighbour }),
-  entry(30, {
-    action: "decision.amended",
-    record: workshop,
-    provenance: { interface: "mcp", clientId: "grant-assistant" },
-    reason: "A later committee meeting reduced the award until the venue is confirmed.",
-  }),
   entry(3, {
     action: "application.withdraw",
     record: canal,
@@ -92,6 +85,13 @@ const olderPage: ActivityEntry[] = [
   entry(21),
   entry(22, { action: "round.criteria_changed", record: localRound }),
   entry(23, { action: "round.created", record: localRound }),
+  entry(24, { action: "decision.recorded", record: workshop }),
+  entry(25, {
+    action: "decision.amended",
+    record: workshop,
+    provenance: { interface: "mcp", clientId: "grant-assistant" },
+    reason: "A later committee meeting reduced the award until the venue is confirmed.",
+  }),
 ];
 
 const Preview = ({

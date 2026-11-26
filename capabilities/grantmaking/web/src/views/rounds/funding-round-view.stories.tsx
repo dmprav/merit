@@ -36,7 +36,7 @@ const FundingRoundPreview = ({
   if (committedEuros === undefined) {
     return <FundingRoundView {...props} round={view} />;
   }
-  const committed = fromMinorUnits(BigInt(committedEuros) * 100n);
+  const committed = fromMinorUnits(BigInt(committedEuros * 100));
   return (
     <FundingRoundView
       {...props}
