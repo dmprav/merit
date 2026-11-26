@@ -1,10 +1,25 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { transform } from "oxc-transform-react";
 
 import { reactCompilerOptions } from "../react-compiler.ts";
 
+export interface ReactCompilerCheckOptions {
+  /** Directory the checked roots and `files` are resolved from. Defaults to this checkout. */
+  repoRoot?: string;
+  /** Repository-relative files to check instead of discovering them under the roots. */
+  files?: readonly string[];
+}
+
+export interface ReactCompilerCheckResult {
+  ok: boolean;
+  diagnostics: string[];
+  summary: string;
+}
+
+const defaultRepoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const roots = ["app/src", "interfaces", "capabilities", "foundation"];
 const skippedDirs = new Set(["node_modules", "dist", ".git"]);
 
@@ -13,11 +28,13 @@ const isCheckedFile = (name: string) =>
   name !== "routeTree.gen.ts" &&
   !/\.(test|spec|stories|story-fixtures|d)\./.test(name);
 
-const collectFiles = (dir: string, out: string[]) => {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+// A hand-written walk rather than fs.globSync: glob skips dot-prefixed files and
+// directories, which this check has always included.
+const collectFiles = (repoRoot: string, dir: string, out: string[]) => {
+  for (const entry of readdirSync(join(repoRoot, dir), { withFileTypes: true })) {
     if (entry.isDirectory()) {
       if (!skippedDirs.has(entry.name)) {
-        collectFiles(join(dir, entry.name), out);
+        collectFiles(repoRoot, join(dir, entry.name), out);
       }
       continue;
     }
@@ -27,19 +44,33 @@ const collectFiles = (dir: string, out: string[]) => {
   }
 };
 
-const run = async () => {
+const discoverFiles = (repoRoot: string) => {
   const files: string[] = [];
   for (const root of roots) {
-    if (existsSync(root)) {
-      collectFiles(root, files);
+    if (existsSync(join(repoRoot, root))) {
+      collectFiles(repoRoot, root, files);
     }
+  }
+  return files;
+};
+
+export const checkReactCompiler = async ({
+  repoRoot = defaultRepoRoot,
+  files = discoverFiles(repoRoot),
+}: ReactCompilerCheckOptions = {}): Promise<ReactCompilerCheckResult> => {
+  if (files.length === 0) {
+    return {
+      ok: false,
+      diagnostics: [],
+      summary: `fail: React Compiler found no files to check under ${roots.join(", ")} in ${repoRoot}.`,
+    };
   }
 
   let compiled = 0;
-  let diagnostics = 0;
+  const diagnostics: string[] = [];
 
   for (const file of files) {
-    const source = readFileSync(file, "utf8");
+    const source = readFileSync(join(repoRoot, file), "utf8");
     const result = await transform(file, source, {
       jsx: { runtime: "automatic", development: false },
       reactCompiler: reactCompilerOptions,
@@ -47,24 +78,38 @@ const run = async () => {
     if (result.code?.includes("react/compiler-runtime")) {
       compiled++;
     }
-    if (result.errors?.length) {
-      diagnostics += result.errors.length;
-      for (const error of result.errors) {
-        console.error(`${file}: ${error.message}`);
-        if (error.codeframe) {
-          console.error(error.codeframe);
-        }
-      }
+    for (const error of result.errors ?? []) {
+      diagnostics.push(
+        error.codeframe
+          ? `${file}: ${error.message}\n${error.codeframe}`
+          : `${file}: ${error.message}`,
+      );
     }
   }
 
-  if (diagnostics > 0) {
-    console.error(`fail: React Compiler reported ${diagnostics} diagnostic(s).`);
-    process.exitCode = 1;
-    return;
+  if (diagnostics.length > 0) {
+    return {
+      ok: false,
+      diagnostics,
+      summary: `fail: React Compiler reported ${diagnostics.length} diagnostic(s).`,
+    };
   }
-
-  console.log(`pass: React Compiler checked ${files.length} files (${compiled} compiled).`);
+  return {
+    ok: true,
+    diagnostics,
+    summary: `pass: React Compiler checked ${files.length} files (${compiled} compiled).`,
+  };
 };
 
-await run();
+if (import.meta.main) {
+  const result = await checkReactCompiler();
+  for (const diagnostic of result.diagnostics) {
+    console.error(diagnostic);
+  }
+  if (result.ok) {
+    console.log(result.summary);
+  } else {
+    console.error(result.summary);
+    process.exitCode = 1;
+  }
+}
