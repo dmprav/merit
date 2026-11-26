@@ -7,7 +7,7 @@ will need.
 
 ## Build and preview
 
-To exercise the built application locally, start PostgreSQL and Mailpit, apply
+To exercise the built application locally, start the Compose services, apply
 the migrations, then start Vite preview:
 
 ```sh
@@ -17,7 +17,8 @@ vp run @merit/app#build
 vp run @merit/app#preview
 ```
 
-The preview task selects `MERIT_LOCAL_PREVIEW=1` and binds to loopback. This runs
+The preview task selects `MERIT_LOCAL_PREVIEW=1`, binds to loopback, and starts the
+[application worker](../../app/src/worker/main.ts) beside the web server. This runs
 the production build with local database and HTTP origin defaults. For a deployment,
 leave the preview setting unset and supply both `DATABASE_URL` and an HTTPS
 `APP_ORIGIN`. The server validates these when loading its entry point. Demo cookies
@@ -33,6 +34,27 @@ full set of checks.
 Set up a dedicated private S3-compatible bucket and server credentials before
 using file operations. The [storage guide](../../foundation/storage/README.md#configure-a-bucket)
 covers provider requirements, environment settings, and coordination with attachment owners during cleanup.
+
+## Prepare background work
+
+Merit's background work runs on [Temporal](../decisions/0016-temporal-background-work.md).
+A deployment needs three things beyond the web server; the hosting provider, and with it
+whether Temporal is hosted or self-managed, is still open.
+
+- **A Temporal service** reachable from both the web server and the worker. Set
+  `TEMPORAL_ADDRESS` (`host:port` of the frontend) and `TEMPORAL_NAMESPACE` for the namespace
+  that holds Merit's workflows. A hosted service also needs `TEMPORAL_API_KEY`, which turns on
+  TLS. A deployment must set the address, which has no deployed default; the namespace defaults to `default`.
+- **A payload key.** Set `TEMPORAL_PAYLOAD_KEY` to a base64-encoded 32-byte key
+  (`openssl rand -base64 32`) in the web server and worker environments. They must share it.
+  The development key is public, so a deployment without its own key refuses to start. Keep
+  the key in the secret store, and treat a rotation as a migration: history written under the
+  old key cannot be read with the new one.
+- **A worker process.** Run `app/src/worker/main.ts` as its own long-lived Node.js process
+  with the same environment as the web server, without `MERIT_LOCAL_WORKER`. It needs outbound
+  access to Temporal and, once capabilities register workflows, to the database and other
+  services their activities use. Stop it with `SIGTERM` so it finishes work in flight. This
+  repository does not yet package the worker for deployment; that follows the hosting choice.
 
 ## Prepare the database
 

@@ -170,6 +170,17 @@ export const MECHANISMS: readonly Mechanism[] = [
     ],
   },
   {
+    id: "background-work",
+    summary: "Temporal workflows coordinate background work; PostgreSQL stays the source of truth.",
+    contracts: ["foundation/workflows/src/**"],
+    adapters: ["app/src/worker/**"],
+    docs: ["foundation/workflows/README.md"],
+    decisions: ["docs/decisions/0016-temporal-background-work.md"],
+    invariants: [
+      "Keep workflow code deterministic and payloads to record identifiers, all encrypted by the payload codec.",
+    ],
+  },
+  {
     id: "shared-ui-patterns",
     summary:
       "Shared @merit/ui tokens, React Aria controls, layout patterns, and Storybook baselines.",

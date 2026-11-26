@@ -54,6 +54,9 @@ it("starts the Compose services with an already running daemon", async () => {
   expect(spawn).not.toHaveBeenCalled();
   expect(writeFileSync).not.toHaveBeenCalled();
   expect(vi.mocked(execFileSync).mock.calls.at(-1)).toEqual(composeUp);
+  expect(console.log).toHaveBeenCalledWith(
+    "PostgreSQL, Mailpit, file storage, and Temporal are running.",
+  );
 });
 
 it("starts the daemon with a registry mirror before starting the Compose services", async () => {

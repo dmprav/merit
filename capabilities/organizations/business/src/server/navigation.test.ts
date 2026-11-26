@@ -13,8 +13,7 @@ it("discovers operator navigation using the same current policy as administratio
     database,
     isOperator: async () => authorized,
     verifiedEmails: async () => [],
-    sendInvitation: async () => {},
-    invitationUrl: (token) => new URL(`/invitations/${token}`, "https://merit.example").href,
+    start: async () => true,
   });
 
   expect(await service.canAdminister(actor)).toBe(true);

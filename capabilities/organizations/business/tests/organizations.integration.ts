@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 
 import { sql } from "drizzle-orm";
-import { assert, beforeAll, afterAll, beforeEach, describe, it, expect, vi } from "vite-plus/test";
+import { assert, beforeAll, afterAll, beforeEach, describe, it, expect } from "vite-plus/test";
 
 import { withDatabase } from "@merit/db";
 import { migrate } from "@merit/db/migrate";
 import type { InvitationMessage } from "@merit/organizations/api";
-import { createOrganizationService } from "@merit/organizations/server";
+import { createInlineOrganizationService } from "@merit/organizations/server/testing";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -15,7 +15,7 @@ let messages: InvitationMessage[];
 let sendingFails = false;
 
 const service = (emails = ["recipient@example.test"], name?: string | null) =>
-  createOrganizationService({
+  createInlineOrganizationService({
     revokeReviewAccess: async () => {},
     database: (operation) => withDatabase(runtimeUrl, operation),
     isOperator: async (actor) => actor.userId === "operator",
@@ -69,7 +69,7 @@ beforeEach(async () => {
 
 describe("organization provisioning", () => {
   it("delivers a working invitation at the host's configured address", async () => {
-    const operations = createOrganizationService({
+    const operations = createInlineOrganizationService({
       revokeReviewAccess: async () => {},
       database: (operation) => withDatabase(runtimeUrl, operation),
       isOperator: async () => true,
@@ -104,7 +104,6 @@ describe("organization provisioning", () => {
   it.each([false, true])(
     "preserves creation when recording delivery fails (sendingFails=%s)",
     async (fails) => {
-      const log = vi.spyOn(console, "error").mockImplementation(() => {});
       sendingFails = fails;
       await database.client.query(
         "ALTER TABLE organization_invitations ADD CONSTRAINT reject_delivery_test CHECK (delivery = 'pending')",
@@ -115,9 +114,6 @@ describe("organization provisioning", () => {
           status: "ok",
           value: { invitation: { delivery: "pending" } },
         });
-        expect(log).toHaveBeenCalledExactlyOnceWith(
-          "Invitation delivery outcome could not be recorded.",
-        );
         expect(await service().create({ userId: "operator" }, input)).toEqual({
           status: "ok",
           value: { organizationId },
@@ -127,7 +123,6 @@ describe("organization provisioning", () => {
         await database.client.query(
           "ALTER TABLE organization_invitations DROP CONSTRAINT reject_delivery_test",
         );
-        log.mockRestore();
       }
     },
   );
@@ -728,7 +723,7 @@ describe("organization provisioning", () => {
           );
           await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
           let actor = "operator";
-          const operations = createOrganizationService({
+          const operations = createInlineOrganizationService({
             revokeReviewAccess: async () => {},
             database: (operation) => operation(tx),
             isOperator: async (identity) => identity.userId === "operator",

@@ -4,11 +4,12 @@ import { expect } from "vite-plus/test";
 import type { Database } from "@merit/db";
 
 import type { OrganizationService } from "../src/api/service";
-import { createOrganizationService, getWorkspace } from "../src/server/index";
+import { getWorkspace } from "../src/server/index";
+import { createInlineOrganizationService } from "../src/server/testing";
 import { actor, workspaceTest as it, workspaceSlug } from "./workspace-test";
 
 const serviceFor = (db: Database) =>
-  createOrganizationService({
+  createInlineOrganizationService({
     revokeReviewAccess: async () => {},
     database: (operation) => operation(db),
     isOperator: async () => true,

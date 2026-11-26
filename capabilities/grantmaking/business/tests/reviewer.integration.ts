@@ -7,12 +7,18 @@ import { materialVersionSchema } from "@merit/applications/domain";
 import { editFundingApplication } from "@merit/applications/server";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { withDatabase } from "@merit/db";
-import { createOrganizationService } from "@merit/organizations/server";
+import { createInlineOrganizationService } from "@merit/organizations/server/testing";
 import { actor } from "@merit/organizations/testing/workspace";
+import { assignmentScope, writeScoped } from "@merit/organizations/transactions";
 import type { ReviewerMessage } from "@merit/reviews/api";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
-import { createReviewerService, saveApplicationReview } from "@merit/reviews/server";
+import {
+  createReviewerService,
+  listPendingReviewerMessageWork,
+  saveApplicationReview,
+} from "@merit/reviews/server";
 import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
+import { createInlineReviewerService } from "@merit/reviews/testing";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { editFundingRound } from "@merit/rounds/server";
 
@@ -28,137 +34,142 @@ import { contactWork } from "./contact-work";
 import { roundTest } from "./round-test";
 
 const sam = { userId: "sam" };
-const it = roundTest.extend("reviewerScenario", async ({ db, database, rounds }) => {
-  await database.client.query(
-    "INSERT INTO app_users (id, name, clerk_user_id) VALUES ('sam','Sam Morgan','sam-account'), ('other','Other','other-account')",
-  );
-  await database.client.query(
-    "INSERT INTO memberships (organization_id, user_id, email, role) VALUES ('alder', 'sam', 'sam@example.test', 'reviewer')",
-  );
-  const address = await rounds.createApplication("Community review");
-  const created = await changeWorkspaceContact(
-    db,
-    actor,
-    {
-      workspaceSlug: "alder",
-      action: "create",
-      contactId: randomUUID(),
-      details: { name: "Sam Morgan", email: "sam@example.test", affiliation: "" },
-    },
-    contactWork,
-  );
-  assert(created.status === "ok");
+// One restricted runtime role serves the whole file.
+const it = roundTest
+  .extend("runtimeUrl", { scope: "file" }, async ({ database }) =>
+    database.createRuntimeConnection(),
+  )
+  .extend("reviewerScenario", async ({ db, database, rounds }) => {
+    await database.client.query(
+      "INSERT INTO app_users (id, name, clerk_user_id) VALUES ('sam','Sam Morgan','sam-account'), ('other','Other','other-account')",
+    );
+    await database.client.query(
+      "INSERT INTO memberships (organization_id, user_id, email, role) VALUES ('alder', 'sam', 'sam@example.test', 'reviewer')",
+    );
+    const address = await rounds.createApplication("Community review");
+    const created = await changeWorkspaceContact(
+      db,
+      actor,
+      {
+        workspaceSlug: "alder",
+        action: "create",
+        contactId: randomUUID(),
+        details: { name: "Sam Morgan", email: "sam@example.test", affiliation: "" },
+      },
+      contactWork,
+    );
+    assert(created.status === "ok");
 
-  const requestReview = async (application: typeof address) => {
-    const requestId = randomUUID();
-    expect(
-      await saveApplicationReview(db, actor, {
-        ...application,
-        expectedRevision: reviewRevisionSchema.parse(0),
-        expectedApplicationVersion: materialVersionSchema.parse(1),
-        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-        change: {
-          action: "request",
-          id: requestId,
-          contactId: created.contact.id,
-          replacesId: null,
-        },
-      }),
-    ).toMatchObject({ status: "ok" });
-    return requestId;
-  };
+    const requestReview = async (application: typeof address) => {
+      const requestId = randomUUID();
+      expect(
+        await saveApplicationReview(db, actor, {
+          ...application,
+          expectedRevision: reviewRevisionSchema.parse(0),
+          expectedApplicationVersion: materialVersionSchema.parse(1),
+          expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+          change: {
+            action: "request",
+            id: requestId,
+            contactId: created.contact.id,
+            replacesId: null,
+          },
+        }),
+      ).toMatchObject({ status: "ok" });
+      return requestId;
+    };
 
-  const requestId = await requestReview(address);
-  const messages: ReviewerMessage[] = [];
-  let failDelivery = false;
-  const service = createReviewerService({
-    database: async (operation) => operation(db),
-    send: async (message) => {
-      if (failDelivery) {
-        throw new Error("Sender unavailable");
-      }
-      messages.push(message);
-    },
-    reviewerUrl: (slug, id) => `https://merit.test/app/${slug}/work/${id}`,
-    managerUrl: (slug, id) => `https://merit.test/app/${slug}/applications/${id}`,
+    const requestId = await requestReview(address);
+    const messages: ReviewerMessage[] = [];
+    let failDelivery = false;
+    const service = createInlineReviewerService({
+      database: async (operation) => operation(db),
+      send: async (message) => {
+        if (failDelivery) {
+          throw new Error("Sender unavailable");
+        }
+        messages.push(message);
+      },
+      reviewerUrl: (slug, id) => `https://merit.test/app/${slug}/work/${id}`,
+      managerUrl: (slug, id) => `https://merit.test/app/${slug}/applications/${id}`,
+    });
+    const invitation = { ...address, requestId, commandId: randomUUID(), dueDate: "2020-01-01" };
+    const invited = await service.invite(actor, invitation);
+    assert(invited.status === "ok", JSON.stringify(invited));
+    const assignmentId = invited.value.id;
+
+    const read = async () => {
+      const result = await service.read(sam, { assignmentId });
+      assert(result.status === "ok");
+      return result.value;
+    };
+
+    const respond = async (action: "accept" | "decline" | "report_conflict", note = "") =>
+      service.respond(sam, {
+        assignmentId,
+        commandId: randomUUID(),
+        expectedRevision: (await read()).assignment.revision,
+        action,
+        note,
+      });
+
+    const manage = async (
+      action: "cancel" | "reinstate" | "clear_conflict" | "resend" | "retry_notification",
+      note = "",
+    ) => {
+      const list = await service.forApplication(actor, address);
+      assert(list.status === "ok");
+      const current = list.value.find((value) => value.id === assignmentId);
+      assert.isDefined(current);
+      return service.manage(actor, {
+        ...address,
+        assignmentId,
+        commandId: randomUUID(),
+        expectedRevision: current.revision,
+        action,
+        note,
+      });
+    };
+
+    const save = async (reasoning = "Evidence supports the proposed work", note = "") => {
+      const page = await read();
+      assert(page.draft);
+      return service.saveDraft(sam, {
+        assignmentId,
+        commandId: randomUUID(),
+        expectedDraftRevision: page.draft.revision,
+        draft: { position: "Fund", amount: "40.00", reasoning, observations: [], note },
+      });
+    };
+
+    const submit = async () => {
+      const page = await read();
+      assert(page.draft);
+      return service.submit(sam, {
+        assignmentId,
+        commandId: randomUUID(),
+        expectedDraftRevision: page.draft.revision,
+      });
+    };
+
+    return {
+      service,
+      assignmentId,
+      address,
+      invitation,
+      messages,
+      read,
+      respond,
+      manage,
+      save,
+      submit,
+      requestId,
+      requestReview,
+      setDeliveryFailure: (value: boolean) => {
+        failDelivery = value;
+      },
+    };
   });
-  const invitation = { ...address, requestId, commandId: randomUUID(), dueDate: "2020-01-01" };
-  const invited = await service.invite(actor, invitation);
-  assert(invited.status === "ok", JSON.stringify(invited));
-  const assignmentId = invited.value.id;
-
-  const read = async () => {
-    const result = await service.read(sam, { assignmentId });
-    assert(result.status === "ok");
-    return result.value;
-  };
-
-  const respond = async (action: "accept" | "decline" | "report_conflict", note = "") =>
-    service.respond(sam, {
-      assignmentId,
-      commandId: randomUUID(),
-      expectedRevision: (await read()).assignment.revision,
-      action,
-      note,
-    });
-
-  const manage = async (
-    action: "cancel" | "reinstate" | "clear_conflict" | "resend" | "retry_notification",
-    note = "",
-  ) => {
-    const list = await service.forApplication(actor, address);
-    assert(list.status === "ok");
-    const current = list.value.find((value) => value.id === assignmentId);
-    assert.isDefined(current);
-    return service.manage(actor, {
-      ...address,
-      assignmentId,
-      commandId: randomUUID(),
-      expectedRevision: current.revision,
-      action,
-      note,
-    });
-  };
-
-  const save = async (reasoning = "Evidence supports the proposed work", note = "") => {
-    const page = await read();
-    assert(page.draft);
-    return service.saveDraft(sam, {
-      assignmentId,
-      commandId: randomUUID(),
-      expectedDraftRevision: page.draft.revision,
-      draft: { position: "Fund", amount: "40.00", reasoning, observations: [], note },
-    });
-  };
-
-  const submit = async () => {
-    const page = await read();
-    assert(page.draft);
-    return service.submit(sam, {
-      assignmentId,
-      commandId: randomUUID(),
-      expectedDraftRevision: page.draft.revision,
-    });
-  };
-
-  return {
-    service,
-    assignmentId,
-    address,
-    invitation,
-    messages,
-    read,
-    respond,
-    manage,
-    save,
-    submit,
-    requestId,
-    requestReview,
-    setDeliveryFailure: (value: boolean) => {
-      failDelivery = value;
-    },
-  };
-});
 
 it("refuses new invitations without a qualifying workspace membership and sends no email", async ({
   db,
@@ -652,6 +663,7 @@ it.for([
 );
 
 it("preserves successful submission when delivery fails and retries only the notification", async ({
+  database,
   reviewerScenario: s,
 }) => {
   await s.respond("accept");
@@ -659,11 +671,162 @@ it("preserves successful submission when delivery fails and retries only the not
   s.setDeliveryFailure(true);
   expect(await s.submit()).toMatchObject({ status: "ok" });
   expect((await s.read()).assignment.notification).toBe("failed");
+  const failed = await database.client.query<{ id: string; delivery_token: string }>(
+    "SELECT id, delivery_token FROM reviewer_messages WHERE assignment_id = $1 AND kind = 'submission'",
+    [s.assignmentId],
+  );
+  expect(failed.rows).toHaveLength(1);
   s.setDeliveryFailure(false);
   await s.manage("retry_notification");
   expect((await s.read()).assignment.notification).toBe("sent");
   expect((await s.read()).assessment?.versions).toHaveLength(1);
+
+  // The retry reset the same message with a fresh delivery token, so its ID and idempotency key held.
+  const retried = await database.client.query<{ id: string; delivery_token: string }>(
+    "SELECT id, delivery_token FROM reviewer_messages WHERE assignment_id = $1 AND kind = 'submission'",
+    [s.assignmentId],
+  );
+  expect(retried.rows[0]?.id).toBe(failed.rows[0]?.id);
+  expect(retried.rows[0]?.delivery_token).not.toBe(failed.rows[0]?.delivery_token);
 });
+
+it("resets a failed message only in the workspace scope of its own workspace", async ({
+  runtimeUrl,
+  database,
+  reviewerScenario: s,
+}) => {
+  await s.respond("accept");
+  await s.save();
+  s.setDeliveryFailure(true);
+  expect(await s.submit()).toMatchObject({ status: "ok" });
+  const noticeId = (
+    await database.client.query<{ id: string }>(
+      "SELECT id FROM reviewer_messages WHERE assignment_id = $1 AND kind = 'submission'",
+      [s.assignmentId],
+    )
+  ).rows[0]!.id;
+
+  const stored = async () =>
+    (
+      await database.client.query<{ status: string; delivery_token: string }>(
+        "SELECT status, delivery_token FROM reviewer_messages WHERE id = $1",
+        [noticeId],
+      )
+    ).rows[0]!;
+
+  const before = await stored();
+  expect(before.status).toBe("failed");
+
+  const reset = (scope: Parameters<typeof writeScoped>[1]) =>
+    withDatabase(runtimeUrl, (db) =>
+      writeScoped(db, scope, async (tx) => {
+        const [row] = (
+          await tx.execute<{ reset: boolean }>(
+            sql`select merit_retry_reviewer_message(${noticeId}) as reset`,
+          )
+        ).rows;
+        return row?.reset;
+      }),
+    );
+
+  // Another workspace's manager, and the reviewer's assignment scope, cannot reset it.
+  expect(await reset({ kind: "workspace", userId: "birch-manager", slug: "birch" })).toBe(false);
+  expect(await reset(assignmentScope(sam.userId, s.assignmentId))).toBe(false);
+  expect(await stored()).toEqual(before);
+
+  expect(await reset({ kind: "workspace", userId: actor.userId, slug: "alder" })).toBe(true);
+  const after = await stored();
+  expect(after.status).toBe("pending");
+  expect(after.delivery_token).not.toBe(before.delivery_token);
+});
+
+it("revives only the newest failed message of its kind", async ({
+  database,
+  runtimeUrl,
+  reviewerScenario: s,
+}) => {
+  const first = s.invitation.commandId;
+  await database.client.query(
+    "UPDATE reviewer_messages SET status = 'failed', created_at = now() - interval '2 minutes' WHERE id = $1",
+    [first],
+  );
+  // A resend queues a newer message, which fails too.
+  expect(await s.manage("resend")).toMatchObject({ status: "ok" });
+  const newer = (
+    await database.client.query<{ id: string }>(
+      "SELECT id FROM reviewer_messages WHERE assignment_id = $1 AND id <> $2",
+      [s.assignmentId, first],
+    )
+  ).rows[0]!.id;
+  await database.client.query("UPDATE reviewer_messages SET status = 'failed' WHERE id = $1", [
+    newer,
+  ]);
+
+  const reset = (id: string) =>
+    withDatabase(runtimeUrl, (db) =>
+      writeScoped(db, { kind: "workspace", userId: actor.userId, slug: "alder" }, async (tx) => {
+        const [row] = (
+          await tx.execute<{ reset: boolean }>(
+            sql`select merit_retry_reviewer_message(${id}) as reset`,
+          )
+        ).rows;
+        return row?.reset;
+      }),
+    );
+
+  const status = async (id: string) =>
+    (
+      await database.client.query<{ status: string }>(
+        "SELECT status FROM reviewer_messages WHERE id = $1",
+        [id],
+      )
+    ).rows[0]?.status;
+
+  expect(await reset(first)).toBe(false);
+  expect(await status(first)).toBe("failed");
+  expect(await reset(newer)).toBe(true);
+  expect(await status(newer)).toBe("pending");
+  // Pending is not failed: a second reset finds nothing to revive.
+  expect(await reset(newer)).toBe(false);
+});
+
+it.for([
+  ["expired", "UPDATE review_assignments SET expires_at = now() - interval '1 hour' WHERE id = $1"],
+  ["revoked", "UPDATE review_assignments SET status = 'cancelled' WHERE id = $1"],
+] as const)(
+  "does not revive a failed invitation that is %s",
+  async ([, change], { database, runtimeUrl, reviewerScenario: s }) => {
+    const id = s.invitation.commandId;
+    await database.client.query("UPDATE reviewer_messages SET status = 'failed' WHERE id = $1", [
+      id,
+    ]);
+
+    const stored = async () =>
+      (
+        await database.client.query<{ status: string; delivery_token: string }>(
+          "SELECT status, delivery_token FROM reviewer_messages WHERE id = $1",
+          [id],
+        )
+      ).rows[0]!;
+
+    const reset = () =>
+      withDatabase(runtimeUrl, (db) =>
+        writeScoped(db, { kind: "workspace", userId: actor.userId, slug: "alder" }, async (tx) => {
+          const [row] = (
+            await tx.execute<{ reset: boolean }>(
+              sql`select merit_retry_reviewer_message(${id}) as reset`,
+            )
+          ).rows;
+          return row?.reset;
+        }),
+      );
+
+    const before = await stored();
+    await database.client.query(change, [s.assignmentId]);
+    expect(await reset()).toBe(false);
+    expect(await stored()).toEqual(before);
+  },
+);
 
 it("keeps a failed notice available for the manager when an amendment email is suppressed", async ({
   reviewerScenario: s,
@@ -685,15 +848,15 @@ it("keeps a failed notice available for the manager when an amendment email is s
 });
 
 it("records an accepted reviewer message after the sender loses workspace access", async ({
+  runtimeUrl,
   database,
   reviewerScenario: s,
 }) => {
-  const runtimeUrl = await database.createRuntimeConnection();
   // Replay the committed invitation with its original message still awaiting acknowledgement.
   await database.client.query("UPDATE reviewer_messages SET status = 'pending' WHERE id = $1", [
     s.invitation.commandId,
   ]);
-  const service = createReviewerService({
+  const service = createInlineReviewerService({
     database: (operation) => withDatabase(runtimeUrl, operation),
     send: async () => {
       await database.client.query(
@@ -1070,7 +1233,7 @@ it("keeps an unaccepted assignment ended after removal and rejoining until expli
   database,
   reviewerScenario: s,
 }) => {
-  const organizations = createOrganizationService({
+  const organizations = createInlineOrganizationService({
     database: (operation) => operation(db),
     revokeReviewAccess: revokeMembershipReviews,
     isOperator: async () => false,
@@ -1131,7 +1294,7 @@ it("permanently ends assignments on role loss, preserves private work, and attri
   database,
   reviewerScenario: s,
 }) => {
-  const organizations = createOrganizationService({
+  const organizations = createInlineOrganizationService({
     database: (operation) => operation(db),
     revokeReviewAccess: revokeMembershipReviews,
     isOperator: async () => false,
@@ -1199,4 +1362,231 @@ it("permanently ends assignments on role loss, preserves private work, and attri
   ).toEqual({ status: "not_found" });
   expect(await s.manage("reinstate")).toMatchObject({ status: "ok" });
   expect((await s.read()).draft).toEqual(original.draft);
+});
+
+it("lists unfinished reviewer messages across workspaces for reconciliation, newest and deliverable only", async ({
+  db,
+  database,
+  reviewerScenario: s,
+}) => {
+  const pending = () => listPendingReviewerMessageWork((operation) => operation(db), 100);
+
+  const status = (id: string, value: string) =>
+    database.client.query("UPDATE reviewer_messages SET status = $2 WHERE id = $1", [id, value]);
+
+  const invitationId = s.invitation.commandId;
+
+  expect(await pending()).toEqual([]);
+
+  // A message acknowledged by nobody is listed with the member it acts for: the manager.
+  await status(invitationId, "pending");
+  expect(await pending()).toEqual([
+    {
+      messageId: invitationId,
+      assignmentId: s.assignmentId,
+      kind: "invitation",
+      userId: actor.userId,
+    },
+  ]);
+
+  // A newer invitation replaces it.
+  await database.client.query(
+    "UPDATE reviewer_messages SET created_at = now() - interval '2 minutes' WHERE assignment_id = $1",
+    [s.assignmentId],
+  );
+  expect(await s.manage("resend")).toMatchObject({ status: "ok" });
+  const newer = (
+    await database.client.query<{ id: string }>(
+      "SELECT id FROM reviewer_messages WHERE assignment_id = $1 AND id <> $2",
+      [s.assignmentId, invitationId],
+    )
+  ).rows[0]!.id;
+  await status(newer, "pending");
+  expect((await pending()).map((work) => work.messageId)).toEqual([newer]);
+
+  // A failed or sent message is finished, and an expired invitation cannot be delivered.
+  await status(newer, "failed");
+  expect(await pending()).toEqual([]);
+  await status(newer, "pending");
+  await database.client.query(
+    "UPDATE review_assignments SET expires_at = now() - interval '1 minute' WHERE id = $1",
+    [s.assignmentId],
+  );
+  expect(await pending()).toEqual([]);
+});
+
+it("lists a pending message only while its actor could still deliver it", async ({
+  db,
+  database,
+  reviewerScenario: s,
+}) => {
+  const listed = async () =>
+    (await listPendingReviewerMessageWork((operation) => operation(db), 100)).map(
+      ({ messageId }) => messageId,
+    );
+
+  const invitationId = s.invitation.commandId;
+  await database.client.query("UPDATE reviewer_messages SET status = 'pending' WHERE id = $1", [
+    invitationId,
+  ]);
+  expect(await listed()).toEqual([invitationId]);
+
+  await database.client.query("UPDATE app_users SET active = false WHERE id = $1", [actor.userId]);
+  expect(await listed()).toEqual([]);
+  await database.client.query("UPDATE app_users SET active = true WHERE id = $1", [actor.userId]);
+  expect(await listed()).toEqual([invitationId]);
+
+  // The acting manager must still belong to the workspace.
+  await database.client.query(
+    "CREATE TEMP TABLE removed AS SELECT * FROM memberships WHERE organization_id = 'alder' AND user_id = $1",
+    [actor.userId],
+  );
+  await database.client.query(
+    "DELETE FROM memberships WHERE organization_id = 'alder' AND user_id = $1",
+    [actor.userId],
+  );
+  expect(await listed()).toEqual([]);
+  await database.client.query("INSERT INTO memberships SELECT * FROM removed");
+  await database.client.query("DROP TABLE removed");
+  expect(await listed()).toEqual([invitationId]);
+
+  await database.client.query(
+    "UPDATE organizations SET kind = 'demo', demo_expires_at = now() - interval '1 hour', demo_seed_version = 1 WHERE id = 'alder'",
+  );
+  expect(await listed()).toEqual([]);
+});
+
+it("lists a pending submission notice for the manager once the reviewer cannot act", async ({
+  db,
+  database,
+  reviewerScenario: s,
+}) => {
+  await s.respond("accept");
+  await s.save();
+  expect(await s.submit()).toMatchObject({ status: "ok" });
+  await database.client.query(
+    "UPDATE reviewer_messages SET status = 'pending' WHERE assignment_id = $1 AND kind = 'submission'",
+    [s.assignmentId],
+  );
+
+  const actors = async () =>
+    (await listPendingReviewerMessageWork((operation) => operation(db), 100)).map(
+      ({ userId }) => userId,
+    );
+
+  expect(await actors()).toEqual([sam.userId]);
+
+  // The notice goes to the requesting manager, who can deliver it without the reviewer.
+  await database.client.query("UPDATE app_users SET active = false WHERE id = $1", [sam.userId]);
+  expect(await actors()).toEqual([actor.userId]);
+  await database.client.query("UPDATE app_users SET active = true WHERE id = $1", [sam.userId]);
+  expect(await actors()).toEqual([sam.userId]);
+
+  // With neither the reviewer nor the manager able to act, nobody is left to deliver it.
+  await database.client.query("UPDATE app_users SET active = false WHERE id IN ($1, $2)", [
+    sam.userId,
+    actor.userId,
+  ]);
+  expect(await actors()).toEqual([]);
+});
+
+it("lists a pending submission notice under the submitting reviewer", async ({
+  db,
+  database,
+  reviewerScenario: s,
+}) => {
+  await s.respond("accept");
+  await s.save();
+  expect(await s.submit()).toMatchObject({ status: "ok" });
+  await database.client.query(
+    "UPDATE reviewer_messages SET status = 'pending' WHERE assignment_id = $1 AND kind = 'submission'",
+    [s.assignmentId],
+  );
+
+  const work = await listPendingReviewerMessageWork((operation) => operation(db), 100);
+
+  expect(work).toEqual([
+    expect.objectContaining({
+      assignmentId: s.assignmentId,
+      kind: "submission",
+      userId: sam.userId,
+    }),
+  ]);
+  const page = await listPendingReviewerMessageWork(
+    (operation) => operation(db),
+    100,
+    work[0]?.messageId,
+  );
+  expect(page).toEqual([]);
+});
+
+it("answers a committed reviewer message when only the reads that wait for its outcome fail", async ({
+  runtimeUrl,
+  database,
+  reviewerScenario: s,
+}) => {
+  await database.client.query("UPDATE reviewer_messages SET status = 'pending' WHERE id = $1", [
+    s.invitation.commandId,
+  ]);
+  let readsFail = false;
+  let reported = 0;
+  const service = createReviewerService({
+    database: (operation) =>
+      readsFail ? Promise.reject(new Error("database down")) : withDatabase(runtimeUrl, operation),
+    // The workflow starts after the commit; from here on the request's outcome reads fail.
+    start: async () => {
+      readsFail = true;
+      return true;
+    },
+    wait: { timeoutMs: 50, intervalMs: 1 },
+    onOutcomeError: () => {
+      reported += 1;
+      readsFail = false;
+    },
+  });
+
+  expect(await service.invite(actor, s.invitation)).toMatchObject({
+    status: "ok",
+    value: { id: s.assignmentId },
+  });
+  expect(reported).toBe(1);
+  const message = await database.client.query<{ status: string }>(
+    "SELECT status FROM reviewer_messages WHERE id = $1",
+    [s.invitation.commandId],
+  );
+  expect(message.rows[0]?.status).toBe("pending");
+});
+it("keeps a committed reviewer message and fails the response, not the commit, while the database stays down", async ({
+  runtimeUrl,
+  database,
+  reviewerScenario: s,
+}) => {
+  await database.client.query("UPDATE reviewer_messages SET status = 'pending' WHERE id = $1", [
+    s.invitation.commandId,
+  ]);
+  let readsFail = false;
+  let reported = 0;
+  const service = createReviewerService({
+    database: (operation) =>
+      readsFail ? Promise.reject(new Error("database down")) : withDatabase(runtimeUrl, operation),
+    start: async () => {
+      readsFail = true;
+      return true;
+    },
+    wait: { timeoutMs: 50, intervalMs: 1 },
+    // Only reports: the database stays down, so the response itself cannot be read either.
+    onOutcomeError: () => {
+      reported += 1;
+    },
+  });
+
+  // The response is the manager's assignment row, which needs a read; no data is invented.
+  await expect(service.invite(actor, s.invitation)).rejects.toThrow("database down");
+  expect(reported).toBe(1);
+  readsFail = false;
+  const message = await database.client.query<{ status: string }>(
+    "SELECT status FROM reviewer_messages WHERE id = $1",
+    [s.invitation.commandId],
+  );
+  expect(message.rows[0]?.status).toBe("pending");
 });

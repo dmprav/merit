@@ -3,14 +3,14 @@ import { beforeAll, afterAll, beforeEach, describe, it, expect } from "vite-plus
 import { withDatabase } from "@merit/db";
 import { migrate } from "@merit/db/migrate";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
-import { createOrganizationService } from "@merit/organizations/server";
+import { createInlineOrganizationService } from "@merit/organizations/server/testing";
 import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 
 const service = (emails = ["recipient@example.test"]) =>
-  createOrganizationService({
+  createInlineOrganizationService({
     revokeReviewAccess: revokeMembershipReviews,
     database: (operation) => withDatabase(database.connectionString, operation),
     isOperator: async (actor) => actor.userId === "operator",

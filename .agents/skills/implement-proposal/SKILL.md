@@ -161,8 +161,9 @@ the PR description and verification record that the review was not independent.
    Record the returned `number`.
 4. Immediately add `verifications/<pr-number>.md` on the branch following
    [record verification](../../../docs/guides/verification.md#record-verification)
-   with all four required H2 headings (`Checks run`, `Could not verify`,
-   `Did not verify`, `Dismissed review findings`). Commit and push.
+   with all five required H2 headings (`Behavioral decisions`, `Checks run`,
+   `Could not verify`, `Did not verify`, `Dismissed review findings`). Commit
+   and push.
 5. Initialize autonomous PR state if not already set (until this marker is
    recorded, [queue.ts](../../../tooling/agents/queue.ts) holds the PR out of
    shepherd selection for up to 2 hours from creation so concurrent runs cannot

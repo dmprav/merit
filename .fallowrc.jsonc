@@ -46,6 +46,8 @@
     "capabilities/access/tests/**/*.integration.ts",
     "foundation/auth/tests/**/*.integration.ts",
     "tooling/testing/database/**/*.integration.ts",
+    // The worker bundles its workflow entry from a file path, not an import.
+    "app/src/worker/workflows.workflow.ts",
     // Checkly discovers config and synthetic checks by file pattern.
     "tooling/checkly/checkly.config.ts",
     "tooling/checkly/tests/**/*.check.ts",

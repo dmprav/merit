@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import type { AccessAction } from "@merit/access";
 import { appUsers } from "@merit/auth/schema";
@@ -79,10 +79,14 @@ export const changeAssistantConsent = async (
       .insert(assistantConsents)
       .values({ organizationId: member.organizationId })
       .onConflictDoNothing();
-  } else {
-    await tx
-      .delete(assistantConsents)
-      .where(eq(assistantConsents.organizationId, member.organizationId));
+    return { enabled, ending: [] };
   }
-  return enabled;
+  // The administrator's own transaction learns which chats this ends, before consent is gone.
+  const running = await tx.execute<{ id: string }>(
+    sql`select merit_workspace_running_assistant_conversations() as id`,
+  );
+  await tx
+    .delete(assistantConsents)
+    .where(eq(assistantConsents.organizationId, member.organizationId));
+  return { enabled, ending: running.rows.map((row) => row.id) };
 };

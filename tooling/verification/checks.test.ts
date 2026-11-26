@@ -317,6 +317,7 @@ it.each([
   ["organizations", "capabilities/organizations/business", ["src/domain", "src/api"]],
   ["contacts", "capabilities/contacts/business", ["src/domain", "src/api"]],
   ["storage", "foundation/storage", ["src"]],
+  ["workflows", "foundation/workflows", ["src"]],
   ["money", "foundation/money", ["src"]],
   ["dates", "foundation/dates", ["src"]],
 ] as const)(

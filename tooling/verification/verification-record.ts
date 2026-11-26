@@ -7,6 +7,7 @@ export const RECORD_DIRECTORY = "verifications";
 
 /** Sections every record contains, in this order; the verification guide defines each one. */
 export const RECORD_SECTIONS = [
+  "Behavioral decisions",
   "Checks run",
   "Could not verify",
   "Did not verify",
@@ -84,7 +85,7 @@ export const codeFenceCloser = (line: string): RegExp | null => {
   return opening ? new RegExp(`^ {0,3}${opening[0]}{${opening.length},}\\s*$`) : null;
 };
 
-type Section = { heading: string; hasContent: boolean };
+type Section = { heading: string; lines: string[]; hasContent: boolean };
 
 /** Removes HTML comment text from a line, tracking comments that span lines. */
 const visibleText = (line: string, inComment: boolean) => {
@@ -103,7 +104,9 @@ const visibleText = (line: string, inComment: boolean) => {
   return { visible, inComment: commented };
 };
 
-type RecordLine = { kind: "heading"; heading: string } | { kind: "content"; hasText: boolean };
+type RecordLine =
+  | { kind: "heading"; heading: string }
+  | { kind: "content"; text: string; hasText: boolean };
 
 /**
  * Classifies each line as a level-two heading or section content, treating fenced
@@ -116,7 +119,7 @@ const readRecordLines = (content: string): RecordLine[] => {
   for (const line of content.split(/\r?\n/)) {
     if (fence) {
       fence = fence.test(line) ? null : fence;
-      lines.push({ kind: "content", hasText: true });
+      lines.push({ kind: "content", text: line, hasText: true });
       continue;
     }
     const text = visibleText(line, inComment);
@@ -126,24 +129,48 @@ const readRecordLines = (content: string): RecordLine[] => {
     lines.push(
       heading
         ? { kind: "heading", heading }
-        : { kind: "content", hasText: text.visible.trim().length > 0 },
+        : { kind: "content", text: text.visible, hasText: text.visible.trim().length > 0 },
     );
   }
   return lines;
 };
 
-/** Collects level-two sections and whether each has any visible content. */
+/**
+ * Collects level-two sections with their visible body lines, keeping blank lines
+ * only between content so a body can be trimmed and compared.
+ */
 const recordSections = (content: string): Section[] => {
   const sections: Section[] = [];
   for (const line of readRecordLines(content)) {
     const current = sections.at(-1);
     if (line.kind === "heading") {
-      sections.push({ heading: line.heading, hasContent: false });
+      sections.push({ heading: line.heading, lines: [], hasContent: false });
     } else if (current && line.hasText) {
+      current.lines.push(line.text);
       current.hasContent = true;
+    } else if (current && current.lines.length > 0) {
+      current.lines.push("");
     }
   }
   return sections;
+};
+
+/** Extracts trimmed visible body text keyed by level-two heading. */
+export const extractRecordSections = (content: string): Map<string, string> => {
+  const result = new Map<string, string>();
+  for (const section of recordSections(content)) {
+    result.set(section.heading, section.lines.join("\n").trim());
+  }
+  return result;
+};
+
+/** True when a verification record section is empty or explicitly states "None.". */
+export const isNoneSection = (body: string | undefined): boolean => {
+  if (!body) {
+    return true;
+  }
+  const normalized = body.trim().replace(/^[-*]\s+/, "");
+  return /^none\.?$/iu.test(normalized);
 };
 
 /** Returns a problem for each missing, reordered, unexpected, or empty section. */

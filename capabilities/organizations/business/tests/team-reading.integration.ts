@@ -5,11 +5,11 @@ import { assert, expect } from "vite-plus/test";
 
 import { recordAuditEvent } from "@merit/audit/server/record";
 import type { Database } from "@merit/db";
-import { createOrganizationService } from "@merit/organizations/server";
+import { createInlineOrganizationService } from "@merit/organizations/server/testing";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 
 const serviceFor = (db: Database) =>
-  createOrganizationService({
+  createInlineOrganizationService({
     revokeReviewAccess: async () => {},
     database: async (operation) => operation(db),
     isOperator: async () => false,
