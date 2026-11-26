@@ -107,10 +107,10 @@ const Example = () => {
 const meta = {
   title: "Patterns/Reference workspace",
   component: ReferenceWorkspace,
+  subcomponents: { ReferencePane, WorkPane, ReferenceSwitcher },
   tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   args: { children: null },
-  argTypes: { children: { control: false }, header: { control: false } },
 } satisfies Meta<typeof ReferenceWorkspace>;
 
 export default meta;

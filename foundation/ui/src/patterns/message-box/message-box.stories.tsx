@@ -11,17 +11,12 @@ const Example = ({
   initialValue = "",
   initialChips = [],
   isBusy = false,
+  isSendDisabled = false,
+  isLabelHidden = true,
   description,
   onSend,
   onStop,
-}: {
-  initialValue?: string;
-  initialChips?: readonly Chip[];
-  isBusy?: boolean;
-  description?: string;
-  onSend: (text: string) => void;
-  onStop: () => void;
-}) => {
+}: ExampleProps) => {
   const [value, setValue] = useState(initialValue);
   const [chips, setChips] = useState(initialChips);
 
@@ -29,7 +24,7 @@ const Example = ({
     <div className={styles.frame}>
       <MessageBox
         label="Message"
-        isLabelHidden
+        isLabelHidden={isLabelHidden}
         placeholder="Ask about this application"
         description={description}
         value={value}
@@ -40,6 +35,7 @@ const Example = ({
           setValue("");
         }}
         isBusy={isBusy}
+        isSendDisabled={isSendDisabled}
         stopLabel="Stop"
         onStop={onStop}
         chips={chips.map((chip) => ({
@@ -51,12 +47,64 @@ const Example = ({
   );
 };
 
+type ExampleProps = {
+  initialValue?: string;
+  initialChips?: readonly Chip[];
+  isBusy?: boolean;
+  isSendDisabled?: boolean;
+  isLabelHidden?: boolean;
+  description?: string;
+  onSend: (text: string) => void;
+  onStop: () => void;
+};
+
+type MessageBoxStoryArgs = React.ComponentProps<typeof MessageBox> & ExampleProps;
+
 const meta = {
   title: "Patterns/Message box",
-  component: Example,
+  component: MessageBox,
   tags: ["!autodocs"],
-  args: { onSend: fn(), onStop: fn() },
-} satisfies Meta<typeof Example>;
+  args: {
+    label: "Message",
+    value: "",
+    onChange: fn(),
+    sendLabel: "Send message",
+    stopLabel: "Stop",
+    onSend: fn(),
+    onStop: fn(),
+  },
+  argTypes: {
+    label: { control: false },
+    value: { control: false },
+    onChange: { control: false },
+    sendLabel: { control: false },
+    stopLabel: { control: false },
+    chips: { control: false },
+    initialValue: { control: false },
+    initialChips: { control: false },
+  },
+  render: ({
+    initialValue,
+    initialChips,
+    isBusy,
+    isSendDisabled,
+    isLabelHidden,
+    description,
+    onSend,
+    onStop,
+  }) => (
+    <Example
+      initialValue={initialValue}
+      initialChips={initialChips}
+      isBusy={isBusy}
+      isSendDisabled={isSendDisabled}
+      isLabelHidden={isLabelHidden}
+      description={description}
+      onSend={onSend}
+      onStop={onStop}
+    />
+  ),
+} satisfies Meta<MessageBoxStoryArgs>;
 
 export default meta;
 

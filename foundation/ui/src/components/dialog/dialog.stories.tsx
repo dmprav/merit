@@ -48,7 +48,18 @@ const guidanceWithActions = ({ close }: { close: () => void }) => (
 const meta = {
   title: "Components/Dialog",
   component: ModalDialog,
+  subcomponents: {
+    SidePanel: SidePanelFrame,
+    PopoverDialog,
+    PickerPopover,
+    DialogContent,
+    DialogSection,
+  },
   tags: ["!autodocs"],
+  argTypes: {
+    trigger: { control: false },
+    children: { control: false },
+  },
   args: {
     title: "Review guidance",
     closeLabel: "Close dialog",

@@ -1,21 +1,41 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
+import { expect, fn } from "storybook/test";
 
+import { ActionMenu } from "../../components/action-menu/action-menu";
 import { Badge } from "../../components/badge/badge";
 import { Button } from "../../components/button/button";
 import {
   DescriptionList,
   DescriptionListItem,
 } from "../../components/description-list/description-list";
+import { Icon } from "../../components/icon/icon";
+import { Reading, Stack } from "../../components/layout/layout";
 import { Notice } from "../../components/notice/notice";
+import { ApplicationPage } from "../application-shell/application-shell";
 import { ConfirmationDialog } from "../confirmation-dialog/confirmation-dialog";
 import { PageHeader } from "../page-header/page-header";
 import { SectionHeader } from "../section-header/section-header";
 import styles from "./page-composition.stories.module.css";
+import { PropertiesLayout } from "./properties-layout";
+
+type PageLayoutArgs = {
+  width?: "standard" | "full";
+  density?: "comfortable" | "compact";
+  title?: string;
+  stackedPlacement?: "before" | "after";
+};
+
+type PageCompositionStoryArgs = React.ComponentProps<typeof PageHeader> &
+  Omit<PageLayoutArgs, "title">;
 
 const meta = {
   title: "Patterns/Page composition",
+  component: PageHeader,
+  subcomponents: { SectionHeader, PropertiesLayout },
   tags: ["!autodocs"],
+  parameters: { controls: { disable: true } },
+  args: { title: "Local Connections" },
   render: () => (
     <div className={styles.preview}>
       <PageHeader
@@ -41,13 +61,15 @@ const meta = {
       </div>
     </div>
   ),
-} satisfies Meta;
+} satisfies Meta<PageCompositionStoryArgs>;
 
 export default meta;
 
-export const Overview: StoryObj<typeof meta> = {};
+type Story = StoryObj<PageCompositionStoryArgs>;
 
-export const SectionHeaders: StoryObj<typeof meta> = {
+export const Overview: Story = {};
+
+export const SectionHeaders: Story = {
   render: () => (
     <div className={styles.preview}>
       <PageHeader title="Section headers" />
@@ -82,6 +104,117 @@ export const SectionHeaders: StoryObj<typeof meta> = {
       </section>
     </div>
   ),
+};
+
+const renderPageLayout = ({
+  width = "standard",
+  density = "comfortable",
+  title = "Local Connections",
+}: PageCompositionStoryArgs) => (
+  <ApplicationPage
+    width={width}
+    locationKey="round"
+    breadcrumb={[
+      <a key="rounds" href="#purpose">
+        Funding rounds
+      </a>,
+      title,
+    ]}
+    breadcrumbLabel="Breadcrumb"
+  >
+    <PageHeader
+      title={title}
+      density={density}
+      kicker="Funding round"
+      status={<Badge>In preparation</Badge>}
+      description="Prepare the evidence and recommendations for committee."
+      actions={
+        <>
+          <Button variant="secondary">Review round</Button>
+          <ActionMenu
+            label="More actions"
+            trigger={
+              <Button variant="quiet" iconOnly aria-label="More actions">
+                <Icon name="more" />
+              </Button>
+            }
+            items={[{ id: "export", label: "Export summary", icon: "arrow" }]}
+            onAction={fn()}
+          />
+        </>
+      }
+    />
+    <Stack gap={7}>
+      <section aria-labelledby="purpose">
+        <SectionHeader id="purpose" title="Purpose" />
+        <Reading as="p">
+          Support local projects that bring neighbours together and make community spaces more
+          accessible. Read each proposal alongside its supporting evidence before preparing a
+          recommendation, keeping the applicant’s account distinct from reviewer judgments.
+        </Reading>
+      </section>
+      <section aria-labelledby="applications">
+        <SectionHeader id="applications" title="Applications" count={3} />
+        <Notice tone="warning">
+          One application has changed since review. Compare the revised evidence before recording a
+          recommendation.
+        </Notice>
+      </section>
+    </Stack>
+  </ApplicationPage>
+);
+
+const pageLayoutStory = (args: PageLayoutArgs): Story => ({
+  parameters: { layout: "fullscreen", controls: { disable: false } },
+  args: { width: "standard", density: "comfortable", title: "Local Connections", ...args },
+  argTypes: {
+    width: { control: "radio", options: ["standard", "full"] },
+    density: { control: "radio", options: ["comfortable", "compact"] },
+    stackedPlacement: { control: false },
+  },
+  render: renderPageLayout,
+});
+
+export const Standard: Story = pageLayoutStory({});
+export const FullWidth: Story = pageLayoutStory({ width: "full" });
+export const Compact: Story = pageLayoutStory({ density: "compact" });
+export const LongTitle: Story = pageLayoutStory({
+  title: "Community partnerships for arts, education and neighbourhood development",
+});
+
+const renderPropertiesLayout = ({ stackedPlacement = "before" }: PageCompositionStoryArgs) => (
+  <PropertiesLayout
+    propertiesLabel="Round properties"
+    stackedPlacement={stackedPlacement}
+    properties={
+      <DescriptionList layout="rows">
+        <DescriptionListItem label="Budget">£120,000</DescriptionListItem>
+        <DescriptionListItem label="Committee">14 March 2027</DescriptionListItem>
+      </DescriptionList>
+    }
+  >
+    <Reading as="p">
+      Support local projects that bring neighbours together and make community spaces more
+      accessible.
+    </Reading>
+  </PropertiesLayout>
+);
+
+export const PropertiesFirstWhenStacked: Story = {
+  render: renderPropertiesLayout,
+  play: async ({ canvas }) => {
+    const panel = canvas.getByRole("complementary", { name: "Round properties" });
+    await expect(panel.nextElementSibling).toHaveTextContent("Support local projects");
+  },
+};
+
+export const PropertiesLastWhenStacked: Story = {
+  args: { stackedPlacement: "after" },
+  render: renderPropertiesLayout,
+  play: async ({ canvas }) => {
+    const panel = canvas.getByRole("complementary", { name: "Round properties" });
+    await expect(panel.previousElementSibling).toHaveTextContent("Support local projects");
+  },
 };
 
 const AwardAmendmentExample = () => {
@@ -166,7 +299,7 @@ const AwardAmendmentExample = () => {
   );
 };
 
-export const AwardAmendment: StoryObj<typeof meta> = {
+export const AwardAmendment: Story = {
   render: () => <AwardAmendmentExample />,
   parameters: {
     docs: {

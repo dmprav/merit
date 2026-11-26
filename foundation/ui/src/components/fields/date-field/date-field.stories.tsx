@@ -25,6 +25,7 @@ const EditableDate = (props: ComponentProps<typeof DateField>) => {
 const meta = {
   title: "Components/Date field",
   component: DateField,
+  tags: ["!autodocs"],
   args: { label: "Committee date", value: "2027-01-21", onChange: fn() },
   decorators: [
     (Story) => (

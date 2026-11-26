@@ -16,6 +16,7 @@ import styles from "./panel-section.stories.module.css";
 const meta = {
   title: "Patterns/Panel section",
   component: PanelSection,
+  subcomponents: { PanelSections },
   tags: ["!autodocs"],
   args: { title: "Application details" },
   decorators: [
@@ -32,6 +33,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const SidePanel: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <PanelSections>
       <PanelSection

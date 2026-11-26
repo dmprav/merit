@@ -9,7 +9,10 @@ import { Timeline, TimelineEntry } from "./timeline";
 const meta = {
   title: "Patterns/Timeline",
   component: Timeline,
+  subcomponents: { TimelineEntry },
   args: { children: null },
+  argTypes: { children: { control: false } },
+  parameters: { controls: { disable: true } },
   decorators: [
     (Story) => (
       <MessagesProvider messages={{}}>
@@ -17,14 +20,6 @@ const meta = {
       </MessagesProvider>
     ),
   ],
-  parameters: {
-    docs: {
-      description: {
-        component:
-          "Timeline lists recorded events beside a shared rail, in the order the feature chooses. Each entry has a title and an Attribution, followed by any reason or change.",
-      },
-    },
-  },
 } satisfies Meta<typeof Timeline>;
 
 export default meta;

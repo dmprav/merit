@@ -1,4 +1,4 @@
-import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import { ArgTypes, Canvas, Meta } from "@storybook/addon-docs/blocks";
 import * as FormDialogs from "./form-dialog.stories";
 
 <Meta of={FormDialogs} />
@@ -73,3 +73,7 @@ These examples use the public form pattern. Feature stories should render their
 real feature flow and replace transport, persistence, or navigation with isolated
 fixtures. Close, Discard, validation, and pending behavior remain live interactions
 rather than preview-only substitutes.
+
+## API
+
+<ArgTypes of={FormDialogs} />

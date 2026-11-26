@@ -8,7 +8,10 @@ import styles from "./conversation.stories.module.css";
 const meta = {
   title: "Patterns/Conversation",
   component: Conversation,
+  subcomponents: { ConversationMessage, ConversationAction },
+  tags: ["!autodocs"],
   args: { label: "Conversation", children: null },
+  argTypes: { children: { control: false }, followKey: { control: false } },
   decorators: [
     (Story) => (
       <div className={styles.frame}>

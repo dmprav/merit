@@ -15,7 +15,6 @@ sb.mock(
 sb.mock(
   "../../../interfaces/admin/src/features/access-requests/data/server/access-requests.functions.ts",
 );
-sb.mock("../../../interfaces/product/src/features/navigation/data/server/navigation.functions.ts");
 sb.mock("../../../interfaces/product/src/features/team/data/server/team.functions.ts");
 sb.mock("../../../interfaces/product/src/features/demo/data/server/demo.functions.ts");
 sb.mock("../../../interfaces/product/src/features/workspace/data/server/organization.functions.ts");
@@ -34,9 +33,6 @@ sb.mock(
 );
 sb.mock(
   "../../../interfaces/product/src/features/grantmaking/data/server/intake/intake.functions.ts",
-);
-sb.mock(
-  "../../../interfaces/product/src/features/grantmaking/data/server/recommendations/recommendations.functions.ts",
 );
 sb.mock(
   "../../../interfaces/product/src/features/grantmaking/data/server/reviews/reviews.functions.ts",

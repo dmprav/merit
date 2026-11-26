@@ -6,17 +6,11 @@ import { CollectionFilter, CollectionToolbar } from "./collection-toolbar";
 
 const Preview = ({
   initialQuery = "",
-  filterLabel = "Ready",
+  readyLabel = "Ready",
   initialFilter = "all",
   withSearch = true,
   multipleFilters = false,
-}: {
-  initialQuery?: string;
-  filterLabel?: string;
-  initialFilter?: string;
-  withSearch?: boolean;
-  multipleFilters?: boolean;
-}) => {
+}: PreviewProps) => {
   const [query, setQuery] = useState(initialQuery);
   const [filter, setFilter] = useState(initialFilter);
   const [round, setRound] = useState("all");
@@ -32,7 +26,7 @@ const Preview = ({
             onSelectionChange={setFilter}
             items={[
               { id: "all", label: "All projects" },
-              { id: "ready", label: filterLabel },
+              { id: "ready", label: readyLabel },
             ]}
           />
           {multipleFilters && (
@@ -54,8 +48,8 @@ const Preview = ({
           : [
               {
                 id: filter,
-                label: filterLabel,
-                removeLabel: `Remove ${filterLabel} filter`,
+                label: readyLabel,
+                removeLabel: `Remove ${readyLabel} filter`,
                 onRemove: () => setFilter("all"),
               },
             ]),
@@ -94,9 +88,33 @@ const Preview = ({
   );
 };
 
-const meta = { title: "Patterns/Collection toolbar", component: Preview } satisfies Meta<
-  typeof Preview
->;
+type PreviewProps = {
+  initialQuery?: string;
+  readyLabel?: string;
+  initialFilter?: string;
+  withSearch?: boolean;
+  multipleFilters?: boolean;
+};
+
+type StoryArgs = React.ComponentProps<typeof CollectionToolbar> & PreviewProps;
+
+const meta = {
+  title: "Patterns/Collection toolbar",
+  component: CollectionToolbar,
+  subcomponents: { CollectionFilter },
+  tags: ["!autodocs"],
+  parameters: { controls: { disable: true } },
+  args: { filterLabel: "Filter", filterTitle: "Filter projects", filters: null },
+  render: ({ initialQuery, readyLabel, initialFilter, withSearch, multipleFilters }) => (
+    <Preview
+      initialQuery={initialQuery}
+      readyLabel={readyLabel}
+      initialFilter={initialFilter}
+      withSearch={withSearch}
+      multipleFilters={multipleFilters}
+    />
+  ),
+} satisfies Meta<StoryArgs>;
 
 export default meta;
 
@@ -140,7 +158,7 @@ export const WithoutSearch: Story = {
 export const LongValues: Story = {
   args: {
     initialFilter: "ready",
-    filterLabel: "Ready for a recommendation meeting with the community advisory group",
+    readyLabel: "Ready for a recommendation meeting with the community advisory group",
     initialQuery: "Community support for neighbourhood organisations and long-term collaboration",
   },
 };

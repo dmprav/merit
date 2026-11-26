@@ -1,6 +1,5 @@
-import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import { ArgTypes, Canvas, Meta } from "@storybook/addon-docs/blocks";
 import * as Editing from "./editing.stories";
-import * as PropertyButtons from "./property-button.stories";
 
 <Meta of={Editing} />
 
@@ -39,8 +38,8 @@ It owns wrapping, typography, spacing, and the visible cue. Use `PersonIdentity`
 inside it for a person and `draftLabel` for retained unsaved changes. Keep these
 controls aligned with other property values; feature CSS arranges their container.
 
-<Canvas of={PropertyButtons.Person} />
-<Canvas of={PropertyButtons.LongName} />
+<Canvas of={Editing.PropertyButtonPerson} />
+<Canvas of={Editing.PropertyButtonLongName} />
 
 Use `InlineName` for a short name and `DateChoice` for a calendar date. `DateChoice`
 composes the shared [date field](?path=/docs/components-date-field--docs) and calendar,
@@ -128,3 +127,7 @@ records. If access ends while someone is writing, give them a way to copy their
 draft. A successful save followed by a failed refresh calls for refreshing the
 view. The [feedback pattern](?path=/docs/patterns-feedback--docs) shows the
 different recovery actions.
+
+## API
+
+<ArgTypes of={Editing} />

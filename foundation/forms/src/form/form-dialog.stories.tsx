@@ -122,12 +122,36 @@ const FormDialogExample = ({
   );
 };
 
+type FormDialogStoryArgs = React.ComponentProps<typeof FormDialog> & {
+  long?: boolean;
+  withPopups?: boolean;
+  outcome?: "success" | "pending" | "failure";
+  preparing?: boolean;
+};
+
 const meta = {
   title: "Patterns/Form dialog",
-  component: FormDialogExample,
+  component: FormDialog,
+  subcomponents: { Form, FormActions },
   tags: ["!autodocs"],
   parameters: { layout: "fullscreen" },
-} satisfies Meta<typeof FormDialogExample>;
+  args: { title: "Write a note", children: null },
+  argTypes: {
+    title: { control: false },
+    children: { control: false },
+    trigger: { control: false },
+    outcome: { control: "radio", options: ["success", "pending", "failure"] },
+  },
+  render: ({ context, long, withPopups, outcome, preparing }) => (
+    <FormDialogExample
+      context={context}
+      long={long}
+      withPopups={withPopups}
+      outcome={outcome}
+      preparing={preparing}
+    />
+  ),
+} satisfies Meta<FormDialogStoryArgs>;
 
 export default meta;
 

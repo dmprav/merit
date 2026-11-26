@@ -9,14 +9,7 @@ const meta = {
   title: "Components/Panel",
   component: Panel,
   args: { children: null },
-  parameters: {
-    docs: {
-      description: {
-        component:
-          "Panel groups related content or fields apart from the surrounding page with a border. As a fieldset, its legend sits on the border. Arrange the content inside with Stack.",
-      },
-    },
-  },
+  parameters: { controls: { disable: true } },
 } satisfies Meta<typeof Panel>;
 
 export default meta;
