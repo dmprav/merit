@@ -220,7 +220,8 @@ to about two minutes. The result is the saved review, or:
 | `not_found`                         | The application does not exist for you, or you do not work on grants in the workspace.                  |
 
 A review has `claims` with `citations` (a `source` of `title`, `applicant`,
-`requested` or a submission question ID, and a verbatim `quote`), `gaps`,
+`requested`, `projectPeriod`, `submittedOn` or a submission question ID, and a
+verbatim `quote`), `gaps`,
 `strengths`, `weaknesses` and `concerns` for each criterion; `questions` for the
 applicant; `reasoning`; and a `position` and `amount` as in an assessment. Treat
 it as Merit AI's interpretation, never as application material or an

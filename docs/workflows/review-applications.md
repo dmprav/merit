@@ -107,10 +107,10 @@ status, and never changes round allocation or budget totals. It contains:
   Decline state zero. There are no numeric scores and no ranking.
 
 Merit AI receives only the application's current material version (title,
-applicant, requested amount, project period and submitted answers) and the round's
+applicant, requested amount, project period, submitted date and submitted answers) and the round's
 criteria. It never receives assessments, recommendations, staff summaries or
-manager notes, contacts, or other applications. Every quotation must appear in the
-field it cites; a review with an unverifiable citation is rejected.
+manager notes, contacts, or other applications. Each of those fields can be cited,
+and every quotation must appear in the field it cites; a review with an unverifiable citation is rejected.
 
 Runs happen only on request through the web or the `run_ai_review` MCP tool,
 and only when all of these hold. Otherwise the application page explains why and the

@@ -102,6 +102,8 @@ it("accepts verbatim quotes after collapsing whitespace and ignoring case", () =
               { source: "title", quote: "workshop saturdays" },
               { source: "applicant", quote: "Repair Collective" },
               { source: "requested", quote: "22000.00 EUR" },
+              { source: "projectPeriod", quote: "april–september 2027" },
+              { source: "submittedOn", quote: "2027-03-02" },
             ],
           },
         ],
@@ -109,7 +111,11 @@ it("accepts verbatim quotes after collapsing whitespace and ignoring case", () =
       section(second),
     ],
   };
-  expect(verifyAiReviewOutput(input, reply)).toMatchObject({ ok: true });
+  const dated = aiReviewInput(
+    { ...material, submission: { ...material.submission, submittedOn: "2027-03-02" } },
+    criteria,
+  );
+  expect(verifyAiReviewOutput(dated, reply)).toMatchObject({ ok: true });
 });
 
 it.each([
@@ -125,6 +131,32 @@ it.each([
     ],
   };
   expect(verifyAiReviewOutput(input, reply)).toEqual({ ok: false, error: "unverifiable_citation" });
+});
+
+it.each([
+  ["requested", "EUR"],
+  ["submittedOn", "2027"],
+  ["projectPeriod", "2027"],
+])("cannot cite %s when the application does not state it", (source, quote) => {
+  const unstated = aiReviewInput(
+    {
+      ...material,
+      requested: null,
+      submission: { ...material.submission, projectPeriod: undefined },
+    },
+    criteria,
+  );
+  const reply = {
+    ...output,
+    criteria: [
+      { ...section(first), claims: [{ text: "Claim", citations: [{ source, quote }] }] },
+      section(second),
+    ],
+  };
+  expect(verifyAiReviewOutput(unstated, reply)).toEqual({
+    ok: false,
+    error: "unverifiable_citation",
+  });
 });
 
 it("cannot cite a requested amount the application does not state", () => {
