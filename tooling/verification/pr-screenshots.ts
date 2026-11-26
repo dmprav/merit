@@ -11,11 +11,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, posix, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
-import { normalizeRepoPath, parseCliArgs, parseWholeNumber } from "../cli.ts";
+import { errorMessage, normalizeRepoPath, parseCliArgs, parseWholeNumber } from "../cli.ts";
+import { REPO_ROOT } from "../paths.ts";
 import { parseNameStatusZ } from "./verification-record.ts";
 
 export const SCREENSHOT_BRANCH = "ci/pr-screenshots";
@@ -102,6 +102,75 @@ export type SelectedStory = {
   storyFile: string;
 };
 
+/** Groups Storybook stories by the repository path of the file that defines them. */
+const groupStoriesByFile = (
+  indexEntries: Readonly<Record<string, StorybookIndexEntry>>,
+): Map<string, SelectedStory[]> => {
+  const storiesByFile = new Map<string, SelectedStory[]>();
+  for (const entry of Object.values(indexEntries)) {
+    if (entry.type !== "story" || !entry.importPath) {
+      continue;
+    }
+    const storyFile = resolveStoryImportPath(entry.importPath);
+    const list = storiesByFile.get(storyFile) ?? [];
+    list.push({ id: entry.id, title: entry.title, name: entry.name, storyFile });
+    storiesByFile.set(storyFile, list);
+  }
+  return storiesByFile;
+};
+
+/** Story files in the nearest directory, up to the source root, that holds any story file. */
+const nearestSiblingStoryFiles = (
+  filePath: string,
+  storiesByDir: ReadonlyMap<string, readonly string[]>,
+): readonly string[] => {
+  for (const dir of parentDirectoriesWithinSrc(filePath)) {
+    const siblingStories = storiesByDir.get(dir);
+    if (siblingStories && siblingStories.length > 0) {
+      return siblingStories;
+    }
+  }
+  return [];
+};
+
+/** Story files a change affects: changed story files, then story files beside changed UI sources. */
+const matchStoryFiles = (
+  uiChanged: readonly string[],
+  storyFiles: readonly string[],
+): Set<string> => {
+  const matchedFiles = new Set(
+    uiChanged.filter((path) => path.endsWith(".stories.tsx") && storyFiles.includes(path)),
+  );
+
+  const storiesByDir = new Map<string, string[]>();
+  for (const storyFile of storyFiles) {
+    const dir = posix.dirname(storyFile);
+    storiesByDir.set(dir, [...(storiesByDir.get(dir) ?? []), storyFile]);
+  }
+
+  for (const filePath of uiChanged.filter((path) => !path.endsWith(".stories.tsx"))) {
+    for (const storyFile of nearestSiblingStoryFiles(filePath, storiesByDir)) {
+      matchedFiles.add(storyFile);
+    }
+  }
+  return matchedFiles;
+};
+
+/** Takes one story from each queue in turn until `max` are taken or every queue is empty. */
+const takeRoundRobin = <T>(queues: readonly T[][], max: number): T[] => {
+  const taken: T[] = [];
+  const longest = Math.max(0, ...queues.map((queue) => queue.length));
+  for (let round = 0; round < longest; round += 1) {
+    for (const queue of queues) {
+      const next = queue[round];
+      if (next && taken.length < max) {
+        taken.push(next);
+      }
+    }
+  }
+  return taken;
+};
+
 /**
  * Selects affected desktop Storybook stories for changed PR paths:
  * 1. Directly changed `*.stories.tsx` files
@@ -124,77 +193,11 @@ export const selectStoriesForPr = ({
     return { selected: [], omittedCount: 0 };
   }
 
-  const storiesByFile = new Map<string, SelectedStory[]>();
-  for (const entry of Object.values(indexEntries)) {
-    if (entry.type !== "story" || !entry.importPath) {
-      continue;
-    }
-    const storyFile = resolveStoryImportPath(entry.importPath);
-    const list = storiesByFile.get(storyFile) ?? [];
-    list.push({
-      id: entry.id,
-      title: entry.title,
-      name: entry.name,
-      storyFile,
-    });
-    storiesByFile.set(storyFile, list);
-  }
-
-  const matchedFiles = new Set<string>();
-  const changedStoryFiles = uiChanged.filter((p) => p.endsWith(".stories.tsx"));
-  for (const storyFile of changedStoryFiles) {
-    if (storiesByFile.has(storyFile)) {
-      matchedFiles.add(storyFile);
-    }
-  }
-
-  const storiesByDir = new Map<string, string[]>();
-  for (const storyFile of storiesByFile.keys()) {
-    const dir = posix.dirname(storyFile);
-    const existing = storiesByDir.get(dir) ?? [];
-    existing.push(storyFile);
-    storiesByDir.set(dir, existing);
-  }
-
-  const nonStoryUiFiles = uiChanged.filter((p) => !p.endsWith(".stories.tsx"));
-  for (const filePath of nonStoryUiFiles) {
-    for (const dir of parentDirectoriesWithinSrc(filePath)) {
-      const siblingStories = storiesByDir.get(dir);
-      if (siblingStories && siblingStories.length > 0) {
-        for (const storyFile of siblingStories) {
-          matchedFiles.add(storyFile);
-        }
-        break;
-      }
-    }
-  }
-
-  const orderedFiles = [...matchedFiles].sort();
-  if (orderedFiles.length === 0) {
-    return { selected: [], omittedCount: 0 };
-  }
-
-  const queues = orderedFiles.map((file) => [...(storiesByFile.get(file) ?? [])]);
-  const totalAvailable = queues.reduce((sum, q) => sum + q.length, 0);
-  const selected: SelectedStory[] = [];
-
-  while (selected.length < maxStories) {
-    let progressed = false;
-    for (const queue of queues) {
-      const next = queue.shift();
-      if (next) {
-        selected.push(next);
-        progressed = true;
-        if (selected.length >= maxStories) {
-          break;
-        }
-      }
-    }
-    if (!progressed) {
-      break;
-    }
-  }
-
+  const storiesByFile = groupStoriesByFile(indexEntries);
+  const orderedFiles = [...matchStoryFiles(uiChanged, [...storiesByFile.keys()])].sort();
+  const queues = orderedFiles.map((file) => storiesByFile.get(file) ?? []);
+  const totalAvailable = queues.reduce((sum, queue) => sum + queue.length, 0);
+  const selected = takeRoundRobin(queues, maxStories);
   return { selected, omittedCount: Math.max(0, totalAvailable - selected.length) };
 };
 
@@ -301,6 +304,97 @@ const inspectRemoteBranchSha = (
 };
 
 /**
+ * Runs `attempt` in a fresh temporary directory, up to MAX_PUSH_RETRIES times, until it returns.
+ * An attempt throws when its leased push is rejected, so the next one re-reads the branch.
+ */
+const retryLeasedPush = <T>(
+  tempPrefix: string,
+  attempt: (workDir: string, attemptNumber: number) => T,
+  failure: string,
+): T => {
+  let lastError: unknown;
+  for (let attemptNumber = 1; attemptNumber <= MAX_PUSH_RETRIES; attemptNumber += 1) {
+    const workDir = mkdtempSync(join(tmpdir(), tempPrefix));
+    try {
+      return attempt(workDir, attemptNumber);
+    } catch (error) {
+      lastError = error;
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  }
+  throw new Error(`${failure}: ${errorMessage(lastError)}`);
+};
+
+type RemoteBranch = {
+  existingDir: string;
+  remoteSha: string | null;
+  authEnv: Record<string, string> | undefined;
+};
+
+/** Checks out the branch's current tip, when it exists, and returns its SHA for the push lease. */
+const checkoutRemoteBranch = (
+  workDir: string,
+  remoteUrl: string,
+  branch: string,
+  token: string | undefined,
+): RemoteBranch => {
+  const existingDir = join(workDir, "existing");
+  const authEnv = createGitAuthEnv(workDir, token);
+  runGit(workDir, ["init", "--quiet", existingDir]);
+  runGit(existingDir, ["remote", "add", "origin", remoteUrl]);
+
+  const remoteSha = inspectRemoteBranchSha(existingDir, remoteUrl, branch, authEnv);
+  if (remoteSha) {
+    runGit(existingDir, ["fetch", "--depth=1", "origin", remoteSha], authEnv);
+    runGit(existingDir, ["checkout", "--quiet", "FETCH_HEAD"]);
+  }
+  return { existingDir, remoteSha, authEnv };
+};
+
+/** Starts a new orphan `branch` that carries over every other pull request's screenshots. */
+const startOrphanBranch = (
+  workDir: string,
+  remoteUrl: string,
+  branch: string,
+  remote: RemoteBranch,
+  prDirName: string,
+): string => {
+  const nextDir = join(workDir, "next");
+  runGit(workDir, ["init", "--quiet", nextDir]);
+  configureBotGit(nextDir);
+  runGit(nextDir, ["remote", "add", "origin", remoteUrl]);
+  runGit(nextDir, ["checkout", "--quiet", "--orphan", branch]);
+  if (remote.remoteSha) {
+    copyOtherPrDirs(remote.existingDir, nextDir, prDirName);
+  }
+  return nextDir;
+};
+
+const commitAll = (cwd: string, message: string) => {
+  runGit(cwd, ["add", "."]);
+  runGit(cwd, ["commit", "--quiet", "-m", message]);
+};
+
+/** Pushes `source` (empty to delete) to `branch` only if the branch still points at `remote.remoteSha`. */
+const pushWithLease = (
+  nextDir: string,
+  branch: string,
+  remote: RemoteBranch,
+  source: "HEAD" | "",
+): boolean =>
+  tryGit(
+    nextDir,
+    [
+      "push",
+      `--force-with-lease=refs/heads/${branch}:${remote.remoteSha ?? ""}`,
+      "origin",
+      `${source}:refs/heads/${branch}`,
+    ],
+    remote.authEnv,
+  );
+
+/**
  * Publishes `pr-<prNumber>/*.png` to a single squashed orphan commit on `branch`
  * so PNG history never accumulates across pushes while preserving other open PRs' directories.
  * Uses `--force-with-lease` against the observed remote SHA so concurrent PR jobs retry cleanly.
@@ -319,31 +413,11 @@ export const publishScreenshotsToOrphanBranch = ({
   token?: string;
 }): { commitSha: string } => {
   const prDirName = `pr-${prNumber}`;
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= MAX_PUSH_RETRIES; attempt += 1) {
-    const workDir = mkdtempSync(join(tmpdir(), "merit-pr-shots-"));
-    const existingDir = join(workDir, "existing");
-    const nextDir = join(workDir, "next");
-    try {
-      const authEnv = createGitAuthEnv(workDir, token);
-      runGit(workDir, ["init", "--quiet", existingDir]);
-      runGit(existingDir, ["remote", "add", "origin", remoteUrl]);
-
-      const remoteSha = inspectRemoteBranchSha(existingDir, remoteUrl, branch, authEnv);
-      if (remoteSha) {
-        runGit(existingDir, ["fetch", "--depth=1", "origin", remoteSha], authEnv);
-        runGit(existingDir, ["checkout", "--quiet", "FETCH_HEAD"]);
-      }
-
-      runGit(workDir, ["init", "--quiet", nextDir]);
-      configureBotGit(nextDir);
-      runGit(nextDir, ["remote", "add", "origin", remoteUrl]);
-      runGit(nextDir, ["checkout", "--quiet", "--orphan", branch]);
-
-      if (remoteSha) {
-        copyOtherPrDirs(existingDir, nextDir, prDirName);
-      }
+  return retryLeasedPush(
+    "merit-pr-shots-",
+    (workDir, attempt) => {
+      const remote = checkoutRemoteBranch(workDir, remoteUrl, branch, token);
+      const nextDir = startOrphanBranch(workDir, remoteUrl, branch, remote, prDirName);
 
       const targetPrDir = join(nextDir, prDirName);
       rmSync(targetPrDir, { recursive: true, force: true });
@@ -351,29 +425,14 @@ export const publishScreenshotsToOrphanBranch = ({
         cpSync(file.sourcePath, join(targetPrDir, file.filename), { force: true });
       }
 
-      runGit(nextDir, ["add", "."]);
-      runGit(nextDir, ["commit", "--quiet", "-m", `chore(ci): update PR #${prNumber} screenshots`]);
+      commitAll(nextDir, `chore(ci): update PR #${prNumber} screenshots`);
       const commitSha = runGit(nextDir, ["rev-parse", "HEAD"]).trim();
-      const lease = `refs/heads/${branch}:${remoteSha ?? ""}`;
-      if (
-        tryGit(
-          nextDir,
-          ["push", `--force-with-lease=${lease}`, "origin", `HEAD:refs/heads/${branch}`],
-          authEnv,
-        )
-      ) {
+      if (pushWithLease(nextDir, branch, remote, "HEAD")) {
         return { commitSha };
       }
-      lastError = new Error(`Leased push rejected for ${branch} (attempt ${attempt}).`);
-    } catch (error) {
-      lastError = error;
-    } finally {
-      rmSync(workDir, { recursive: true, force: true });
-    }
-  }
-
-  throw new Error(
-    `Failed to push screenshots to ${branch} after ${MAX_PUSH_RETRIES} attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+      throw new Error(`Leased push rejected for ${branch} (attempt ${attempt}).`);
+    },
+    `Failed to push screenshots to ${branch} after ${MAX_PUSH_RETRIES} attempts`,
   );
 };
 
@@ -394,74 +453,26 @@ export const cleanupPrScreenshotsFromOrphanBranch = ({
   token?: string;
 }): { action: "noop" | "updated" | "deleted" } => {
   const prDirName = `pr-${prNumber}`;
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= MAX_PUSH_RETRIES; attempt += 1) {
-    const workDir = mkdtempSync(join(tmpdir(), "merit-pr-shots-clean-"));
-    const existingDir = join(workDir, "existing");
-    const nextDir = join(workDir, "next");
-    try {
-      const authEnv = createGitAuthEnv(workDir, token);
-      runGit(workDir, ["init", "--quiet", existingDir]);
-      runGit(existingDir, ["remote", "add", "origin", remoteUrl]);
-
-      const remoteSha = inspectRemoteBranchSha(existingDir, remoteUrl, branch, authEnv);
-      if (!remoteSha) {
-        return { action: "noop" };
-      }
-      runGit(existingDir, ["fetch", "--depth=1", "origin", remoteSha], authEnv);
-      runGit(existingDir, ["checkout", "--quiet", "FETCH_HEAD"]);
-
-      if (!existsSync(join(existingDir, prDirName))) {
+  return retryLeasedPush(
+    "merit-pr-shots-clean-",
+    (workDir, attempt): { action: "noop" | "updated" | "deleted" } => {
+      const remote = checkoutRemoteBranch(workDir, remoteUrl, branch, token);
+      if (!remote.remoteSha || !existsSync(join(remote.existingDir, prDirName))) {
         return { action: "noop" };
       }
 
-      runGit(workDir, ["init", "--quiet", nextDir]);
-      configureBotGit(nextDir);
-      runGit(nextDir, ["remote", "add", "origin", remoteUrl]);
-      runGit(nextDir, ["checkout", "--quiet", "--orphan", branch]);
-      copyOtherPrDirs(existingDir, nextDir, prDirName);
-
-      const lease = `refs/heads/${branch}:${remoteSha}`;
+      const nextDir = startOrphanBranch(workDir, remoteUrl, branch, remote, prDirName);
       const remaining = readdirSync(nextDir).filter((name) => name.startsWith("pr-"));
-      if (remaining.length === 0) {
-        if (
-          tryGit(
-            nextDir,
-            ["push", `--force-with-lease=${lease}`, "origin", `:refs/heads/${branch}`],
-            authEnv,
-          )
-        ) {
-          return { action: "deleted" };
-        }
-      } else {
-        runGit(nextDir, ["add", "."]);
-        runGit(nextDir, [
-          "commit",
-          "--quiet",
-          "-m",
-          `chore(ci): remove PR #${prNumber} screenshots`,
-        ]);
-        if (
-          tryGit(
-            nextDir,
-            ["push", `--force-with-lease=${lease}`, "origin", `HEAD:refs/heads/${branch}`],
-            authEnv,
-          )
-        ) {
-          return { action: "updated" };
-        }
+      if (remaining.length > 0) {
+        commitAll(nextDir, `chore(ci): remove PR #${prNumber} screenshots`);
       }
-      lastError = new Error(`Leased cleanup push rejected for ${branch} (attempt ${attempt}).`);
-    } catch (error) {
-      lastError = error;
-    } finally {
-      rmSync(workDir, { recursive: true, force: true });
-    }
-  }
-
-  throw new Error(
-    `Failed to clean screenshots for PR #${prNumber} on ${branch}: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+      const action = remaining.length === 0 ? "deleted" : "updated";
+      if (pushWithLease(nextDir, branch, remote, action === "deleted" ? "" : "HEAD")) {
+        return { action };
+      }
+      throw new Error(`Leased cleanup push rejected for ${branch} (attempt ${attempt}).`);
+    },
+    `Failed to clean screenshots for PR #${prNumber} on ${branch}`,
   );
 };
 
@@ -705,18 +716,17 @@ const runCleanupCli = (repoRoot: string, args: readonly string[]) => {
 };
 
 const runCli = () => {
-  const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
   const [command, ...rest] = process.argv.slice(2);
   if (command === "select") {
-    runSelectCli(repoRoot, rest);
+    runSelectCli(REPO_ROOT, rest);
     return;
   }
   if (command === "publish") {
-    runPublishCli(repoRoot, rest);
+    runPublishCli(REPO_ROOT, rest);
     return;
   }
   if (command === "cleanup") {
-    runCleanupCli(repoRoot, rest);
+    runCleanupCli(REPO_ROOT, rest);
     return;
   }
   throw new Error(`Unknown command "${command ?? ""}". Expected select, publish, or cleanup.`);
