@@ -24,7 +24,19 @@ wake lost between commit and Temporal is recovered within a minute, because the 
 reconciliation Schedule wakes every running conversation. The worker reads `OPENAI_API_KEY` and
 `MERIT_AI_MODEL` like the server; with no model configured nothing runs. A worker that stops
 mid-turn leaves the turn running in PostgreSQL, and another worker resumes it once the stopped
-step's lease expires. Closing a request or browser tab never stops a turn; `stop` does.
+step's lease expires. Closing a request or browser tab never stops a turn; `stop` does. `stop`,
+`delete`, and withdrawn workspace consent also signal the conversation's workflow, which cancels
+the step in flight: the turn activity heartbeats every few seconds, receives the cancellation
+with the next heartbeat, and aborts the model request, so a stopped turn stops spending tokens
+and frees its slot within about ten seconds instead of at the provider timeout.
+
+An approved reviewer invitation uses the same `reviewer-message:<id>` workflow as the manager's
+own invitation. The conversation action stays `delivering`, and each step only asks where the
+message stands without waiting for it, so a slow email never holds one of the four turn slots.
+It records `succeeded` or `failed` once the message settles, up to about fifteen minutes after
+the first send fails. A message already recorded as failed is never sent again behind the
+assistant's own `retry` action, which resets that message to pending in its own transaction before
+its workflow delivers it again.
 
 In each workspace, read `settings` to show the configured provider and model to
 an organization administrator or owner. Send `set_consent` with `enabled: true`

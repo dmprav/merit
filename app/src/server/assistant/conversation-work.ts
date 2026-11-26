@@ -10,7 +10,11 @@ export type AssistantWork = {
 export type AssistantTiming = {
   /** The longest one step may run: it must exceed the 120 s model attempt and a delivery wait. */
   stepTimeoutMs: number;
-  /** A worker that stops reporting for this long is treated as dead, and the step as failed. */
+  /**
+   * A worker that stops reporting for this long is treated as dead, and the step as failed.
+   * Cancellation reaches the step with a heartbeat, so this also bounds how long a stopped
+   * model request keeps running.
+   */
   heartbeatTimeoutMs: number;
   /** First wait when nothing progressed; it doubles up to `idleMaxMs` and resets on progress. */
   idleInitialMs: number;
@@ -33,3 +37,10 @@ export const assistantConversationWorkflowId = (conversationId: string) =>
 
 /** The signal that tells a running conversation workflow to look at its conversation again. */
 export const assistantWakeSignal = "wake";
+
+/**
+ * The signal that tells a running conversation workflow to cancel the step in flight. Stop,
+ * delete and withdrawn consent send it from the web process, which cannot reach the model
+ * request the worker holds; the cancelled activity aborts it at its next heartbeat.
+ */
+export const assistantCancelSignal = "cancelTurn";

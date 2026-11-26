@@ -209,23 +209,20 @@ const it = roundTest
     const run = <T>(operation: (db: Database) => Promise<T>) => withDatabase(runtime, operation);
 
     const delivered: string[] = [];
+    const deliverInline = inlineReviewerDelivery(
+      reviewerMessageDelivery({
+        database: run,
+        invitationOrigin: "https://merit.test",
+        sendEmail: async ({ to }) => {
+          delivered.push(to);
+        },
+      }),
+    );
     const dependencies = {
       database: run,
       invitationOrigin: "https://merit.test",
-      sendEmail: async ({ to }: { to: string }) => {
-        delivered.push(to);
-      },
-      startReviewerMessage: inlineReviewerDelivery(
-        reviewerMessageDelivery({
-          database: run,
-          invitationOrigin: "https://merit.test",
-          sendEmail: async ({ to }) => {
-            delivered.push(to);
-          },
-        }),
-      ),
+      startReviewerMessage: deliverInline,
       startOrganizationInvitation: async () => true,
-      committedDeliveryWait: { timeoutMs: 0, intervalMs: 0 },
     };
     const model = { apiKey: "test", model: "scripted" };
     const driver = createAssistantRuntime(dependencies, model);
@@ -247,7 +244,11 @@ const it = roundTest
     });
 
     const host = createAssistantHost(
-      { ...dependencies, wakeConversation: background.wakeAssistantConversation },
+      {
+        ...dependencies,
+        wakeConversation: background.wakeAssistantConversation,
+        cancelConversation: background.cancelAssistantTurn,
+      },
       model,
     );
 
@@ -422,36 +423,100 @@ it(
   },
 );
 
-it("ends further work when the turn is stopped", { timeout: 30_000 }, async ({ scenario: s }) => {
-  const gate = deferred<Response>();
-  s.fetchModel.mockImplementationOnce(() => gate.promise).mockResolvedValue(answer("Late."));
-  const id = await s.create();
-  await s.begin(id, "Think.");
-  await vi.waitFor(() => expect(s.fetchModel).toHaveBeenCalledTimes(1));
-
-  expect((await s.command({ action: "stop", id })).status).toBe(200);
-  gate.resolve(answer("Too late."));
-
-  await s.closed(id);
-  const stopped = await s.open(id);
-  expect(stopped.status).toBe("stopped");
-  expect(stopped.messages.map((message) => message.text)).not.toContain("Too late.");
-  expect(s.fetchModel).toHaveBeenCalledTimes(1);
-});
+/** A model request that ends only when it is aborted, as a real request does. */
+const held =
+  (requests: Array<AbortSignal | null | undefined>) => (_url: unknown, init?: RequestInit) => {
+    requests.push(init?.signal);
+    return new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () =>
+        reject(new DOMException("Aborted", "AbortError")),
+      );
+    });
+  };
 
 it(
-  "stops work when workspace consent is withdrawn",
+  "aborts the in-flight model request when the turn is stopped",
   { timeout: 30_000 },
   async ({ scenario: s }) => {
-    const gate = deferred<Response>();
-    s.fetchModel.mockImplementationOnce(() => gate.promise).mockResolvedValue(answer("Late."));
+    const requests: Array<AbortSignal | null | undefined> = [];
+    s.fetchModel.mockImplementationOnce(held(requests)).mockResolvedValue(answer("Late."));
+    const id = await s.create();
+    await s.begin(id, "Think.");
+    await vi.waitFor(() => expect(s.fetchModel).toHaveBeenCalledTimes(1));
+    expect(requests[0]?.aborted).toBe(false);
+
+    expect((await s.command({ action: "stop", id })).status).toBe(200);
+
+    // The web process holds no request: the workflow cancels the activity, which aborts it.
+    await vi.waitFor(() => expect(requests[0]?.aborted).toBe(true), {
+      timeout: 15_000,
+      interval: 50,
+    });
+    await s.closed(id);
+    expect((await s.open(id)).status).toBe("stopped");
+    expect(s.fetchModel).toHaveBeenCalledTimes(1);
+  },
+);
+
+it(
+  "aborts the in-flight model request when the conversation is deleted",
+  { timeout: 30_000 },
+  async ({ scenario: s }) => {
+    const requests: Array<AbortSignal | null | undefined> = [];
+    s.fetchModel.mockImplementationOnce(held(requests)).mockResolvedValue(answer("Late."));
     const id = await s.create();
     await s.begin(id, "Think.");
     await vi.waitFor(() => expect(s.fetchModel).toHaveBeenCalledTimes(1));
 
-    expect((await s.command({ action: "set_consent", enabled: false }, s.admin)).status).toBe(200);
-    gate.resolve(answer("Too late."));
+    expect((await s.command({ action: "delete", id })).status).toBe(200);
 
+    await vi.waitFor(() => expect(requests[0]?.aborted).toBe(true), {
+      timeout: 15_000,
+      interval: 50,
+    });
+    await s.closed(id);
+  },
+);
+
+it(
+  "answers afresh and promptly when asked again after a stop",
+  { timeout: 30_000 },
+  async ({ scenario: s }) => {
+    const requests: Array<AbortSignal | null | undefined> = [];
+    s.fetchModel.mockImplementationOnce(held(requests)).mockResolvedValue(answer("Fresh."));
+    const id = await s.create();
+    await s.begin(id, "Think.");
+    await vi.waitFor(() => expect(s.fetchModel).toHaveBeenCalledTimes(1));
+    expect((await s.command({ action: "stop", id })).status).toBe(200);
+
+    const asked = Date.now();
+    await s.begin(id, "Again?");
+
+    expect((await s.settled(id)).messages.at(-1)?.text).toBe("Fresh.");
+    // Far below the 90 s a request would otherwise be held.
+    expect(Date.now() - asked).toBeLessThan(15_000);
+    expect(s.fetchModel).toHaveBeenCalledTimes(2);
+    await s.closed(id);
+  },
+);
+
+it(
+  "stops every member's running work when workspace consent is withdrawn",
+  { timeout: 30_000 },
+  async ({ scenario: s }) => {
+    const requests: Array<AbortSignal | null | undefined> = [];
+    s.fetchModel.mockImplementationOnce(held(requests)).mockResolvedValue(answer("Late."));
+    const id = await s.create();
+    await s.begin(id, "Think.");
+    await vi.waitFor(() => expect(s.fetchModel).toHaveBeenCalledTimes(1));
+
+    // The administrator, not the chat's owner, withdraws consent.
+    expect((await s.command({ action: "set_consent", enabled: false }, s.admin)).status).toBe(200);
+
+    await vi.waitFor(() => expect(requests[0]?.aborted).toBe(true), {
+      timeout: 15_000,
+      interval: 50,
+    });
     await s.closed(id);
     expect(s.fetchModel).toHaveBeenCalledTimes(1);
     expect(await s.driver.store.running(100)).toEqual([]);

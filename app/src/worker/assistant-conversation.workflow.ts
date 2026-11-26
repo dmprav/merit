@@ -1,4 +1,5 @@
 import {
+  CancellationScope,
   condition,
   continueAsNew,
   defineSignal,
@@ -15,7 +16,7 @@ import type { AssistantActivities } from "./assistant-activities.ts";
 
 const defaultTiming: AssistantTiming = {
   stepTimeoutMs: 20 * 60_000,
-  heartbeatTimeoutMs: 30_000,
+  heartbeatTimeoutMs: 10_000,
   idleInitialMs: 2000,
   idleMaxMs: 15_000,
   maxFailures: 5,
@@ -24,6 +25,7 @@ const defaultTiming: AssistantTiming = {
 
 // A workflow cannot import server code at run time, so the name repeats `assistantWakeSignal`.
 const wake = defineSignal("wake");
+const cancelTurn = defineSignal("cancelTurn");
 
 /**
  * Drive one Merit AI conversation: an activity runs one step at a time under the owner's
@@ -51,20 +53,38 @@ export const assistantConversation = async (input: AssistantConversationInput) =
   setHandler(wake, () => {
     woken = true;
   });
+  // Stop, delete and withdrawn consent cancel the step in flight, so its model request ends
+  // within a heartbeat instead of running to its timeout. The next step finds the new state.
+  let step: CancellationScope | undefined;
+  let cancelled = false;
+  setHandler(cancelTurn, () => {
+    cancelled = true;
+    woken = true;
+    step?.cancel();
+  });
 
   let failures = 0;
   let idle = timing.idleInitialMs;
   for (let steps = 0; steps < timing.stepsPerRun; steps += 1) {
     woken = false;
+    cancelled = false;
     let outcome: Awaited<ReturnType<typeof advanceAssistantConversation>> = "waiting";
     try {
-      outcome = await advanceAssistantConversation({
-        userId: input.userId,
-        workspaceSlug: input.workspaceSlug,
-        conversationId: input.conversationId,
-      });
+      step = new CancellationScope({ cancellable: true });
+      outcome = await step.run(() =>
+        advanceAssistantConversation({
+          userId: input.userId,
+          workspaceSlug: input.workspaceSlug,
+          conversationId: input.conversationId,
+        }),
+      );
       failures = 0;
     } catch (error) {
+      if (isCancellation(error) && cancelled && !CancellationScope.current().consideredCancelled) {
+        // Only the step was cancelled: look at the conversation again right away.
+        idle = timing.idleInitialMs;
+        continue;
+      }
       if (isCancellation(error)) {
         throw error;
       }
@@ -72,6 +92,8 @@ export const assistantConversation = async (input: AssistantConversationInput) =
       if (failures >= timing.maxFailures) {
         return "unavailable";
       }
+    } finally {
+      step = undefined;
     }
     // A wake that arrived during the step may follow a change the step did not see.
     if (outcome === "finished" && !woken) {

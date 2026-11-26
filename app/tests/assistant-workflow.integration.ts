@@ -180,28 +180,48 @@ it(
     const database_ = <T>(operation: (db: Database) => Promise<T>) =>
       withDatabase(runtime, operation);
 
+    const deliverInline = inlineReviewerDelivery(
+      reviewerMessageDelivery({
+        database: database_,
+        invitationOrigin: "https://merit.test",
+        sendEmail,
+      }),
+    );
     const dependencies = {
       database: database_,
       invitationOrigin: "https://merit.test",
-      sendEmail,
-      startReviewerMessage: inlineReviewerDelivery(
-        reviewerMessageDelivery({
-          database: database_,
-          invitationOrigin: "https://merit.test",
-          sendEmail,
-        }),
-      ),
+      startReviewerMessage: deliverInline,
       startOrganizationInvitation: async () => true,
-      committedDeliveryWait: { timeoutMs: 0, intervalMs: 0 },
     };
     const model = { apiKey: "test", model: "scripted" };
     // The workflow's own tests cover Temporal; here a wake drives the same turns in process.
     const driver = createAssistantRuntime(dependencies, model);
+
+    // As the workflow does: look again after a step that waited, until nothing is left to drive.
+    let ending = false;
+    onTestFinished(() => {
+      ending = true;
+    });
+
+    const drive = async (...address: Parameters<typeof driver.turns.advance>) => {
+      try {
+        while (!ending && (await driver.turns.advance(...address)) !== "finished") {
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+      } catch (error) {
+        // A step that was in flight when the test ended meets a dropped database.
+        if (!ending) {
+          throw error;
+        }
+      }
+    };
+
     const host = createAssistantHost(
       {
         ...dependencies,
+        cancelConversation: async () => {},
         wakeConversation: async ({ userId, workspaceSlug, conversationId }) => {
-          void driver.turns.run({ userId }, workspaceSlug, conversationId);
+          void drive({ userId }, workspaceSlug, conversationId);
           return true;
         },
       },

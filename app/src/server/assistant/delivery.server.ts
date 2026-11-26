@@ -6,7 +6,11 @@ import { conversationState, recordReceipt } from "./state";
 
 type DeliveryOutcome = Awaited<ReturnType<AssistantRuntimeCatalog["deliver"]>>;
 
-const deliveryOutcome = (row: Stored, attemptId: string, status: DeliveryOutcome) => {
+const deliveryOutcome = (
+  row: Stored,
+  attemptId: string,
+  status: Exclude<DeliveryOutcome, "pending">,
+) => {
   const state = conversationState.parse(row.state);
   const group = state.groups.find((item) =>
     item.actions.some((action) => action.deliveryAttempt?.id === attemptId),
@@ -32,7 +36,11 @@ const deliveryOutcome = (row: Stored, attemptId: string, status: DeliveryOutcome
     : change(state, row.status);
 };
 
-const recordDelivery = async (access: Access, attemptId: string, status: DeliveryOutcome) => {
+const recordDelivery = async (
+  access: Access,
+  attemptId: string,
+  status: Exclude<DeliveryOutcome, "pending">,
+) => {
   for (;;) {
     const row = await access.read();
     if (!row) {
@@ -51,35 +59,45 @@ const recordDelivery = async (access: Access, attemptId: string, status: Deliver
   }
 };
 
+/**
+ * One delivery step. It never waits for the email: the reviewer-message workflow sends it, and
+ * each step asks where the message stands. `pending` answers `false`, so the conversation waits
+ * for its next wake with the action still `delivering`; a final status is recorded once.
+ */
 export const deliverNext = async (access: Access, row: Stored) => {
-  const id = randomUUID();
-  const claimed = await access.locked(row, (state) => {
-    const next = nextAction(state);
-    if (!next?.action.delivery || next.action.status !== "delivering") {
-      throw new Error("No pending delivery.");
-    }
-    next.action.deliveryAttempt = { id, until: Date.now() + 120_000 };
-    return change(state, "running");
-  });
+  const existing = nextAction(conversationState.parse(row.state))?.action.deliveryAttempt?.id;
+  const id = existing ?? randomUUID();
+  const claimed = existing
+    ? row
+    : await access.locked(row, (state) => {
+        const next = nextAction(state);
+        if (!next?.action.delivery || next.action.status !== "delivering") {
+          throw new Error("No pending delivery.");
+        }
+        next.action.deliveryAttempt = { id };
+        return change(state, "running");
+      });
   if (!claimed) {
     return false;
   }
   const sent: { outcome?: Promise<DeliveryOutcome> } = {};
-  // A concurrent Stop or Delete can invalidate the durable claim before mail dispatch.
-  // Start the pool-backed outbox operation under this last gate, then release the chat lock.
+  // A concurrent Stop or Delete can invalidate the durable claim before the message is touched.
+  // Start the pool-backed operation under this last gate, then release the chat lock.
   const dispatched = await access.locked(claimed, (state) => {
     const next = nextAction(state);
     if (!next?.action.delivery || next.action.deliveryAttempt?.id !== id) {
       throw new Error("No claimed delivery.");
     }
+    // A read that failed says nothing about the message; the next step asks again.
     sent.outcome = access
       .catalog()
       .deliver(next.action.delivery)
-      .catch(() => "failed" as const);
+      .catch(() => "pending" as const);
     return change(state, "running");
   });
   if (!dispatched || !sent.outcome) {
     return false;
   }
-  return recordDelivery(access, id, await sent.outcome);
+  const outcome = await sent.outcome;
+  return outcome === "pending" ? false : recordDelivery(access, id, outcome);
 };

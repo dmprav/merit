@@ -10,7 +10,6 @@ import {
   type Stored,
   type TurnDependencies,
 } from "./access.server";
-import { endModelRequest } from "./model-request.server";
 import {
   conversationState,
   initialState,
@@ -83,6 +82,7 @@ const commands = (deps: TurnDependencies, args: Address) => {
         return conflict();
       }
       if (action.delivery) {
+        await tools.retryDelivery(action.delivery);
         action.status = "delivering";
         return change(state, "running");
       }
@@ -125,14 +125,10 @@ const stopTurn = async (deps: TurnDependencies, args: Address) => {
       return row ? view(row) : null;
     }
     const state = conversationState.parse(row.state);
-    const attempt = state.modelAttempt?.id;
     delete state.modelAttempt;
     stopActions(state);
     const stopped = await deps.store.save(...args, row.revision, change(state, "stopped"));
     if (stopped) {
-      if (attempt) {
-        endModelRequest(row.id, attempt);
-      }
       const current = await access.read();
       return current ? view(current) : null;
     }
@@ -164,15 +160,13 @@ export const createAssistantTurns = (deps: TurnDependencies) => {
       const row = await conversationAccess(deps, actor, workspace, id).read();
       return row ? savedEvidence(conversationState.parse(row.state), key) : null;
     },
-    remove: async (...args: Address) => {
-      const removed = await deps.store.remove(...args);
-      if (removed) {
-        endModelRequest(args[2]);
-      }
-      return removed;
-    },
+    // The model request runs in the worker. Delete cannot abort it from here: the host signals
+    // the conversation's workflow, which cancels the step.
+    remove: (...args: Address) => deps.store.remove(...args),
     run: (...args: Address) => runTurn(conversationAccess(deps, ...args), deps.model),
-    advance: (...args: Address) => advanceTurn(conversationAccess(deps, ...args), deps.model),
+    /** One step; `cancellation` is the worker activity's signal, which aborts the model request. */
+    advance: (actor: Actor, workspace: string, id: string, cancellation?: AbortSignal) =>
+      advanceTurn(conversationAccess(deps, actor, workspace, id), deps.model, cancellation),
     start: (
       actor: Actor,
       workspace: string,

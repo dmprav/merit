@@ -3,9 +3,12 @@ import type { Database } from "@merit/db";
 import { createAssistantCatalog } from "@merit/mcp/assistant";
 import { AssistantStoreError, createAssistantStore } from "@merit/organizations/server/assistant";
 import { productLinks } from "@merit/product/links";
-import { deliverCommittedReviewerMessage, type ReviewerDelivery } from "@merit/reviews/server";
+import {
+  deliverCommittedReviewerMessage,
+  retryReviewerDelivery,
+  type ReviewerDelivery,
+} from "@merit/reviews/server";
 import { reportError } from "@merit/telemetry/errors";
-import type { OutcomeWait } from "@merit/workflows/outcome";
 
 import { createApplicationServices } from "../services.server";
 import type { AssistantWork } from "./conversation-work";
@@ -23,8 +26,8 @@ export type AssistantRuntimeDependencies = Omit<
   Parameters<typeof createApplicationServices>[0],
   "identity"
 > & {
-  /** How long an approved invitation stays `delivering`: the workflow's retries plus a margin. */
-  committedDeliveryWait?: OutcomeWait;
+  /** The origin of the workspace links Merit AI shows. */
+  invitationOrigin: string;
 };
 
 type Dependencies = AssistantRuntimeDependencies & {
@@ -34,9 +37,12 @@ type Dependencies = AssistantRuntimeDependencies & {
    * committed change stands and reconciliation starts the work later.
    */
   wakeConversation: (work: AssistantWork) => Promise<boolean>;
+  /**
+   * Cancels the step a conversation's workflow runs after Stop, Delete or withdrawn consent, so
+   * the worker aborts the model request. It never rejects.
+   */
+  cancelConversation: (conversationId: string) => Promise<void>;
 };
-
-const committedDeliveryWait: OutcomeWait = { timeoutMs: 16 * 60_000, intervalMs: 2000 };
 
 type Config = { apiKey: string; model: string };
 
@@ -83,13 +89,14 @@ const catalogFor = (dependencies: AssistantRuntimeDependencies) => {
         const result = await tools.execute(preview);
         return ticket ? { ...result, delivery: ticket } : result;
       },
-      deliver: (pending) =>
-        deliverCommittedReviewerMessage(
-          delivery,
-          actor.userId,
-          pending,
-          dependencies.committedDeliveryWait ?? committedDeliveryWait,
-        ),
+      // The retry's own transaction, so the reset commits with the action returning to delivering.
+      retryDelivery: async (pending) => {
+        if (!transaction) {
+          throw new Error("A delivery retry needs its transaction.");
+        }
+        await retryReviewerDelivery(transaction, pending);
+      },
+      deliver: (pending) => deliverCommittedReviewerMessage(delivery, actor.userId, pending),
     };
   };
 };
@@ -98,6 +105,7 @@ type Backend = {
   store: ReturnType<typeof createAssistantStore>;
   turns: ReturnType<typeof createAssistantTurns>;
   wake: Dependencies["wakeConversation"];
+  cancel: Dependencies["cancelConversation"];
   model: string;
   configured: boolean;
 };
@@ -112,8 +120,23 @@ const unavailable = () => assistantJson({ status: "provider_unconfigured" }, 503
 
 const show = (value: unknown) => (value == null ? missing() : assistantJson(value));
 
+/** The running conversations of one workspace, whoever owns them, through the privileged read. */
+const runningIn = async (store: Backend["store"], workspace: string) => {
+  const ids: string[] = [];
+  let after: string | undefined;
+  for (;;) {
+    const page = await store.running(100, after);
+    ids.push(...page.filter((chat) => chat.workspaceSlug === workspace).map((chat) => chat.id));
+    const last = page.at(-1);
+    if (!last || page.length < 100) {
+      return ids;
+    }
+    after = last.id;
+  }
+};
+
 const settings = async (
-  { configured, model, store }: Backend,
+  { configured, model, store, cancel }: Backend,
   actor: Actor,
   workspace: string,
   input: Settings,
@@ -121,10 +144,15 @@ const settings = async (
   if (input.action === "set_consent" && input.enabled && !configured) {
     return unavailable();
   }
+  // Withdrawn consent ends every member's running chats in the workspace, and the read that
+  // finds them only lists chats while consent still stands, so it comes first.
+  const ending =
+    input.action === "set_consent" && !input.enabled ? await runningIn(store, workspace) : [];
   const enabled =
     input.action === "settings"
       ? await store.getConsent(actor, workspace)
       : await store.setConsent(actor, workspace, input.enabled);
+  await Promise.all(ending.map((id) => cancel(id)));
   return assistantJson({ provider: "OpenAI", model: model || null, configured, enabled });
 };
 
@@ -170,10 +198,13 @@ const dispatch = async (
       return backend.configured
         ? assistantJson(await turns.create(actor, workspace), 201)
         : unavailable();
-    case "delete":
-      return (await turns.remove(actor, workspace, input.id))
-        ? assistantJson({ status: "deleted" })
-        : missing();
+    case "delete": {
+      const removed = await turns.remove(actor, workspace, input.id);
+      if (removed) {
+        await backend.cancel(input.id);
+      }
+      return removed ? assistantJson({ status: "deleted" }) : missing();
+    }
     case "watch": {
       // Waking is idempotent: opening a stream on running work makes sure something drives it.
       let woken = false;
@@ -191,8 +222,14 @@ const dispatch = async (
       }, signal);
     }
     case "open":
-    case "stop":
-      return show(await turns[input.action](actor, workspace, input.id));
+      return show(await turns.open(actor, workspace, input.id));
+    case "stop": {
+      const snapshot = await turns.stop(actor, workspace, input.id);
+      if (snapshot) {
+        await backend.cancel(input.id);
+      }
+      return show(snapshot);
+    }
     case "decline": {
       const snapshot = await turns.decline(actor, workspace, input.id, input);
       if (snapshot?.status === "running" && backend.configured) {
@@ -231,6 +268,7 @@ export const createAssistantHost = (dependencies: Dependencies, config: Config) 
     store,
     turns,
     wake: dependencies.wakeConversation,
+    cancel: dependencies.cancelConversation,
   };
   return {
     command: async (

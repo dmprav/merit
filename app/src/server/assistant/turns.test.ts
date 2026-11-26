@@ -86,6 +86,7 @@ const fixture = async () => {
     })),
     execute: vi.fn<ReturnType<TurnDependencies["catalog"]>["execute"]>(async () => ok),
     deliver: vi.fn<ReturnType<TurnDependencies["catalog"]>["deliver"]>(async () => "sent"),
+    retryDelivery: vi.fn<ReturnType<TurnDependencies["catalog"]>["retryDelivery"]>(async () => {}),
   };
   const model = vi.fn<TurnDependencies["model"]>(async () => answer("Done."));
   const turns = createAssistantTurns({ store, model, catalog: () => catalog });
@@ -227,7 +228,7 @@ it("withholds the entire chat and pending approval after access to an uncited re
   expect(ctx.catalog.execute).not.toHaveBeenCalled();
 });
 
-it("discards a model response arriving after Stop", async () => {
+it("discards a model response arriving after Stop, and aborts the request when the activity is cancelled", async () => {
   const ctx = await fixture();
 
   let finish: (decision: AssistantDecision) => void = () => {};
@@ -243,9 +244,14 @@ it("discards a model response arriving after Stop", async () => {
       finish = resolve;
     });
   });
-  const running = ctx.run();
+  const cancellation = new AbortController();
+  const running = ctx.turns.advance(...address, cancellation.signal);
   await started;
   await ctx.turns.stop(...address);
+  // Stop runs in the web process, which holds no model request. The conversation's workflow
+  // cancels the worker's activity instead, and its cancellation signal aborts the request.
+  expect(ctx.model.mock.calls[0]?.[3]?.aborted).toBe(false);
+  cancellation.abort();
   expect(ctx.model.mock.calls[0]?.[3]?.aborted).toBe(true);
   finish(calls("invite", "recipient"));
   await running;
@@ -436,6 +442,35 @@ it("returns the saved observations for a citation until access to the chat is lo
   expect(await ctx.turns.evidence(...address, "E9")).toBeNull();
   ctx.catalog.permits.mockResolvedValue(false);
   expect(await ctx.turns.evidence(...address, "E1")).toBeNull();
+});
+
+it("keeps an invitation delivering while its message is pending and records the outcome once it settles", async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValueOnce(calls("invite", "only"));
+  ctx.catalog.execute.mockImplementation(async () => ({
+    ...ok,
+    delivery: { assignmentId: "assignment", kind: "invitation", messageId: "only" },
+  }));
+  ctx.catalog.deliver
+    .mockResolvedValueOnce("pending")
+    .mockResolvedValueOnce("pending")
+    .mockResolvedValue("failed");
+  await ctx.run();
+  const group = (await ctx.open())?.groups[0];
+  assert.isDefined(group);
+  await ctx.turns.approve(...address, { previewId: group.id });
+
+  // Each step only asks where the message stands; none waits for it or records an outcome.
+  expect(await ctx.turns.advance(...address)).toBe("progressed");
+  expect(await ctx.turns.advance(...address)).toBe("waiting");
+  expect(await ctx.turns.advance(...address)).toBe("waiting");
+  expect((await ctx.open())?.groups[0]?.actions.map((item) => item.status)).toEqual(["delivering"]);
+
+  expect(await ctx.turns.advance(...address)).toBe("progressed");
+  expect((await ctx.open())?.groups[0]?.actions.map((item) => item.status)).toEqual(["failed"]);
+  expect(ctx.catalog.deliver).toHaveBeenCalledTimes(3);
+  // One message, one delivery path: the outcome was recorded once, with no second execution.
+  expect(ctx.catalog.execute).toHaveBeenCalledTimes(1);
 });
 
 it("records a delivery already in flight when Stop cancels the rest of the group", async () => {
