@@ -104,6 +104,9 @@ const stripAnsi = (value: string) => {
   return value.replace(new RegExp(`${esc}\\[[0-9;]*m`, "g"), "");
 };
 
+/** Findings quote at most this many characters of an error's first line. */
+const MAX_ERROR_LINE_LENGTH = 180;
+
 const firstErrorLine = (messages: Array<string | undefined>) => {
   for (const raw of messages) {
     if (!raw) {
@@ -114,57 +117,76 @@ const firstErrorLine = (messages: Array<string | undefined>) => {
       .map((part) => part.trim())
       .find((part) => part.length > 0);
     if (line) {
-      return line.length > 180 ? `${line.slice(0, 177)}...` : line;
+      return line.length > MAX_ERROR_LINE_LENGTH
+        ? `${line.slice(0, MAX_ERROR_LINE_LENGTH - 3)}...`
+        : line;
     }
   }
   return undefined;
 };
 
-const collectPlaywrightFindings = (
-  suites: PlaywrightSuite[],
-  ancestors: string[],
-  findings: SummaryFinding[],
-) => {
-  for (const suite of suites) {
-    const nextAncestors = suite.title ? [...ancestors, suite.title] : ancestors;
-    for (const spec of suite.specs ?? []) {
-      const location = spec.file
-        ? spec.line
-          ? `${spec.file}:${spec.line}`
-          : spec.file
-        : suite.file;
-      for (const testCase of spec.tests) {
-        if (testCase.status !== "unexpected" && testCase.status !== "flaky") {
-          continue;
-        }
-        const project = testCase.projectName ? ` [${testCase.projectName}]` : "";
-        const errorMessages = testCase.results.flatMap((result) => [
-          result.error?.message,
-          ...(result.errors?.map((entry) => entry.message) ?? []),
-        ]);
-        findings.push({
-          kind: testCase.status === "flaky" ? "flaky" : "failed",
-          title: `${[...nextAncestors, spec.title].join(" › ")}${project}`,
-          location,
-          message: firstErrorLine(errorMessages),
-        });
-      }
-    }
-    collectPlaywrightFindings(suite.suites ?? [], nextAncestors, findings);
+type PlaywrightSpec = z.infer<typeof playwrightSpecSchema>;
+
+type PlaywrightTest = z.infer<typeof playwrightTestSchema>;
+
+const specLocation = (spec: PlaywrightSpec, suite: PlaywrightSuite) => {
+  if (!spec.file) {
+    return suite.file;
   }
+  return spec.line ? `${spec.file}:${spec.line}` : spec.file;
 };
+
+/** Reports a failed or flaky test, titled by its suite path, and nothing for any other outcome. */
+const playwrightTestFindings = (
+  testCase: PlaywrightTest,
+  specTitle: string,
+  location: string | undefined,
+): SummaryFinding[] => {
+  if (testCase.status !== "unexpected" && testCase.status !== "flaky") {
+    return [];
+  }
+  const project = testCase.projectName ? ` [${testCase.projectName}]` : "";
+  const errorMessages = testCase.results.flatMap((result) => [
+    result.error?.message,
+    ...(result.errors?.map((entry) => entry.message) ?? []),
+  ]);
+  return [
+    {
+      kind: testCase.status === "flaky" ? "flaky" : "failed",
+      title: `${specTitle}${project}`,
+      location,
+      message: firstErrorLine(errorMessages),
+    },
+  ];
+};
+
+/** Collects failed and flaky tests depth-first: each suite's own specs before its nested suites. */
+const collectPlaywrightFindings = (
+  suites: readonly PlaywrightSuite[],
+  ancestors: readonly string[] = [],
+): SummaryFinding[] =>
+  suites.flatMap((suite) => {
+    const suitePath = suite.title ? [...ancestors, suite.title] : ancestors;
+    const specFindings = (suite.specs ?? []).flatMap((spec) => {
+      const specTitle = [...suitePath, spec.title].join(" › ");
+      const location = specLocation(spec, suite);
+      return spec.tests.flatMap((testCase) =>
+        playwrightTestFindings(testCase, specTitle, location),
+      );
+    });
+    return [...specFindings, ...collectPlaywrightFindings(suite.suites ?? [], suitePath)];
+  });
 
 export const summarizePlaywrightReport = (raw: unknown, label = "Playwright"): SuiteSummary => {
   const report = playwrightReportSchema.parse(raw);
-  const findings: SummaryFinding[] = [];
-  collectPlaywrightFindings(report.suites, [], findings);
-  for (const error of report.errors) {
-    findings.push({
-      kind: "failed",
+  const findings: SummaryFinding[] = [
+    ...collectPlaywrightFindings(report.suites),
+    ...report.errors.map((error) => ({
+      kind: "failed" as const,
       title: "Runner setup failure",
       message: firstErrorLine([error.message]),
-    });
-  }
+    })),
+  ];
   const failed = report.stats.unexpected > 0 ? report.stats.unexpected : report.errors.length;
   return {
     label,
@@ -177,52 +199,52 @@ export const summarizePlaywrightReport = (raw: unknown, label = "Playwright"): S
   };
 };
 
+type VitestFile = z.infer<typeof vitestFileSchema>;
+
+/** Reports each failed assertion, or the file itself when it failed without one (such as an import error). */
+const vitestFileFindings = (file: VitestFile, workspaceRoot: string): SummaryFinding[] => {
+  const relPath = relative(workspaceRoot, file.name) || file.name;
+  const assertionFailures = file.assertionResults
+    .filter((assertion) => assertion.status === "failed")
+    .map((assertion): SummaryFinding => ({
+      kind: "failed",
+      title: assertion.fullName ?? assertion.title,
+      location: relPath,
+      message: firstErrorLine(assertion.failureMessages),
+    }));
+  if (file.status === "failed" && assertionFailures.length === 0) {
+    return [
+      {
+        kind: "failed",
+        title: `Suite failure: ${relPath}`,
+        location: relPath,
+        message: firstErrorLine([file.message]),
+      },
+    ];
+  }
+  return assertionFailures;
+};
+
+/** Measures from the run's start to the last file's end, or 0 when either is unknown. */
+const vitestDurationMs = (report: z.infer<typeof vitestReportSchema>) => {
+  const lastEnd = Math.max(0, ...report.testResults.map((file) => file.endTime ?? 0));
+  return report.startTime && lastEnd > report.startTime ? lastEnd - report.startTime : 0;
+};
+
 export const summarizeVitestReport = (
   raw: unknown,
   label = "Vitest",
   workspaceRoot = process.cwd(),
 ): SuiteSummary => {
   const report = vitestReportSchema.parse(raw);
-  const findings: SummaryFinding[] = [];
-  let maxEnd = 0;
-
-  for (const file of report.testResults) {
-    if (file.endTime && file.endTime > maxEnd) {
-      maxEnd = file.endTime;
-    }
-    const relPath = relative(workspaceRoot, file.name) || file.name;
-    let fileAssertionFailures = 0;
-    for (const assertion of file.assertionResults) {
-      if (assertion.status === "failed") {
-        fileAssertionFailures += 1;
-        findings.push({
-          kind: "failed",
-          title: assertion.fullName ?? assertion.title,
-          location: relPath,
-          message: firstErrorLine(assertion.failureMessages),
-        });
-      }
-    }
-    if (file.status === "failed" && fileAssertionFailures === 0) {
-      findings.push({
-        kind: "failed",
-        title: `Suite failure: ${relPath}`,
-        location: relPath,
-        message: firstErrorLine([file.message]),
-      });
-    }
-  }
-
-  const durationMs = report.startTime && maxEnd > report.startTime ? maxEnd - report.startTime : 0;
-
   return {
     label,
     passed: report.numPassedTests,
     failed: report.numFailedTests,
     flaky: 0,
     skipped: report.numPendingTests + report.numTodoTests,
-    durationMs,
-    findings,
+    durationMs: vitestDurationMs(report),
+    findings: report.testResults.flatMap((file) => vitestFileFindings(file, workspaceRoot)),
   };
 };
 
@@ -242,43 +264,59 @@ export const formatDuration = (durationMs: number) => {
 const escapeMarkdownCell = (value: string) =>
   value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 
+/** The step summary lists at most this many findings and counts the rest. */
+const MAX_LISTED_FINDINGS = 25;
+
+const formatFinding = (finding: SummaryFinding) => {
+  const badge = finding.kind === "flaky" ? "FLAKY" : "FAILED";
+  const loc = finding.location ? ` (\`${finding.location}\`)` : "";
+  const detail = finding.message ? `: ${finding.message}` : "";
+  return `- **${badge}** ${finding.title}${loc}${detail}`;
+};
+
+const formatFindingsSection = (findings: readonly SummaryFinding[]): string[] => {
+  if (findings.length === 0) {
+    return [];
+  }
+  const shown = findings.slice(0, MAX_LISTED_FINDINGS);
+  const omitted = findings.length - shown.length;
+  return [
+    "",
+    "#### Failed and flaky tests",
+    "",
+    ...shown.map(formatFinding),
+    ...(omitted > 0 ? [`- _${omitted} additional findings omitted._`] : []),
+  ];
+};
+
+const formatSuiteRow = (summary: SuiteSummary) =>
+  `| ${escapeMarkdownCell(summary.label)} | ${summary.passed} | ${summary.failed} | ${summary.flaky} | ${summary.skipped} | ${formatDuration(summary.durationMs)} |`;
+
 export const formatSummaryMarkdown = (title: string, summaries: SuiteSummary[]) => {
   if (summaries.length === 0) {
     return `### ${title}\n\nNo structured test reports were produced for this job.\n`;
   }
-
   const lines = [
     `### ${title}`,
     "",
     "| Suite | Passed | Failed | Flaky | Skipped | Duration |",
     "| --- | ---: | ---: | ---: | ---: | ---: |",
+    ...summaries.map(formatSuiteRow),
+    ...formatFindingsSection(summaries.flatMap((summary) => summary.findings)),
   ];
-
-  for (const summary of summaries) {
-    lines.push(
-      `| ${escapeMarkdownCell(summary.label)} | ${summary.passed} | ${summary.failed} | ${summary.flaky} | ${summary.skipped} | ${formatDuration(summary.durationMs)} |`,
-    );
-  }
-
-  const allFindings = summaries.flatMap((summary) => summary.findings);
-  if (allFindings.length > 0) {
-    lines.push("", "#### Failed and flaky tests", "");
-    const shown = allFindings.slice(0, 25);
-    for (const finding of shown) {
-      const badge = finding.kind === "flaky" ? "FLAKY" : "FAILED";
-      const loc = finding.location ? ` (\`${finding.location}\`)` : "";
-      const detail = finding.message ? `: ${finding.message}` : "";
-      lines.push(`- **${badge}** ${finding.title}${loc}${detail}`);
-    }
-    if (allFindings.length > shown.length) {
-      lines.push(`- _${allFindings.length - shown.length} additional findings omitted._`);
-    }
-  }
-
   return `${lines.join("\n")}\n`;
 };
 
 const skippedScanDirs = new Set(["node_modules", ".git", "dist", ".output"]);
+
+/** Lists a directory's entries, or none when it cannot be read. */
+const readDirEntries = (dir: string): Dirent[] => {
+  try {
+    return readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+};
 
 const findFilesByName = (rootDir: string, targetName: string): string[] => {
   if (!existsSync(rootDir)) {
@@ -286,65 +324,56 @@ const findFilesByName = (rootDir: string, targetName: string): string[] => {
   }
   const found: string[] = [];
   const stack = [rootDir];
-
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (!current) {
-      continue;
-    }
-    let entries: Dirent[];
-    try {
-      entries = readdirSync(current, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        if (!skippedScanDirs.has(entry.name)) {
-          stack.push(join(current, entry.name));
-        }
+  for (let current = stack.pop(); current !== undefined; current = stack.pop()) {
+    for (const entry of readDirEntries(current)) {
+      const entryPath = join(current, entry.name);
+      if (entry.isDirectory() && !skippedScanDirs.has(entry.name)) {
+        stack.push(entryPath);
       } else if (entry.isFile() && entry.name === targetName) {
-        found.push(join(current, entry.name));
+        found.push(entryPath);
       }
     }
   }
-
   return found.sort();
 };
+
+const readJson = (path: string): unknown => JSON.parse(readFileSync(path, "utf8"));
+
+/** Summarizes each `playwright*.json` and `vitest*.json` report in `reportDir`, by file name. */
+const summarizeReportDir = (reportDir: string, workspaceRoot: string): SuiteSummary[] =>
+  readdirSync(reportDir)
+    .sort()
+    .filter((file) => file.endsWith(".json"))
+    .flatMap((file) => {
+      const parsed = readJson(join(reportDir, file));
+      const label = basename(file, ".json");
+      if (file.startsWith("playwright")) {
+        return [summarizePlaywrightReport(parsed, label)];
+      }
+      return file.startsWith("vitest") ? [summarizeVitestReport(parsed, label, workspaceRoot)] : [];
+    });
+
+/** Summarizes every Vitest report named `filename` under the workspace, labelled by its directory. */
+const summarizeScannedVitestReports = (workspaceRoot: string, filename: string) =>
+  findFilesByName(workspaceRoot, filename).map((reportPath) =>
+    summarizeVitestReport(
+      readJson(reportPath),
+      relative(workspaceRoot, join(reportPath, "..")) || "workspace",
+      workspaceRoot,
+    ),
+  );
 
 export const collectCiSummaries = (options: {
   reportDir?: string;
   scanVitestFilename?: string;
   workspaceRoot?: string;
 }): SuiteSummary[] => {
-  const summaries: SuiteSummary[] = [];
   const workspaceRoot = options.workspaceRoot ?? process.cwd();
-
-  if (options.reportDir && existsSync(options.reportDir)) {
-    const files = readdirSync(options.reportDir).sort();
-    for (const file of files) {
-      if (!file.endsWith(".json")) {
-        continue;
-      }
-      const parsed: unknown = JSON.parse(readFileSync(join(options.reportDir, file), "utf8"));
-      if (file.startsWith("playwright")) {
-        summaries.push(summarizePlaywrightReport(parsed, basename(file, ".json")));
-      } else if (file.startsWith("vitest")) {
-        summaries.push(summarizeVitestReport(parsed, basename(file, ".json"), workspaceRoot));
-      }
-    }
-  }
-
-  if (options.scanVitestFilename) {
-    const reportPaths = findFilesByName(workspaceRoot, options.scanVitestFilename);
-    for (const reportPath of reportPaths) {
-      const parsed: unknown = JSON.parse(readFileSync(reportPath, "utf8"));
-      const pkgLabel = relative(workspaceRoot, join(reportPath, "..")) || "workspace";
-      summaries.push(summarizeVitestReport(parsed, pkgLabel, workspaceRoot));
-    }
-  }
-
-  return summaries;
+  const { reportDir, scanVitestFilename } = options;
+  return [
+    ...(reportDir && existsSync(reportDir) ? summarizeReportDir(reportDir, workspaceRoot) : []),
+    ...(scanVitestFilename ? summarizeScannedVitestReports(workspaceRoot, scanVitestFilename) : []),
+  ];
 };
 
 export type CiSummaryOptions = { title: string; scanVitestFilename?: string };
