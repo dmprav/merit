@@ -19,12 +19,12 @@ same kind of task. Sustained assessment or recommendation writing belongs in the
 [reference workspace](?path=/docs/patterns-reference-workspace--docs) work pane,
 keeping its source material available.
 
-<Canvas of={FormDialogs.Default} />
+<Canvas of={FormDialogs.Default} story={{ inline: false, height: "460px" }} />
 
 Supply the parent context when it helps someone identify the record they are
 working within. Long names wrap without hiding the close control.
 
-<Canvas of={FormDialogs.LongContext} />
+<Canvas of={FormDialogs.LongContext} story={{ inline: false, height: "480px" }} />
 
 The body scrolls independently of the title, feedback, and actions. Features
 arrange their fields inside it; they do not need their own scroll or footer CSS.
@@ -42,7 +42,7 @@ Form fields and explanatory prose use the shared body typography. Reading
 material can use its own reading treatment; important consequences remain in the
 form body beside the action they explain.
 
-<Canvas of={FormDialogs.LongContent} />
+<Canvas of={FormDialogs.LongContent} story={{ inline: false, height: "540px" }} />
 
 ## Keep commitment and recovery explicit
 
@@ -56,7 +56,7 @@ not above the fields. Pass `null` while there is nothing to report. Features own
 validation, saving, and the outcome after commitment, as described by the
 [editing pattern](?path=/docs/patterns-editing--docs).
 
-<Canvas of={FormDialogs.RequiredTitle} />
+<Canvas of={FormDialogs.RequiredTitle} story={{ inline: false, height: "480px" }} />
 
 Pass the operation's pending state to `FormDialog.isDismissDisabled`. `Form` and
 `FormActions` use their submission state to disable editing and duplicate submits.
@@ -66,8 +66,8 @@ restrictions. A nested form owns its own pending state. The dialog guard covers
 the header close control and Escape; keep all dismissal routes tied to the same
 operation. Keep failed saves open with their input intact.
 
-<Canvas of={FormDialogs.Pending} />
-<Canvas of={FormDialogs.Failure} />
+<Canvas of={FormDialogs.Pending} story={{ inline: false, height: "480px" }} />
+<Canvas of={FormDialogs.Failure} story={{ inline: false, height: "480px" }} />
 
 These examples use the public form pattern. Feature stories should render their
 real feature flow and replace transport, persistence, or navigation with isolated

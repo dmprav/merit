@@ -15,7 +15,7 @@ import type { ApplicationShell } from "@merit/ui/application-shell";
 import { demoOptions } from "../demo/data/demo";
 import { publicIdFromRef } from "../grantmaking/contracts/resource-url";
 import { useShortcut } from "../navigation/search-shortcut";
-import type { PageContext, ScriptId } from "./contracts";
+import type { PageContext, PanelWidthStorage, ScriptId } from "./contracts";
 import { useMeritAiChat } from "./controllers/use-merit-ai-chat";
 import { useMeritAiPanel } from "./controllers/use-merit-ai-panel";
 import { askApplicant } from "./data/ask-applicant";
@@ -32,6 +32,7 @@ type MeritAiShell = { companion: Companion; open: () => void };
 type Setup = {
   createConnection: (questions: Record<ScriptId, string>) => ConnectConnectionAdapter;
   isInitiallyOpen: boolean;
+  widthStorage?: PanelWidthStorage;
 };
 
 export const MeritAiSetup = createContext<Setup>({
@@ -63,7 +64,7 @@ export const MeritAi = ({
   );
   const panel = useMeritAiPanel({
     isInitiallyOpen: setup.isInitiallyOpen,
-    widthStorage: panelWidthStorage,
+    widthStorage: setup.widthStorage ?? panelWidthStorage,
   });
   // The example's reference is only needed once the panel opens.
   const demo = useQuery({ ...demoOptions(workspaceSlug), enabled: panel.isOpen });

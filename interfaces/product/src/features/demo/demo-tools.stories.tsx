@@ -29,9 +29,7 @@ const ready = {
 
 const Preview = () => (
   <StoryEnvironment path="/app/demo-example/rounds" routePath="/app/$workspaceSlug/rounds">
-    <WorkspaceNavigationContext
-      value={{ workspaces: [workspace], canAdminister: false, draftScope: "demo-example" }}
-    >
+    <WorkspaceNavigationContext value={{ workspaces: [workspace], canAdminister: false }}>
       <DemoGuidance>
         <AppShell current={{ kind: "workspace", workspace }}>
           <AppPage breadcrumb={null}>
@@ -47,18 +45,10 @@ const meta = {
   title: "Features/Demo/Guidance",
   tags: ["!autodocs"],
   component: Preview,
-  parameters: {
-    layout: "fullscreen",
-    docs: {
-      description: {
-        component:
-          "Uses Components/Dialog/Popover as its frame, with matching tinted header and footer. Expiry appears as quiet context above the introduction. Suggested tasks use Components/Link/Standalone text links aligned with the prose. The footer contains only exit/reset controls and scrolls with the guidance when space is limited. Controls expand to 44px touch targets. The sidebar contains only the Demo guide button.",
-      },
-    },
-  },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   beforeEach: () => {
-    mocked(readDemo).mockResolvedValue(ready);
-    mocked(startDemo).mockResolvedValue({ status: "unavailable" });
+    mocked(readDemo).mockReset().mockResolvedValue(ready);
+    mocked(startDemo).mockReset().mockResolvedValue(ready);
   },
 } satisfies Meta<typeof Preview>;
 
@@ -159,6 +149,9 @@ export const MissingExample: StoryObj<typeof meta> = {
 };
 
 export const ResetFailure: StoryObj<typeof meta> = {
+  beforeEach: () => {
+    mocked(startDemo).mockResolvedValueOnce({ status: "unavailable" });
+  },
   play: async ({ canvasElement, userEvent }) => {
     const body = within(canvasElement.ownerDocument.body);
     const guide = await body.findByRole("button", { name: "Demo guide" });

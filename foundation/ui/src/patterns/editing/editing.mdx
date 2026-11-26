@@ -8,7 +8,7 @@ import * as PropertyButtons from "./property-button.stories";
 
 Choose the interaction by the scope of the change and the reference material the
 person needs. This pattern defines editing behavior across Merit, applying the
-[experience principles](../../../../../docs/foundations/experience.md#make-editing-predictable).
+experience principles (`docs/foundations/experience.md#make-editing-predictable`).
 Workflows own business prerequisites and their specific conflict resolution.
 
 ## Save, close, or discard
@@ -43,7 +43,7 @@ controls aligned with other property values; feature CSS arranges their containe
 <Canvas of={PropertyButtons.LongName} />
 
 Use `InlineName` for a short name and `DateChoice` for a calendar date. `DateChoice`
-composes the shared [date field](../../components/fields/date-field/date-field.mdx) and calendar,
+composes the shared [date field](?path=/docs/components-date-field--docs) and calendar,
 keeping an unsuccessful choice visible for retry. Typed values
 have inline check (**Save**) and × (**Cancel**) icon controls, accessible names,
 and tooltips. Enter saves and Escape cancels; neither blur nor an undisclosed
@@ -115,8 +115,8 @@ While a draft is being restored, keep the editor title and Close action availabl
 The person can leave the editor and continue reading saved work. If local storage
 is unavailable, keep the writing in memory and explain that closing the tab risks
 losing it. When another tab holds a newer local draft, preserve both copies and
-explain which one the person can save or discard here. The
-[drafts package](../../../../drafts/README.md) describes how to connect the store
+explain which one the person can save or discard here. The drafts package
+(`foundation/drafts/README.md`) describes how to connect the store
 and handle these outcomes.
 
 When the saved record or its evidence has changed, keep the draft visible and

@@ -52,19 +52,31 @@ const paragraphs = Array.from(
     `Paragraph ${index + 1}. The recorded review covers the first submission and relies on the venue that was free then, so the assessment of the budget and of the plan for the workshops has to be read with that in mind.`,
 );
 
+const storyTimestamp = 1794218400000;
+
+const createMemoryWidthStorage = () => {
+  let width: number | undefined;
+  return {
+    read: () => width,
+    save: (next: number) => {
+      width = next;
+    },
+  };
+};
+
 const longAnswer: Connect = () =>
   stream(async function* (_messages, _data, signal, input) {
     yield {
       type: EventType.RUN_STARTED,
       runId: input.runId,
       threadId: input.threadId,
-      timestamp: Date.now(),
+      timestamp: storyTimestamp,
     };
     yield {
       type: EventType.TEXT_MESSAGE_START,
       messageId: "long",
       role: "assistant",
-      timestamp: Date.now(),
+      timestamp: storyTimestamp,
     };
     for (const paragraph of paragraphs) {
       await new Promise((resolve) => setTimeout(resolve, 150));
@@ -75,15 +87,15 @@ const longAnswer: Connect = () =>
         type: EventType.TEXT_MESSAGE_CONTENT,
         messageId: "long",
         delta: `${paragraph}\n\n`,
-        timestamp: Date.now(),
+        timestamp: storyTimestamp,
       };
     }
-    yield { type: EventType.TEXT_MESSAGE_END, messageId: "long", timestamp: Date.now() };
+    yield { type: EventType.TEXT_MESSAGE_END, messageId: "long", timestamp: storyTimestamp };
     yield {
       type: EventType.RUN_FINISHED,
       runId: input.runId,
       threadId: input.threadId,
-      timestamp: Date.now(),
+      timestamp: storyTimestamp,
       outcome: { type: "success" },
     };
   });
@@ -97,7 +109,7 @@ const pausedAfter =
         type: EventType.RUN_STARTED,
         runId: input.runId,
         threadId: input.threadId,
-        timestamp: Date.now(),
+        timestamp: storyTimestamp,
       };
       for (const chunk of chunks) {
         yield chunk;
@@ -111,9 +123,13 @@ const failing: Connect = () =>
       type: EventType.RUN_STARTED,
       runId: input.runId,
       threadId: input.threadId,
-      timestamp: Date.now(),
+      timestamp: storyTimestamp,
     };
-    yield { type: EventType.RUN_ERROR, message: "The connection dropped.", timestamp: Date.now() };
+    yield {
+      type: EventType.RUN_ERROR,
+      message: "The connection dropped.",
+      timestamp: storyTimestamp,
+    };
   });
 
 const step = (id: string, status: "running" | "done"): StreamChunk => ({
@@ -126,7 +142,7 @@ const step = (id: string, status: "running" | "done"): StreamChunk => ({
     status,
   },
   replace: true,
-  timestamp: Date.now(),
+  timestamp: storyTimestamp,
 });
 
 const text = (delta: string): StreamChunk[] => [
@@ -134,9 +150,14 @@ const text = (delta: string): StreamChunk[] => [
     type: EventType.TEXT_MESSAGE_START,
     messageId: "answer",
     role: "assistant",
-    timestamp: Date.now(),
+    timestamp: storyTimestamp,
   },
-  { type: EventType.TEXT_MESSAGE_CONTENT, messageId: "answer", delta, timestamp: Date.now() },
+  {
+    type: EventType.TEXT_MESSAGE_CONTENT,
+    messageId: "answer",
+    delta,
+    timestamp: storyTimestamp,
+  },
 ];
 
 const Preview = ({
@@ -152,11 +173,15 @@ const Preview = ({
   routePath?: string;
   title?: string;
 }) => (
-  <MeritAiSetup value={{ createConnection: connect, isInitiallyOpen }}>
+  <MeritAiSetup
+    value={{
+      createConnection: connect,
+      isInitiallyOpen,
+      widthStorage: createMemoryWidthStorage(),
+    }}
+  >
     <StoryEnvironment path={path} routePath={routePath} loaderData={{ title }}>
-      <WorkspaceNavigationContext
-        value={{ workspaces: [workspace], canAdminister: false, draftScope: "demo-example" }}
-      >
+      <WorkspaceNavigationContext value={{ workspaces: [workspace], canAdminister: false }}>
         <DemoGuidance>
           <AppShell current={{ kind: "workspace", workspace }}>
             <AppPage breadcrumb={null}>
@@ -174,18 +199,10 @@ const meta = {
   tags: ["!autodocs"],
   component: Preview,
   args: { connect: scripted(instant) },
-  parameters: {
-    layout: "fullscreen",
-    docs: {
-      description: {
-        component:
-          "Merit AI beside a page in a demo workspace. It uses Patterns/Application shell's companion panel, Patterns/Conversation for the thread, and Patterns/Message box to ask. Answers are recorded examples replayed through the real chat client.",
-      },
-    },
-  },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   beforeEach: () => {
-    mocked(readDemo).mockResolvedValue(ready);
-    mocked(startDemo).mockResolvedValue({ status: "unavailable" });
+    mocked(readDemo).mockReset().mockResolvedValue(ready);
+    mocked(startDemo).mockReset().mockResolvedValue(ready);
   },
 } satisfies Meta<typeof Preview>;
 

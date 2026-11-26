@@ -129,7 +129,11 @@ export const ConcurrentChanges: Story = {
     });
   },
   play: async (context) => {
-    const dialog = await submit(context);
-    await waitFor(() => expect(dialog.queryByRole("dialog")).not.toBeInTheDocument());
+    await submit(context);
+    await waitFor(() =>
+      expect(
+        within(context.canvasElement.ownerDocument.body).queryByRole("dialog"),
+      ).not.toBeInTheDocument(),
+    );
   },
 };

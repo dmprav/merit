@@ -1,22 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, fn, waitFor, within } from "storybook/test";
 
 import { Button } from "../../components/button/button";
-import { Inline } from "../../components/layout/layout";
+import { Inline, Stack } from "../../components/layout/layout";
 import { ApplicationPage, ApplicationShell } from "../application-shell/application-shell";
-import { showToast, type ToastMessage } from "./toast";
+import { PageHeader } from "../page-header/page-header";
+import { showToast, Toasts, type ToastMessage } from "./toast";
 
 const examples = {
   saved: { tone: "success", message: "Recommendation saved" },
   undo: {
     tone: "success",
     message: "Criterion removed",
-    action: { label: "Undo", onPress: () => {} },
+    action: { label: "Undo", onPress: fn() },
   },
   refreshFailed: {
     tone: "warning",
     message: "Saved, but the latest round could not be loaded.",
-    action: { label: "Refresh", onPress: () => {} },
+    action: { label: "Refresh", onPress: fn() },
   },
   failed: { tone: "danger", message: "The address could not be copied." },
 } satisfies Record<string, ToastMessage>;
@@ -38,8 +39,10 @@ const Triggers = () => (
 
 const meta = {
   title: "Patterns/Toast",
+  component: Toasts,
+  parameters: { controls: { disable: true } },
   render: () => <Triggers />,
-} satisfies Meta;
+} satisfies Meta<typeof Toasts>;
 
 export default meta;
 
@@ -89,27 +92,27 @@ export const InWorkspace: Story = {
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
-      <>
-        <Story />
-        <ApplicationShell
-          brand="Merit"
-          contextLabel="Alder Foundation"
-          openNavigationLabel="Open navigation"
-          closeNavigationLabel="Close navigation"
-          navigation={<a href="#main">Funding rounds</a>}
-          navigationLabel="Main navigation"
-          skipLabel="Skip to content"
+      <ApplicationShell
+        brand="Merit"
+        contextLabel="Alder Foundation"
+        openNavigationLabel="Open navigation"
+        closeNavigationLabel="Close navigation"
+        navigation={<a href="#main">Funding rounds</a>}
+        navigationLabel="Main navigation"
+        skipLabel="Skip to content"
+      >
+        <ApplicationPage
+          width="full"
+          locationKey="toast"
+          breadcrumb={null}
+          breadcrumbLabel="Breadcrumb"
         >
-          <ApplicationPage
-            width="full"
-            locationKey="toast"
-            breadcrumb={null}
-            breadcrumbLabel="Breadcrumb"
-          >
-            <h1>Local Connections</h1>
-          </ApplicationPage>
-        </ApplicationShell>
-      </>
+          <Stack gap={4}>
+            <PageHeader title="Local Connections" />
+            <Story />
+          </Stack>
+        </ApplicationPage>
+      </ApplicationShell>
     ),
   ],
   play: async ({ canvasElement, userEvent }) => {

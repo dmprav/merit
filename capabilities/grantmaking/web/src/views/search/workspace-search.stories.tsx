@@ -5,6 +5,7 @@ import { expect, fireEvent, fn, waitFor, within } from "storybook/test";
 
 import type { SearchedApplication, SearchedRound, WorkspaceSearch } from "@merit/grantmaking/api";
 import { createQueryClient } from "@merit/query";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 import { Button } from "@merit/ui/button";
 
 import { createWorkspaceSearchData } from "../../data/search/workspace-data";
@@ -67,46 +68,55 @@ const Preview = ({ read }: { read: Read }) => {
   return (
     <QueryClientProvider client={client}>
       <GrantmakingMessagesProvider>
-        <Button variant="secondary" onPress={() => setIsOpen(true)}>
-          Search
-        </Button>
-        <WorkspaceSearchDialog
-          isOpen={isOpen}
-          onOpenChange={setIsOpen}
-          data={createWorkspaceSearchData({ scope: ["story"], read })}
-          links={links}
-          commands={[
-            {
-              id: "rounds-page",
-              names: ["Funding rounds", "Go to funding rounds"],
-              title: "Go to funding rounds",
-              textValue: "Go to funding rounds",
-              icon: "layers",
-              label: "Page",
-              href: "#/rounds",
-              renderLink: ({ children, ...props }) => <a {...props}>{children}</a>,
-            },
-            {
-              id: "contacts-page",
-              names: ["Contacts", "Go to contacts"],
-              title: "Go to contacts",
-              textValue: "Go to contacts",
-              icon: "contacts",
-              label: "Page",
-              href: "#/contacts",
-              renderLink: ({ children, ...props }) => <a {...props}>{children}</a>,
-            },
-            {
-              id: "create",
-              names: ["Create funding round"],
-              title: "Create funding round",
-              textValue: "Create funding round",
-              icon: "add",
-              label: "Action",
-              onAction: () => setIsOpen(false),
-            },
-          ]}
-        />
+        <ApplicationStage>
+          <ApplicationPage
+            width="full"
+            locationKey="search"
+            breadcrumb={null}
+            breadcrumbLabel="Breadcrumb"
+          >
+            <Button variant="secondary" onPress={() => setIsOpen(true)}>
+              Search
+            </Button>
+            <WorkspaceSearchDialog
+              isOpen={isOpen}
+              onOpenChange={setIsOpen}
+              data={createWorkspaceSearchData({ scope: ["story"], read })}
+              links={links}
+              commands={[
+                {
+                  id: "rounds-page",
+                  names: ["Funding rounds", "Go to funding rounds"],
+                  title: "Go to funding rounds",
+                  textValue: "Go to funding rounds",
+                  icon: "layers",
+                  label: "Page",
+                  href: "#/rounds",
+                  renderLink: ({ children, ...props }) => <a {...props}>{children}</a>,
+                },
+                {
+                  id: "contacts-page",
+                  names: ["Contacts", "Go to contacts"],
+                  title: "Go to contacts",
+                  textValue: "Go to contacts",
+                  icon: "contacts",
+                  label: "Page",
+                  href: "#/contacts",
+                  renderLink: ({ children, ...props }) => <a {...props}>{children}</a>,
+                },
+                {
+                  id: "create",
+                  names: ["Create funding round"],
+                  title: "Create funding round",
+                  textValue: "Create funding round",
+                  icon: "add",
+                  label: "Action",
+                  onAction: () => setIsOpen(false),
+                },
+              ]}
+            />
+          </ApplicationPage>
+        </ApplicationStage>
       </GrantmakingMessagesProvider>
     </QueryClientProvider>
   );
@@ -115,7 +125,7 @@ const Preview = ({ read }: { read: Read }) => {
 const meta = {
   title: "Features/Workspace/Search",
   tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   component: Preview,
   args: { read: (async () => found([], [])) as Read },
 } satisfies Meta<typeof Preview>;
@@ -294,11 +304,20 @@ export const LoadingKeepsResults: Story = {
   },
 };
 
+const failOnceSearch = (): Read => {
+  let failed = false;
+  return async () => {
+    if (!failed) {
+      failed = true;
+      throw new Error("Search is down");
+    }
+    return found([round("k7m2p9x4n6rt", "Harbour fund 2027")], [application("a1", "Boat repairs")]);
+  };
+};
+
 export const Failure: Story = {
   args: {
-    read: async () => {
-      throw new Error("Search is down");
-    },
+    read: failOnceSearch(),
   },
   play: async ({ canvasElement }) => {
     const dialog = await search(canvasElement, "harbour");

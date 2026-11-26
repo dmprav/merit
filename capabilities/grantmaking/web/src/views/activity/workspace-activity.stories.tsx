@@ -1,10 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, type ComponentProps } from "react";
-import { expect, userEvent, within, waitFor } from "storybook/test";
+import { expect, fn, userEvent, within, waitFor } from "storybook/test";
 
 import type { ActivityEntry } from "@merit/grantmaking/api";
 import { formatTimestamp } from "@merit/i18n/format";
 import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
+import { PageHeader } from "@merit/ui/page-header";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { WorkspaceActivity, type ActivityFilters } from "./workspace-activity";
@@ -90,6 +91,8 @@ const olderPage: ActivityEntry[] = [
 const Preview = ({
   initialFilters,
   more = [],
+  status: initialStatus,
+  onRetry,
   ...props
 }: Omit<
   ComponentProps<typeof WorkspaceActivity>,
@@ -99,11 +102,30 @@ const Preview = ({
     initialFilters ?? { roundId: "", personId: "" },
   );
   const [shown, setShown] = useState(0);
+  const [recovered, setRecovered] = useState(false);
+
+  const selectedPerson = props.people.find((person) => person.id === filters.personId);
+  const allEntries = [...props.entries, ...more.slice(0, shown)];
+  const filteredEntries = allEntries.filter(
+    (item) =>
+      (!filters.roundId || item.subject.roundId === filters.roundId) &&
+      (!filters.personId || item.actor === (selectedPerson?.name ?? null)),
+  );
+  const status = recovered ? "ready" : initialStatus;
 
   return (
     <WorkspaceActivity
       {...props}
-      entries={[...props.entries, ...more.slice(0, shown)]}
+      status={status}
+      onRetry={
+        onRetry
+          ? () => {
+              setRecovered(true);
+              onRetry();
+            }
+          : undefined
+      }
+      entries={filteredEntries}
       filters={filters}
       onFiltersChange={setFilters}
       hasMore={shown < more.length}
@@ -115,7 +137,7 @@ const Preview = ({
 const meta = {
   title: "Features/Activity/Workspace activity",
   tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   component: Preview,
   args: {
     entries: recent,
@@ -137,6 +159,7 @@ const meta = {
           width="full"
         >
           <GrantmakingMessagesProvider>
+            <PageHeader title="Activity" />
             <Story />
           </GrantmakingMessagesProvider>
         </ApplicationPage>
@@ -269,8 +292,8 @@ export const ShowOlderActivity: StoryObj<typeof meta> = {
   },
 };
 
-export const Loading: StoryObj<typeof meta> = { args: { status: "refreshing" } };
-export const Failed: StoryObj<typeof meta> = { args: { status: "failed", onRetry: () => {} } };
+export const Refreshing: StoryObj<typeof meta> = { args: { status: "refreshing" } };
+export const Failed: StoryObj<typeof meta> = { args: { status: "failed", onRetry: fn() } };
 
 export const InitialLoading: StoryObj<typeof meta> = {
   args: { entries: [], status: "refreshing" },

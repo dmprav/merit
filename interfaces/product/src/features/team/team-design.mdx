@@ -6,9 +6,9 @@ import * as Team from "./team-view.stories";
 # Team: accepted design patterns
 
 Use these states as the reference for restrained team management UI. They apply
-[Merit's experience principles](../../../../../docs/foundations/experience.md)
+Merit's experience principles (`docs/foundations/experience.md`)
 and the shared [design language](?path=/docs/design-language--docs).
-The owning [workflow](../../../../../docs/workflows/manage-team.md) defines authority,
+The owning workflow (`docs/workflows/manage-team.md`) defines authority,
 commitment, and recovery; this page explains presentation choices.
 
 ## Choose emphasis by the task
@@ -22,7 +22,7 @@ warning just because the editor uses one.
 
 Keep the count and effect visible after the fields so the administrator knows
 what Save will do. “Saving revokes 1 invitation. Recipients will need a new
-invitation to join” gives them the scope and the remedy. The
+invitation to join.” gives them the scope and the remedy. The
 [many-invitation state](?path=/story/features-team-manage-team--many-affected-invitations)
 keeps the same compact structure.
 
@@ -47,8 +47,8 @@ is a different result: state that the save succeeded and offer to refresh.
 
 <Canvas of={Team.InvitationFailure} story={{ inline: false, height: "620px" }} />
 
-[Inspect removal failure](?path=/story/features-team-manage-team--removal-failure)
-, [Inspect removal in progress](?path=/story/features-team-manage-team--removing)
+[Inspect removal failure](?path=/story/features-team-manage-team--removal-failure),
+[Inspect removal in progress](?path=/story/features-team-manage-team--removing)
 
 ## Read a member or invitation row
 

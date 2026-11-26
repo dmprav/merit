@@ -23,13 +23,13 @@ shows all three contexts using the same controls.
 
 ## Choose and place feedback
 
-| Situation                                                         | Presentation                                               |
-| ----------------------------------------------------------------- | ---------------------------------------------------------- |
-| An action's outcome, including its failure, that the screen lacks | A toast through `showToast`                                |
-| A failure of input that is still open, such as a form's save      | One line beside the commit action in that form or dialog   |
-| An update needs announcing without being shown                    | `StatusMessage`                                            |
-| A concern that stays true while the person works                  | A persistent `Notice` beside the affected work             |
-| The page cannot show its initial content                          | `StateMessage` inside the available page or recovery frame |
+| Situation                                                         | Presentation                                                                               |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| An action's outcome, including its failure, that the screen lacks | A [toast](?path=/docs/patterns-toast--docs) through `showToast`                            |
+| A failure of input that is still open, such as a form's save      | One line beside the commit action in that form or dialog                                   |
+| An update needs announcing without being shown                    | [StatusMessage](?path=/docs/patterns-status-message--docs)                                 |
+| A concern that stays true while the person works                  | A persistent [Notice](?path=/docs/components-notice--docs) beside the affected work        |
+| The page cannot show its initial content                          | [StateMessage](?path=/docs/patterns-state-message--docs) inside the page or recovery frame |
 
 Toasts are the default. A failure belongs beside the work only when the person's
 unsaved input is right there, or when nothing else can fill the space.

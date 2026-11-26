@@ -1,9 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState, type ComponentProps } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import type { TableSort } from "@merit/tables";
 import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
+import { PageHeader } from "@merit/ui/page-header";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { ApplicationsOverviewPreview as ApplicationsOverview } from "../../testing/application-list-preview";
@@ -36,7 +37,7 @@ const Preview = (
 const meta = {
   title: "Features/Applications/All applications",
   tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   component: Preview,
   args: {
     rounds,
@@ -89,6 +90,7 @@ const meta = {
           width="full"
         >
           <GrantmakingMessagesProvider>
+            <PageHeader title="Applications" />
             <Story />
           </GrantmakingMessagesProvider>
         </ApplicationPage>
@@ -156,23 +158,28 @@ export const LongAndUnknown: StoryObj<typeof meta> = {
 
 const PagedPreview = () => {
   const [offset, setOffset] = useState(50);
+  const [roundId, setRoundId] = useState("");
   const [sorting, setSorting] = useState<TableSort>(null);
   const applications = Array.from({ length: 55 }, (_, index) => ({
     ...meta.args.applications[index % 2]!,
     id: `project-${index}`,
     title: `Community project ${String(index + 1).padStart(2, "0")}`,
   }));
+  const matching = roundId ? applications.filter((item) => item.roundId === roundId) : applications;
   return (
     <ApplicationsOverview
       {...meta.args}
-      applications={applications.slice(offset, offset + 50)}
-      roundId=""
-      onRoundChange={() => {}}
+      applications={matching.slice(offset, offset + 50)}
+      roundId={roundId}
+      onRoundChange={(next) => {
+        setRoundId(next);
+        setOffset(0);
+      }}
       sorting={sorting}
       onSortingChange={setSorting}
       pagination={{
-        total: 55,
-        matching: 55,
+        total: applications.length,
+        matching: matching.length,
         offset,
         loading: false,
         failed: false,
@@ -215,8 +222,19 @@ export const PagedNoMatches: StoryObj<typeof meta> = {
 
 const RecoveryPreview = () => {
   const [offset, setOffset] = useState(0);
+  const [roundId, setRoundId] = useState("");
+  const [sorting, setSorting] = useState<TableSort>(null);
   const [failed, setFailed] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (retryTimer.current) {
+        clearTimeout(retryTimer.current);
+      }
+    },
+    [],
+  );
   const applications = Array.from({ length: 55 }, (_, index) => ({
     ...meta.args.applications[index % 2]!,
     id: `project-${index}`,
@@ -226,10 +244,13 @@ const RecoveryPreview = () => {
     <ApplicationsOverview
       {...meta.args}
       applications={applications.slice(offset, offset + 50)}
-      roundId=""
-      onRoundChange={() => {}}
-      sorting={null}
-      onSortingChange={() => {}}
+      roundId={roundId}
+      onRoundChange={(next) => {
+        setRoundId(next);
+        setOffset(0);
+      }}
+      sorting={sorting}
+      onSortingChange={setSorting}
       pagination={{
         total: 55,
         matching: 55,
@@ -241,7 +262,7 @@ const RecoveryPreview = () => {
         onNext: () => setFailed(true),
         onRetry: () => {
           setRetrying(true);
-          setTimeout(() => {
+          retryTimer.current = setTimeout(() => {
             setOffset(50);
             setFailed(false);
             setRetrying(false);

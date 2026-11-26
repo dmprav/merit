@@ -115,9 +115,21 @@ export const ResumeEditing: Story = {
     await expect(canvas.getByLabelText(/Reasoning/)).toHaveValue("Confirm the delivery dates.");
   },
 };
+
+const failOnceSave = () => {
+  let failed = false;
+  return fn<PreviewProps["onSave"]>(async () => {
+    if (!failed) {
+      failed = true;
+      return { status: "unavailable" };
+    }
+    return null;
+  });
+};
+
 export const SaveFailure: Story = {
   args: {
-    onSave: fn<PreviewProps["onSave"]>(() => ({ status: "unavailable" })),
+    onSave: failOnceSave(),
   },
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: /Edit recommendation for/ }));
@@ -178,12 +190,12 @@ export const BudgetPreview: Story = {
   },
 };
 
-const noRecommendationRound = getExampleRound();
-const noRecommendationApplication = noRecommendationRound.applications[2];
-if (!noRecommendationApplication) {
-  throw new Error("Expected the Workshop Saturdays example");
-}
-noRecommendationApplication.managerRecommendation = null;
+const noRecommendationRound = {
+  ...getExampleRound(),
+  applications: getExampleRound().applications.map((application) =>
+    application.id === "A3" ? { ...application, managerRecommendation: null } : application,
+  ),
+};
 export const NoRecommendation: Story = {
   args: { round: encodeRoundOverview(noRecommendationRound), application: { id: "A3" } },
   play: async ({ canvas }) => {

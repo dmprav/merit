@@ -37,28 +37,27 @@ const applications: SearchPaletteGroup = {
 };
 
 const Example = ({
-  initial = "",
+  value: initialValue,
+  onValueChange,
   ...props
-}: Partial<ComponentProps<typeof SearchPalette>> & { initial?: string }) => {
-  const [value, setValue] = useState(initial);
+}: ComponentProps<typeof SearchPalette>) => {
+  const [value, setValue] = useState(initialValue);
   const [open, setOpen] = useState(true);
   return (
     <SearchPaletteDialog
       title="Search the workspace"
       closeLabel="Close search"
-      trigger={null}
+      trigger={<Button variant="secondary">Open search</Button>}
       isOpen={open}
       onOpenChange={setOpen}
     >
       <SearchPalette
-        label="Search"
-        resultsLabel="Search results"
-        value={value}
-        onValueChange={setValue}
-        groups={[rounds, applications]}
-        announcement=""
-        announcementId={0}
         {...props}
+        value={value}
+        onValueChange={(next) => {
+          setValue(next);
+          onValueChange(next);
+        }}
       />
     </SearchPaletteDialog>
   );
@@ -67,7 +66,11 @@ const Example = ({
 const meta = {
   title: "Patterns/Search palette",
   component: SearchPalette,
-  parameters: { layout: "fullscreen" },
+  subcomponents: { SearchPaletteDialog },
+  parameters: {
+    layout: "fullscreen",
+    docs: { story: { inline: false, iframeHeight: 420 } },
+  },
   args: {
     label: "Search",
     resultsLabel: "Search results",
@@ -76,6 +79,12 @@ const meta = {
     groups: [rounds, applications],
     announcement: "",
     announcementId: 0,
+  },
+  argTypes: {
+    value: { control: false },
+    groups: { control: false },
+    message: { control: false },
+    announcementId: { control: false },
   },
   render: (args) => <Example {...args} />,
 } satisfies Meta<typeof SearchPalette>;

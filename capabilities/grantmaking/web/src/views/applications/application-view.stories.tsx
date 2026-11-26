@@ -3,18 +3,49 @@ import { useState, type ComponentProps } from "react";
 import { expect, within } from "storybook/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
-import { encodeRoundOverview, decodeRoundView } from "@merit/grantmaking/api";
+import {
+  encodeApplicationDetail,
+  encodeRoundOverview,
+  decodeRoundView,
+} from "@merit/grantmaking/api";
 import type { FundingRoundOverviewData } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
+import { fromMinorUnits } from "@merit/money";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { Button } from "@merit/ui/button";
-import { Inline, Stack } from "@merit/ui/layout";
+import { Inline } from "@merit/ui/layout";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { ApplicationContainedPreview } from "../../testing/application-preview";
 import { ApplicationView } from "./application-view";
 
-const round = encodeRoundOverview(getExampleRound());
+const exampleRound = getExampleRound();
+const round = encodeRoundOverview(exampleRound);
+const earlierBase = exampleRound.applications[0]!;
+const earlierRevised = {
+  ...earlierBase,
+  version: materialVersionSchema.parse(2),
+  requested: fromMinorUnits(2800000n),
+  submission: { ...earlierBase.submission!, version: materialVersionSchema.parse(2) },
+};
+const earlierIntakeState = {
+  revision: 2,
+  workingRevision: null,
+  history: [
+    {
+      revision: 2,
+      action: "application.revision_recorded",
+      actor: "Dana Reed",
+      provenance: { interface: "web" as const },
+      reason: "The applicant added accessible transport to the requested budget.",
+      recordedAt: "2027-01-15T10:00:00Z",
+      before: encodeApplicationDetail({ round: exampleRound, application: earlierBase })
+        .application,
+      after: encodeApplicationDetail({ round: exampleRound, application: earlierRevised })
+        .application,
+    },
+  ],
+};
 
 type PreviewProps = Omit<ComponentProps<typeof ApplicationView>, "round" | "application"> & {
   round: FundingRoundOverviewData;
@@ -43,7 +74,7 @@ const ApplicationPreview = ({ round, application, ...props }: PreviewProps) => {
 const meta = {
   title: "Features/Applications/Application detail",
   tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   component: ApplicationPreview,
   args: { round, application: round.applications[0]! },
   decorators: [
@@ -132,6 +163,7 @@ export const InPreparation: Story = {
 export const EarlierManagerRecommendation: Story = {
   args: {
     application: { ...round.applications[0]!, version: materialVersionSchema.parse(2) },
+    intakeState: earlierIntakeState,
     tab: "reviews",
   },
 };
@@ -141,8 +173,8 @@ export const ReadOnly: Story = { args: { readOnly: true, tab: "reviews" } };
 const ExternalReferencePreview = (props: PreviewProps) => {
   const [tab, setTab] = useState<"evidence" | "reviews">("evidence");
   return (
-    <Stack gap={3}>
-      <section aria-label="Story controls">
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden" }}>
+      <section aria-label="Story controls" style={{ padding: "var(--space-2) var(--space-4)" }}>
         <h2>Story controls: external navigation</h2>
         <Inline>
           <Button variant="quiet" onPress={() => setTab("evidence")}>
@@ -153,8 +185,10 @@ const ExternalReferencePreview = (props: PreviewProps) => {
           </Button>
         </Inline>
       </section>
-      <ApplicationPreview {...props} tab={tab} onTabChange={setTab} />
-    </Stack>
+      <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+        <ApplicationPreview {...props} tab={tab} onTabChange={setTab} />
+      </div>
+    </div>
   );
 };
 
