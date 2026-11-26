@@ -150,7 +150,7 @@ focus that enters a cross-origin frame or navigates to a new document fails as i
 When a target fails before its checks run, such as on an HTTP error, `results.json` records the
 `error` and `report.md` marks its axe, overflow, and focus checks as not checked.
 Servers and ephemeral databases are torn down automatically on exit or
-failure. Pass `--update` on host runs to delete the selected targets' previous screenshots for
+failure, and a teardown step that fails is logged rather than ignored. Pass `--update` on host runs to delete the selected targets' previous screenshots for
 the selected viewports before checking; screenshots of other targets and viewports stay. A run
 locks its output directory until its report is written, so a second concurrent run against the
 same `--out` fails immediately; give concurrent runs separate `--out` directories. The lock is the

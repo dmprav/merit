@@ -36,7 +36,7 @@ describe("acquireWithCleanup", () => {
   });
 
   it("returns an acquired resource whose release runs once through the cleanup stack", async () => {
-    const { registerCleanup, runCleanups } = createCleanupStack();
+    const { registerCleanup, runCleanups } = createCleanupStack(() => undefined);
     const released: string[] = [];
 
     const { resource, release } = await acquireWithCleanup(
@@ -55,7 +55,7 @@ describe("acquireWithCleanup", () => {
 
 describe("createCleanupStack", () => {
   it("releases resources in reverse registration order", async () => {
-    const { registerCleanup, runCleanups } = createCleanupStack();
+    const { registerCleanup, runCleanups } = createCleanupStack(() => undefined);
     const events: string[] = [];
     registerCleanup(async () => {
       events.push("output lock");
@@ -69,7 +69,7 @@ describe("createCleanupStack", () => {
   });
 
   it("waits for a release registered while the drain runs before the drain settles", async () => {
-    const { registerCleanup, runCleanups } = createCleanupStack();
+    const { registerCleanup, runCleanups } = createCleanupStack(() => undefined);
     const events: string[] = [];
 
     let finishLateStop = () => {};
@@ -95,8 +95,9 @@ describe("createCleanupStack", () => {
     expect(events).toEqual(["first release", "late stop started", "late stop finished", "drained"]);
   });
 
-  it("still runs the releases after a failed one", async () => {
-    const { registerCleanup, runCleanups } = createCleanupStack();
+  it("logs a failed release and still runs the releases after it", async () => {
+    const lines: string[] = [];
+    const { registerCleanup, runCleanups } = createCleanupStack((line) => lines.push(line));
     const events: string[] = [];
     registerCleanup(async () => {
       events.push("output lock");
@@ -106,11 +107,25 @@ describe("createCleanupStack", () => {
     });
 
     await runCleanups();
+    expect(lines).toEqual(["Cleanup failed: database is still in use"]);
     expect(events).toEqual(["output lock"]);
   });
 
+  it("logs a failed release registered while the drain runs", async () => {
+    const lines: string[] = [];
+    const { registerCleanup, runCleanups } = createCleanupStack((line) => lines.push(line));
+    registerCleanup(async () => {
+      registerCleanup(async () => {
+        throw new Error("server did not stop");
+      });
+    });
+
+    await runCleanups();
+    expect(lines).toEqual(["Cleanup failed: server did not stop"]);
+  });
+
   it("runs each release once, however often it is called", async () => {
-    const { registerCleanup, runCleanups } = createCleanupStack();
+    const { registerCleanup, runCleanups } = createCleanupStack(() => undefined);
     let stops = 0;
     const stop = registerCleanup(async () => {
       stops += 1;

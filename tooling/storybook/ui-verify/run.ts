@@ -221,7 +221,7 @@ export const runUiVerify = async (
 ): Promise<UiVerifyResults> => {
   const report = planReport(options, repoRoot);
   const releaseOutput = await acquireOutputLock(report.outDir);
-  const { registerCleanup, runCleanups } = createCleanupStack();
+  const { registerCleanup, runCleanups } = createCleanupStack(log);
   // Registered first so it runs last, after the report is written and servers are stopped.
   registerCleanup(async () => releaseOutput());
   const stopWatching = (report.mode === "container" ? ignoreInterrupts : watchInterrupts)(

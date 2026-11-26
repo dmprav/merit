@@ -255,6 +255,8 @@ export const runCommandAsync = async (
     await waitForSuccessfulExit(child, options.label, output);
   } finally {
     if (child.exitCode === null) {
+      // The command's own failure is the one to report here; `stop` is the registered cleanup,
+      // so the cleanup stack logs its failure when it drains.
       await stop().catch(() => undefined);
     }
   }

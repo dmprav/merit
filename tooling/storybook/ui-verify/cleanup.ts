@@ -1,3 +1,5 @@
+import { errorMessage } from "../../cli.ts";
+
 /** Registers a release and returns it, made idempotent, so its owner can also run it early. */
 export type RegisterCleanup = (cleanup: () => Promise<void>) => () => Promise<void>;
 
@@ -13,10 +15,12 @@ export type RunContext = {
 /**
  * Releases resources in reverse registration order. A resource registered while the drain runs,
  * such as a server whose spawn was already under way, starts releasing at once, and the drain
- * waits for it too, so the process never exits with that release unfinished. A failed release
- * does not stop the drain.
+ * waits for it too, so the process never exits with that release unfinished. A failed release is
+ * logged and the drain continues with the rest.
  */
-export const createCleanupStack = (): {
+export const createCleanupStack = (
+  log: Log,
+): {
   registerCleanup: RegisterCleanup;
   runCleanups: () => Promise<void>;
 } => {
@@ -24,6 +28,10 @@ export const createCleanupStack = (): {
   const lateCleanups: Array<Promise<void>> = [];
   let cleaningUp = false;
   let cleanupPromise: Promise<void> | undefined;
+
+  const reportFailure = (error: unknown) => {
+    log(`Cleanup failed: ${errorMessage(error)}`);
+  };
 
   const registerCleanup: RegisterCleanup = (cleanup) => {
     let pending: Promise<void> | undefined;
@@ -34,7 +42,7 @@ export const createCleanupStack = (): {
     };
 
     if (cleaningUp) {
-      lateCleanups.push(idempotent().catch(() => undefined));
+      lateCleanups.push(idempotent().catch(reportFailure));
     } else {
       cleanups.push(idempotent);
     }
@@ -45,7 +53,7 @@ export const createCleanupStack = (): {
     while (cleanups.length > 0 || lateCleanups.length > 0) {
       const cleanup = cleanups.pop();
       if (cleanup) {
-        await cleanup().catch(() => undefined);
+        await cleanup().catch(reportFailure);
       } else {
         await lateCleanups.shift();
       }

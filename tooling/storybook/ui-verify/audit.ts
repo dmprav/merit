@@ -300,7 +300,9 @@ const checkTarget = async (
       error: message,
     };
   } finally {
-    await context?.close().catch(() => undefined);
+    await context?.close().catch((error: unknown) => {
+      log(`Could not close the browser context for ${target.name}: ${errorMessage(error)}`);
+    });
   }
 };
 
