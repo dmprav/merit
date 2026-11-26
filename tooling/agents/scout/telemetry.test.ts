@@ -51,7 +51,19 @@ const createTelemetryPorts = (failing: readonly string[] = []) => {
     fallow: {
       health: report("health", {}),
       dupes: report("dupes", {}),
-      entryWeight: report("entryWeight", { entry_weight: { entries: [] } }),
+      entryWeight: report("entryWeight", {
+        entry_weight: {
+          entries: [
+            {
+              path: "app/src/router.tsx",
+              source: "tanstack-router",
+              eager_modules: 12,
+              eager_bytes: 20_480,
+              deferred_modules: 3,
+            },
+          ],
+        },
+      }),
     },
     git: { isShallow: () => true },
     readFile,
@@ -115,14 +127,24 @@ describe("suppression ledger", () => {
 });
 
 describe("structural telemetry", () => {
-  test("measures entry weights only for an axis that asks for them", () => {
-    const flagged = createTelemetryPorts();
-    expect(collect(flagged.ports, axisWith("entryWeights"))).toHaveProperty("entryWeights", []);
-    expect(flagged.reports).toEqual(["health", "dupes", "entryWeight"]);
+  test("measures entry weights for an axis that asks for them", () => {
+    const { ports } = createTelemetryPorts();
+    expect(collect(ports, axisWith("entryWeights")).entryWeights).toEqual([
+      {
+        path: "app/src/router.tsx",
+        source: "tanstack-router",
+        eagerModules: 12,
+        eagerKb: 20,
+        deferredModules: 3,
+        trackedBy: [],
+      },
+    ]);
+  });
 
-    const plain = createTelemetryPorts();
-    expect(collect(plain.ports, null)).not.toHaveProperty("entryWeights");
-    expect(plain.reports).toEqual(["health", "dupes"]);
+  test("skips the entry weight report for an axis that does not ask for it", () => {
+    const { ports, reports } = createTelemetryPorts();
+    expect(collect(ports, null)).not.toHaveProperty("entryWeights");
+    expect(reports).not.toContain("entryWeight");
   });
 
   test("names suppression top files only for an axis that asks for them", () => {
