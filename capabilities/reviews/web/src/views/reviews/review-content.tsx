@@ -549,7 +549,7 @@ const AssessmentEntry = ({
     return null;
   }
   return (
-    <Stack as="article" gap={4} aria-label={t("by", { name: assessment.reviewer })}>
+    <article aria-label={t("by", { name: assessment.reviewer })}>
       <div>
         <div className={styles.assessmentHeader}>
           <span className={styles.assessmentAuthor}>
@@ -611,7 +611,7 @@ const AssessmentEntry = ({
           )}
         </Stack>
       </div>
-    </Stack>
+    </article>
   );
 };
 
@@ -629,31 +629,33 @@ const AssessmentHistory = ({
   const state = application.reviews;
   const criteria = round.criteria;
   return (
-    <Stack gap={4} divided="between">
-      {state.assessments
-        .filter((item) => item.contactId === assessment.contactId)
-        .flatMap((item) =>
-          (item.id === assessment.id ? item.versions.slice(0, -1) : item.versions).map(
-            (version, index) => (
-              <section key={`${item.id}/${index}`}>
-                <div className={styles.card}>
-                  <SectionHeader level={3} title={t("editCount", { version: index + 1 })} />
-                  <RecordedAssessment
-                    version={version}
-                    detailed
-                    applicationVersion={application.version}
-                    criteriaVersion={round.criteriaVersion}
-                    criteria={criteria}
-                    onInspectVersion={onInspectVersion}
-                    onInspectCriteria={() => onInspectCriteria(version)}
-                    criteriaAction={`${item.id}:${index}:criteria`}
-                  />
-                </div>
-              </section>
+    <div className={styles.history}>
+      <Stack gap={4} divided="between">
+        {state.assessments
+          .filter((item) => item.contactId === assessment.contactId)
+          .flatMap((item) =>
+            (item.id === assessment.id ? item.versions.slice(0, -1) : item.versions).map(
+              (version, index) => (
+                <section key={`${item.id}/${index}`}>
+                  <div className={styles.card}>
+                    <SectionHeader level={3} title={t("editCount", { version: index + 1 })} />
+                    <RecordedAssessment
+                      version={version}
+                      detailed
+                      applicationVersion={application.version}
+                      criteriaVersion={round.criteriaVersion}
+                      criteria={criteria}
+                      onInspectVersion={onInspectVersion}
+                      onInspectCriteria={() => onInspectCriteria(version)}
+                      criteriaAction={`${item.id}:${index}:criteria`}
+                    />
+                  </div>
+                </section>
+              ),
             ),
-          ),
-        )}
-    </Stack>
+          )}
+      </Stack>
+    </div>
   );
 };
 

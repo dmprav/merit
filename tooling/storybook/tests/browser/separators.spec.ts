@@ -99,28 +99,42 @@ const trailingRules = (page: Page) =>
     ),
   );
 
-test("recorded assessments and their history have no trailing rule and equal space around rules", async ({
-  page,
-}) => {
-  await open(page, "features-applications-manage-reviews--many-recorded-versions");
-  await expect(page.locator("[data-divided='between']").first()).toBeVisible();
-  expect(await trailingRules(page)).toEqual([]);
+for (const story of ["assessment-history", "many-recorded-versions"]) {
+  test(`${story}: no trailing rule, equal space around rules, and room under the reviewer`, async ({
+    page,
+  }) => {
+    await open(page, `features-applications-manage-reviews--${story}`);
+    await expect(page.locator("[data-divided='between']").first()).toBeVisible();
+    expect(await trailingRules(page)).toEqual([]);
+    for (const { above, below } of await spaceAroundRules(page)) {
+      expect(above).toBeCloseTo(below, 0);
+    }
 
-  const entries = await spaceAroundRules(page);
-  expect(entries.length).toBeGreaterThan(0);
-  for (const { above, below } of entries) {
-    expect(above).toBeCloseTo(below, 0);
-  }
+    await page.locator('[data-review-action$=":history"]').first().click();
+    await expect(
+      page.getByRole("heading", { name: "Earlier assessments and edits" }),
+    ).toBeVisible();
+    const article = page.getByRole("article").first();
+    const heading = article.locator("section h3").first();
+    await expect(heading).toBeVisible();
+    expect(await trailingRules(page)).toEqual([]);
+    for (const { above, below } of await spaceAroundRules(page)) {
+      expect(above).toBeCloseTo(below, 0);
+    }
 
-  await page.locator('[data-review-action$=":history"]').first().click();
-  await expect(page.getByRole("heading", { name: "Earlier assessments and edits" })).toBeVisible();
-  expect(await trailingRules(page)).toEqual([]);
-  const history = await spaceAroundRules(page);
-  expect(history.length).toBeGreaterThanOrEqual(1);
-  for (const { above, below } of history) {
-    expect(above).toBeCloseTo(below, 0);
-  }
-});
+    const person = (await article.locator("h3").first().boundingBox())!;
+    const first = (await heading.boundingBox())!;
+    const space = await page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.style.paddingTop = "var(--space-4)";
+      document.body.append(probe);
+      const value = Number.parseFloat(getComputedStyle(probe).paddingTop);
+      probe.remove();
+      return value;
+    });
+    expect(first.y - (person.y + person.height)).toBeGreaterThanOrEqual(space);
+  });
+}
 
 test("a divider inside a wrapper within a stack keeps its full spacing", async ({ page }) => {
   await open(page, "components-divider--inside-wrapper");

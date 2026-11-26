@@ -25,7 +25,21 @@ export const BetweenBlocks: Story = {
   ),
 };
 
-export const Edge: Story = { ...BetweenBlocks, args: { strength: "edge" } };
+/** Choose edge where the rule marks the edge of a region, such as above a footer strip. */
+export const Edge: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <Stack gap={4}>
+      <p>The invitation was sent to dana@example.test.</p>
+      <Stack gap={0}>
+        <Divider strength="edge" spacing={3} />
+        <div>
+          <Button variant="quiet">Revoke invitation</Button>
+        </div>
+      </Stack>
+    </Stack>
+  ),
+};
 
 export const Tight: Story = { ...BetweenBlocks, args: { spacing: 3 } };
 

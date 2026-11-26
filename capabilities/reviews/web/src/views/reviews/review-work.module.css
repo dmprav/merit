@@ -9,7 +9,11 @@
   padding: var(--space-3) var(--pane-inset);
 }
 
-/* Entries in a divided stack get their space from its gap, equal above and below each rule. */
+/* The history sits a step below its header; its entries are spaced by the divided stack. */
+.history {
+  padding-top: var(--space-4);
+}
+
 .card {
   min-width: 0;
 }
