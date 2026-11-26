@@ -254,6 +254,39 @@ None.
     expect(markdown).toContain("Live Temporal Cloud connection");
   });
 
+  test("embeds desktop UI screenshots and omitted story count inside UI Touched", () => {
+    const markdown = renderReviewPacket({
+      changedFiles: [
+        { status: "modified", path: "foundation/ui/src/components/button/button.tsx" },
+      ],
+      numstat: [
+        { path: "foundation/ui/src/components/button/button.tsx", additions: 4, deletions: 2 },
+      ],
+      addedLines: [],
+      baseMigrationSql: "",
+      headMigrationSql: "",
+      screenshots: [
+        {
+          storyId: "components-button--overview",
+          title: "Components/Button",
+          name: "Overview",
+          url: "https://raw.githubusercontent.com/dmprav/merit/abc123/pr-42/components-button--overview-desktop.png",
+          passed: true,
+        },
+      ],
+      omittedScreenshotCount: 2,
+    });
+
+    expect(markdown).toContain("#### Desktop Screenshots");
+    expect(markdown).toContain(
+      "**Components/Button — Overview** (`components-button--overview` · passed)",
+    );
+    expect(markdown).toContain(
+      "![Components/Button — Overview](https://raw.githubusercontent.com/dmprav/merit/abc123/pr-42/components-button--overview-desktop.png)",
+    );
+    expect(markdown).toContain("_+2 more affected stories omitted._");
+  });
+
   test("summarizes prod, test, and docs/other buckets cleanly", () => {
     expect(
       summarizeDiffSize([

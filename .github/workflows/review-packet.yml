@@ -2,22 +2,24 @@ name: Review Packet
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, closed]
 
 permissions: {}
 
 concurrency:
   group: review-packet-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event.action != 'closed' }}
 
 jobs:
   review-packet:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: write
+    outputs:
+      has_ui_changes: ${{ steps.packet.outputs.has_ui_changes }}
     defaults:
       run:
         shell: bash
@@ -32,6 +34,7 @@ jobs:
         uses: ./.github/actions/setup-workspace
 
       - name: Post or update PR Review Packet
+        id: packet
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -40,3 +43,89 @@ jobs:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: vpx tooling/verification/pr-review-packet.ts --post
+
+  ui-screenshots:
+    needs: review-packet
+    if: github.event.action != 'closed' && needs.review-packet.outputs.has_ui_changes == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+
+      - name: Build Storybook
+        run: vp run --no-cache @merit/storybook#build
+
+      - name: Capture desktop screenshots and update Review Packet
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          selection_json="$(vpx tooling/verification/pr-screenshots.ts select)"
+          story_ids="$(printf '%s' "$selection_json" | node -e 'const d = JSON.parse(require("node:fs").readFileSync(0, "utf8")); process.stdout.write((d.storyIds || []).join(","));')"
+          omitted="$(printf '%s' "$selection_json" | node -e 'const d = JSON.parse(require("node:fs").readFileSync(0, "utf8")); process.stdout.write(String(d.omittedCount || 0));')"
+          if [ -z "$story_ids" ]; then
+            echo "No matching Storybook stories for changed UI files."
+            exit 0
+          fi
+
+          out_dir="$(mktemp -d)"
+          trap 'rm -rf "$out_dir"' EXIT
+          # Capture screenshots even when a story has audit warnings; verify.yml gates pass/fail.
+          vpx tooling/storybook/ui-verify.ts --viewport desktop --story "$story_ids" --out "$out_dir" --json > /dev/null || true
+          if [ ! -f "$out_dir/results.json" ]; then
+            echo "ui:verify did not produce results.json; skipping screenshot publish."
+            exit 0
+          fi
+
+          manifest="$out_dir/manifest.json"
+          vpx tooling/verification/pr-screenshots.ts publish \
+            --results "$out_dir/results.json" \
+            --story-ids "$story_ids" \
+            --omitted "$omitted" \
+            --out-manifest "$manifest"
+          vpx tooling/verification/pr-review-packet.ts --post --screenshots-manifest "$manifest"
+
+  cleanup-screenshots:
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+
+      - name: Remove closed PR screenshots from orphan branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: vpx tooling/verification/pr-screenshots.ts cleanup
