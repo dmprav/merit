@@ -13,5 +13,5 @@ export const popoverOffset = 6;
 /** Distance in pixels a popover keeps from the viewport edge. */
 export const popoverContainerPadding = 16;
 
-/** The tallest a reference popover grows, in pixels, before its body scrolls. */
+/** The tallest a picker or reference popover grows, in pixels, before it scrolls. */
 export const popoverMaxHeight = 560;

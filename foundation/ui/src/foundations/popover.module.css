@@ -19,9 +19,20 @@
   border-radius: var(--popover-radius);
   background: var(--surface);
   color: var(--foreground);
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the shared popover surface defines it */
   box-shadow: var(--popover-shadow);
   /* Popovers render outside the application shell, so they set the body text size themselves. */
   font-size: var(--popover-font-size, var(--text-body));
+}
+
+/*
+ * A divider inside a popover runs edge to edge: it bleeds through the padding of a padded parent
+ * and puts the rows' inset back inside, so content keeps one left edge. Users set their own
+ * padding-inline from `--divider-inline`, and any block spacing.
+ */
+.divided {
+  --divider-inline: calc(var(--popover-gutter, 0px) + var(--popover-inset, 0px));
+  margin-inline: calc(-1 * var(--popover-gutter, 0px));
 }
 
 /*
@@ -34,8 +45,8 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-timeline: --popover-list block;
-  padding: var(--popover-inset);
-  scroll-padding-block: var(--popover-inset);
+  padding: var(--popover-inset, 0px);
+  scroll-padding-block: var(--popover-inset, 0px);
   outline: none;
 }
 

@@ -52,10 +52,10 @@ const desktopOnly = (testInfo: TestInfo) => {
   test.skip(testInfo.project.name !== "desktop", "Measures geometry at one viewport.");
 };
 
-const open = async (page: Page, story: string) => {
+const open = async (page: Page, story: string, height = 800) => {
   // Geometry is measured once the surface is fully shown, not mid-fade.
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.setViewportSize({ width: 1440, height: 800 });
+  await page.setViewportSize({ width: 1440, height });
   await page.goto(`/iframe.html?id=${story}&viewMode=story`);
   await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
 };
@@ -127,8 +127,6 @@ const measureScroller = (root: Locator) =>
   });
 
 test.describe("popovers share one surface", () => {
-  const measured: Record<string, Awaited<ReturnType<typeof measureSurface>>> = {};
-
   for (const popover of popovers) {
     test(`${popover.name} sits on the shared surface, 6px from its trigger`, async ({
       page,
@@ -139,7 +137,6 @@ test.describe("popovers share one surface", () => {
       await expect(root).toBeVisible();
 
       const style = await measureSurface(root);
-      measured[popover.name] = style;
       expect(style.borderWidth).toBe("1px");
       expect(style.radius).toBe("8px");
       expect(style.shadow).not.toBe("none");
@@ -190,13 +187,67 @@ test("a long select list is cut partway through a row", async ({ page }, testInf
   expect(scroll.cutsRow).toBe(true);
 });
 
-test("a picker holding a choice list has one scroll container", async ({ page }, testInfo) => {
+test("a picker that is only a choice list has one scroll container", async ({ page }, testInfo) => {
   desktopOnly(testInfo);
-  await open(page, "features-contacts-contact-picker--open");
-  const scroll = await measureScroller(surface(page));
+  await open(page, "components-dialog--picker");
+  const root = surface(page);
+  const scroll = await measureScroller(root);
 
   expect(scroll.count).toBe(1);
   expect(scroll.scrollerLeft).toBeCloseTo(scroll.innerLeft, 0);
+  expect(await root.evaluate((node) => getComputedStyle(node).overflowY)).toBe("hidden");
+});
+
+/** The surface's scroll end, after which its lowest control must sit inside its border. */
+const scrollToEnd = (root: Locator) =>
+  root.evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+    const box = node.getBoundingClientRect();
+    const innerBottom = box.bottom - Number.parseFloat(getComputedStyle(node).borderBottomWidth);
+    // Skip the visually hidden dismiss buttons React Aria adds, which are a pixel wide.
+    const bottoms = [...node.querySelectorAll<HTMLElement>("button, input, [role=grid]")]
+      .map((control) => control.getBoundingClientRect())
+      .filter((rect) => rect.width > 2)
+      .map((rect) => rect.bottom);
+    return { innerBottom, lowest: Math.max(...bottoms) };
+  });
+
+test("a picker with notes around its choice list keeps every control reachable", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+  await open(page, "features-applications-manage-reviews--adding-request", 420);
+  const root = surface(page);
+  const end = await scrollToEnd(root);
+
+  expect(end.lowest).toBeLessThanOrEqual(end.innerBottom + 0.5);
+  expect(await measureScroller(root).then((scroll) => scroll.count)).toBeGreaterThanOrEqual(1);
+});
+
+test("notes around a choice list line up with its rows", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await open(page, "features-applications-manage-reviews--adding-request");
+  const dialog = page.getByRole("dialog", { name: "Request review" });
+
+  const textStart = (locator: Locator) =>
+    locator.evaluate((node) => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      return range.getBoundingClientRect().left;
+    });
+
+  const note = dialog.getByText("Choose a reviewer to record a request. No message is sent.");
+  const row = dialog.getByRole("option", { name: /Jules Patel/ }).getByText("Jules Patel");
+  expect(await textStart(note)).toBeCloseTo(await textStart(row), 0);
+});
+
+test("a short picker keeps its bottom padding when it scrolls", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await open(page, "components-date-field--calendar-open", 260);
+  const end = await scrollToEnd(surface(page));
+
+  // The dialog's padding is 12px.
+  expect(end.innerBottom - end.lowest).toBeGreaterThanOrEqual(11);
 });
 
 test("search palette headings and rows share one left edge", async ({ page }, testInfo) => {

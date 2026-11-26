@@ -27,16 +27,14 @@
 /* The criteria are the panel's one scroller, so a long set scrolls and the reset stays in view. */
 .criteria {
   display: grid;
-  flex: 0 1 auto;
   gap: 2px;
 }
 
 .reset {
-  /* Run edge to edge across the panel, whatever its padding, so the divider spans it. */
-  margin-inline: calc(-1 * var(--popover-gutter, 0px));
+  /* stylelint-disable-next-line property-no-unknown -- CSS Modules shares the popover divider rule. */
+  composes: divided from "../../foundations/popover.module.css";
   border-top: 1px solid var(--border);
-  padding: var(--popover-inset, 0px);
-  padding-inline: calc(var(--popover-gutter, 0px) + var(--popover-inset, 0px));
+  padding: var(--popover-inset, 0px) var(--divider-inline);
 }
 
 .summary {

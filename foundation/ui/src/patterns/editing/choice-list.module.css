@@ -4,11 +4,6 @@
   min-height: 0;
 }
 
-/* The shared popover scroller sets the height and padding; this is the one scroll container. */
-.list {
-  flex: 0 1 auto;
-}
-
 .empty {
   display: block;
   padding: var(--space-2);

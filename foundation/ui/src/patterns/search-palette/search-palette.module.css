@@ -14,6 +14,7 @@
   border: 1px solid var(--border);
   border-radius: var(--panel-radius);
   background: var(--surface);
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the palette box is a modal, not a popover, at the same elevation */
   box-shadow: var(--popover-shadow);
 }
 

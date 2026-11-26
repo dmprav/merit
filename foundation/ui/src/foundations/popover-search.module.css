@@ -3,15 +3,15 @@
  * divider above the results and the shared focus bar along that divider.
  */
 .search {
-  /* Run edge to edge across the popover, whatever its padding, so the divider spans it. */
-  --gutter: var(--popover-gutter, 0px);
+  /* stylelint-disable-next-line property-no-unknown -- CSS Modules shares the popover divider rule. */
+  composes: divided from "./popover.module.css";
   display: flex;
   align-items: center;
   gap: var(--space-2);
   min-height: 2.5rem;
-  margin: calc(-1 * var(--gutter)) calc(-1 * var(--gutter)) var(--space-1);
+  margin-block: calc(-1 * var(--popover-gutter, 0px)) var(--space-1);
   border-bottom: 1px solid var(--border);
-  padding-inline: calc(var(--gutter) + var(--popover-inset, 0px) + var(--space-2));
+  padding-inline: calc(var(--divider-inline) + var(--space-2));
   color: var(--muted);
 }
 

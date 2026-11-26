@@ -3,9 +3,6 @@
 }
 
 .dialog {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
   outline: none;
 }
 
@@ -15,24 +12,37 @@
   scroll-padding-block: var(--space-3);
 }
 
-/* Dividers inside the picker bleed through this padding to run edge to edge. */
+/*
+ * Dividers inside the picker bleed through this padding to run edge to edge. The dialog keeps its
+ * full height, so its padding stays in the scroll range of a picker that is taller than the screen.
+ */
 .popover[data-appearance="picker"] .dialog {
   --popover-gutter: var(--space-3);
   --popover-inset: 0px;
+  flex-shrink: 0;
   padding: var(--popover-gutter);
 }
 
+/* A list with notes or feedback around it keeps a narrow gutter that the notes line up with. */
+.popover[data-appearance="picker"] .dialog:has([data-list-content]) {
+  --popover-gutter: var(--space-1);
+}
+
 /*
- * List content, such as a choice list, has no padding of its own: its scroller carries the inset,
- * so the scrollbar sits at the picker's edge and the list is the only scroll container.
+ * A list that is the dialog's whole content has no padding of its own: its scroller carries the
+ * inset, so the scrollbar sits at the picker's edge and the list is the only scroll container.
  */
-.popover[data-appearance="picker"]:has([data-list-content]) {
+.popover[data-appearance="picker"]:has(.dialog > [data-list-content]) {
   overflow-y: hidden;
 }
 
-.popover[data-appearance="picker"] .dialog:has([data-list-content]) {
+.popover[data-appearance="picker"] .dialog:has(> [data-list-content]) {
   --popover-gutter: 0px;
   --popover-inset: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 1;
+  min-height: 0;
   padding: 0;
 }
 
