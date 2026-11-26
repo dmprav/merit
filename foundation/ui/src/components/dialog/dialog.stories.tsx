@@ -248,6 +248,15 @@ const reviewers = Array.from({ length: 14 }, (_, index) => ({
 
 const PickerWithNotesExample = () => {
   const [reviewer, setReviewer] = useState<string | null>(null);
+  const [items, setItems] = useState(reviewers);
+
+  // Adding a reviewer appends one and chooses it, so the action completes in the example.
+  const addReviewer = () => {
+    const added = { id: `reviewer-${items.length}`, label: `Reviewer ${items.length + 1}` };
+    setItems([...items, added]);
+    setReviewer(added.id);
+  };
+
   return (
     <PickerPopover
       title="Request a review"
@@ -265,10 +274,10 @@ const PickerWithNotesExample = () => {
           label="Reviewer"
           searchLabel="Find a reviewer"
           emptyLabel="No matching reviewer"
-          items={reviewers}
+          items={items}
           selectedKey={reviewer}
           onChoose={setReviewer}
-          actions={[{ id: "add", label: "Add reviewer", icon: "add", onAction: () => undefined }]}
+          actions={[{ id: "add", label: "Add reviewer", icon: "add", onAction: addReviewer }]}
         />
       </div>
     </PickerPopover>

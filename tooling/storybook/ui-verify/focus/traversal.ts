@@ -225,11 +225,25 @@ const siblingKeyForStop = ({
 };
 
 /** Runs in the page: whether focus has moved from the stop to another item of its collection. */
-const siblingHasFocus = ({ index, collection }: { index: number; collection: string }) => {
+const siblingHasFocus = ({
+  index,
+  item,
+  collection,
+}: {
+  index: number;
+  item: string;
+  collection: string;
+}) => {
   const tracker = window.__meritFocusTracker;
   const el = tracker?.stops[index];
   const active = tracker?.deepActiveElement();
-  return Boolean(el && active && active !== el && el.closest(collection)?.contains(active));
+  return Boolean(
+    el &&
+    active &&
+    active !== el &&
+    active.matches(item) &&
+    el.closest(collection)?.contains(active),
+  );
 };
 
 /**
@@ -258,7 +272,7 @@ export const captureFinalBaseline = async (
     reachedSibling = await page
       .waitForFunction(
         siblingHasFocus,
-        { index: finalStop.index, collection: COLLECTION },
+        { index: finalStop.index, item: COLLECTION_ITEM, collection: COLLECTION },
         { timeout: 2_000 },
       )
       .then(

@@ -32,11 +32,11 @@
  * A list that is the dialog's whole content has no padding of its own: its scroller carries the
  * inset, so the scrollbar sits at the picker's edge and the list is the only scroll container.
  */
-.popover[data-appearance="picker"]:has(.dialog > [data-list-content]) {
+.popover[data-appearance="picker"]:has(.dialog > [data-list-content]:only-child) {
   overflow-y: hidden;
 }
 
-.popover[data-appearance="picker"] .dialog:has(> [data-list-content]) {
+.popover[data-appearance="picker"] .dialog:has(> [data-list-content]:only-child) {
   --popover-gutter: 0px;
   --popover-inset: var(--space-1);
   display: flex;
@@ -48,7 +48,7 @@
 
 /* With notes around it the picker is the one scroller, so the list inside runs its full height. */
 .popover[data-appearance="picker"]
-  .dialog:has([data-list-content]):not(:has(> [data-list-content]))
+  .dialog:has([data-list-content]):not(:has(> [data-list-content]:only-child))
   [role="listbox"] {
   max-height: none;
   overflow-y: visible;
