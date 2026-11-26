@@ -228,15 +228,25 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
   expect(neededJobs).toEqual(jobIds.filter((id) => id !== "verify"));
 });
 
-test("CI uploads package Vitest reports from each workspace package without walking node_modules", async () => {
-  const workflow = await readFile(`${REPO_ROOT}/.github/workflows/verify.yml`, "utf8");
-  const workspace = await readFile(`${REPO_ROOT}/pnpm-workspace.yaml`, "utf8");
+const UPLOAD_PATHS = /^\s+path:\s*(?:\|\r?\n((?:\s{12}.*\r?\n)+)|(.+))/gm;
 
-  // upload-artifact reads the whole tree for a `**` pattern, including node_modules, and hangs.
-  const uploadPaths = [...workflow.matchAll(/^\s+path:\s*(?:\|\r?\n((?:\s{12}.*\r?\n)+)|(.+))/gm)]
+const readWorkflow = () => readFile(`${REPO_ROOT}/.github/workflows/verify.yml`, "utf8");
+
+const uploadPathsIn = (text: string) =>
+  [...text.matchAll(UPLOAD_PATHS)]
     .flatMap(([, block, single]) => (block ?? single ?? "").split(/\r?\n/))
     .map((path) => path.trim().replace(/^"|"$/g, ""))
     .filter(Boolean);
+
+/** The lines of one top-level job, up to the next job key. */
+const jobBlock = (workflow: string, job: string) =>
+  workflow.split(new RegExp(`^  ${job}:\\r?$`, "m"))[1]?.split(/^  [a-z0-9-]+:\r?$/m)[0] ?? "";
+
+test("CI uploads package Vitest reports from each workspace package without walking node_modules", async () => {
+  const uploadPaths = uploadPathsIn(await readWorkflow());
+  const workspace = await readFile(`${REPO_ROOT}/pnpm-workspace.yaml`, "utf8");
+
+  // upload-artifact reads the whole tree for a `**` pattern, including node_modules, and hangs.
   expect(uploadPaths.filter((path) => path.startsWith("**"))).toEqual([]);
 
   const packagesBlock = workspace.match(/^packages:\r?\n((?: {2}- .*\r?\n)+)/m)?.[1] ?? "";
@@ -245,4 +255,34 @@ test("CI uploads package Vitest reports from each workspace package without walk
     .filter((glob): glob is string => glob !== undefined);
   const reportPaths = uploadPaths.filter((path) => path.endsWith("/.vitest-report.json"));
   expect(reportPaths).toEqual(packageGlobs.map((glob) => `${glob}/.vitest-report.json`));
+});
+
+test("CI uploads every Playwright suite's output directory from the job that runs it", async () => {
+  const workflow = await readWorkflow();
+  // Browser jobs set TMPDIR to the runner's temporary directory, so each suite's traces and
+  // screenshots land in `${{ runner.temp }}/<directory>`. A suffixed directory needs a glob.
+  const outputSources = {
+    "browser-tooling": "tooling/testing/browser/config.ts",
+    "browser-storybook": "tooling/storybook/playwright.config.ts",
+    "browser-workspace": "app/tests/browser/workspace.playwright.config.ts",
+    "browser-demo": "app/tests/demo-browser.ts",
+  };
+
+  for (const [job, source] of Object.entries(outputSources)) {
+    const block = jobBlock(workflow, job);
+    expect(block, `verify.yml has a ${job} job`).not.toBe("");
+    const uploadedDirectories = uploadPathsIn(block)
+      .filter((path) => path.startsWith("${{ runner.temp }}/"))
+      .map((path) => path.slice("${{ runner.temp }}/".length));
+    const text = await readFile(`${REPO_ROOT}/${source}`, "utf8");
+    const [, quote, prefix] = text.match(/join\(tmpdir\(\),\s*(["`])([^"`$]+)/) ?? [];
+    assert(prefix, `${source} writes Playwright output under tmpdir()`);
+    const suffixed = quote === "`" && text.includes(`${prefix}\${`);
+    const covered = uploadedDirectories.some((directory) =>
+      directory.endsWith("*")
+        ? prefix.startsWith(directory.slice(0, -1))
+        : !suffixed && directory === prefix,
+    );
+    expect(covered, `${job} uploads ${source} output (${prefix}${suffixed ? "…" : ""})`).toBe(true);
+  }
 });

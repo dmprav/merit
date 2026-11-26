@@ -107,7 +107,7 @@ when stories, components, or configuration change, then serves `dist/` with
 reports their warnings as browser errors. Use `vp run storybook` for live editing.
 
 Install the browsers once with `pnpm --filter @merit/test-support exec playwright install chromium firefox webkit`
-before running browser checks. Storybook browser artifacts are in `merit-storybook-results` and
+before running browser checks. Storybook browser artifacts are in per-port `merit-storybook-results-*` and
 application artifacts in per-run `merit-demo-browser-*` and `merit-workspace-browser-*`
 directories under the operating system's temporary directory.
 The [Storybook configuration](../../tooling/storybook/playwright.config.ts)
