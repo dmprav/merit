@@ -127,21 +127,32 @@ export type EntryWeightEntry = {
   trackedBy: number[];
 };
 
-export const summarizeFallowHealth = ({
-  rawHealth,
-  pathPatterns,
-  trackedPathsByIssue,
-}: {
-  rawHealth: unknown;
+type FallowHealth = z.infer<typeof fallowHealthSchema>;
+
+type FocusScope = {
+  /** The rotation axis's path globs; empty when the lens has no axis. */
   pathPatterns: readonly string[];
   trackedPathsByIssue: ReadonlyMap<string, number[]>;
-}): {
-  topFiles: FileScoreEntry[];
-  hotspots: HotspotEntry[];
-  thresholdOverrides: ThresholdOverrideEntry[];
-} => {
-  const parsed = fallowHealthSchema.parse(rawHealth);
-  const scored = parsed.file_scores
+};
+
+/** Files listed first from the rotation axis, then filled with the heaviest files elsewhere. */
+const AXIS_TOP_FILE_COUNT = 6;
+const TOP_FILE_COUNT = 8;
+const HOTSPOT_COUNT = 6;
+const CLONE_GROUP_COUNT = 8;
+const ENTRY_WEIGHT_COUNT = 5;
+
+/** Ranks coupling ahead of size: one extra import counts as much as ten lines. */
+const rankFileScore = (entry: FileScoreEntry) => entry.fanOut * 10 + entry.lines;
+
+const byRankDescending = (a: FileScoreEntry, b: FileScoreEntry) =>
+  rankFileScore(b) - rankFileScore(a);
+
+const summarizeTopFiles = (
+  fileScores: FallowHealth["file_scores"],
+  { pathPatterns, trackedPathsByIssue }: FocusScope,
+): FileScoreEntry[] => {
+  const scored = fileScores
     .filter((entry) => isProductionSourcePath(entry.path))
     .map((entry) => {
       const normalized = normalizeRepoPath(entry.path);
@@ -156,21 +167,19 @@ export const summarizeFallowHealth = ({
         trackedBy: trackedByForPaths([normalized], trackedPathsByIssue),
       };
     });
+  const axisFiles = scored.filter((entry) => entry.inAxis).sort(byRankDescending);
+  const otherFiles = scored.filter((entry) => !entry.inAxis).sort(byRankDescending);
+  return [...axisFiles.slice(0, AXIS_TOP_FILE_COUNT), ...otherFiles].slice(0, TOP_FILE_COUNT);
+};
 
-  const rankScore = (entry: FileScoreEntry) => entry.fanOut * 10 + entry.lines;
-
-  const axisFiles = scored
-    .filter((entry) => entry.inAxis)
-    .sort((a, b) => rankScore(b) - rankScore(a));
-  const otherFiles = scored
-    .filter((entry) => !entry.inAxis)
-    .sort((a, b) => rankScore(b) - rankScore(a));
-  const topFiles = [...axisFiles.slice(0, 6), ...otherFiles].slice(0, 8);
-
-  const hotspots = parsed.hotspots
+const summarizeHotspots = (
+  hotspots: FallowHealth["hotspots"],
+  trackedPathsByIssue: ReadonlyMap<string, number[]>,
+): HotspotEntry[] =>
+  hotspots
     .filter((entry) => isProductionSourcePath(entry.path))
     .sort((a, b) => b.score - a.score)
-    .slice(0, 6)
+    .slice(0, HOTSPOT_COUNT)
     .map((entry) => {
       const normalized = normalizeRepoPath(entry.path);
       return {
@@ -182,7 +191,10 @@ export const summarizeFallowHealth = ({
       };
     });
 
-  const thresholdOverrides = parsed.threshold_overrides
+const summarizeThresholdOverrides = (
+  overrides: FallowHealth["threshold_overrides"],
+): ThresholdOverrideEntry[] =>
+  overrides
     .filter((entry) => entry.status === "active")
     .map((entry) => ({
       path: normalizeRepoPath(entry.path),
@@ -193,18 +205,28 @@ export const summarizeFallowHealth = ({
       ...(entry.reason ? { reason: entry.reason } : {}),
     }));
 
-  return { topFiles, hotspots, thresholdOverrides };
+export const summarizeFallowHealth = ({
+  rawHealth,
+  pathPatterns,
+  trackedPathsByIssue,
+}: { rawHealth: unknown } & FocusScope): {
+  topFiles: FileScoreEntry[];
+  hotspots: HotspotEntry[];
+  thresholdOverrides: ThresholdOverrideEntry[];
+} => {
+  const parsed = fallowHealthSchema.parse(rawHealth);
+  return {
+    topFiles: summarizeTopFiles(parsed.file_scores, { pathPatterns, trackedPathsByIssue }),
+    hotspots: summarizeHotspots(parsed.hotspots, trackedPathsByIssue),
+    thresholdOverrides: summarizeThresholdOverrides(parsed.threshold_overrides),
+  };
 };
 
 export const summarizeFallowDupes = ({
   rawDupes,
   pathPatterns,
   trackedPathsByIssue,
-}: {
-  rawDupes: unknown;
-  pathPatterns: readonly string[];
-  trackedPathsByIssue: ReadonlyMap<string, number[]>;
-}): CloneGroupEntry[] => {
+}: { rawDupes: unknown } & FocusScope): CloneGroupEntry[] => {
   const parsed = fallowDupesSchema.parse(rawDupes);
   const groups = parsed.clone_groups
     .map((group) => {
@@ -229,7 +251,7 @@ export const summarizeFallowDupes = ({
 
   const axisGroups = groups.filter((entry) => entry.inAxis);
   const otherGroups = groups.filter((entry) => !entry.inAxis);
-  return [...axisGroups, ...otherGroups].slice(0, 8);
+  return [...axisGroups, ...otherGroups].slice(0, CLONE_GROUP_COUNT);
 };
 
 export const summarizeEntryWeights = ({
@@ -242,7 +264,7 @@ export const summarizeEntryWeights = ({
   const parsed = fallowEntryWeightSchema.parse(rawEntryWeight);
   return [...parsed.entry_weight.entries]
     .sort((a, b) => b.eager_bytes - a.eager_bytes)
-    .slice(0, 5)
+    .slice(0, ENTRY_WEIGHT_COUNT)
     .map((entry) => {
       const normalized = normalizeRepoPath(entry.path);
       return {

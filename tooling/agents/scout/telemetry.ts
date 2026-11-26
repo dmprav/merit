@@ -40,31 +40,44 @@ export type StructuralTelemetry = {
   fallowErrors?: string[];
 };
 
+type CapabilityLayer = "domain" | "server" | "web" | "ai";
+
+const TYPESCRIPT_SOURCE_PATTERN = /\.(?:ts|tsx)$/;
+
+/** The layer of a path below `capabilities/<name>/`, such as `business/src/domain/...`. */
+const capabilityLayerOf = ([
+  area,
+  src,
+  subdirectory,
+]: readonly string[]): CapabilityLayer | null => {
+  if (src !== "src") {
+    return null;
+  }
+  if (area === "business") {
+    return subdirectory === "domain" || subdirectory === "server" ? subdirectory : null;
+  }
+  return area === "web" || area === "ai" ? area : null;
+};
+
+/** Counts production TypeScript files per capability layer so lopsided capabilities stand out. */
 export const buildCapabilitySymmetry = (
   trackedFiles: readonly string[],
 ): CapabilitySymmetryEntry[] => {
   const counts = new Map<string, CapabilitySymmetryEntry>();
-  for (const rawPath of trackedFiles) {
-    const filePath = normalizeRepoPath(rawPath);
-    if (!/\.(?:ts|tsx)$/.test(filePath) || !isProductionSourcePath(filePath)) {
+  for (const filePath of trackedFiles.map(normalizeRepoPath)) {
+    const [root, capability, ...rest] = filePath.split("/");
+    if (
+      root !== "capabilities" ||
+      !capability ||
+      !TYPESCRIPT_SOURCE_PATTERN.test(filePath) ||
+      !isProductionSourcePath(filePath)
+    ) {
       continue;
     }
-    const parts = filePath.split("/");
-    if (parts[0] !== "capabilities" || !parts[1]) {
-      continue;
-    }
-    const capability = parts[1];
     const row = counts.get(capability) ?? { capability, domain: 0, server: 0, web: 0, ai: 0 };
-    if (parts[2] === "business" && parts[3] === "src") {
-      if (parts[4] === "domain") {
-        row.domain += 1;
-      } else if (parts[4] === "server") {
-        row.server += 1;
-      }
-    } else if (parts[2] === "web" && parts[3] === "src") {
-      row.web += 1;
-    } else if (parts[2] === "ai" && parts[3] === "src") {
-      row.ai += 1;
+    const layer = capabilityLayerOf(rest);
+    if (layer) {
+      row[layer] += 1;
     }
     counts.set(capability, row);
   }
@@ -79,7 +92,6 @@ const SUPPRESSION_PATTERNS: ReadonlyArray<{ kind: string; pattern: RegExp }> = [
 ];
 
 const SUPPRESSION_SCAN_ROOT_PATTERN = /^(?:app|capabilities|foundation|interfaces)\//;
-const TYPESCRIPT_SOURCE_PATTERN = /\.(?:ts|tsx)$/;
 const SUPPRESSION_TOP_FILE_COUNT = 6;
 
 const scansForSuppressions = (filePath: string): boolean =>

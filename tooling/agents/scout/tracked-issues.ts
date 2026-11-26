@@ -37,26 +37,31 @@ export const buildTrackedPathsIndex = (
   return result;
 };
 
+/** Rejection reasons longer than this are cut short with an ellipsis. */
+const REJECTION_REASON_MAX_LENGTH = 200;
+const ELLIPSIS = "...";
+
+const truncate = (text: string, maxLength: number): string =>
+  text.length > maxLength ? `${text.slice(0, maxLength - ELLIPSIS.length)}${ELLIPSIS}` : text;
+
+/** Collapses a comment body to one line without HTML comments such as bot markers. */
+const compactCommentBody = (body: string): string =>
+  body
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
 /** Extracts the latest trusted maintainer comment on a closed `wontfix` issue as a compact single-line reason. */
 export const extractLatestTrustedRejectionReason = (
   comments: ReadonlyArray<{ authorAssociation?: string; body?: string }> | undefined,
 ): string | undefined => {
-  if (!comments || comments.length === 0) {
-    return undefined;
-  }
-  for (let index = comments.length - 1; index >= 0; index -= 1) {
-    const comment = comments[index];
-    if (!comment?.body || !TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation ?? "")) {
-      continue;
+  for (const comment of [...(comments ?? [])].reverse()) {
+    const reason = TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation ?? "")
+      ? compactCommentBody(comment.body ?? "")
+      : "";
+    if (reason) {
+      return truncate(reason, REJECTION_REASON_MAX_LENGTH);
     }
-    const stripped = comment.body
-      .replace(/<!--[\s\S]*?-->/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (!stripped) {
-      continue;
-    }
-    return stripped.length > 200 ? `${stripped.slice(0, 197)}...` : stripped;
   }
   return undefined;
 };
@@ -72,24 +77,16 @@ const matchesTrackedMarkerPath = (filePath: string, markerPath: string): boolean
   return filePath.startsWith(dirPrefix);
 };
 
+/** Issues whose proposal markers cover any of `paths`, as exact paths, globs, or parent directories. */
 export const trackedByForPaths = (
   paths: readonly string[],
   trackedPathsByIssue: ReadonlyMap<string, number[]>,
 ): number[] => {
   const issues = new Set<number>();
-  for (const rawPath of paths) {
-    const normalized = normalizeRepoPath(rawPath);
-    for (const issueNumber of trackedPathsByIssue.get(normalized) ?? []) {
-      issues.add(issueNumber);
-    }
+  for (const filePath of paths.map(normalizeRepoPath)) {
     for (const [markerPath, issueNumbers] of trackedPathsByIssue) {
-      if (markerPath === normalized) {
-        continue;
-      }
-      if (matchesTrackedMarkerPath(normalized, markerPath)) {
-        for (const issueNumber of issueNumbers) {
-          issues.add(issueNumber);
-        }
+      if (matchesTrackedMarkerPath(filePath, markerPath)) {
+        issueNumbers.forEach((issueNumber) => issues.add(issueNumber));
       }
     }
   }
