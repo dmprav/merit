@@ -1,6 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { buildIcons, buildMark } from "./assets";
@@ -97,10 +96,7 @@ const main = async () => {
       library,
     ].join("\n"),
   );
-  await buildDeclarations(
-    path.join(components, "index.d.ts"),
-    await mkdtemp(path.join(tmpdir(), "merit-ds-")),
-  );
+  await buildDeclarations(path.join(components, "index.d.ts"));
 
   const colors = new Map(tokens.color.tokens.map((token) => [token.name, token.value]));
 
