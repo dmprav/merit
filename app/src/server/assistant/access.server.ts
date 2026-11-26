@@ -16,7 +16,13 @@ export type AssistantRuntimeCatalog = Omit<AssistantCatalog, "execute"> & {
   execute: (
     preview: AssistantPreview,
   ) => Promise<AssistantReceipt & { retry?: AssistantPreview; delivery?: DeliveryTicket }>;
-  deliver: (ticket: DeliveryTicket) => Promise<"sent" | "failed" | "unavailable">;
+  /**
+   * Put the failed message of a saved ticket back to `pending`, in the retry's own transaction,
+   * so its workflow sends it again. Nothing else makes a failed message deliverable.
+   */
+  retryDelivery: (ticket: DeliveryTicket) => Promise<void>;
+  /** Where the saved message stands now. `pending` means a later step asks again. */
+  deliver: (ticket: DeliveryTicket) => Promise<"sent" | "failed" | "unavailable" | "pending">;
 };
 
 class RejectedWrite extends Error {

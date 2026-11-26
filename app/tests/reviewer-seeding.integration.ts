@@ -2,7 +2,7 @@ import { assert, expect } from "vite-plus/test";
 
 import type { Database } from "@merit/db";
 import { seedExampleReviewer, seedExampleRounds } from "@merit/grantmaking/testing";
-import { createReviewerService } from "@merit/reviews/server";
+import { createInlineReviewerService } from "@merit/reviews/testing";
 import { databaseTest as it } from "@merit/test-support/database";
 
 const actor = { userId: "local-reviewer" };
@@ -10,7 +10,7 @@ const actor = { userId: "local-reviewer" };
 const seededReviewer = async (db: Database) => {
   await seedExampleRounds(db);
   await seedExampleReviewer(db);
-  const service = createReviewerService({
+  const service = createInlineReviewerService({
     database: (operation) => operation(db),
     send: async () => {},
     reviewerUrl: (_slug, id) => id,

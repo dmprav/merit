@@ -6,6 +6,8 @@ import { describe, expect, test } from "vite-plus/test";
 import {
   checkRecordContent,
   checkVerificationRecord,
+  extractRecordSections,
+  isNoneSection,
   parseNameStatus,
   RECORD_DIRECTORY,
   type ChangedFile,
@@ -14,6 +16,10 @@ import {
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 
 const completeRecord = `# Verification record
+
+## Behavioral decisions
+
+- Retries failed deliveries for 15 minutes before marking them failed.
 
 ## Checks run
 
@@ -101,7 +107,9 @@ describe("verification record", () => {
 
     const reordered = completeRecord.replace("## Did not verify", "## Lessons");
     expect(checkRecordContent("r.md", reordered)).toEqual([
-      expect.stringContaining('Found: "## Checks run", "## Could not verify", "## Lessons"'),
+      expect.stringContaining(
+        'Found: "## Behavioral decisions", "## Checks run", "## Could not verify", "## Lessons"',
+      ),
     ]);
 
     const emptySection = completeRecord.replace(
@@ -145,6 +153,20 @@ describe("verification record", () => {
       "<!-- a --> None. <!-- b -->\n\n## Dismissed",
     );
     expect(checkRecordContent("r.md", inline)).toEqual([]);
+  });
+
+  test("extracts visible section bodies and identifies None sections", () => {
+    const sections = extractRecordSections(completeRecord);
+    expect(sections.get("Behavioral decisions")).toBe(
+      "- Retries failed deliveries for 15 minutes before marking them failed.",
+    );
+    expect(sections.get("Did not verify")).toBe("None.");
+
+    expect(isNoneSection(undefined)).toBe(true);
+    expect(isNoneSection("")).toBe(true);
+    expect(isNoneSection("None.")).toBe(true);
+    expect(isNoneSection("- none")).toBe(true);
+    expect(isNoneSection("- Retries failed deliveries.")).toBe(false);
   });
 
   test("parses git name-status output, splitting renames", () => {

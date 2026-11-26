@@ -5,17 +5,19 @@ import { z } from "zod";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { changeWorkspaceContact } from "@merit/contacts/server";
-import { withDatabase } from "@merit/db";
+import { withDatabase, type Database } from "@merit/db";
 import { contactWork } from "@merit/grantmaking/testing/contact-work";
 import { roundTest } from "@merit/grantmaking/testing/rounds";
 import { actor, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
+import { inlineReviewerDelivery } from "@merit/reviews/testing";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
-import { createAssistantHost } from "../src/server/assistant/host.server";
+import { createAssistantHost, createAssistantRuntime } from "../src/server/assistant/host.server";
 import type { AssistantCommand } from "../src/server/assistant/http.server";
 import type { EmailSender } from "../src/server/email-delivery.server";
+import { reviewerMessageDelivery } from "../src/server/services.server";
 
 const it = roundTest.extend("committee", async ({ db, database, rounds }) => {
   const address = await rounds.createApplication("Community gardens");
@@ -174,15 +176,57 @@ it(
     };
 
     const runtime = await database.createRuntimeConnection();
-    const host = createAssistantHost(
-      {
-        database: (operation) => withDatabase(runtime, operation),
+
+    const database_ = <T>(operation: (db: Database) => Promise<T>) =>
+      withDatabase(runtime, operation);
+
+    const deliverInline = inlineReviewerDelivery(
+      reviewerMessageDelivery({
+        database: database_,
         invitationOrigin: "https://merit.test",
         sendEmail,
-      },
-      { apiKey: "test", model: "scripted" },
+      }),
     );
-    onTestFinished(() => host.close());
+    const dependencies = {
+      database: database_,
+      invitationOrigin: "https://merit.test",
+      startReviewerMessage: deliverInline,
+      startOrganizationInvitation: async () => true,
+    };
+    const model = { apiKey: "test", model: "scripted" };
+    // The workflow's own tests cover Temporal; here a wake drives the same turns in process.
+    const driver = createAssistantRuntime(dependencies, model);
+
+    // As the workflow does: look again after a step that waited, until nothing is left to drive.
+    let ending = false;
+    onTestFinished(() => {
+      ending = true;
+    });
+
+    const drive = async (...address: Parameters<typeof driver.turns.advance>) => {
+      try {
+        while (!ending && (await driver.turns.advance(...address)) !== "finished") {
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+      } catch (error) {
+        // A step that was in flight when the test ended meets a dropped database.
+        if (!ending) {
+          throw error;
+        }
+      }
+    };
+
+    const host = createAssistantHost(
+      {
+        ...dependencies,
+        cancelConversation: async () => {},
+        wakeConversation: async ({ userId, workspaceSlug, conversationId }) => {
+          void drive({ userId }, workspaceSlug, conversationId);
+          return true;
+        },
+      },
+      model,
+    );
 
     const command = (
       input: AssistantCommand,

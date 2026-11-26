@@ -37,12 +37,17 @@ const shutdownTelemetry = async () =>
 
 const run = {
   tasks: {
-    dev: { command: "vp dev", cache: false },
-    "dev:workspace": { command: "vp dev --mode local-workspace", cache: false },
+    // The worker runs beside the web server so local development uses the only execution path.
+    dev: { command: "vpx scripts/with-worker.ts --watch vp dev", cache: false },
+    "dev:workspace": {
+      command: "vpx scripts/with-worker.ts --watch vp dev --mode local-workspace",
+      cache: false,
+    },
+    worker: { command: "env MERIT_LOCAL_WORKER=1 vpx src/worker/main.ts", cache: false },
     build: ["vp build", "tsc --noEmit"],
     test: "vp test --config vitest.config.ts",
     preview: {
-      command: `env MERIT_LOCAL_PREVIEW=1 vp preview --host localhost --port ${devPort} --strictPort`,
+      command: `env MERIT_LOCAL_PREVIEW=1 vpx scripts/with-worker.ts vp preview --host localhost --port ${devPort} --strictPort`,
       cache: false,
     },
     "demo:cleanup": { command: "vpx scripts/clean-demos.ts", cache: false },

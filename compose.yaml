@@ -14,6 +14,21 @@ services:
       interval: 2s
       timeout: 5s
       retries: 20
+  temporal:
+    image: temporalio/temporal:1.10.1@sha256:b228dadf9cdb6c7c02a1394b89dd76f827aac9760e458fce42f0899a10141225
+    # The development server keeps state in one SQLite file. It is a local tool, not a deployment.
+    command:
+      ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/home/temporal/temporal.db"]
+    ports:
+      - "127.0.0.1:7233:7233"
+      - "127.0.0.1:8233:8233"
+    volumes:
+      - merit-temporal:/home/temporal
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "127.0.0.1:7233"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
   mailpit:
     image: axllent/mailpit:v1.30.4@sha256:5a49a77c5bdbe7c5474450b4f46348d09949df3695257729c93a30369382d4f6
     ports:
@@ -36,3 +51,4 @@ services:
 volumes:
   merit-postgres:
   merit-files:
+  merit-temporal:

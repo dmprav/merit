@@ -342,3 +342,29 @@ export const readReviewerAssessment = async (db: Database, record: ReviewerRecor
   );
   return assessment ? reviewStateSchema.shape.assessments.element.parse(assessment) : null;
 };
+
+type PendingReviewerMessage = {
+  messageId: string;
+  assignmentId: string;
+  kind: "invitation" | "submission";
+  /** The member whose access the delivery acts under: the manager for an invitation. */
+  userId: string;
+};
+
+const noMessage = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Workers discover only identifiers: the newest unfinished message of each kind per assignment,
+ * across workspaces, through a privileged function. Reading and sending a message always
+ * opens a scoped transaction for the returned user and assignment.
+ */
+export const listPendingReviewerMessages = async (
+  db: Database,
+  limit: number,
+  after: string = noMessage,
+) =>
+  (
+    await db.execute<PendingReviewerMessage>(
+      sql`select * from merit_pending_reviewer_messages(${limit}, ${after})`,
+    )
+  ).rows;
