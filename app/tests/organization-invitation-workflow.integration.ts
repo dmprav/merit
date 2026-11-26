@@ -124,6 +124,7 @@ beforeAll(async () => {
       sendInvitation: (message) => sendInvitation(message),
       invitationUrl,
     },
+    assistant: { configured: false, running: async () => [], wake: async () => true },
     reconcileReviewerMessage: async () => "exists",
   });
   worker = await startTestWorker(config, { workflows: { workflowsPath }, activities });

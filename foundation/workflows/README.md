@@ -76,7 +76,8 @@ keeping its paused state, so every worker start can call it. The application wor
 reconcilers, one activity each, that list committed unfinished work in Postgres and start the
 workflows that are missing. Add a reconciler to
 [`reconcile.workflow.ts`](../../app/src/worker/reconcile.workflow.ts) and its activity to
-[`activities.ts`](../../app/src/worker/activities.ts). Organization invitations have no
+[`activities.ts`](../../app/src/worker/activities.ts). The `conversations` reconciler signals
+(signal-with-start) the workflow of every running Merit AI conversation. Organization invitations have no
 reconciler: only the token's hash is stored, and the raw token lives only in the workflow's
 encrypted input, so a start lost between commit and Temporal is recovered by the administrator's
 resend.
@@ -95,7 +96,12 @@ path as `workflows.workflowsPath`.
 
 ## Run a worker
 
-`runWorker(settings, { logger, signal })` connects with exponential backoff (1 s to 30 s)
+`runWorker(settings, { logger, signal })` polls the main queue and any `activityQueues`: further
+queues that run activities only, each with its own `maxConcurrentActivities`. Merit AI's turn
+activities use one, so at most four turns run at once whatever else the worker does. Long
+activities wrap their work in `withHeartbeat`, which reports that the process is alive; with a
+heartbeat timeout on the activity, a worker that dies is noticed within seconds instead of at the
+activity's start-to-close timeout. It connects with exponential backoff (1 s to 30 s)
 while Temporal is unreachable, logs each attempt without credentials, then polls until the
 signal aborts and in-flight work finishes. Failing to build the worker, for example from
 invalid workflow code, rejects instead of retrying. `createWorker` builds a worker over a
@@ -103,7 +109,8 @@ connection you own.
 
 The application worker is [`app/src/worker/main.ts`](../../app/src/worker/main.ts). It
 registers `workerHealth`, which proves the path from client to worker, activity, and result;
-`reconcile`; and each capability's workflows, starting with Reviews' `reviewerMessage`. The process exits once the worker stops, with a non-zero code when
+`reconcile`; each capability's workflows, starting with Reviews' `reviewerMessage`; and
+`assistantConversation`, Merit AI's per-conversation workflow. The process exits once the worker stops, with a non-zero code when
 the worker failed. Run it with `vp run @merit/app#worker`, or let
 [`vp run dev`](../../docs/guides/development.md#start-and-seed-postgresql) start it.
 

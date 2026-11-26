@@ -1,13 +1,17 @@
 import { env as processEnvironment } from "node:process";
 
+import { createServerAnalytics } from "@merit/analytics/server";
 import { createDatabasePool } from "@merit/db";
 import { createWorkflowClient, readTemporalConfig, type TemporalConfig } from "@merit/workflows";
 
+import { createAssistantRuntime } from "../server/assistant/host.server";
 import { createBackgroundWork } from "../server/background-work.server";
 import { createEmailSender } from "../server/email-delivery.server";
 import { readAppOrigin, readDatabaseUrl } from "../server/runtime-config.server";
 import { organizationInvitationDelivery, reviewerMessageDelivery } from "../server/services.server";
 import { createActivities } from "./activities";
+import { createAssistantActivities } from "./assistant-activities";
+import { assistantTurnConcurrency, assistantTurnTaskQueue } from "./task-queue";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -28,8 +32,29 @@ export const createWorkerRuntime = (
     mailpitUrl: local ? (env.MAILPIT_URL ?? "http://127.0.0.1:8025") : undefined,
   });
   const background = createBackgroundWork({ client: () => client });
+  const invitationOrigin = readAppOrigin();
+  // Turns run here, so this process owns what a turn's grant changes report and deliver.
+  const assistant = createAssistantRuntime(
+    {
+      database,
+      analytics: createServerAnalytics({
+        apiKey: env.VITE_POSTHOG_KEY,
+        host: env.VITE_POSTHOG_HOST,
+      }),
+      sendEmail,
+      startReviewerMessage: background.startReviewerMessage,
+      startOrganizationInvitation: background.startOrganizationInvitation,
+      invitationOrigin,
+    },
+    { apiKey: env.OPENAI_API_KEY ?? "", model: env.MERIT_AI_MODEL ?? "" },
+  );
   const activities = createActivities({
     database,
+    assistant: {
+      configured: assistant.configured,
+      running: assistant.store.running,
+      wake: background.wakeAssistantConversation,
+    },
     reviewerMessages: reviewerMessageDelivery({
       database,
       invitationOrigin: readAppOrigin(),
@@ -42,5 +67,12 @@ export const createWorkerRuntime = (
     }),
     reconcileReviewerMessage: background.reconcileReviewerMessage,
   });
-  return { config, client, activities };
+  const activityQueues = [
+    {
+      taskQueue: assistantTurnTaskQueue,
+      activities: createAssistantActivities(assistant),
+      maxConcurrentActivities: assistantTurnConcurrency,
+    },
+  ];
+  return { config, client, activities, activityQueues };
 };

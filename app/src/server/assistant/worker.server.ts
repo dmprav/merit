@@ -89,14 +89,24 @@ const step = async (access: Access, row: Stored, model: AssistantModel) => {
   }
 };
 
-export const runTurn = async (access: Access, model: AssistantModel) => {
-  for (;;) {
-    const row = await access.read();
-    if (!row || row.status !== "running" || !(await access.consent())) {
-      return;
-    }
-    if (!(await step(access, row, model))) {
-      return;
-    }
+/**
+ * What one step did. `finished` means there is nothing to drive: the conversation is gone,
+ * stopped, unavailable or no longer running, or consent was withdrawn.
+ */
+export type TurnStep = "progressed" | "waiting" | "finished";
+
+/** Run at most one step of a running conversation. */
+export const advanceTurn = async (access: Access, model: AssistantModel): Promise<TurnStep> => {
+  const row = await access.read();
+  if (!row || row.status !== "running" || !(await access.consent())) {
+    return "finished";
   }
+  return (await step(access, row, model)) ? "progressed" : "waiting";
+};
+
+export const runTurn = async (access: Access, model: AssistantModel) => {
+  let outcome: TurnStep;
+  do {
+    outcome = await advanceTurn(access, model);
+  } while (outcome === "progressed");
 };

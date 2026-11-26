@@ -284,6 +284,9 @@ catalogs:
     '@tanstack/virtual-file-routes':
       specifier: ^1.162.0
       version: 1.162.0
+    '@temporalio/activity':
+      specifier: 1.26.0
+      version: 1.26.0
     '@temporalio/client':
       specifier: 1.26.0
       version: 1.26.0
@@ -2421,6 +2424,9 @@ importers:
 
   foundation/workflows:
     dependencies:
+      '@temporalio/activity':
+        specifier: 'catalog:'
+        version: 1.26.0(long@5.3.2)(protobufjs@8.8.1)
       '@temporalio/client':
         specifier: 'catalog:'
         version: 1.26.0(long@5.3.2)(protobufjs@8.8.1)

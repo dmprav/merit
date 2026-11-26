@@ -76,6 +76,7 @@ beforeAll(async () => {
       sendInvitation: async () => {},
       invitationUrl: (token) => token,
     },
+    assistant: { configured: false, running: async () => [], wake: async () => true },
     reconcileReviewerMessage: (work) => current.background.reconcileReviewerMessage(work),
   });
   worker = await startTestWorker(config, { workflows: { workflowsPath }, activities });
@@ -451,7 +452,7 @@ it("recovers a message whose start was lost by reconciliation", async ({ scenari
     workflowExecutionTimeout: "30 seconds",
   });
 
-  expect(outcome).toEqual({ reviewerMessages: "ok" });
+  expect(outcome).toEqual({ reviewerMessages: "ok", conversations: "ok" });
   expect(await closed(s.invitation.commandId)).toBe("sent");
   expect(s.mail).toHaveLength(1);
   expect(await s.status(s.invitation.commandId)).toBe("sent");

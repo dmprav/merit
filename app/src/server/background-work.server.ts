@@ -15,7 +15,13 @@ import {
   type WorkflowClient,
 } from "@merit/workflows/client";
 
-import { taskQueue as applicationTaskQueue } from "../worker/task-queue";
+import { assistantTurnTaskQueue, taskQueue as applicationTaskQueue } from "../worker/task-queue";
+import {
+  assistantConversationWorkflowId,
+  assistantWakeSignal,
+  type AssistantConversationInput,
+  type AssistantWork,
+} from "./assistant/conversation-work";
 
 /** Telemetry sees only the operation name: the cause of a failed start can carry payload details. */
 const reportFailedStart = (operation: string) =>
@@ -33,6 +39,10 @@ export type BackgroundWorkOptions = {
   reviewerMessageTiming?: ReviewerMessageInput["timing"];
   /** Shorter invitation delivery timings than the 15-minute window; tests inject them. */
   invitationTiming?: InvitationDeliveryInput["timing"];
+  /** The queue of Merit AI turn activities. Tests use a queue of their own. */
+  turnTaskQueue?: string;
+  /** Shorter Merit AI pacing than production; tests inject it. */
+  assistantTiming?: AssistantConversationInput["timing"];
 };
 
 /**
@@ -46,6 +56,8 @@ export const createBackgroundWork = ({
   taskQueue = applicationTaskQueue,
   reviewerMessageTiming,
   invitationTiming,
+  turnTaskQueue = assistantTurnTaskQueue,
+  assistantTiming,
 }: BackgroundWorkOptions) => {
   const starter = createWorkflowStarter({ client, taskQueue, report: reportFailedStart });
 
@@ -77,6 +89,26 @@ export const createBackgroundWork = ({
      */
     startReviewerMessage: async (work: ReviewerMessageWork): Promise<boolean> =>
       (await startReviewerMessageWorkflow(work, "restart")) !== "failed",
+    /**
+     * Tells a Merit AI conversation's workflow to look at its conversation again, starting the
+     * workflow when it has none (signal-with-start, so a start never races a finishing run).
+     * Requests and reconciliation both use it; the answer is false only when Temporal failed.
+     */
+    wakeAssistantConversation: async (work: AssistantWork): Promise<boolean> =>
+      (await starter.start({
+        workflowType: "assistantConversation",
+        workflowId: assistantConversationWorkflowId(work.conversationId),
+        args: [
+          {
+            ...work,
+            turnTaskQueue,
+            ...(assistantTiming ? { timing: assistantTiming } : {}),
+          } satisfies AssistantConversationInput,
+        ],
+        operation: "assistantConversation.wake",
+        closed: "restart",
+        signal: { name: assistantWakeSignal },
+      })) !== "failed",
     /** Reconciliation starts only what never ran or failed; completed work stays as it is. */
     reconcileReviewerMessage: (work: ReviewerMessageWork): Promise<StartOutcome> =>
       startReviewerMessageWorkflow(work, "keep"),

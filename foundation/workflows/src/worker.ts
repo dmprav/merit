@@ -22,11 +22,26 @@ export type WorkerLogger = {
 /** Workflow code is bundled from a source file, or supplied as an already built bundle. */
 export type WorkflowSource = { workflowsPath: string } | { workflowBundle: { code: string } };
 
+/** A task queue that runs activities only, with its own limit on how many run at once. */
+export type ActivityQueue = {
+  taskQueue: string;
+  activities: NonNullable<WorkerOptions["activities"]>;
+  /** The most activities this process runs at once on the queue. */
+  maxConcurrentActivities: number;
+};
+
 export type WorkerSettings = {
   config: TemporalConfig;
   taskQueue: string;
   workflows: WorkflowSource;
   activities?: WorkerOptions["activities"];
+  /** Further queues this process polls for activities, such as one that limits turn concurrency. */
+  activityQueues?: ActivityQueue[];
+  /**
+   * How long shutdown waits for activities in flight before it abandons them and the worker
+   * rejects with `GracefulShutdownPeriodExpiredError`. Unset, it waits for them without limit.
+   */
+  shutdownForceTime?: WorkerOptions["shutdownForceTime"];
 };
 
 const messageLimit = 200;
@@ -48,7 +63,57 @@ export const createWorker = (connection: NativeConnection, settings: WorkerSetti
     dataConverter: createDataConverter(settings.config.payloadKey),
     ...settings.workflows,
     ...(settings.activities === undefined ? {} : { activities: settings.activities }),
+    ...(settings.shutdownForceTime === undefined
+      ? {}
+      : { shutdownForceTime: settings.shutdownForceTime }),
   });
+
+/** A worker that is not running cannot shut down; stopping the others must still happen. */
+const shutdownAll = (workers: Worker[]) => {
+  for (const worker of workers) {
+    try {
+      worker.shutdown();
+    } catch {
+      // Already stopped or never started.
+    }
+  }
+};
+
+/** Create the worker of the main queue and one activity-only worker per further queue. */
+export const createWorkers = async (connection: NativeConnection, settings: WorkerSettings) => {
+  const workers = [await createWorker(connection, settings)];
+  try {
+    for (const queue of settings.activityQueues ?? []) {
+      workers.push(
+        await Worker.create({
+          connection,
+          namespace: settings.config.namespace,
+          taskQueue: queue.taskQueue,
+          dataConverter: createDataConverter(settings.config.payloadKey),
+          activities: queue.activities,
+          maxConcurrentActivityTaskExecutions: queue.maxConcurrentActivities,
+          ...(settings.shutdownForceTime === undefined
+            ? {}
+            : { shutdownForceTime: settings.shutdownForceTime }),
+        }),
+      );
+    }
+  } catch (error) {
+    shutdownAll(workers);
+    throw error;
+  }
+  return workers;
+};
+
+/** Poll every worker until all stop. One failing stops the others, then rejects. */
+export const runWorkers = async (workers: Worker[]) => {
+  try {
+    await Promise.all(workers.map((worker) => worker.run()));
+  } catch (error) {
+    shutdownAll(workers);
+    throw error;
+  }
+};
 
 /**
  * Keep the SDK's bundler output and state changes out of the console. Warnings and errors
@@ -105,22 +170,23 @@ export const runWorker = async (settings: WorkerSettings, options: RunOptions) =
     return;
   }
   try {
-    const worker = await createWorker(connection, settings);
+    const workers = await createWorkers(connection, settings);
     await options.onConnected?.().catch((error: unknown) => {
       logger.warn(`Worker start-up work failed (${describeError(error)}).`);
     });
 
-    const stop = () => worker.shutdown();
+    const stop = () => shutdownAll(workers);
 
     signal?.addEventListener("abort", stop, { once: true });
     if (signal?.aborted) {
       stop();
     }
+    const queues = [settings.taskQueue, ...(settings.activityQueues ?? []).map((q) => q.taskQueue)];
     logger.info(
-      `Worker polling task queue ${settings.taskQueue} in namespace ${settings.config.namespace}.`,
+      `Worker polling task queue ${queues.join(", ")} in namespace ${settings.config.namespace}.`,
     );
     try {
-      await worker.run();
+      await runWorkers(workers);
     } finally {
       signal?.removeEventListener("abort", stop);
     }

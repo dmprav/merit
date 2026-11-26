@@ -19,7 +19,7 @@ import {
   savedEvidence,
   type ConversationState,
 } from "./state";
-import { runTurn } from "./worker.server";
+import { advanceTurn, runTurn } from "./worker.server";
 
 export { AssistantTurnConflict, type AssistantRuntimeCatalog } from "./access.server";
 
@@ -172,6 +172,7 @@ export const createAssistantTurns = (deps: TurnDependencies) => {
       return removed;
     },
     run: (...args: Address) => runTurn(conversationAccess(deps, ...args), deps.model),
+    advance: (...args: Address) => advanceTurn(conversationAccess(deps, ...args), deps.model),
     start: (
       actor: Actor,
       workspace: string,

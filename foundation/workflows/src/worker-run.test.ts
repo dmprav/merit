@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { readTemporalConfig } from "./config.ts";
-import { createWorker, describeError, runWorker } from "./worker.ts";
+import { createWorker, createWorkers, describeError, runWorker, runWorkers } from "./worker.ts";
 
 const sdk = vi.hoisted(() => ({
   connect: vi.fn(),
@@ -180,5 +180,78 @@ describe("start-up work", () => {
 
     expect(log.warn).toHaveBeenCalledWith("Worker start-up work failed (jo@example.test stack).");
     expect(worker.run).toHaveBeenCalledOnce();
+  });
+});
+
+describe("further activity queues", () => {
+  const queue = {
+    taskQueue: "turns",
+    activities: { turn: async () => {} },
+    maxConcurrentActivities: 4,
+  };
+
+  it("polls each queue with its own concurrency limit and no workflows", async () => {
+    await createWorkers(connection as never, { ...settings, activityQueues: [queue] });
+
+    expect(sdk.create).toHaveBeenCalledTimes(2);
+    expect(sdk.create.mock.calls[1]?.[0]).toMatchObject({
+      taskQueue: "turns",
+      activities: queue.activities,
+      maxConcurrentActivityTaskExecutions: 4,
+    });
+    expect(sdk.create.mock.calls[1]?.[0]).not.toHaveProperty("workflowsPath");
+  });
+
+  it("passes the shutdown force time to every worker", async () => {
+    await createWorkers(connection as never, {
+      ...settings,
+      activityQueues: [queue],
+      shutdownForceTime: "1s",
+    });
+
+    expect(sdk.create.mock.calls.map((call) => call[0] as object)).toEqual([
+      expect.objectContaining({ shutdownForceTime: "1s" }),
+      expect.objectContaining({ shutdownForceTime: "1s" }),
+    ]);
+  });
+
+  it("shuts the created workers down when a later one cannot be built", async () => {
+    sdk.create.mockResolvedValueOnce(worker as never).mockRejectedValueOnce(new Error("invalid"));
+
+    await expect(
+      createWorkers(connection as never, { ...settings, activityQueues: [queue] }),
+    ).rejects.toThrow("invalid");
+    expect(worker.shutdown).toHaveBeenCalledOnce();
+  });
+
+  it("announces every queue and stops them all when one worker fails", async () => {
+    const log = logger();
+    const failing = {
+      run: vi.fn(async () => Promise.reject(new Error("crashed"))),
+      shutdown: vi.fn(),
+    };
+    sdk.create.mockResolvedValueOnce(worker as never).mockResolvedValueOnce(failing as never);
+    worker.run.mockImplementation(() => new Promise(() => {}));
+
+    await expect(
+      runWorker({ ...settings, activityQueues: [queue] }, { logger: log }),
+    ).rejects.toThrow("crashed");
+
+    expect(log.info).toHaveBeenCalledWith(
+      "Worker polling task queue queue, turns in namespace default.",
+    );
+    expect(worker.shutdown).toHaveBeenCalled();
+  });
+
+  it("tolerates a worker that already stopped", async () => {
+    worker.shutdown.mockImplementation(() => {
+      throw new Error("Not running");
+    });
+    sdk.create.mockResolvedValue({
+      run: async () => Promise.reject(new Error("crashed")),
+      shutdown: worker.shutdown,
+    } as never);
+
+    await expect(runWorkers([(await sdk.create()) as never])).rejects.toThrow("crashed");
   });
 });

@@ -45,7 +45,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 let exitCode = 0;
 try {
   // The development and preview commands set MERIT_LOCAL_WORKER; a deployed worker must not.
-  const { config, client, activities } = createWorkerRuntime(env);
+  const { config, client, activities, activityQueues } = createWorkerRuntime(env);
   await runWorker(
     {
       config,
@@ -54,6 +54,7 @@ try {
         workflowsPath: fileURLToPath(new URL("./workflows.workflow.ts", import.meta.url)),
       },
       activities,
+      activityQueues,
     },
     {
       logger,

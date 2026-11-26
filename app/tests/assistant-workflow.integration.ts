@@ -14,7 +14,7 @@ import { saveApplicationReview } from "@merit/reviews/server";
 import { inlineReviewerDelivery } from "@merit/reviews/testing";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
-import { createAssistantHost } from "../src/server/assistant/host.server";
+import { createAssistantHost, createAssistantRuntime } from "../src/server/assistant/host.server";
 import type { AssistantCommand } from "../src/server/assistant/http.server";
 import type { EmailSender } from "../src/server/email-delivery.server";
 import { reviewerMessageDelivery } from "../src/server/services.server";
@@ -180,24 +180,33 @@ it(
     const database_ = <T>(operation: (db: Database) => Promise<T>) =>
       withDatabase(runtime, operation);
 
+    const dependencies = {
+      database: database_,
+      invitationOrigin: "https://merit.test",
+      sendEmail,
+      startReviewerMessage: inlineReviewerDelivery(
+        reviewerMessageDelivery({
+          database: database_,
+          invitationOrigin: "https://merit.test",
+          sendEmail,
+        }),
+      ),
+      startOrganizationInvitation: async () => true,
+      committedDeliveryWait: { timeoutMs: 0, intervalMs: 0 },
+    };
+    const model = { apiKey: "test", model: "scripted" };
+    // The workflow's own tests cover Temporal; here a wake drives the same turns in process.
+    const driver = createAssistantRuntime(dependencies, model);
     const host = createAssistantHost(
       {
-        database: database_,
-        invitationOrigin: "https://merit.test",
-        sendEmail,
-        startReviewerMessage: inlineReviewerDelivery(
-          reviewerMessageDelivery({
-            database: database_,
-            invitationOrigin: "https://merit.test",
-            sendEmail,
-          }),
-        ),
-        startOrganizationInvitation: async () => true,
-        committedDeliveryWait: { timeoutMs: 0, intervalMs: 0 },
+        ...dependencies,
+        wakeConversation: async ({ userId, workspaceSlug, conversationId }) => {
+          void driver.turns.run({ userId }, workspaceSlug, conversationId);
+          return true;
+        },
       },
-      { apiKey: "test", model: "scripted" },
+      model,
     );
-    onTestFinished(() => host.close());
 
     const command = (
       input: AssistantCommand,

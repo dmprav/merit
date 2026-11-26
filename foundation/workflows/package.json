@@ -11,6 +11,7 @@
     "./testing": "./testing/index.ts"
   },
   "dependencies": {
+    "@temporalio/activity": "catalog:",
     "@temporalio/client": "catalog:",
     "@temporalio/common": "catalog:",
     "@temporalio/proto": "catalog:",

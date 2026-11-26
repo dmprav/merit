@@ -16,8 +16,15 @@ workspace.
 Apply the [database migrations and runtime grants](deployment.md#prepare-the-database).
 Set `OPENAI_API_KEY` on the server and set `MERIT_AI_MODEL` to a model available
 to that account that supports function calling through Chat Completions. Restart
-the app server. Keep the server running to process queued work. The worker
-discovers unfinished turns after a restart.
+the app server and the worker. Keep the [worker process](../../app/src/worker/main.ts) running
+beside the server to process queued work: each conversation with work to do runs as a Temporal
+workflow, `assistant-conversation:<id>`, and the worker runs its turns, at most four at once. A
+`start`, `approve`, `decline`, `retry`, or `watch` of a running conversation wakes that workflow. A
+wake lost between commit and Temporal is recovered within a minute, because the worker's
+reconciliation Schedule wakes every running conversation. The worker reads `OPENAI_API_KEY` and
+`MERIT_AI_MODEL` like the server; with no model configured nothing runs. A worker that stops
+mid-turn leaves the turn running in PostgreSQL, and another worker resumes it once the stopped
+step's lease expires. Closing a request or browser tab never stops a turn; `stop` does.
 
 In each workspace, read `settings` to show the configured provider and model to
 an organization administrator or owner. Send `set_consent` with `enabled: true`

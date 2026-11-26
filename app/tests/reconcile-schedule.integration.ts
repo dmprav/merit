@@ -25,6 +25,7 @@ beforeAll(async () => {
         reconciled += 1;
         return { listed: 0, started: 0 };
       },
+      reconcileConversations: async () => ({ listed: 0, started: 0 }),
     },
   });
 }, 120_000);

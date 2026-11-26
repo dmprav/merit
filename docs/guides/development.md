@@ -112,13 +112,15 @@ running: the development watcher prints that the worker exited and reruns it on 
 change, such as a fix in `app/.env.local`, and preview prints that it stopped. Press Ctrl+C once to stop everything after work in flight finishes, and again to
 force the worker to exit. Run the worker alone with `vp run @merit/app#worker`.
 
-Every worker started this way polls the fixed `merit` task queue on the one Compose server.
-A dev worker from another worktree can pick up your work, running its code against its
+Every worker started this way polls the fixed `merit` task queue, and `merit-assistant-turns`
+for Merit AI turn activities, on the one Compose server. The turn queue limits the process to four
+concurrent turns, so model calls never take the slots that email delivery needs. A dev worker from another worktree can pick up your work, running its code against its
 checkout. Stop other worktrees' workers while you work on workflows.
 
 Each worker start ensures one Temporal Schedule, `merit-reconcile`, which runs the `reconcile`
 workflow every minute. Its activities list committed unfinished work in Postgres, such as
-reviewer messages still `pending`, and start the workflow of anything that has none. This is how
+reviewer messages still `pending` and conversations still `running`, and start or wake the
+workflow of anything that has none. This is how
 work recovers when Temporal was unreachable at commit, or the process stopped between commit and
 start. Starting a workflow that already ran is a no-op. The Schedule shows in the Temporal UI; pausing
 it pauses recovery only. A new kind of work joins reconciliation by adding a reconciler to the

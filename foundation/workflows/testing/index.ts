@@ -3,12 +3,12 @@ import { randomUUID } from "node:crypto";
 import { Client, Connection } from "@temporalio/client";
 import type { Payload } from "@temporalio/common";
 import proto from "@temporalio/proto";
-import { NativeConnection } from "@temporalio/worker";
+import { GracefulShutdownPeriodExpiredError, NativeConnection } from "@temporalio/worker";
 
 import { readTemporalConfig, type TemporalConfig } from "../src/config.ts";
 import { connectionOptions, createWorkflowClient } from "../src/connection.ts";
 import { createClientDataConverter } from "../src/payload-codec.ts";
-import { createWorker, quietRuntime, type WorkerSettings } from "../src/worker.ts";
+import { createWorkers, quietRuntime, runWorkers, type WorkerSettings } from "../src/worker.ts";
 
 /**
  * Settings for the Compose Temporal service, for tests that need a real server.
@@ -39,20 +39,31 @@ export const startTestWorker = async (
   quietRuntime();
   const taskQueue = settings.taskQueue ?? uniqueName("test");
   const connection = await NativeConnection.connect(connectionOptions(config));
-  const worker = await createWorker(connection, { ...settings, config, taskQueue }).catch(
+  const workers = await createWorkers(connection, { ...settings, config, taskQueue }).catch(
     async (error: unknown) => {
       await connection.close();
       throw error;
     },
   );
-  const running = worker.run();
+  const running = runWorkers(workers);
   const client = createWorkflowClient(config);
   return {
     client,
     taskQueue,
     async stop() {
-      worker.shutdown();
-      await running;
+      for (const worker of workers) {
+        try {
+          worker.shutdown();
+        } catch {
+          // Already stopped, for example by a test that simulated a crash.
+        }
+      }
+      // A worker told to abandon activities in flight, as a crash would, rejects once it has.
+      await running.catch((error: unknown) => {
+        if (!(error instanceof GracefulShutdownPeriodExpiredError)) {
+          throw error;
+        }
+      });
       await connection.close();
       await client.connection.close();
     },

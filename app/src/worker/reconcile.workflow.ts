@@ -20,6 +20,7 @@ export const reconcile = async () => {
   });
   const reconcilers = {
     reviewerMessages: activities.reconcileReviewerMessages,
+    conversations: activities.reconcileConversations,
   };
   const results: Record<string, "ok" | "failed"> = {};
   for (const [name, run] of Object.entries(reconcilers)) {

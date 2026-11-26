@@ -51,16 +51,17 @@ const sendEmail = createEmailSender({
 // Created on first use, so a missing Temporal setting is a reported start failure, not a crash
 // that keeps requests from committing.
 let workflowClient: WorkflowClient | undefined;
-const { startReviewerMessage, startOrganizationInvitation } = createBackgroundWork({
-  client: () =>
-    (workflowClient ??= createWorkflowClient(
-      readTemporalConfig(env, {
-        local: Boolean(import.meta.env.DEV) || env.MERIT_LOCAL_PREVIEW === "1",
-      }),
-    )),
-});
+const { startReviewerMessage, startOrganizationInvitation, wakeAssistantConversation } =
+  createBackgroundWork({
+    client: () =>
+      (workflowClient ??= createWorkflowClient(
+        readTemporalConfig(env, {
+          local: Boolean(import.meta.env.DEV) || env.MERIT_LOCAL_PREVIEW === "1",
+        }),
+      )),
+  });
 
-// Detached turns check out connections from the process pool after their HTTP request ends.
+// Requests wake a conversation's workflow; the worker process runs its turns.
 const assistant = createAssistantHost(
   {
     database,
@@ -68,6 +69,7 @@ const assistant = createAssistantHost(
     sendEmail,
     startReviewerMessage,
     startOrganizationInvitation,
+    wakeConversation: wakeAssistantConversation,
     invitationOrigin: origin,
   },
   {
@@ -75,10 +77,6 @@ const assistant = createAssistantHost(
     model: env.MERIT_AI_MODEL ?? "",
   },
 );
-assistant.start();
-if (import.meta.hot) {
-  import.meta.hot.dispose(assistant.close);
-}
 
 // TanStack's Vite adapter supplies the socket peer on the request.
 const peerAddress = (request: Request) =>
