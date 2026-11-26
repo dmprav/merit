@@ -1,6 +1,5 @@
 import { appendFileSync, existsSync, readdirSync, readFileSync, type Dirent } from "node:fs";
-import { basename, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { basename, join, relative } from "node:path";
 
 import { z } from "zod";
 
@@ -378,8 +377,6 @@ const runCli = () => {
   }
 };
 
-const entryPath = process.argv[1];
-
-if (entryPath && resolve(entryPath) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   runCli();
 }

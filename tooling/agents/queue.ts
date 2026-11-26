@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
+import { readFlagValue } from "../cli.ts";
 import {
   extractLinkedIssueNumbers,
   TRUSTED_AUTHOR_ASSOCIATIONS,
@@ -822,14 +823,6 @@ const addIssueLabels = (
   ]);
 };
 
-const readFlagValue = (args: readonly string[], flag: string): string | null => {
-  const index = args.indexOf(flag);
-  if (index === -1) {
-    return null;
-  }
-  return args[index + 1] ?? null;
-};
-
 const applyQueueOrder = (repoRoot: string, repo: RepoIdentity, order: QueueWorkOrder) => {
   if (order.kind === "escalate") {
     addIssueLabels(repoRoot, repo, order.prNumber, ["agent:needs-human"]);
@@ -1089,7 +1082,6 @@ const runCli = () => {
   );
 };
 
-const entryPath = process.argv[1];
-if (entryPath && resolve(entryPath) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   runCli();
 }

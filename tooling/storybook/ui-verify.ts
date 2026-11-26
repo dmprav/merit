@@ -31,6 +31,9 @@ import { desktopViewport, mobileOptions } from "@merit/test-support/browser/conf
 import { loadEnvLocalFiles } from "@merit/test-support/env";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
+import { getErrnoCode, isProcessAlive } from "../agents/file-lock.ts";
+import { errorMessage } from "../cli.ts";
+
 const REPO_ROOT = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const DEFAULT_OUT_DIR = ".tmp/ui-verify";
 const MAX_TAB_STOPS = 40;
@@ -887,7 +890,7 @@ export const waitForHttpReady = async (
         }
         lastError = `HTTP ${response.status}`;
       } catch (error) {
-        lastError = error instanceof Error ? error.message : String(error);
+        lastError = errorMessage(error);
       }
     }
     const sleepMs = Math.min(250, Math.max(0, deadline - Date.now()));
@@ -1843,7 +1846,7 @@ export const openTargetOnPage = async (
       { timeout: routeReadyTimeoutMs },
     );
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = errorMessage(error);
     throw new Error(
       `Route "${target.route}" did not render non-empty content within ${routeReadyTimeoutMs}ms at ${url}: ${detail}`,
     );
@@ -2098,9 +2101,6 @@ const storybookIndexSchema = z.object({
 
 const OUTPUT_LOCK_FILE = ".ui-verify.lock";
 
-const hasErrorCode = (error: unknown, code: string): boolean =>
-  error instanceof Error && "code" in error && error.code === code;
-
 type OutputLockFile = { content: string; inode: number };
 
 /** Reads a lock file's content and inode together, or returns undefined when it is gone. */
@@ -2109,7 +2109,7 @@ const readOutputLock = (lockPath: string): OutputLockFile | undefined => {
   try {
     fd = openSync(lockPath, "r");
   } catch (error) {
-    if (hasErrorCode(error, "ENOENT")) {
+    if (getErrnoCode(error) === "ENOENT") {
       return undefined;
     }
     throw error;
@@ -2118,15 +2118,6 @@ const readOutputLock = (lockPath: string): OutputLockFile | undefined => {
     return { content: readFileSync(fd, "utf8"), inode: fstatSync(fd).ino };
   } finally {
     closeSync(fd);
-  }
-};
-
-const isProcessAlive = (pid: number): boolean => {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return error instanceof Error && "code" in error && error.code === "EPERM";
   }
 };
 
@@ -2159,7 +2150,7 @@ export const acquireOutputLock = (outDir: string): (() => void) => {
         }
       };
     } catch (error) {
-      if (!hasErrorCode(error, "EEXIST")) {
+      if (getErrnoCode(error) !== "EEXIST") {
         throw error;
       }
     } finally {
@@ -2186,7 +2177,7 @@ export const acquireOutputLock = (outDir: string): (() => void) => {
     try {
       renameSync(lockPath, claimPath);
     } catch (error) {
-      if (hasErrorCode(error, "ENOENT")) {
+      if (getErrnoCode(error) === "ENOENT") {
         continue;
       }
       throw error;
@@ -2296,7 +2287,7 @@ export const runTargetsInBrowser = async ({
           `${checked.passed ? "PASS" : "FAIL"} [${viewport}] ${target.name} (axe:${checked.axeViolations.length} overflow:${checked.hasHorizontalOverflow ? "yes" : "no"} errors:${checked.browserErrors.length} focus:${focusSummary})`,
         );
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = errorMessage(error);
         results.push({
           kind: target.kind,
           target: targetId,
@@ -2426,7 +2417,7 @@ export const runUiVerify = async (
       writeProofArtifacts(outDir, results);
       return results;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       log(`FAIL: ${message}`);
       const results = summarizeResults({
         mode: "container",
@@ -2563,7 +2554,7 @@ export const runUiVerify = async (
     writeProofArtifacts(outDir, results);
     return results;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     log(`FAIL: ${message}`);
     const results = summarizeResults({
       mode,
@@ -2607,7 +2598,6 @@ const main = async () => {
   }
 };
 
-const entryPath = process.argv[1];
-if (entryPath && resolve(entryPath) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   await main();
 }

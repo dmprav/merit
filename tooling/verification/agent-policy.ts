@@ -48,6 +48,8 @@ export type LinkedIssueApprovalRecord = {
 
 export type AgentPolicyResult = { exempt: string } | { exempt: null; errors: string[] };
 
+// CI runs this file from a trusted copy beside verification-record.ts alone, so it keeps its own
+// copy of tooling/cli.ts's normalizeRepoPath.
 const normalizePath = (value: string) => value.replaceAll("\\", "/").replace(/^\.\//, "");
 
 /** Uses directory-prefix and exact checks so dotfiles under protected trees are never skipped. */
@@ -442,7 +444,6 @@ const runCli = () => {
   console.log(`agent-policy ok (${changedFiles.length} changed file(s))`);
 };
 
-const entryPath = process.argv[1];
-if (entryPath && resolve(entryPath) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   runCli();
 }

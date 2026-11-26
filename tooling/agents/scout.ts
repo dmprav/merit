@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
+import { errorMessage, normalizeRepoPath, readFlagValue } from "../cli.ts";
 import { parseProposalMarker, TRUSTED_AUTHOR_ASSOCIATIONS } from "../verification/agent-policy.ts";
 import { classifyChangedPaths } from "../verification/architecture/mechanisms.ts";
 import { MAX_OPEN_PROPOSALS, runScoutGh, SCOUT_LENSES, type ScoutLens } from "./proposal.ts";
@@ -476,8 +477,6 @@ export const resolveRotationTarget = (
   }
   return { target: pickNextRotationItem(listPackageSlices(trackedFiles), lastTarget), axis: null };
 };
-
-const normalizeRepoPath = (value: string) => value.replaceAll("\\", "/").replace(/^\.\//, "");
 
 const NON_PRODUCTION_PATH_PATTERN =
   /(?:^|\/)(?:testing|__tests__|fixtures)\/|\.(?:test|spec|integration|stories|story-fixtures)\.tsx?$|(?:^|\/)vite\.config\.ts$/;
@@ -1015,7 +1014,7 @@ const collectStructuralTelemetry = ({
     hotspots = health.hotspots;
     thresholdOverrides = health.thresholdOverrides;
   } catch (error) {
-    fallowErrors.push(`health: ${error instanceof Error ? error.message : String(error)}`);
+    fallowErrors.push(`health: ${errorMessage(error)}`);
   }
 
   try {
@@ -1031,7 +1030,7 @@ const collectStructuralTelemetry = ({
     ]);
     cloneGroups = summarizeFallowDupes({ rawDupes, pathPatterns, trackedPathsByIssue });
   } catch (error) {
-    fallowErrors.push(`dupes: ${error instanceof Error ? error.message : String(error)}`);
+    fallowErrors.push(`dupes: ${errorMessage(error)}`);
   }
 
   if (axis?.id === "interface-transport-and-routing") {
@@ -1045,7 +1044,7 @@ const collectStructuralTelemetry = ({
       ]);
       entryWeights = summarizeEntryWeights({ rawEntryWeight, trackedPathsByIssue });
     } catch (error) {
-      fallowErrors.push(`entry-weight: ${error instanceof Error ? error.message : String(error)}`);
+      fallowErrors.push(`entry-weight: ${errorMessage(error)}`);
     }
   }
 
@@ -1230,14 +1229,6 @@ const isCommitAncestor = (repoRoot: string, sha: string, ref: string): boolean =
   } catch {
     return false;
   }
-};
-
-const readFlagValue = (args: readonly string[], flag: string): string | null => {
-  const index = args.indexOf(flag);
-  if (index === -1) {
-    return null;
-  }
-  return args[index + 1] ?? null;
 };
 
 export const parseContextLensFlag = (args: readonly string[]): ScoutLens | "auto" => {
@@ -1501,7 +1492,6 @@ const runCli = () => {
   throw new Error(`Unknown scout command "${command ?? ""}". Expected "context" or "advance".`);
 };
 
-const entryPath = process.argv[1];
-if (entryPath && resolve(entryPath) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   runCli();
 }
