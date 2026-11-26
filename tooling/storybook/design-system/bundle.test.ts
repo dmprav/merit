@@ -63,3 +63,16 @@ test("reports why TypeScript emitted nothing and removes its scratch directory",
   );
   expect(existsSync(scratch)).toBe(false);
 });
+
+test("names the process error when the compiler cannot start", async () => {
+  const build = buildDeclarations(outFile(), {
+    compile: () => {
+      throw Object.assign(new Error("spawnSync vp ENOENT"), {
+        stdout: undefined,
+        stderr: undefined,
+      });
+    },
+  });
+
+  await expect(build).rejects.toThrow("TypeScript emitted no declarations: spawnSync vp ENOENT");
+});

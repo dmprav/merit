@@ -176,12 +176,16 @@ const compileDeclarations = (config: string) => {
   });
 };
 
+/** What a child process wrote to one stream; empty for a process that never started. */
+const streamText = (value: unknown): string =>
+  typeof value === "string" || Buffer.isBuffer(value) ? value.toString().trim() : "";
+
 /** The compiler's own explanation of a failed run: its diagnostics, else the process error. */
 const describeCompileFailure = (error: unknown): string => {
   if (typeof error === "object" && error !== null) {
     const output = [
-      "stdout" in error ? String(error.stdout).trim() : "",
-      "stderr" in error ? String(error.stderr).trim() : "",
+      "stdout" in error ? streamText(error.stdout) : "",
+      "stderr" in error ? streamText(error.stderr) : "",
     ]
       .filter(Boolean)
       .join("\n");
