@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode, type Ref } from "react";
+import { type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -28,6 +28,7 @@ import { parseMoneyInput } from "@merit/money/input";
 import { Button } from "@merit/ui/button";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { DialogContent } from "@merit/ui/dialog";
+import { useEditorFocusRestore } from "@merit/ui/editor-focus";
 import { EditorClose, EditorLoading } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
 import { Reading, Stack } from "@merit/ui/layout";
@@ -87,7 +88,7 @@ export const DecisionEditor = (props: DecisionEditorProps) => {
   } = props;
   const { t } = useTranslation("committeeDecisions");
   const withdrawn = !canChangeDecision(application);
-  const { editButton, markRestoreFocus } = useDecisionFocus();
+  const { editButton, markRestoreFocus } = useEditorFocusRestore();
   const editor = useDecisionEditor({
     application,
     current: versions[0],
@@ -170,24 +171,6 @@ const renderDecisionWriting = ({
   draftReset?: number;
   closeAction: ReactNode;
 }): ReactNode => (isOpen && !withdrawn ? <DecisionWriting {...props} /> : null);
-
-const useDecisionFocus = () => {
-  const editButton = useRef<HTMLButtonElement>(null);
-  const restoreFocus = useRef(false);
-  useEffect(() => {
-    if (restoreFocus.current && editButton.current) {
-      editButton.current.focus();
-      restoreFocus.current = false;
-    }
-  });
-
-  return {
-    editButton,
-    markRestoreFocus: () => {
-      restoreFocus.current = true;
-    },
-  };
-};
 
 const DecisionWriting = ({
   ready,
@@ -316,6 +299,7 @@ const DecisionForm = ({
   close,
 }: DecisionFormProps) => {
   const { t } = useTranslation(["committeeDecisions", "common"]);
+  const { money } = useFormat();
   const amending = versions.length > 0;
   const formSchema = decisionFormSchema(t, amending);
 
@@ -326,14 +310,14 @@ const DecisionForm = ({
     submitErrorMessage: t("editor.saveError"),
     onSubmit: async (value) => {
       if (conflict) {
-        return decisionSaveError(t, { status: "conflict" });
+        return decisionSaveError(t, { status: "conflict" }, money);
       }
       // Form validation does not apply schema transformations to submitted values.
       const failure = await onSave(formSchema.parse(value));
       if (!failure) {
         await close(true);
       }
-      return decisionSaveError(t, failure);
+      return decisionSaveError(t, failure, money);
     },
   });
 
@@ -364,7 +348,9 @@ const DecisionForm = ({
             onLoadLatest={onLoadLatest}
           />
         )}
-        {application.intakeStatus === "in_preparation" && <p>{t("editor.notReady")}</p>}
+        {application.intakeStatus === "in_preparation" && (
+          <p>{t("validation.applicationNotReady")}</p>
+        )}
         <RecommendationComparison application={application} />
         <OutcomeFields form={form} />
         <JustificationFields form={form} amending={amending} />
