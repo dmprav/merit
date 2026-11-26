@@ -39,6 +39,8 @@ const round: ApplicationRoundContext = {
   totals: {
     proposed: fromMinorUnits(5200000n),
     remaining: fromMinorUnits(800000n),
+    committed: fromMinorUnits(0n),
+    available: fromMinorUnits(6000000n),
     withdrawnApplications: 0,
   },
   criteria: [],

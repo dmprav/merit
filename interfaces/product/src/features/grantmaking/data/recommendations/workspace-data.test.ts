@@ -45,6 +45,7 @@ const page = {
   status: "ok" as const,
   ...encodeApplicationDetail({ round, application }),
   recommendationVersion: 3,
+  decision: { revision: 0, versions: [] },
   intake: { revision: 7, workingRevision: null, history: [] },
   workspaceSlug: "alder",
 };
@@ -90,7 +91,12 @@ it("updates the saved recommendation and totals while invalidating only this wor
   expect(client.getQueryData(options.queryKey)).toEqual({
     ...page,
     application: { ...page.application, managerRecommendation: saved.recommendation },
-    round: { ...page.round, budget: saved.budget, totals: saved.totals },
+    // A recommendation changes the proposed totals and leaves the committed ones as they were.
+    round: {
+      ...page.round,
+      budget: saved.budget,
+      totals: { ...page.round.totals, ...saved.totals },
+    },
     recommendationVersion: 4,
   });
   expect(client.getQueryState(roundsKey)?.isInvalidated).toBe(true);

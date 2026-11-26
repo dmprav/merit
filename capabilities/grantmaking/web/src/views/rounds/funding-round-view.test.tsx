@@ -270,6 +270,53 @@ describe("funding round overview", () => {
   });
 });
 
+describe("committee decisions in the round", () => {
+  it("shows each application's decision beside, and apart from, its recommendation", () => {
+    render(
+      <FundingRoundView
+        round={makeRoundWithReviewStates()}
+        section="applications"
+        decisions={{ first: { outcome: "Decline" }, second: { outcome: "Fund with conditions" } }}
+      />,
+      { wrapper: GrantmakingMessagesProvider },
+    );
+
+    expect(screen.getByRole("columnheader", { name: /Decision/ })).toBeVisible();
+    const funded = within(screen.getByRole("row", { name: /Neighbour Table/ }));
+    // The committee's decision differs from, and does not replace, the recommendation.
+    expect(funded.getByText("Decline")).toBeVisible();
+    expect(funded.getByText("Fund")).toBeVisible();
+    expect(
+      within(screen.getByRole("row", { name: /Ride Together/ })).getByText("Fund with conditions"),
+    ).toBeVisible();
+    const undecided = within(screen.getByRole("row", { name: /Workshop Saturdays/ }));
+    expect(undecided.getByText("No decision")).toBeVisible();
+    expect(undecided.getByText("Defer")).toBeVisible();
+  });
+
+  it("reports committed and available funding beside the proposed total", () => {
+    const base = makeRoundWithReviewStates();
+    const round = {
+      ...base,
+      totals: {
+        ...base.totals,
+        committed: fromMinorUnits(2400000n),
+        available: fromMinorUnits(3600000n),
+      },
+    };
+    render(<FundingRoundView round={round} section="applications" />, {
+      wrapper: GrantmakingMessagesProvider,
+    });
+    const summary = within(screen.getByRole("region", { name: "Round summary" }));
+
+    expect(summary.getByText("Proposed")).toBeVisible();
+    expect(summary.getByText("Committed")).toBeVisible();
+    expect(summary.getByText("€24,000")).toBeVisible();
+    expect(summary.getByText("Available")).toBeVisible();
+    expect(summary.getByText("€36,000")).toBeVisible();
+  });
+});
+
 it("qualifies known requests and explains unknown amounts beside the total", async () => {
   const user = userEvent.setup();
   const round = { ...makeRoundWithReviewStates(), budget: null };
@@ -292,7 +339,8 @@ it("qualifies known requests and explains unknown amounts beside the total", asy
   expect(
     within(screen.getByRole("complementary", { name: "Round properties" })).getByText("Not set"),
   ).toBeVisible();
-  expect(summary.getByText("Budget not set")).toBeVisible();
+  // Both the remaining and the available figure report that no budget exists.
+  expect(summary.getAllByText("Budget not set")).toHaveLength(2);
   expect(
     within(screen.getByRole("row", { name: /Neighbour Table/ })).getByLabelText(
       "Requested amount not known",

@@ -86,6 +86,8 @@ const renderIntake = (
             application.reviews.requests.length || application.reviews.assessments.length,
           ),
           hasRecommendation: application.managerRecommendation !== null,
+          hasDecision: false,
+          hasCommitment: false,
         },
       );
       if (!result.ok) {

@@ -133,6 +133,7 @@ const fixture = (
     ...encodeApplicationDetail({ application, round }),
     workspaceSlug: "alder",
     recommendationVersion: 0,
+    decision: { revision: 0, versions: [] },
     intake: {
       revision: 2,
       workingRevision: state === "revision" || state === "correction" ? revision : null,
@@ -279,6 +280,8 @@ export const configureIntake = (state: Parameters<typeof fixture>[0] = "incomple
           application.reviews.requests.length || application.reviews.assessments.length,
         ),
         hasRecommendation: application.managerRecommendation !== null,
+        hasDecision: false,
+        hasCommitment: false,
       },
     );
     if (!changed.ok) {

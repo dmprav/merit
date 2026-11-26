@@ -249,6 +249,9 @@ export const intakeMenuActions = (
             application.reviews.requests.length || application.reviews.assessments.length,
           ),
           hasRecommendation: application.managerRecommendation !== null,
+          // Committee decisions are checked when the command runs, under the case lock.
+          hasDecision: false,
+          hasCommitment: false,
         })
           ? ["delete" as const]
           : []),

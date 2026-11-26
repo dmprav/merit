@@ -1,0 +1,16 @@
+.decided {
+  margin-top: var(--space-2);
+}
+
+.fact {
+  margin-top: var(--space-3);
+}
+
+.history {
+  margin-top: var(--space-4);
+}
+
+.version {
+  display: grid;
+  gap: var(--space-2);
+}

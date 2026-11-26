@@ -8,6 +8,7 @@ import type { ApplicationData } from "@merit/grantmaking-web/contracts/pages";
 import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
 import { applicationView, roundView } from "@merit/grantmaking/api";
 import { makeReviewedApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
+import { fromMinorUnits } from "@merit/money";
 import { createQueryClient } from "@merit/query";
 
 import { WebMessagesProvider } from "../../app/messages";
@@ -22,6 +23,7 @@ const dataFor = (id: string, disabled = false): ApplicationData => ({
   application: applicationView({ ...makeReviewedApplication(), id, title: `Project ${id}` }),
   key: id,
   recommendation: { revision: 0, disabled, save: vi.fn() },
+  decision: { revision: 0, versions: [], disabled, save: vi.fn() },
   intake: null,
   reviews: null,
 });
@@ -129,4 +131,71 @@ it("closes active recommendation editing when intake access changes and retains 
 
   expect(screen.getByLabelText(/Reasoning/)).toHaveValue("Unfinished recommendation");
   expect(data.recommendation.save).not.toHaveBeenCalled();
+});
+
+it("shows the committee decision above the recommendation and opens its own editor", async () => {
+  const user = userEvent.setup();
+  const data = dataFor("first");
+  render(view(data), { wrapper });
+
+  const sections = screen
+    .getAllByRole("heading", { level: 2 })
+    .map((heading) => heading.textContent);
+  expect(sections.indexOf("Committee decision")).toBeLessThan(
+    sections.indexOf("Manager recommendation"),
+  );
+  expect(screen.getByText("No decision recorded")).toBeVisible();
+
+  await user.click(
+    screen.getByRole("button", { name: `Record decision for ${data.application.title}` }),
+  );
+
+  expect(screen.getByRole("form", { name: /Record decision for/ })).toBeVisible();
+  expect(screen.queryByRole("textbox", { name: "Reasoning" })).not.toBeInTheDocument();
+  expect(screen.getByRole("textbox", { name: /Reason/ })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Close decision" })).toBeVisible();
+
+  await user.click(screen.getByRole("button", { name: "Close decision" }));
+  expect(screen.queryByRole("form")).not.toBeInTheDocument();
+  expect(data.decision.save).not.toHaveBeenCalled();
+});
+
+it("keeps a withdrawn application's decision readable without an edit action", () => {
+  const data = dataFor("first");
+  const withdrawn: ApplicationData = {
+    ...data,
+    application: {
+      ...data.application,
+      withdrawal: {
+        withdrawnOn: "2026-01-10",
+        reason: "Withdrawn.",
+        recorder: { userId: "dana", name: "Dana Reed", recordedAt: "2026-01-11T09:00:00Z" },
+      },
+    },
+    decision: {
+      ...data.decision,
+      revision: 1,
+      versions: [
+        {
+          revision: 1,
+          decision: {
+            outcome: "Decline",
+            amount: fromMinorUnits(0n),
+            conditions: "",
+            reason: "Not eligible.",
+            decidedBy: "Funding committee",
+            decisionDate: "2026-01-09",
+            recorder: { name: "Dana Reed", provenance: { interface: "web" } },
+            recordedAt: "2026-01-09T10:00:00.000Z",
+            applicationVersion: 1,
+          },
+        },
+      ],
+    },
+  };
+  render(view(withdrawn), { wrapper });
+
+  expect(screen.getByText("Declined")).toBeVisible();
+  expect(screen.getByText("Not eligible.")).toBeVisible();
+  expect(screen.queryByRole("button", { name: /Change decision for/ })).not.toBeInTheDocument();
 });
