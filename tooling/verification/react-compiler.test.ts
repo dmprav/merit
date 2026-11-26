@@ -64,20 +64,6 @@ it("fails with diagnostics when a component triggers a compiler bailout", async 
   );
 });
 
-it("checks only the files it is given", async () => {
-  await withFixture(
-    {
-      "app/src/clean.tsx": `export const Clean = () => <p>clean</p>;\n`,
-      "interfaces/web/src/other.tsx": `export const Other = () => <p>other</p>;\n`,
-    },
-    async (dir) => {
-      const result = await checkReactCompiler({ repoRoot: dir, files: ["app/src/clean.tsx"] });
-
-      expect(result.summary).toBe("pass: React Compiler checked 1 files (1 compiled).");
-    },
-  );
-});
-
 it("fails when it finds no files to check", async () => {
   await withFixture({ "README.md": "# Not a Merit checkout\n" }, async (dir) => {
     const result = await checkReactCompiler({ repoRoot: dir });
@@ -89,6 +75,7 @@ it("fails when it finds no files to check", async () => {
   });
 });
 
+// Compiles every component in the checkout in a child process, which outlasts the default timeout.
 it("checks the repository from any working directory", async () => {
   await withFixture({}, (dir) => {
     const result = spawnSync("pnpm", ["exec", "vpx", script], {
@@ -100,4 +87,4 @@ it("checks the repository from any working directory", async () => {
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toMatch(/pass: React Compiler checked [1-9]\d* files/);
   });
-});
+}, 30_000);

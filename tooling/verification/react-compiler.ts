@@ -7,10 +7,8 @@ import { REPO_ROOT } from "../paths.ts";
 import { reactCompilerOptions } from "../react-compiler.ts";
 
 export interface ReactCompilerCheckOptions {
-  /** Directory the checked roots and `files` are resolved from. Defaults to this checkout. */
+  /** Directory the checked roots are resolved from. Defaults to this checkout. */
   repoRoot?: string;
-  /** Repository-relative files to check instead of discovering them under the roots. */
-  files?: readonly string[];
 }
 
 export interface ReactCompilerCheckResult {
@@ -55,8 +53,8 @@ const discoverFiles = (repoRoot: string) => {
 
 export const checkReactCompiler = async ({
   repoRoot = REPO_ROOT,
-  files = discoverFiles(repoRoot),
 }: ReactCompilerCheckOptions = {}): Promise<ReactCompilerCheckResult> => {
+  const files = discoverFiles(repoRoot);
   if (files.length === 0) {
     return {
       ok: false,
