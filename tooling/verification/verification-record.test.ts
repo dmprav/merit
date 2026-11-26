@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { describe, expect, test } from "vite-plus/test";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { REPO_ROOT } from "../paths.ts";
 import {
@@ -71,6 +71,24 @@ const scratchDiff = (files: Record<string, string>) => {
   git("commit", "-q", "-m", "change");
   return { dir, range: "HEAD~1...HEAD" };
 };
+
+/**
+ * Reads the scratch repository's changes as `git` would on any machine: without the GIT_*
+ * variables a hook exports for the outer repository, and with paths quoted, as is git's default.
+ */
+const readScratchChanges = (dir: string, range: string): ChangedFile[] => {
+  for (const name of Object.keys(process.env).filter((key) => key.startsWith("GIT_"))) {
+    vi.stubEnv(name, undefined);
+  }
+  vi.stubEnv("GIT_CONFIG_COUNT", "1");
+  vi.stubEnv("GIT_CONFIG_KEY_0", "core.quotePath");
+  vi.stubEnv("GIT_CONFIG_VALUE_0", "true");
+  return readChangedFiles(dir, range);
+};
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 const codeChange: ChangedFile = { status: "modified", path: "foundation/ui/src/index.ts" };
 
@@ -227,7 +245,7 @@ describe("verification record", () => {
       "verifications/é.md": completeRecord,
     });
     try {
-      const changedFiles = readChangedFiles(dir, range);
+      const changedFiles = readScratchChanges(dir, range);
       expect(check(changedFiles, { "verifications/42.md": completeRecord })).toEqual({
         exempt: null,
         errors: [
