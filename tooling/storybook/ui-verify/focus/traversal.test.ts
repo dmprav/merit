@@ -47,17 +47,23 @@ const trappedStop = (): CapturedStop => ({
  * A page whose last Tab stop is the first option of an open listbox. Blurring is undone by the
  * listbox, so only an arrow key moves focus, to the second option when `arrowMoves` is true.
  */
-const pageWithListOption = ({ arrowMoves }: { arrowMoves: boolean }) => {
+const pageWithListOption = ({
+  arrowMoves,
+  nested = false,
+}: {
+  arrowMoves: boolean;
+  nested?: boolean;
+}) => {
   const options: Array<Record<string, unknown>> = [];
-  const listbox = {
-    querySelectorAll: () => options,
-    contains: (el: unknown) => options.includes(el as Record<string, unknown>),
-  };
+  const listbox = { querySelectorAll: () => options };
+  // When `nested` is set, the item focus moves to belongs to a nested collection.
+  const nestedListbox = { querySelectorAll: () => [] };
   for (let index = 0; index < 2; index += 1) {
+    const owner = nested && index === 1 ? nestedListbox : listbox;
     options.push({
       isConnected: true,
       matches: () => true,
-      closest: () => listbox,
+      closest: () => owner,
       blur: () => undefined,
     });
   }
@@ -102,6 +108,13 @@ describe("capturing a list item's unfocused baseline", () => {
 
     expect(keys).toEqual(["Tab", "ArrowDown"]);
     expect(stop.unfocused).toEqual(baseSnapshot());
+  });
+
+  test("does not treat an item of a nested collection as a sibling", async () => {
+    const stop = optionStop();
+    const { page } = pageWithListOption({ arrowMoves: true, nested: true });
+
+    await expect(captureFinalBaseline(page, [stop])).resolves.toBe(false);
   });
 
   test("reports an incomplete comparison when focus does not reach a sibling", async () => {

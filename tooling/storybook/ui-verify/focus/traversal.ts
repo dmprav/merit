@@ -242,7 +242,8 @@ const siblingHasFocus = ({
     active &&
     active !== el &&
     active.matches(item) &&
-    el.closest(collection)?.contains(active),
+    // The sibling belongs to the same nearest collection, not to a nested one.
+    active.closest(collection) === el.closest(collection),
   );
 };
 
