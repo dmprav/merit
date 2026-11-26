@@ -7,11 +7,11 @@ import { z } from "zod";
 import { parseCliArgs, parseWholeNumber, stripLeadingSeparator } from "../cli.ts";
 import { REPO_ROOT } from "../paths.ts";
 import {
+  AGENT_LABELS,
   extractLinkedIssueNumbers,
   TRUSTED_AUTHOR_ASSOCIATIONS,
   type IssueCommentRecord,
 } from "../verification/agent-policy.ts";
-import { DESIGN_PROPOSAL_LABEL } from "./proposal.ts";
 
 export const MAX_OPEN_AGENT_PRS = 2;
 export const MAX_SHEPHERD_ROUNDS = 2;
@@ -238,7 +238,7 @@ export const hasActiveClaim = (comments: readonly IssueCommentRecord[], nowMs: n
 /** Returns true when a draft or uninitialized `agent:pr` has been stranded longer than `CLAIM_TTL_MS`. */
 export const isStaleDraftPr = (pr: OpenAgentPr, nowMs: number): boolean => {
   const pendingInit = pr.isDraft || pr.stateInitialized === false;
-  if (!pendingInit || pr.labels.includes("agent:needs-human")) {
+  if (!pendingInit || pr.labels.includes(AGENT_LABELS.needsHuman)) {
     return false;
   }
   const referenceTimestamp = pr.isDraft ? pr.updatedAt : (pr.createdAt ?? pr.updatedAt);
@@ -445,7 +445,7 @@ export const selectNextWork = ({
   let waitingForChecks = false;
 
   for (const pr of sortedPrs) {
-    if (pr.labels.includes("agent:needs-human")) {
+    if (pr.labels.includes(AGENT_LABELS.needsHuman)) {
       continue;
     }
     if (pr.isDraft || pr.stateInitialized === false) {
@@ -538,8 +538,8 @@ export const selectNextWork = ({
     .sort((a, b) => a.number - b.number)
     .filter(
       (issue) =>
-        !issue.labels.includes("agent:needs-human") &&
-        !issue.labels.includes(DESIGN_PROPOSAL_LABEL) &&
+        !issue.labels.includes(AGENT_LABELS.needsHuman) &&
+        !issue.labels.includes(AGENT_LABELS.design) &&
         !linkedIssueNumbers.has(issue.number) &&
         !hasActiveClaim(issue.comments, nowMs),
     );
@@ -746,7 +746,7 @@ const fetchLatestFailedVerifyRun = (
 const fetchOpenAgentPrs = (repoRoot: string, repo: RepoIdentity): OpenAgentPr[] => {
   const labeledItems = ghApiPaginatedArray(
     repoRoot,
-    `repos/${repo.owner}/${repo.name}/issues?state=open&labels=agent:pr&per_page=100`,
+    `repos/${repo.owner}/${repo.name}/issues?state=open&labels=${AGENT_LABELS.pr}&per_page=100`,
     restIssueItemSchema,
   );
   const prItems = labeledItems.filter((item) => item.pull_request !== undefined);
@@ -784,7 +784,7 @@ const fetchOpenAgentPrs = (repoRoot: string, repo: RepoIdentity): OpenAgentPr[] 
 const fetchReadyIssues = (repoRoot: string, repo: RepoIdentity): ReadyIssueCandidate[] => {
   const items = ghApiPaginatedArray(
     repoRoot,
-    `repos/${repo.owner}/${repo.name}/issues?state=open&labels=agent:ready&per_page=100`,
+    `repos/${repo.owner}/${repo.name}/issues?state=open&labels=${AGENT_LABELS.ready}&per_page=100`,
     restIssueItemSchema,
   );
   return items
@@ -1021,7 +1021,7 @@ export const parseQueueArgs = (args: readonly string[]): QueueCommand => {
 
 const applyQueueOrder = (repoRoot: string, repo: RepoIdentity, order: QueueWorkOrder) => {
   if (order.kind === "escalate") {
-    addIssueLabels(repoRoot, repo, order.prNumber, ["agent:needs-human"]);
+    addIssueLabels(repoRoot, repo, order.prNumber, [AGENT_LABELS.needsHuman]);
     postIssueComment(repoRoot, repo, order.prNumber, `Escalating to human: ${order.reason}`);
     return;
   }
@@ -1154,7 +1154,7 @@ const runCli = () => {
         ]),
       );
     try {
-      addIssueLabels(REPO_ROOT, repo, pr.number, ["agent:pr"]);
+      addIssueLabels(REPO_ROOT, repo, pr.number, [AGENT_LABELS.pr]);
     } catch (error) {
       console.error(
         JSON.stringify({
@@ -1179,7 +1179,7 @@ const runCli = () => {
 
   if (parsed.command === "escalate") {
     const { targetNumber, reason } = parsed;
-    addIssueLabels(REPO_ROOT, repo, targetNumber, ["agent:needs-human"]);
+    addIssueLabels(REPO_ROOT, repo, targetNumber, [AGENT_LABELS.needsHuman]);
     postIssueComment(REPO_ROOT, repo, targetNumber, `Escalating to human: ${reason}`);
     console.log(JSON.stringify({ status: "escalated", number: targetNumber }));
     return;

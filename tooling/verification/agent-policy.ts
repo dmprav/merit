@@ -10,8 +10,26 @@ import {
   type CheckResult,
 } from "./verification-record.ts";
 
-export const AGENT_PR_LABEL = "agent:pr";
-export const ALLOW_PROTECTED_LABEL = "agent:allow-protected";
+/** Every label the autonomous maintenance workflow reads or writes on issues and pull requests. */
+export const AGENT_LABELS = {
+  /** An approved proposal the queue may implement. */
+  ready: "agent:ready",
+  /** A Tier 2 proposal awaiting maintainer approval. */
+  proposed: "agent:proposed",
+  /** An architecture design or multi-PR proposal that is never implemented automatically. */
+  design: "agent:design",
+  /** A pull request opened by the autonomous workflow. */
+  pr: "agent:pr",
+  /** Work the autonomous workflow has handed to a maintainer. */
+  needsHuman: "agent:needs-human",
+  /** A maintainer's permission for an agent PR to change protected paths. */
+  allowProtected: "agent:allow-protected",
+  maintenance: "type:maintenance",
+  wontfix: "wontfix",
+  duplicate: "duplicate",
+} as const;
+
+export type AgentLabel = (typeof AGENT_LABELS)[keyof typeof AGENT_LABELS];
 
 export const TRUSTED_AUTHOR_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
@@ -172,9 +190,9 @@ export const parseMaintainerProtectedApproval = (
 
 const isMaintainerAuthorizedIssue = (issue: LinkedIssueApprovalRecord): boolean =>
   issue.state === "OPEN" &&
-  issue.labels.includes(ALLOW_PROTECTED_LABEL) &&
-  !issue.labels.includes("wontfix") &&
-  !issue.labels.includes("agent:proposed");
+  issue.labels.includes(AGENT_LABELS.allowProtected) &&
+  !issue.labels.includes(AGENT_LABELS.wontfix) &&
+  !issue.labels.includes(AGENT_LABELS.proposed);
 
 const matchesApprovedPattern = (filePath: string, pattern: string): boolean => {
   if (pattern === filePath) {
@@ -221,7 +239,7 @@ export const checkAgentPolicy = ({
   linkedIssues: readonly LinkedIssueApprovalRecord[];
 }): CheckResult => {
   if (!isAgentPr) {
-    return { exempt: "Pull request is not labeled agent:pr." };
+    return { exempt: `Pull request is not labeled ${AGENT_LABELS.pr}.` };
   }
 
   const errors: string[] = [];
@@ -241,7 +259,7 @@ export const checkAgentPolicy = ({
   for (const filePath of protectedFiles) {
     if (!isApprovedByIssue(filePath, linkedIssues)) {
       errors.push(
-        `${filePath}: protected path requires an OPEN linked issue labeled "${ALLOW_PROTECTED_LABEL}" with a maintainer-authored <!-- merit-approve-protected: {"paths":[...]} --> comment covering this file.`,
+        `${filePath}: protected path requires an OPEN linked issue labeled "${AGENT_LABELS.allowProtected}" with a maintainer-authored <!-- merit-approve-protected: {"paths":[...]} --> comment covering this file.`,
       );
     }
   }
@@ -358,10 +376,10 @@ const runCli = () => {
   const livePr = prNumber ? fetchLivePrContext(repoRoot, prNumber) : null;
   const labels = livePr ? livePr.labels : readFallbackLabels();
   const prBody = livePr ? livePr.body : (process.env.PR_BODY ?? "");
-  const isAgentPr = labels.includes(AGENT_PR_LABEL);
+  const isAgentPr = labels.includes(AGENT_LABELS.pr);
 
   if (!isAgentPr) {
-    console.log("agent-policy: exempt (not labeled agent:pr)");
+    console.log(`agent-policy: exempt (not labeled ${AGENT_LABELS.pr})`);
     return;
   }
 

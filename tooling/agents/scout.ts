@@ -6,7 +6,11 @@ import { z } from "zod";
 
 import { errorMessage, normalizeRepoPath, parseCliArgs, parseWholeNumber } from "../cli.ts";
 import { REPO_ROOT } from "../paths.ts";
-import { parseProposalMarker, TRUSTED_AUTHOR_ASSOCIATIONS } from "../verification/agent-policy.ts";
+import {
+  AGENT_LABELS,
+  parseProposalMarker,
+  TRUSTED_AUTHOR_ASSOCIATIONS,
+} from "../verification/agent-policy.ts";
 import { classifyChangedPaths } from "../verification/architecture/mechanisms.ts";
 import { MAX_OPEN_PROPOSALS, runScoutGh, SCOUT_LENSES, type ScoutLens } from "./proposal.ts";
 
@@ -1359,7 +1363,7 @@ const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") 
         "--state",
         "open",
         "--label",
-        "agent:proposed",
+        AGENT_LABELS.proposed,
         "--limit",
         "200",
         "--json",
@@ -1418,7 +1422,7 @@ const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") 
         "--state",
         "closed",
         "--label",
-        "wontfix",
+        AGENT_LABELS.wontfix,
         "--limit",
         "200",
         "--json",

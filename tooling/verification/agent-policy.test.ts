@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vite-plus/test";
 
 import {
-  ALLOW_PROTECTED_LABEL,
+  AGENT_LABELS,
   checkAgentPolicy,
   extractLinkedIssueNumbers,
   findProtectedPaths,
@@ -66,28 +66,28 @@ describe("agent-policy", () => {
       {
         number: 2,
         state: "CLOSED",
-        labels: [ALLOW_PROTECTED_LABEL],
+        labels: [AGENT_LABELS.allowProtected],
         comments: [maintainerApprovalComment(allPaths)],
       },
       {
         number: 3,
         state: "OPEN",
-        labels: [ALLOW_PROTECTED_LABEL, "wontfix"],
+        labels: [AGENT_LABELS.allowProtected, "wontfix"],
         comments: [maintainerApprovalComment(allPaths)],
       },
       {
         number: 4,
         state: "OPEN",
-        labels: [ALLOW_PROTECTED_LABEL, "agent:proposed"],
+        labels: [AGENT_LABELS.allowProtected, "agent:proposed"],
         comments: [maintainerApprovalComment(allPaths)],
       },
       {
         number: 5,
         state: "OPEN",
-        labels: [ALLOW_PROTECTED_LABEL],
+        labels: [AGENT_LABELS.allowProtected],
         comments: [{ authorAssociation: "NONE", body: maintainerApprovalComment(allPaths).body }],
       },
-      { number: 6, state: "OPEN", labels: [ALLOW_PROTECTED_LABEL], comments: [] },
+      { number: 6, state: "OPEN", labels: [AGENT_LABELS.allowProtected], comments: [] },
     ]) {
       const result = checkAgentPolicy({
         isAgentPr: true,
@@ -114,7 +114,7 @@ describe("agent-policy", () => {
         {
           number: 42,
           state: "OPEN",
-          labels: ["agent:ready", ALLOW_PROTECTED_LABEL],
+          labels: ["agent:ready", AGENT_LABELS.allowProtected],
           comments: [
             maintainerApprovalComment([
               "tooling/verification/lint.ts",
@@ -137,7 +137,7 @@ describe("agent-policy", () => {
         {
           number: 43,
           state: "OPEN",
-          labels: [ALLOW_PROTECTED_LABEL],
+          labels: [AGENT_LABELS.allowProtected],
           comments: [maintainerApprovalComment(["**", "*", "**/*", "*.ts"])],
         },
       ],
@@ -165,7 +165,7 @@ describe("agent-policy", () => {
           {
             number: 44,
             state: "OPEN",
-            labels: [ALLOW_PROTECTED_LABEL],
+            labels: [AGENT_LABELS.allowProtected],
             comments: [maintainerApprovalComment(["foundation/db/database/migrations/**"])],
           },
         ],

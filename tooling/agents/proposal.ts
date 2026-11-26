@@ -6,7 +6,7 @@ import { z } from "zod";
 import { normalizeRepoPath, parseCliArgs } from "../cli.ts";
 import { REPO_ROOT } from "../paths.ts";
 import {
-  ALLOW_PROTECTED_LABEL,
+  AGENT_LABELS,
   findProtectedPaths,
   parseProposalMarker,
 } from "../verification/agent-policy.ts";
@@ -28,7 +28,6 @@ export const SCOUT_LENSES = [
 export type ScoutLens = (typeof SCOUT_LENSES)[number];
 
 export const MAX_OPEN_PROPOSALS = 5;
-export const DESIGN_PROPOSAL_LABEL = "agent:design";
 
 const TEST_FILE_PATTERN = /\.(?:test|spec|integration)\.tsx?$/;
 const TIER1_DOC_PATTERN =
@@ -103,7 +102,7 @@ export type ProposalKind = ProposalInput["kind"];
 
 export type ProposalTierClassification = {
   tier: 1 | 2;
-  targetLabel: "agent:ready" | "agent:proposed";
+  targetLabel: typeof AGENT_LABELS.ready | typeof AGENT_LABELS.proposed;
   reasons: string[];
   protectedPaths: string[];
   mechanisms: MechanismClassification;
@@ -164,7 +163,7 @@ export const classifyProposalTier = ({
 
   const reasons: string[] = [];
   if (kind === "design") {
-    reasons.push(`architecture design or multi-PR proposal (${DESIGN_PROPOSAL_LABEL})`);
+    reasons.push(`architecture design or multi-PR proposal (${AGENT_LABELS.design})`);
   }
   if (ambiguous) {
     reasons.push("proposal marks an unresolved ambiguity or product decision");
@@ -190,7 +189,7 @@ export const classifyProposalTier = ({
   const tier: 1 | 2 = reasons.length === 0 ? 1 : 2;
   return {
     tier,
-    targetLabel: tier === 1 ? "agent:ready" : "agent:proposed",
+    targetLabel: tier === 1 ? AGENT_LABELS.ready : AGENT_LABELS.proposed,
     reasons,
     protectedPaths,
     mechanisms,
@@ -208,7 +207,7 @@ export const applyTier2OnlyOverride = (
   return {
     ...classification,
     tier: 2,
-    targetLabel: "agent:proposed",
+    targetLabel: AGENT_LABELS.proposed,
     reasons: [...classification.reasons, "calibration mode (--tier2-only)"],
   };
 };
@@ -247,7 +246,9 @@ export const findDuplicateProposal = (
   for (const issue of existingIssues) {
     const isRelevant =
       issue.state === "OPEN" ||
-      issue.labels.some((label) => label === "wontfix" || label === "duplicate");
+      issue.labels.some(
+        (label) => label === AGENT_LABELS.wontfix || label === AGENT_LABELS.duplicate,
+      );
     if (!isRelevant) {
       continue;
     }
@@ -299,7 +300,7 @@ export const renderProposalMarkdown = (
       : "none";
   const protectedNote =
     classification.protectedPaths.length > 0
-      ? ` · protected (needs \`${ALLOW_PROTECTED_LABEL}\`): ${classification.protectedPaths.join(", ")}`
+      ? ` · protected (needs \`${AGENT_LABELS.allowProtected}\`): ${classification.protectedPaths.join(", ")}`
       : "";
   const kindBadge = proposal.kind === "design" ? " · design" : "";
   const blastRadius = `tier:${classification.tier}${kindBadge} · lens:${proposal.lens} · ~${normalizedPaths.length} file(s) · slices: ${classification.slices.join(", ")} · mechanisms: ${mechanismSummary}${protectedNote}`;
@@ -420,14 +421,14 @@ const queryIssues = (repoRoot: string, extraArgs: readonly string[]): ExistingIs
 };
 
 const countOpenProposedIssues = (repoRoot: string): number =>
-  queryIssues(repoRoot, ["--state", "open", "--label", "agent:proposed"]).length;
+  queryIssues(repoRoot, ["--state", "open", "--label", AGENT_LABELS.proposed]).length;
 
 const listExistingIssues = (repoRoot: string): ExistingIssueSummary[] => {
   const byNumber = new Map<number, ExistingIssueSummary>();
   for (const issue of [
     ...queryIssues(repoRoot, ["--state", "open"]),
-    ...queryIssues(repoRoot, ["--state", "closed", "--label", "wontfix"]),
-    ...queryIssues(repoRoot, ["--state", "closed", "--label", "duplicate"]),
+    ...queryIssues(repoRoot, ["--state", "closed", "--label", AGENT_LABELS.wontfix]),
+    ...queryIssues(repoRoot, ["--state", "closed", "--label", AGENT_LABELS.duplicate]),
   ]) {
     byNumber.set(issue.number, issue);
   }
@@ -470,8 +471,8 @@ const runCli = () => {
   const labels = [
     ...new Set([
       classification.targetLabel,
-      ...(proposal.kind === "design" ? [DESIGN_PROPOSAL_LABEL] : []),
-      "type:maintenance",
+      ...(proposal.kind === "design" ? [AGENT_LABELS.design] : []),
+      AGENT_LABELS.maintenance,
       ...proposal.extraLabels,
     ]),
   ];
@@ -495,7 +496,7 @@ const runCli = () => {
     return;
   }
 
-  if (classification.targetLabel === "agent:proposed") {
+  if (classification.targetLabel === AGENT_LABELS.proposed) {
     const openProposedCount = countOpenProposedIssues(REPO_ROOT);
     if (isProposalCapReached(openProposedCount)) {
       console.log(
