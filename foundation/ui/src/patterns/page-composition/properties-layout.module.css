@@ -10,12 +10,7 @@
   min-width: 0;
 }
 
-/*
- * The pane is narrow: labels take their minimum column (--description-list-label-max) so a value with
- * a trailing status, such as a person beside a reassignment indicator, fits on one line.
- */
 .properties {
-  --description-list-label-max: 7.5rem;
   grid-area: properties;
   min-width: 0;
   align-self: start;
