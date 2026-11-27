@@ -145,6 +145,15 @@ export default meta;
 type Story = StoryObj<ExampleProps>;
 
 export const Default: Story = {};
+/** The first column's text starts on the heading's edge; row fills reach into the gutter. */
+export const AlignedWithHeading: Story = {
+  render: (args) => (
+    <>
+      <h2>Funded projects</h2>
+      <SortableTable {...args} />
+    </>
+  ),
+};
 export const Compact: Story = { args: { density: "compact" } };
 export const LongContent: Story = { args: { data: longItems, columns: longColumns } };
 export const Empty: Story = { args: { data: [] } };

@@ -1,8 +1,17 @@
-import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { Tab, TabList, TabPanel, Tabs as AriaTabs } from "react-aria-components/Tabs";
 
 import { ButtonBase } from "../button/button-base";
 import { IconBase } from "../icon/icon-base";
+import { AnchoredTooltipBase } from "../tooltip/tooltip-base";
 import styles from "./tabs.module.css";
 
 type TabsProps<Id extends string> = {
@@ -153,8 +162,9 @@ const useTabStrip = <Id extends string>({
  * countWarning gives the badge an amber treatment and supplies its hover explanation and the tab's
  * accessible description; keep the underlying status visible in the panel too. When the row
  * overflows, scroll controls reveal neighboring tabs without selecting them. Left/Right moves
- * between tabs; Tab continues through the scroll controls to the panel. Labels may wrap within an
- * individual tab at narrow widths, while each count stays together.
+ * between tabs; Tab continues through the scroll controls to the panel. The first label's text
+ * aligns with the content edge, with hover fills reaching into the gutter. Long labels stay on one
+ * line with an ellipsis and a tooltip, and each count stays visible.
  */
 export const Tabs = <Id extends string>({
   label,
@@ -192,20 +202,10 @@ export const Tabs = <Id extends string>({
             aria-label={label}
             className={styles.list}
             data-overflow={scroll.overflow || undefined}
+            data-scrolled={scroll.backward || undefined}
           >
             {items.map((item) => (
-              <Tab
-                key={item.id}
-                id={item.id}
-                isDisabled={item.isDisabled}
-                aria-describedby={
-                  item.count != null && item.countWarning ? `${warningId}-${item.id}` : undefined
-                }
-                onFocus={(event) => revealFocusedTab(event.currentTarget)}
-                className={styles.tab}
-              >
-                <TabLabel item={item} warningId={warningId} />
-              </Tab>
+              <TabItem key={item.id} item={item} warningId={warningId} onFocus={revealFocusedTab} />
             ))}
           </TabList>
           <div ref={controls} className={styles.controls} hidden={!scroll.overflow}>
@@ -298,15 +298,132 @@ const measureTabOverflow = (viewport: HTMLElement, container: HTMLElement) => {
   return { tabs, overflowing };
 };
 
-const TabLabel = <Id extends string>({
+const TabItem = <Id extends string>({
   item,
   warningId,
+  onFocus,
 }: {
   item: TabsProps<Id>["items"][number];
   warningId: string;
+  onFocus: (tab: Element) => void;
+}) => {
+  return (
+    <Tab
+      id={item.id}
+      isDisabled={item.isDisabled}
+      aria-describedby={
+        item.count != null && item.countWarning ? `${warningId}-${item.id}` : undefined
+      }
+      onFocus={(event) => onFocus(event.currentTarget)}
+      className={styles.tab}
+    >
+      {({ isHovered, isFocusVisible }) => (
+        <TabContent
+          item={item}
+          warningId={warningId}
+          isHovered={isHovered}
+          isFocused={isFocusVisible}
+        />
+      )}
+    </Tab>
+  );
+};
+
+/** Rendered inside the tab, where the label's real width can be measured. */
+const TabContent = <Id extends string>({
+  item,
+  warningId,
+  isHovered,
+  isFocused,
+}: {
+  item: TabsProps<Id>["items"][number];
+  warningId: string;
+  /** A hovered, keyboard-focused, or tapped tab explains its label when it is cut off. */
+  isHovered: boolean;
+  isFocused: boolean;
+}) => {
+  const text = useRef<HTMLSpanElement>(null);
+  const [cutOff, setCutOff] = useState<string | null>(null);
+
+  useLayoutEffect(() => {
+    const node = text.current;
+    if (!node || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const measure = () =>
+      setCutOff(node.scrollWidth > node.clientWidth ? (node.textContent ?? null) : null);
+
+    // A label can change size, or its text can change in place, as a live child updates.
+    const resize = new ResizeObserver(measure);
+    const mutation = new MutationObserver(measure);
+
+    measure();
+    resize.observe(node);
+    mutation.observe(node, { characterData: true, childList: true, subtree: true });
+
+    return () => {
+      resize.disconnect();
+      mutation.disconnect();
+    };
+  }, [item.label]);
+
+  // Touch reports neither hover nor visible focus, so a tap on a cut-off label shows it in full
+  // until the next press anywhere. The tap still selects the tab, and dismissing selects nothing.
+  const [isTapped, setIsTapped] = useState(false);
+
+  useEffect(() => {
+    if (!isTapped) {
+      return;
+    }
+
+    const dismiss = () => setIsTapped(false);
+
+    document.addEventListener("pointerdown", dismiss, true);
+
+    return () => document.removeEventListener("pointerdown", dismiss, true);
+  }, [isTapped]);
+
+  return (
+    <>
+      <TabLabel
+        item={item}
+        warningId={warningId}
+        text={text}
+        onTap={() => setIsTapped(cutOff != null)}
+      />
+      <AnchoredTooltipBase
+        anchorRef={text}
+        content={cutOff ?? ""}
+        isHovered={cutOff != null && isHovered}
+        isFocused={cutOff != null && (isFocused || isTapped)}
+      />
+    </>
+  );
+};
+
+const TabLabel = <Id extends string>({
+  item,
+  warningId,
+  text,
+  onTap,
+}: {
+  item: TabsProps<Id>["items"][number];
+  warningId: string;
+  text: Ref<HTMLSpanElement>;
+  onTap: () => void;
 }) => (
-  <span className={styles.label}>
-    {item.label}
+  <span
+    className={styles.label}
+    onPointerUp={(event) => {
+      if (event.pointerType === "touch") {
+        onTap();
+      }
+    }}
+  >
+    <span ref={text} className={styles.text}>
+      {item.label}
+    </span>
     {item.count != null && (
       <>
         {" "}

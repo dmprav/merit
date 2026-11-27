@@ -15,6 +15,7 @@ A labelled table of records with stable row IDs, optional controlled single-colu
 - `density` defaults to `comfortable`; `compact` tightens desktop rows only, and mobile keeps room for touch.
 - `stickyHeader`: `{ mode: "page", top }` needs columns that fit and ancestors that permit page scrolling (`top` offsets fixed navigation); `{ mode: "table", maxHeight }` makes the table its own named, focusable scroll region. Stacked layouts disable stickiness.
 - On narrow containers rows stack into labelled cards and a sort select replaces the column header buttons.
+- Text aligns with the surrounding content edges: the table is outdented by its cell padding, so the first column starts and the last column ends on the heading's edges while row hover and focus fills extend into the gutter. Row rules (header, row and mobile card rules) stay on the content edges, in line with tab rails and dividers. Status and empty messages start on the cell text's edge.
 - Look: `text-detail` cells, `text-caption` `muted` headings, `border` row hairlines, `surface-muted` row hover, `space-3`/`space-4` cell padding.
 
 Exports: `DataTable`, `TableColumn`, `TableSort`, `TableSorting`, `TableState`.

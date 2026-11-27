@@ -13,5 +13,6 @@ A destination: a native anchor, or a router link through the router's adapter (s
 - Keep labels specific to their destination ("View supporting evidence", not "Click here").
 - When a link opens a new tab (`target="_blank"`, `rel="noopener noreferrer"`), announce it, for example with `aria-label="Applicant website (opens in a new tab)"`.
 - Use `aria-current` to mark the current page in a set of links.
+- A quiet link takes `alignment="start"` to line its content up with surrounding text, as Button does.
 
 Exports: `Link`.

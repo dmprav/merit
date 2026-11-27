@@ -81,7 +81,10 @@
   overflow-wrap: anywhere;
 }
 
-/* The close glyph ends at the gutter: the button's own inset beside the 1rem icon is outdented. */
+/*
+ * The close glyph ends at the gutter: the button's own inset beside the 1rem icon is outdented.
+ * This wrapper cannot read the button's `--button-icon-inset`, so it derives the same value.
+ */
 .actions {
   display: flex;
   flex-shrink: 0;

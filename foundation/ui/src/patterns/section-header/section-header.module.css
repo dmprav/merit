@@ -82,3 +82,13 @@
 .aside {
   display: contents;
 }
+
+/*
+ * A trailing quiet action ends with its text, or its glyph, on the content's edge. It is shifted
+ * rather than given a margin, so the group it sits in keeps its width and labels do not wrap.
+ */
+.aside > [data-variant="quiet"]:last-child,
+.aside > :last-child > [data-variant="quiet"]:last-child {
+  position: relative;
+  inset-inline-start: calc(-1 * var(--button-end-outdent));
+}

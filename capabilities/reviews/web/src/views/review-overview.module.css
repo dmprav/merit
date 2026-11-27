@@ -1,6 +1,4 @@
-/* Choices run to the panel's edges so their avatars line up with the section label. */
 .reviewList {
   display: grid;
   gap: var(--space-1);
-  margin-inline: calc(-1 * var(--space-2));
 }

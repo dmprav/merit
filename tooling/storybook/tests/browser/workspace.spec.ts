@@ -273,8 +273,11 @@ test(
     await page.getByRole("option", { name: "Archived", exact: true }).click();
     // Escape would close the still-closing list instead of the filter popover.
     await expect(page.getByRole("listbox")).toHaveCount(0);
+    // Escape pressed before focus returns from the list to the popover would be lost, so one
+    // Escape is pressed once focus is back inside the popover. The popover blocks the page until
+    // its exit motion ends.
+    await expect(page.getByRole("dialog").locator(":focus")).toHaveCount(1);
     await page.keyboard.press("Escape");
-    // The filter popover blocks the page until its exit motion ends.
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await actions.click();
     await page.getByRole("menuitem", { name: "Restore", exact: true }).click();
