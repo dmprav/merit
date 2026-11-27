@@ -12,41 +12,57 @@ const iconToken = /^var\(--icon-size[a-z-]*\)$/;
 // Their arguments describe other elements, not the element the declaration sizes.
 const relationalPseudo = /:(?:has|not)$/;
 
+const closerOf = new Map([
+  ["(", ")"],
+  ["[", "]"],
+  ['"', '"'],
+  ["'", "'"],
+]);
+
 /**
- * Split a selector list into its selectors, and each selector into its compounds, ignoring commas
- * and combinators inside parentheses, brackets, and strings.
+ * The selector with everything inside parentheses, brackets, and strings replaced by filler, so
+ * top-level commas and combinators can be found by position. Indexes match the original's.
+ * @param {string} selector
+ */
+const topLevel = (selector) => {
+  /** @type {string[]} */
+  const closers = [];
+  let masked = "";
+  for (const char of selector.split("")) {
+    const inside = closers.length > 0;
+    const closer = closerOf.get(char);
+    if (inside && char === closers.at(-1)) {
+      closers.pop();
+    } else if (closer && !/["']/.test(closers.at(-1) ?? "")) {
+      closers.push(closer);
+    }
+    masked += inside || closers.length > 0 ? "_" : char;
+  }
+  return masked;
+};
+
+/**
+ * The subject compound of each selector in a list: what follows its last top-level combinator.
  * @param {string} selector
  */
 const subjects = (selector) => {
-  /** @type {string[]} */
-  const lasts = [];
-  let depth = 0;
-  let quote = "";
-  let compound = "";
-  for (const char of selector) {
-    if (quote) {
-      quote = char === quote ? "" : quote;
-      compound += char;
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      quote = char;
-    } else if (char === "(" || char === "[") {
-      depth += 1;
-    } else if (char === ")" || char === "]") {
-      depth -= 1;
-    } else if (depth === 0 && char === ",") {
-      lasts.push(compound);
-      compound = "";
-      continue;
-    } else if (depth === 0 && /[\s>+~]/.test(char)) {
-      compound = compound.trim() ? "" : compound;
-      continue;
-    }
-    compound += char;
+  const masked = topLevel(selector);
+  const parts = [];
+  let from = 0;
+  for (const match of masked.matchAll(/,/g)) {
+    parts.push([from, match.index]);
+    from = match.index + 1;
   }
-  lasts.push(compound);
-  return lasts.map((last) => last.trim()).filter(Boolean);
+  parts.push([from, masked.length]);
+  return parts
+    .map(([start, end]) => {
+      const lastCombinator = /[\s>+~]+(?=[^\s>+~]*$)/.exec(masked.slice(start, end).trimEnd());
+      const subjectStart = lastCombinator
+        ? start + lastCombinator.index + lastCombinator[0].length
+        : start;
+      return selector.slice(subjectStart, end).trim();
+    })
+    .filter(Boolean);
 };
 
 /**
