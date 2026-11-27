@@ -27,6 +27,7 @@ it("explains a focused status once, as the same text a press pins open", async (
   expect(await screen.findByRole("group", { name: label })).toHaveTextContent(explanation);
   expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   expect(screen.getAllByText(explanation)).toHaveLength(1);
+  expect(trigger).toHaveAccessibleDescription(explanation);
   await user.keyboard("{Enter}");
   expect(screen.getByRole("group", { name: label })).toBeVisible();
   expect(trigger).toHaveAttribute("aria-expanded", "true");

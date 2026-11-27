@@ -19,6 +19,7 @@ import { Inline, Reading, Stack } from "@merit/ui/layout";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { SectionHeader } from "@merit/ui/section-header";
 import { Text } from "@merit/ui/text";
+import { CalendarDate } from "@merit/ui/timestamp";
 
 import type { ReviewApplication, ReviewRound } from "../../contracts/reviews";
 import { AssessmentOutcome } from "./assessment-outcome";
@@ -141,14 +142,13 @@ const AssessmentDetails = ({
 }) => {
   const { t } = useTranslation("reviews");
   const { formatLocale } = useLocaleSettings();
-  const { calendarDate } = useFormat();
   const { content } = version;
 
   return (
     <section className={styles.reviewDetails} aria-label={t("inspectBasis")}>
       <DescriptionList layout="rows">
         <DescriptionListItem label={t("assessmentDate")}>
-          {content.date ? calendarDate(content.date) : t("unknown")}
+          {content.date ? <CalendarDate value={content.date} /> : t("unknown")}
         </DescriptionListItem>
         <DescriptionListItem label={t("recordedByLabel")}>
           {version.recorder?.name ?? t("unknown")}

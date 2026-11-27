@@ -33,6 +33,18 @@ it("previews its text on hover after the shared delay without becoming a tooltip
   expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
 });
 
+it("describes and controls its open text from the button", async () => {
+  const user = userEvent.setup();
+  render(<Example />);
+  const trigger = screen.getByRole("button", { name: label });
+  expect(trigger).not.toHaveAttribute("aria-controls");
+  await user.tab();
+  const popover = await screen.findByRole("group", { name: label });
+  expect(trigger).toHaveAccessibleDescription(text);
+  expect(trigger).toHaveAttribute("aria-controls", popover.id);
+  expect(screen.getAllByText(text)).toHaveLength(1);
+});
+
 it("keeps the text open while the pointer moves onto it and closes it after leaving", async () => {
   const user = userEvent.setup();
   render(<Example />);
@@ -44,6 +56,26 @@ it("keeps the text open while the pointer moves onto it and closes it after leav
   expect(content()).toBeInTheDocument();
   await user.unhover(popover);
   await waitFor(() => expect(content()).not.toBeInTheDocument());
+});
+
+it("stays present while the pointer moves from the text back to the button", async () => {
+  const user = userEvent.setup();
+  render(<Example />);
+  const trigger = await hover(user);
+  const popover = await screen.findByRole("group", { name: label });
+  await user.unhover(trigger);
+  await user.hover(popover);
+  let absent = false;
+  const sample = setInterval(() => {
+    absent ||= content() === null;
+  }, 20);
+  await user.unhover(popover);
+  fireEvent.pointerMove(trigger);
+  await user.hover(trigger);
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  clearInterval(sample);
+  expect(absent).toBe(false);
+  expect(content()).toBeInTheDocument();
 });
 
 it("previews at once on keyboard focus and closes with Escape", async () => {

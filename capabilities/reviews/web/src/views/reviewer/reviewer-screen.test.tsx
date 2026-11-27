@@ -56,14 +56,28 @@ it("shows the private draft while a reviewer is writing", async () => {
 
   await user.click(assessment.getByRole("button", { name: "About this request" }));
   const details = within(screen.getByRole("group", { name: "About this request" }));
-  expect(details.getByText(/Requested by Dana Reed/)).toBeVisible();
+  expect(details.getByText("Requested by Dana Reed")).toBeVisible();
   expect(details.queryByText(/10 February 2027/)).not.toBeInTheDocument();
   expect(
     details.getByText(
-      /Your draft is private. The manager can read your assessment after you submit it./,
+      "Your draft is private. The manager can read your assessment after you submit it.",
     ),
   ).toBeVisible();
   expect(screen.queryByRole("link", { name: "Ask a question by email" })).not.toBeInTheDocument();
+});
+
+it("shows no date or placeholder in the Writing header when no response is due", () => {
+  const page = reviewerPage();
+  page.assignment = { ...page.assignment, dueDate: null };
+  renderReviewer(page);
+  const header = screen
+    .getByRole("region", { name: "Your assessment" })
+    .querySelector("[data-dialog-header]")!;
+  expect(header.querySelector("time")).toBeNull();
+  expect(within(header as HTMLElement).queryByText(/due|no date|not set/i)).not.toBeInTheDocument();
+  expect(
+    within(header as HTMLElement).getByRole("button", { name: "About this request" }),
+  ).toBeVisible();
 });
 
 it("offers acceptance without the application until the reviewer accepts", () => {

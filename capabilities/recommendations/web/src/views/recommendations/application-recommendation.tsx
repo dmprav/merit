@@ -12,6 +12,7 @@ import { Judgment } from "@merit/ui/judgment";
 import { Reading, Stack } from "@merit/ui/layout";
 import { PanelSection } from "@merit/ui/panel-section";
 import { Text } from "@merit/ui/text";
+import { CalendarDate } from "@merit/ui/timestamp";
 import { useEventToast } from "@merit/ui/toast";
 
 import type { RecommendationData } from "../../contracts/recommendations";
@@ -75,7 +76,7 @@ export const ApplicationRecommendationSummary = ({
   action?: ReactNode;
 }) => {
   const { t } = useTranslation("fundingRecommendations");
-  const { money, calendarDate } = useFormat();
+  const { money } = useFormat();
   const recommendation = application.managerRecommendation;
   const basis = recommendation?.recorded?.applicationVersion;
   if (application.intakeStatus === "in_preparation" && !recommendation) {
@@ -90,7 +91,7 @@ export const ApplicationRecommendationSummary = ({
           meta={
             recommendation && (
               <>
-                {recommendation.recorded && calendarDate(recommendation.recorded.date)}
+                {recommendation.recorded && <CalendarDate value={recommendation.recorded.date} />}
                 {recommendation.author?.provenance && (
                   <ActionProvenance value={recommendation.author.provenance} />
                 )}

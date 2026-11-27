@@ -108,8 +108,8 @@ const WithdrawnNotice = ({ page }: { page: ReviewerPage }) => {
 };
 
 /**
- * When the response is due beside the pane title, and on request who asked and what the manager
- * says about the work. A review with no due date shows no date at all.
+ * When the response is due beside the pane title, and on request who asked, followed by help text
+ * about privacy or amendments. A review with no due date shows no date at all.
  */
 const AssessmentRequest = ({
   assignment,
@@ -128,8 +128,10 @@ const AssessmentRequest = ({
         </MetaItem>
       )}
       <Toggletip label={t("requestDetails")}>
-        {t("requestedBy", { name: assignment.managerName })}
-        {note && ` ${note}`}
+        <Stack gap={1}>
+          <span>{t("requestedBy", { name: assignment.managerName })}</span>
+          {note && <span>{note}</span>}
+        </Stack>
       </Toggletip>
     </>
   );

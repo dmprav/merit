@@ -65,7 +65,7 @@ test.describe("toggletip", () => {
     await expect(content(page)).toHaveCount(0);
   });
 
-  test("keeps the icon and surface painted in forced colors", async ({ page }) => {
+  test("platform guard: the icon and surface stay painted in forced colors", async ({ page }) => {
     await open(page, "components-toggletip--pinned", { forcedColors: "active" });
     const paint = await trigger(page).evaluate((button) => {
       const icon = getComputedStyle(button.querySelector("svg")!);

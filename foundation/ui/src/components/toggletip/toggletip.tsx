@@ -1,4 +1,12 @@
-import { useEffect, useEffectEvent, useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { Popover } from "react-aria-components/Popover";
 
 import { popoverContainerPadding, popoverOffset, popoverSurface } from "../../foundations/popover";
@@ -70,6 +78,7 @@ export const Toggletip = ({
   children: ReactNode;
   tone?: "info" | "warning";
 }) => {
+  const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
@@ -77,9 +86,9 @@ export const Toggletip = ({
   const [isFocused, setIsFocused] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
-  const hoverOpen = useDelayed(isHovered);
-  // The pointer can only be over the text while it shows, so it keeps the text open through a
-  // handoff from focus or hover, whatever the delayed hover state says.
+  const hoverOpen = useDelayed(isHovered || isOverContent);
+  // The pointer over the text keeps it open, and the shared delay covers the move back to the
+  // button and the move away.
   const wanted = isFocused || hoverOpen || isOverContent;
   const isOpen = isPinned || (wanted && !isDismissed);
 
@@ -120,6 +129,8 @@ export const Toggletip = ({
         data-tone={tone}
         aria-label={label}
         aria-expanded={isOpen}
+        aria-controls={isOpen ? id : undefined}
+        aria-describedby={isOpen ? `${id}-text` : undefined}
         onPress={toggle}
         onHoverChange={setIsHovered}
         onFocus={(event) => setIsFocused(event.target.matches(":focus-visible"))}
@@ -139,8 +150,8 @@ export const Toggletip = ({
         onPointerEnter={() => setIsOverContent(true)}
         onPointerLeave={() => setIsOverContent(false)}
       >
-        <div role="group" aria-label={label}>
-          {children}
+        <div id={id} role="group" aria-label={label}>
+          <div id={`${id}-text`}>{children}</div>
         </div>
       </Popover>
     </>

@@ -31,9 +31,3 @@
     min-height: var(--target-touch);
   }
 }
-
-@media (forced-colors: active) {
-  .trigger[data-tone] {
-    --button-quiet-foreground: ButtonText;
-  }
-}

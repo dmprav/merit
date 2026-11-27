@@ -9,6 +9,7 @@ import { PersonIdentity } from "@merit/ui/person-identity";
 import { SectionHeader } from "@merit/ui/section-header";
 import { StatusIndicator } from "@merit/ui/status-indicator";
 import { Text } from "@merit/ui/text";
+import { CalendarDate } from "@merit/ui/timestamp";
 import { showToast } from "@merit/ui/toast";
 
 import type { PreparationData, PreparationRound } from "../../contracts/preparation";
@@ -151,7 +152,7 @@ const RoundProperties = ({
   preparation?: PreparationEditing;
 }) => {
   const { t } = useTranslation("roundPreparation");
-  const { money, calendarDate } = useFormat();
+  const { money } = useFormat();
 
   return (
     <div className={styles.properties}>
@@ -174,7 +175,7 @@ const RoundProperties = ({
           ) : round.meetingDate === null ? (
             t("preparation.notScheduled")
           ) : (
-            calendarDate(round.meetingDate)
+            <CalendarDate value={round.meetingDate} />
           )}
         </DescriptionListItem>
         <DescriptionListItem label={t("preparation.responsibleManager")}>

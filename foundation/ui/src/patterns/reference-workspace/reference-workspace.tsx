@@ -143,7 +143,7 @@ export const WorkPane = ({
   /** Defaults to `label`. */
   title?: ReactNode;
   titleRef?: Ref<HTMLHeadingElement>;
-  /** Compact status beside the title, such as a due-date badge and a control that explains it. */
+  /** Compact status beside the title, such as a due date (MetaItem) and a Toggletip that explains it. */
   titleMeta?: ReactNode;
   /** Shown only with a `title`: without a task there is nothing to close or amend. */
   titleActions?: ReactNode;

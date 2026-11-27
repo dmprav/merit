@@ -24,13 +24,10 @@ export const Badge = ({
   lang?: string;
   tone?: "neutral" | "success" | "warning" | "danger";
   appearance?: "badge" | "plain";
-  /** A plain badge's icon, for a neutral status; other tones use their shared tone icon. */
+  /** A plain neutral badge's icon; every other tone shows its shared tone icon and ignores this. */
   icon?: IconName;
 }) => {
-  const glyph =
-    appearance === "plain"
-      ? (icon ?? (tone === "neutral" ? undefined : toneIcons[tone]))
-      : undefined;
+  const glyph = appearance === "plain" ? (tone === "neutral" ? icon : toneIcons[tone]) : undefined;
 
   return (
     <span lang={lang} data-tone={tone} data-appearance={appearance} className={styles.badge}>
