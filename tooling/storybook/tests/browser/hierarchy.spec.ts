@@ -295,3 +295,36 @@ test("an editable properties pane keeps one row pitch", async ({ page }) => {
     expect(height).toBeCloseTo(heights[0]!, 0);
   }
 });
+
+test("editing an organization's name does not move the rows below it", async ({ page }) => {
+  const measure = async (story: string) => {
+    await open(page, story);
+    await expect(page.getByText("Workspace address", { exact: true })).toBeVisible();
+    return page.evaluate(() => {
+      const label = (text: string) =>
+        [...document.querySelectorAll("dt")].find((node) => node.textContent?.includes(text))!;
+
+      const row = label("Organization name").parentElement!.getBoundingClientRect();
+      return { row: row.height, address: label("Workspace address").getBoundingClientRect().top };
+    });
+  };
+
+  const reading = await measure("features-administration-organization-details--awaiting-owner");
+  const editing = await measure("features-administration-organization-details--editing-name");
+  expect(Math.abs(editing.address - reading.address)).toBeLessThanOrEqual(1);
+  expect(Math.abs(editing.row - reading.row)).toBeLessThanOrEqual(1);
+});
+
+test("a long action label does not squeeze the page title", async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "desktop",
+    "Narrow screens stack the actions below the title.",
+  );
+  await page.setViewportSize({ width: 700, height: 900 });
+  await open(page, "patterns-page-composition--long-action-label");
+  const title = await page.locator("#storybook-root h1").evaluate((node) => ({
+    width: node.getBoundingClientRect().width,
+    rem: Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+  }));
+  expect(title.width).toBeGreaterThanOrEqual(title.rem * 12);
+});

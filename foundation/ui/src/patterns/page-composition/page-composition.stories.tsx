@@ -24,6 +24,7 @@ type PageLayoutArgs = {
   density?: "comfortable" | "compact";
   title?: string;
   kicker?: string;
+  actionLabel?: string;
   stackedPlacement?: "before" | "after";
 };
 
@@ -123,6 +124,7 @@ const renderPageLayout = ({
   density = "comfortable",
   title = "Local Connections",
   kicker = "Funding round",
+  actionLabel = "Review round",
 }: PageCompositionStoryArgs) => (
   <ApplicationPage
     width={width}
@@ -143,7 +145,7 @@ const renderPageLayout = ({
       description="Prepare the evidence and recommendations for committee."
       actions={
         <>
-          <Button variant="secondary">Review round</Button>
+          <Button variant="secondary">{actionLabel}</Button>
           <ActionMenu
             label="More actions"
             trigger={
@@ -191,6 +193,10 @@ const pageLayoutStory = (args: PageLayoutArgs): Story => ({
 export const Standard: Story = pageLayoutStory({});
 export const FullWidth: Story = pageLayoutStory({ width: "full" });
 export const Compact: Story = pageLayoutStory({ density: "compact" });
+/** A long translated action label wraps within the actions instead of squeezing the title. */
+export const LongActionLabel: Story = pageLayoutStory({
+  actionLabel: "Überprüfung der Förderrunde mit dem gesamten Ausschuss abschließen und freigeben",
+});
 export const WithoutKicker: Story = pageLayoutStory({ kicker: "" });
 export const LongTitle: Story = pageLayoutStory({
   title: "Community partnerships for arts, education and neighbourhood development",
