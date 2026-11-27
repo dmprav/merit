@@ -5,6 +5,7 @@ import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { PersonIdentity } from "@merit/ui/person-identity";
+import { CalendarDate } from "@merit/ui/timestamp";
 
 type Props = {
   application: Application;
@@ -19,7 +20,7 @@ type Props = {
 
 export const ApplicationDetails = ({ application, contact, fields }: Props) => {
   const { t } = useTranslation("applicationIntake");
-  const { money, calendarDate } = useFormat();
+  const { money } = useFormat();
   const submission = application.submission;
 
   return (
@@ -35,7 +36,7 @@ export const ApplicationDetails = ({ application, contact, fields }: Props) => {
       )}
       {submission?.submittedOn && (
         <DescriptionListItem label={t("evidence.submittedOn")}>
-          {calendarDate(submission.submittedOn)}
+          <CalendarDate value={submission.submittedOn} />
         </DescriptionListItem>
       )}
     </DescriptionList>

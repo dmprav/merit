@@ -100,7 +100,7 @@ export const DateField = ({
                       aria-label={calendarLabel}
                       isDisabled={props.isDisabled || props.isReadOnly}
                     >
-                      <IconBase name="round" />
+                      <IconBase name="calendar" />
                     </ButtonBase>
                   </Tooltip>
                 }

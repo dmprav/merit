@@ -257,6 +257,10 @@
       "family": "css",
       "reason": "A calc() of space-2 and the quiet button's border; outdents a leading quiet button so its text meets the content edge."
     },
+    "meta-gap": {
+      "family": "css",
+      "reason": "An alias of space-2: the gap between a metadata icon and its text, and between the facts of a metadata row."
+    },
     "bar-height": {
       "family": "size",
       "usage": "The application top bar, and the headers of panels beside it that line up with it."

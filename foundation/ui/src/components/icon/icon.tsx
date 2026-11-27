@@ -1,4 +1,7 @@
-import { IconBase, type IconName } from "./icon-base";
+import { IconBase, toneIcons, type IconName } from "./icon-base";
+
+/** The icon for each tone, so a custom control shows the same glyph a Notice or Badge does. */
+export { toneIcons };
 import { LoadingIconBase } from "./loading-icon-base";
 
 /**

@@ -1,0 +1,9 @@
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--meta-gap);
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--text-detail);
+  line-height: 1.5;
+}

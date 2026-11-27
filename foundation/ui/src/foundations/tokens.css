@@ -92,6 +92,8 @@
   --target-touch: 2.75rem;
   /* How far a quiet button's text sits inside its edge: padding plus border. */
   --button-quiet-inset: calc(var(--space-2) + 3px);
+  /* The gap between an icon and its text, and between the facts of a metadata row. */
+  --meta-gap: var(--space-2);
 
   /* Motion and elevation */
   --motion-fast: 120ms;

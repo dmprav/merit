@@ -14,6 +14,7 @@ import { Select } from "@merit/ui/select";
 import { Tabs } from "@merit/ui/tabs";
 import { Text } from "@merit/ui/text";
 import { Timeline, TimelineEntry } from "@merit/ui/timeline";
+import { CalendarDate } from "@merit/ui/timestamp";
 import { VisuallyHidden } from "@merit/ui/visually-hidden";
 
 import {
@@ -449,7 +450,7 @@ export const HistoricalApplication = ({
   label: string;
 }) => {
   const { t } = useTranslation("fundingRounds");
-  const { money, calendarDate } = useFormat();
+  const { money } = useFormat();
 
   return (
     <section aria-label={label} className={styles.snapshot}>
@@ -471,7 +472,7 @@ export const HistoricalApplication = ({
         </DescriptionListItem>
         {value.submission?.submittedOn && (
           <DescriptionListItem label={t("history.submittedOn")}>
-            {calendarDate(value.submission.submittedOn)}
+            <CalendarDate value={value.submission.submittedOn} />
           </DescriptionListItem>
         )}
         {value.submission?.projectPeriod && (

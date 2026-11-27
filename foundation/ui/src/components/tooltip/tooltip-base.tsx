@@ -14,7 +14,8 @@ export const isInExternalOverlay = (target: Element | null, trigger: Element | n
   return Boolean(overlay && trigger && !overlay.contains(trigger));
 };
 
-const useDelayed = (value: boolean) => {
+/** Follows a flag after the shared open or close delay, so hover never flickers a hint. */
+export const useDelayed = (value: boolean) => {
   const [delayed, setDelayed] = useState(false);
 
   useEffect(() => {

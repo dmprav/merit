@@ -99,7 +99,7 @@ for (const theme of ["product", "site"]) {
             }),
           ).toBe(true);
         }
-        const shortLabel = page.getByText("Read only", { exact: true });
+        const shortLabel = page.getByText("Not accepted", { exact: true });
         expect(await shortLabel.evaluate((node) => node.clientWidth)).toBeLessThan(
           await shortLabel.evaluate((node) => node.parentElement!.clientWidth),
         );

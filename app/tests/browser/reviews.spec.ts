@@ -201,7 +201,7 @@ test("contacts and reviews preserve judgments across application and criteria ch
     .getByRole("button", { name: "Review details for Workshop Saturdays acceptance", exact: true })
     .click();
   await expect(
-    page.getByRole("dialog", { name: "Review details for Workshop Saturdays acceptance" }),
+    page.getByRole("group", { name: "Review details for Workshop Saturdays acceptance" }),
   ).toContainText(
     "The current criteria differ from the criteria used for at least one review or request.",
   );

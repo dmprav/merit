@@ -154,7 +154,7 @@ export const Failure: Story = {
       <StateMessage
         size="compact"
         tone="danger"
-        illustration={<Icon name="warning" />}
+        illustration={<Icon name="attention" />}
         title="Search isn’t available right now."
         description="Your search is kept. Try again in a moment."
         actions={

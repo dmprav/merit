@@ -363,7 +363,7 @@ const ReviewActions = ({
           label={t("addMenu")}
           trigger={add}
           items={[
-            { id: "request", label: t("request"), icon: "team" },
+            { id: "request", label: t("request"), icon: "people" },
             { id: "record", label: t("record"), icon: "edit" },
           ]}
           onAction={(action) => {
@@ -443,7 +443,7 @@ const RequestActions = ({
             }
             items={[
               ...(assigned ? [] : [{ id: "record", label: t("record"), icon: "edit" as const }]),
-              { id: "replace", label: t("replace"), icon: "team" },
+              { id: "replace", label: t("replace"), icon: "people" },
               { id: "cancel", label: t("cancelRequest"), icon: "close" },
             ]}
             onAction={(action) => {

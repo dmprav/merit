@@ -1,5 +1,10 @@
+/* The same quiet style and gap as a MetaItem, so metadata rows look alike. */
 .attribution {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--meta-gap);
   color: var(--muted);
-  font-size: var(--text-caption);
-  line-height: 1.6;
+  font-size: var(--text-detail);
+  line-height: 1.5;
 }

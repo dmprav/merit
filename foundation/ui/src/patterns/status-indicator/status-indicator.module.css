@@ -1,44 +1,11 @@
-.indicator[data-icon-only][data-icon-only] {
-  width: 1.5rem;
-  min-height: 1.5rem;
-  vertical-align: middle;
-}
-
+/* The width of a toggletip's button. */
 .space {
   display: inline-block;
   flex-shrink: 0;
   width: 1.5rem;
 }
 
-.indicator[data-tone="warning"] {
-  --button-quiet-foreground: var(--warning);
-}
-
-.indicator[data-tone="muted"] {
-  --button-quiet-foreground: var(--muted);
-}
-
-.content {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  font-size: var(--text-detail);
-  line-height: 1.5;
-}
-
-.content p {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
 @media (pointer: coarse) {
-  .indicator[data-icon-only][data-icon-only] {
-    width: var(--target-touch);
-    min-height: var(--target-touch);
-  }
-
   .space {
     width: var(--target-touch);
   }

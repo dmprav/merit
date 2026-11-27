@@ -41,6 +41,11 @@ const popovers: Popover[] = [
     trigger: (page) => page.getByRole("button", { name: "Copy address" }),
   },
   {
+    name: "toggletip",
+    story: "components-toggletip--pinned",
+    trigger: (page) => page.getByRole("button", { name: "About this request" }),
+  },
+  {
     name: "shell context popover",
     story: "patterns-application-shell--workspace-switcher",
     trigger: (page) => page.getByRole("button", { name: /Switch workspace/ }),
