@@ -189,9 +189,13 @@ export const UndeliveredInvitation: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     await expect(canvas.getByText("Email sending failed")).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "More actions for Sam Morgan" }));
-    await expect(
-      within(canvasElement.ownerDocument.body).getByRole("menuitem", { name: "Resend invitation" }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        within(canvasElement.ownerDocument.body).getByRole("menuitem", {
+          name: "Resend invitation",
+        }),
+      ).toBeVisible(),
+    );
     await userEvent.keyboard("{Escape}");
   },
 };

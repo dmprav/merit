@@ -9,6 +9,6 @@ Answer a brief, optional question about a control that keeps its own clear label
 - `placement` defaults to `top`; pick the side that leaves nearby work visible (it flips at the viewport edge). `isDisabled` turns it off.
 - Tooltips open on keyboard focus immediately and after a 350 ms hover delay, close after a short delay or with Escape, and do not appear on touch. Keep the task usable without them.
 - Don't attach the only explanation of an unavailable action to a disabled button, which cannot receive focus.
-- Appearance: `surface`, `border`, `control-radius`, `--text-detail`, with lighter elevation than other floating controls.
+- Appearance: the shared popover surface (`surface`, `border-raised`, `popover-radius`, `popover-shadow`) with its own padding and `--text-detail` type, fading in and out, 6px from the trigger.
 
 Exports: `Tooltip`.

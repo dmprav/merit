@@ -77,13 +77,14 @@
  * color, with a leading icon, so they read as actions rather than further options.
  */
 .actionGroup {
+  /* stylelint-disable-next-line property-no-unknown -- CSS Modules shares the popover divider rule. */
+  composes: divided from "./popover.module.css";
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   gap: 2px;
-  margin-top: var(--space-1);
   border-top: 1px solid var(--border);
-  padding-top: var(--space-1);
+  padding: var(--space-1) var(--divider-inline);
 }
 
 .actionGroup > .row {

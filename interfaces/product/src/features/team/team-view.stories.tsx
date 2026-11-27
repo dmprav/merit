@@ -153,7 +153,7 @@ export const OwnerAccess: Story = {
     const body = within(canvasElement.ownerDocument.body);
     await userEvent.click(canvas.getByRole("button", { name: "Actions for Dana Reed" }));
     await userEvent.click(body.getByRole("menuitem", { name: "Edit access" }));
-    const dialog = within(body.getByRole("dialog"));
+    const dialog = within(await body.findByRole("dialog"));
     const responsibility = dialog.getByRole("textbox", { name: "Organization responsibility" });
     await expect(responsibility).toHaveValue("Owner");
     await expect(responsibility).toHaveAttribute("readonly");
@@ -315,7 +315,7 @@ export const ReadOnly: Story = {
 export const InviteMember: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(await canvas.findByRole("button", { name: "Invite member" }));
-    const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
+    const dialog = within(await within(canvasElement.ownerDocument.body).findByRole("dialog"));
     await userEvent.type(
       dialog.getByRole("textbox", { name: "Email address" }),
       "leah@example.test",
@@ -345,7 +345,7 @@ export const InviteReviewer: Story = {
 export const InvitationValidation: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(await canvas.findByRole("button", { name: "Invite member" }));
-    const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
+    const dialog = within(await within(canvasElement.ownerDocument.body).findByRole("dialog"));
     await userEvent.click(dialog.getByRole("button", { name: "Invite member" }));
 
     await expect(dialog.getByRole("textbox", { name: "Email address" })).toHaveAttribute(
@@ -360,7 +360,9 @@ export const InvitationFailure: Story = {
   },
   play: async (context) => {
     await InviteMember.play!(context);
-    const dialog = within(within(context.canvasElement.ownerDocument.body).getByRole("dialog"));
+    const dialog = within(
+      await within(context.canvasElement.ownerDocument.body).findByRole("dialog"),
+    );
     await context.userEvent.click(dialog.getByRole("button", { name: "Invite member" }));
 
     await expect(await dialog.findByRole("alert")).toHaveTextContent("Your entries are preserved");
@@ -384,7 +386,7 @@ export const DemotionConsequences: Story = {
   play: async (context) => {
     await EditingAccess.play!(context);
     const body = within(context.canvasElement.ownerDocument.body);
-    const dialog = within(body.getByRole("dialog"));
+    const dialog = within(await body.findByRole("dialog"));
     await context.userEvent.click(
       dialog.getByRole("button", { name: /Organization responsibility/ }),
     );
@@ -433,7 +435,9 @@ export const StaleAccess: Story = {
   },
   play: async (context) => {
     await EditingAccess.play!(context);
-    const dialog = within(within(context.canvasElement.ownerDocument.body).getByRole("dialog"));
+    const dialog = within(
+      await within(context.canvasElement.ownerDocument.body).findByRole("dialog"),
+    );
     await context.userEvent.click(dialog.getByRole("button", { name: "Save access" }));
 
     await expect(await dialog.findByRole("alert")).toHaveTextContent("refresh the team");
@@ -445,7 +449,7 @@ export const RemovalConsequences: Story = {
     await userEvent.click(await canvas.findByRole("button", { name: "Actions for Morgan Lee" }));
     await userEvent.click(body.getByRole("menuitem", { name: "Remove from organization" }));
 
-    await expect(body.getByRole("dialog")).toHaveTextContent(
+    await expect(await body.findByRole("dialog")).toHaveTextContent(
       "This also revokes 1 invitation they sent",
     );
   },
@@ -456,7 +460,9 @@ export const Removing: Story = {
   },
   play: async (context) => {
     await RemovalConsequences.play!(context);
-    const dialog = within(within(context.canvasElement.ownerDocument.body).getByRole("dialog"));
+    const dialog = within(
+      await within(context.canvasElement.ownerDocument.body).findByRole("dialog"),
+    );
     await context.userEvent.click(dialog.getByRole("button", { name: "Remove from organization" }));
 
     await expect(dialog.getByRole("button", { name: "Cancel" })).toBeDisabled();
@@ -468,7 +474,9 @@ export const RemovalFailure: Story = {
   },
   play: async (context) => {
     await RemovalConsequences.play!(context);
-    const dialog = within(within(context.canvasElement.ownerDocument.body).getByRole("dialog"));
+    const dialog = within(
+      await within(context.canvasElement.ownerDocument.body).findByRole("dialog"),
+    );
     await context.userEvent.click(dialog.getByRole("button", { name: "Remove from organization" }));
 
     await waitFor(async () => expect(await dialog.findByRole("alert")).toBeVisible());
@@ -484,7 +492,9 @@ export const SavedButRefreshFailed: Story = {
   },
   play: async (context) => {
     await InviteMember.play!(context);
-    const dialog = within(within(context.canvasElement.ownerDocument.body).getByRole("dialog"));
+    const dialog = within(
+      await within(context.canvasElement.ownerDocument.body).findByRole("dialog"),
+    );
     await context.userEvent.click(dialog.getByRole("button", { name: "Invite member" }));
 
     const toast = await within(context.canvasElement.ownerDocument.body).findByRole(
@@ -525,12 +535,14 @@ export const ResumeAccess: Story = {
     await context.userEvent.click(body.getByRole("button", { name: /Grant-work access/ }));
     await context.userEvent.click(body.getByRole("option", { name: /^Program manager/ }));
     await context.userEvent.click(
-      within(body.getByRole("dialog")).getByRole("button", { name: "Close" }),
+      within(await body.findByRole("dialog")).getByRole("button", { name: "Close" }),
     );
     const trigger = context.canvas.getByRole("button", { name: "Actions for Morgan Lee" });
     await expect(trigger).toHaveAttribute("data-draft");
     await context.userEvent.click(trigger);
-    await expect(body.getByRole("menuitem", { name: "Resume editing access" })).toBeVisible();
+    await waitFor(() =>
+      expect(body.getByRole("menuitem", { name: "Resume editing access" })).toBeVisible(),
+    );
     await expect(
       context.canvas.queryByRole("button", { name: "Resume editing access" }),
     ).not.toBeInTheDocument();

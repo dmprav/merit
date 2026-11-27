@@ -11,6 +11,6 @@ A search field above links and actions, optionally grouped, for jumping to fundi
 - `announcement` is spoken politely through `StatusMessage`; change `announcementId` so repeated text counts as new.
 - `onOpen` reports a row opened in this tab; `onEscape` dismisses even with text in the field.
 - Host it in `SearchPaletteDialog`: a search box near the top of the page with no visible title bar. `title` names the dialog, `closeLabel` the floating close control; outside presses dismiss unless `isDismissable` is false; up to 600px wide it fills the screen.
-- Shape: `panel-radius`, `popover-shadow`, `surface`; a hovered row uses `surface-muted`; the keyboard-highlighted row uses `action-subtle` with a `focus` outline.
+- Shape: `panel-radius`, `popover-shadow`, `surface`; rows are the shared list row: a hovered row and the top match highlighted as results arrive use `surface-muted`, and a row moved to with the arrow keys uses `action-subtle` with the shared focus bar. The field takes the shared focus bar under it, and group headings share the rows' left edge.
 
 Exports: `SearchPalette`, `SearchPaletteDialog`, `SearchPaletteItem`, `SearchPaletteGroup`, `SearchPaletteLinkProps`.

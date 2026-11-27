@@ -72,7 +72,7 @@ export const Keyboard: Story = {
     await userEvent.keyboard("{Enter}{End}");
     const body = within(canvasElement.ownerDocument.body);
 
-    await expect(body.getByRole("listbox")).toBeVisible();
+    await waitFor(() => expect(body.getByRole("listbox")).toBeVisible());
     await expect(body.getByRole("option", { name: "Defer" })).toHaveFocus();
     await expect(body.getByRole("option", { name: "Fund" })).toHaveAttribute(
       "aria-selected",
@@ -133,11 +133,16 @@ export const WithAction: Story = {
 
     await expect(args.actions![0]!.onAction).toHaveBeenCalledOnce();
     await expect(canvas.getByRole("button", { name: /Recommendation/ })).toHaveTextContent("Fund");
-    await expect(
-      within(canvasElement.ownerDocument.body).queryByRole("listbox"),
-    ).not.toBeInTheDocument();
+    // The list fades out before it leaves the page.
+    await waitFor(() =>
+      expect(
+        within(canvasElement.ownerDocument.body).queryByRole("listbox"),
+      ).not.toBeInTheDocument(),
+    );
     await userEvent.click(canvas.getByRole("button", { name: /Recommendation/ }));
-    await expect(within(canvasElement.ownerDocument.body).getByRole("listbox")).toBeVisible();
+    await waitFor(() =>
+      expect(within(canvasElement.ownerDocument.body).getByRole("listbox")).toBeVisible(),
+    );
   },
 };
 

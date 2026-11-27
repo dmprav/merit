@@ -30,6 +30,8 @@
   --control-radius: 0.375rem;
   --control-focus-width: 2px;
   --panel-radius: 0.625rem;
+  /* Menus, pickers, calendars, and tooltips: one corner for every popover. */
+  --popover-radius: 0.5rem;
 
   /* Spacing */
   --space-1: 0.25rem;
