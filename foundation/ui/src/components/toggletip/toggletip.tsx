@@ -12,12 +12,13 @@ import { Popover } from "react-aria-components/Popover";
 import { popoverContainerPadding, popoverOffset, popoverSurface } from "../../foundations/popover";
 import { ButtonBase } from "../button/button-base";
 import { IconBase, toneIcons } from "../icon/icon-base";
-import { useDelayed } from "../tooltip/tooltip-base";
+import { isInExternalOverlay, useDelayed } from "../tooltip/tooltip-base";
 import styles from "./toggletip.module.css";
 
 /**
  * While open, Escape anywhere and a press outside the given parts dismiss. Escape stops there so a
- * dialog around the toggletip stays open.
+ * dialog around the toggletip stays open. Focus moving into a dialog or menu that does not hold the
+ * trigger dismisses too, so that newer overlay keeps its own Escape.
  */
 const useDismissal = (
   isOpen: boolean,
@@ -31,6 +32,17 @@ const useDismissal = (
     if (!isOpen) {
       return;
     }
+
+    if (isInExternalOverlay(document.activeElement, trigger.current)) {
+      onDismiss();
+      return;
+    }
+
+    const onFocusIn = (event: FocusEvent) => {
+      if (event.target instanceof Element && isInExternalOverlay(event.target, trigger.current)) {
+        onDismiss();
+      }
+    };
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -50,10 +62,12 @@ const useDismissal = (
       }
     };
 
+    document.addEventListener("focusin", onFocusIn, true);
     document.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("pointerdown", onPointerDown, true);
 
     return () => {
+      document.removeEventListener("focusin", onFocusIn, true);
       document.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("pointerdown", onPointerDown, true);
     };
@@ -108,6 +122,7 @@ const useToggletipState = (
     setIsHovered,
     setIsFocused,
     setIsOverContent,
+    dismiss,
     toggle: () => (isPinned ? dismiss() : setIsPinned(true)),
   };
 };
@@ -133,10 +148,8 @@ export const Toggletip = ({
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const content = useRef<HTMLDivElement>(null);
-  const { isOpen, setIsHovered, setIsFocused, setIsOverContent, toggle } = useToggletipState(
-    trigger,
-    content,
-  );
+  const { isOpen, setIsHovered, setIsFocused, setIsOverContent, dismiss, toggle } =
+    useToggletipState(trigger, content);
 
   return (
     <>
@@ -160,6 +173,12 @@ export const Toggletip = ({
       <Popover
         ref={content}
         isOpen={isOpen}
+        // The popover's hidden dismiss button, read by screen readers, closes it like Escape.
+        onOpenChange={(open) => {
+          if (!open) {
+            dismiss();
+          }
+        }}
         isNonModal
         triggerRef={trigger}
         placement="bottom start"

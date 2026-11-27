@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it } from "vite-plus/test";
+import { expect, it, vi } from "vite-plus/test";
 
 import { Toggletip } from "./toggletip";
 
@@ -123,6 +123,38 @@ it("closes with Escape while the pointer is over the text", async () => {
   const popover = await screen.findByRole("group", { name: label });
   await user.hover(popover);
   await user.keyboard("{Escape}");
+  await waitFor(() => expect(content()).not.toBeInTheDocument());
+});
+
+it("closes a pinned text when focus moves into another dialog, leaving that dialog Escape", async () => {
+  const dialogEscape = vi.fn();
+  document.addEventListener("keydown", dialogEscape);
+  const user = userEvent.setup();
+  render(
+    <>
+      <Example />
+      <dialog open aria-label="Actions">
+        <button type="button">Archive</button>
+      </dialog>
+    </>,
+  );
+  await user.click(screen.getByRole("button", { name: label }));
+  await screen.findByRole("group", { name: label });
+
+  screen.getByRole("button", { name: "Archive" }).focus();
+  await waitFor(() => expect(content()).not.toBeInTheDocument());
+  await user.keyboard("{Escape}");
+  expect(dialogEscape).toHaveBeenCalledOnce();
+  document.removeEventListener("keydown", dialogEscape);
+});
+
+it("closes from the popover's dismiss button for screen readers", async () => {
+  const user = userEvent.setup();
+  render(<Example />);
+  await user.click(screen.getByRole("button", { name: label }));
+  await screen.findByRole("group", { name: label });
+
+  await user.click(screen.getByRole("button", { name: "Dismiss" }));
   await waitFor(() => expect(content()).not.toBeInTheDocument());
 });
 
