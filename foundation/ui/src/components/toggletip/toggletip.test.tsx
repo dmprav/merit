@@ -164,8 +164,8 @@ it("keeps a pinned text open when the page scrolls", async () => {
   await user.click(screen.getByRole("button", { name: label }));
   await screen.findByRole("group", { name: label });
 
+  // React Aria closes a non-modal popover synchronously inside the scroll event.
   fireEvent.scroll(document.body);
-  await new Promise((resolve) => setTimeout(resolve, 200));
   expect(content()).toBeInTheDocument();
 });
 
