@@ -82,6 +82,14 @@
   --parent-stack-gap: var(--space-8);
 }
 
+.stack[data-gap="section"] {
+  --layout-gap: var(--space-section);
+}
+
+.stack[data-gap="section"] > * {
+  --parent-stack-gap: var(--space-section);
+}
+
 .stack {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

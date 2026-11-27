@@ -149,6 +149,10 @@
       "family": "spacing",
       "usage": "Larger section breaks."
     },
+    "space-section": {
+      "family": "spacing",
+      "usage": "Between consecutive sections of a page or pane; the space under a section heading stays space-3."
+    },
     "space-8": {
       "family": "spacing",
       "usage": "Page-level separation."
@@ -190,6 +194,10 @@
       "reason": "A ch length, which tokens.json cannot hold."
     },
     "text-section": {
+      "family": "css",
+      "reason": "Type scale step; the type styles carry its size."
+    },
+    "text-subsection": {
       "family": "css",
       "reason": "Type scale step; the type styles carry its size."
     },
@@ -335,8 +343,16 @@
             "fontSize": "--text-section",
             "lineHeight": 1.5,
             "fontWeight": 600,
-            "usage": "Section heading inside a page.",
+            "usage": "Section heading (level 2) inside a page: larger than the prose and body text beneath it.",
             "sample": "Budget"
+          },
+          {
+            "name": "subsection",
+            "fontSize": "--text-subsection",
+            "lineHeight": 1.5,
+            "fontWeight": 600,
+            "usage": "Subsection heading (level 3), one step below a section heading. Levels 4 and 5 use the body size in heading weight.",
+            "sample": "Criterion"
           },
           {
             "name": "kicker",

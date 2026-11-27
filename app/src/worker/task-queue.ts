@@ -25,3 +25,13 @@ export const readWorkSettings = (env: Environment) => ({
   turnTaskQueue: env.MERIT_TURN_TASK_QUEUE || assistantTurnTaskQueue,
   reconcileScheduleId: env.MERIT_RECONCILE_SCHEDULE_ID || reconcileScheduleId,
 });
+
+/** How often the worker schedules recovery of committed work that missed its Temporal handoff. */
+export const readReconcileIntervalMs = (env: Environment) => {
+  const seconds = env.MERIT_RECONCILE_INTERVAL_SECONDS?.trim() ?? "3600";
+  const intervalMs = Number(seconds) * 1000;
+  if (!/^\d+$/u.test(seconds) || !Number.isSafeInteger(intervalMs) || intervalMs <= 0) {
+    throw new Error("MERIT_RECONCILE_INTERVAL_SECONDS must be a positive whole number of seconds.");
+  }
+  return intervalMs;
+};

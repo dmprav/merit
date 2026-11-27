@@ -68,11 +68,16 @@ Choose checks for the behavior you changed:
 | Shared form behavior                                    | `vp run @merit/forms#test`                          |
 | Story rendering, interaction, accessibility             | `vp run test:stories`                               |
 | Story tests while editing                               | `vp run test:stories:watch`                         |
-| Storybook layout, docs, and visual regression           | `vp run test:browser:stories`                       |
+| Storybook layout, docs, and interactions                | `vp run test:browser:stories`                       |
+| Storybook visual regression                             | `vp run test:browser:stories:container`             |
 | Application navigation and browser behavior             | `vp run test:browser:app`                           |
 | Shared browser checks, Storybook, and application flows | `vp run test:browser`                               |
 | Deterministic UI sweep, a11y, focus, and screenshots    | `vp run ui:verify`                                  |
 | Storybook configuration or packaging                    | `vp run @merit/storybook#build`                     |
+
+`visual.spec.ts` failures in a host `vp run test:browser:stories` run are expected and are not
+signal; every other test must pass. Check visual changes with the container row, per
+[Review visual changes](#review-visual-changes).
 
 Run the suite belonging to the changed code. Capability component tests and
 product integration tests cover different boundaries; the product command does
@@ -114,7 +119,8 @@ directories under the operating system's temporary directory.
 The [Storybook configuration](../../tooling/storybook/playwright.config.ts)
 and [application configuration](../../app/tests/browser/playwright.config.ts) use the
 shared [browser projects](verification.md#browser-compatibility). Chromium runs the
-full suites and visual baselines; the `:all` commands also run representative
+full suites, and visual baselines are compared only in the pinned container or CI (see
+[Review visual changes](#review-visual-changes)); the `:all` commands also run representative
 `@cross-browser` checks in Firefox and desktop and mobile WebKit. Story test-addon
 runs remain in Chromium.
 
@@ -191,8 +197,6 @@ and rerun the comparison cleanly:
 vp run ui:verify --container --update
 vp run ui:verify --container
 ```
-
-On native Ubuntu 24.04 hosts with the locked browser version installed (`pnpm --filter @merit/test-support exec playwright install --with-deps chromium firefox webkit`), `vp run test:browser:stories:all visual.spec.ts --project desktop --project mobile` also runs directly without Docker. Append `--update-snapshots` only when preparing an intentional baseline update, then rerun without it.
 
 Review a new baseline against the established reference before accepting it;
 screenshots detect later changes but cannot judge whether the initial design fits.

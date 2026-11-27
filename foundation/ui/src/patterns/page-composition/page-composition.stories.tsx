@@ -23,6 +23,8 @@ type PageLayoutArgs = {
   width?: "standard" | "full";
   density?: "comfortable" | "compact";
   title?: string;
+  kicker?: string;
+  actionLabel?: string;
   stackedPlacement?: "before" | "after";
 };
 
@@ -91,6 +93,17 @@ export const SectionHeaders: Story = {
           Keep qualified counts outside the heading so their meaning stays clear.
         </p>
       </section>
+      <section className={styles.section} aria-labelledby="criteria-title">
+        <SectionHeader id="criteria-title" title="Assessment criteria" />
+        <div className={styles.subsection}>
+          <SectionHeader level={3} title="Community need" />
+          <Reading as="p">How clearly the proposal shows who it serves.</Reading>
+        </div>
+        <div className={styles.subsection}>
+          <SectionHeader level={4} title="Evidence" />
+          <p className={styles.description}>Survey results and letters of support.</p>
+        </div>
+      </section>
       <section
         className={`${styles.section} ${styles.narrow}`}
         aria-labelledby="recommendation-title"
@@ -139,6 +152,8 @@ const renderPageLayout = ({
   width = "standard",
   density = "comfortable",
   title = "Local Connections",
+  kicker = "Funding round",
+  actionLabel = "Review round",
 }: PageCompositionStoryArgs) => (
   <ApplicationPage
     width={width}
@@ -154,12 +169,12 @@ const renderPageLayout = ({
     <PageHeader
       title={title}
       density={density}
-      kicker="Funding round"
+      kicker={kicker}
       status={<Badge>In preparation</Badge>}
       description="Prepare the evidence and recommendations for committee."
       actions={
         <>
-          <Button variant="secondary">Review round</Button>
+          <Button variant="secondary">{actionLabel}</Button>
           <ActionMenu
             label="More actions"
             trigger={
@@ -173,7 +188,7 @@ const renderPageLayout = ({
         </>
       }
     />
-    <Stack gap={7}>
+    <Stack gap="section">
       <section aria-labelledby="purpose">
         <SectionHeader id="purpose" title="Purpose" />
         <Reading as="p">
@@ -207,6 +222,11 @@ const pageLayoutStory = (args: PageLayoutArgs): Story => ({
 export const Standard: Story = pageLayoutStory({});
 export const FullWidth: Story = pageLayoutStory({ width: "full" });
 export const Compact: Story = pageLayoutStory({ density: "compact" });
+/** A long translated action label wraps within the actions instead of squeezing the title. */
+export const LongActionLabel: Story = pageLayoutStory({
+  actionLabel: "Überprüfung der Förderrunde mit dem gesamten Ausschuss abschließen und freigeben",
+});
+export const WithoutKicker: Story = pageLayoutStory({ kicker: "" });
 export const LongTitle: Story = pageLayoutStory({
   title: "Community partnerships for arts, education and neighbourhood development",
 });

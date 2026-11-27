@@ -10,6 +10,7 @@ The page's title, context, status and its one main action, at the top of every p
 - Use `density="compact"` for reference workspaces and dense tools; the default is `"comfortable"`.
 - Compose `InlineName` as the `title` to rename the record in place; the title row gives the editor room.
 - Use `SectionHeader` for sections beneath it, not a second PageHeader.
+- `actions` centre on the title's first line, with or without a kicker.
 - Spacing comes from the header: `space-7` below (`space-6` compact), `space-2`–`space-4` between parts. Do not add margins around it.
 
 ## Exports

@@ -80,7 +80,7 @@ five seconds and 100 ms; services take them as dependencies so tests inject shor
 
 `ensureSchedule(client, settings)` creates a Schedule or updates the existing one in place,
 keeping its paused state, so every worker start can call it. The application worker ensures
-`merit-reconcile`, which runs the `reconcile` workflow every minute. The workflow runs a list of
+`merit-reconcile`, which runs the `reconcile` workflow hourly by default. The workflow runs a list of
 reconcilers, one activity each, that list committed unfinished work in Postgres and start the
 workflows that are missing. Add a reconciler to
 [`reconcile.workflow.ts`](../../app/src/worker/reconcile.workflow.ts) and its activity to

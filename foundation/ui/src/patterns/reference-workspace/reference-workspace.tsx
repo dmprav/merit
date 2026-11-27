@@ -110,6 +110,7 @@ export const ReferencePane = ({
         <FrameBody
           ref={viewport}
           data-reading-viewport
+          data-reference-body
           tabIndex={0}
           role="group"
           aria-label={label}

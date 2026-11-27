@@ -3,7 +3,7 @@
 }
 
 .detailSection + .detailSection {
-  margin-top: var(--space-7);
+  margin-top: var(--space-section);
 }
 
 .criteria > li {

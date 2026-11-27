@@ -122,8 +122,9 @@ with a developer's worker, such as the workspace browser tests, sets `MERIT_TASK
 passes it to the worker as `APP_ORIGIN`, leaving the web server's origin alone).
 
 Each worker start ensures one Temporal Schedule, `merit-reconcile`, which runs the `reconcile`
-workflow every minute. Its activities list committed unfinished work in Postgres, such as
-reviewer messages still `pending` and conversations still `running`, and start or wake the
+workflow hourly by default. Set `MERIT_RECONCILE_INTERVAL_SECONDS` on the worker to change the
+interval. Its activities list committed unfinished work in Postgres, such as organization invitations
+awaiting handoff, reviewer messages still `pending`, and conversations still `running`, and start or wake the
 workflow of anything that has none. This is how
 work recovers when Temporal was unreachable at commit, or the process stopped between commit and
 start. Starting a workflow that is already running is a no-op, and a start that lets a closed run of
