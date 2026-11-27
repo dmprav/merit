@@ -2,7 +2,6 @@ import { useTranslation } from "react-i18next";
 
 import type {} from "@merit/i18n";
 
-import { Inline } from "../../components/layout/layout";
 import {
   type ActionProvenanceValue,
   ActionProvenance,
@@ -28,11 +27,9 @@ export const Attribution = ({
   const { t } = useTranslation("common");
   return (
     <div className={styles.attribution}>
-      <Inline align="baseline" gap={3}>
-        <span>{t("recordedBy", { name: actor ?? t("unknownActor") })}</span>
-        {provenance !== undefined && <ActionProvenance value={provenance} />}
-        {recordedAt && <Timestamp value={recordedAt} />}
-      </Inline>
+      <span>{t("recordedBy", { name: actor ?? t("unknownActor") })}</span>
+      {provenance !== undefined && <ActionProvenance value={provenance} />}
+      {recordedAt && <Timestamp value={recordedAt} />}
     </div>
   );
 };

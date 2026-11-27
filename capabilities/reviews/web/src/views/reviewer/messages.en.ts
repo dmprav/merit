@@ -27,7 +27,6 @@ export const en = {
   requested: "{{amount}} requested",
   dueOn: "Response requested by {{date}}",
   requestedBy: "Requested by {{name}}",
-  dueBadge: "Due {{date}}",
   requestDetails: "About this request",
   moreActions: "More actions",
   reviewerActions: "More actions for {{name}}",

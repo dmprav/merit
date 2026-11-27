@@ -7,4 +7,6 @@ A local timestamp that keeps its machine-readable instant, for when something wa
 - It inherits the surrounding typography and wraps when space is short.
 - Use `Attribution` when the record also names who recorded it and through which interface.
 
-Exports: `Timestamp`.
+- `CalendarDate` is the same for a calendar date such as a due date, response-by or submitted-on: pass `value` as "2027-02-14" and it renders a `time` element with `dateTime` set to it and the date formatted for the viewer's locale. Use it where a date is metadata; leave a date inside a sentence as text.
+
+Exports: `Timestamp`, `CalendarDate`.

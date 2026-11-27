@@ -26,7 +26,7 @@ export const Keyboard: Story = {
     const trigger = canvas.getByRole("button", { name: args.label });
     trigger.focus();
     await expect(
-      await within(canvasElement.ownerDocument.body).findByRole("tooltip"),
+      await within(canvasElement.ownerDocument.body).findByRole("group", { name: args.label }),
     ).toHaveTextContent(args.explanation);
   },
 };
@@ -35,12 +35,11 @@ export const Explanation: Story = {
     const body = within(canvasElement.ownerDocument.body);
     const trigger = canvas.getByRole("button", { name: args.label });
     await userEvent.click(trigger);
-    await expect(await body.findByRole("dialog", { name: args.label })).toHaveTextContent(
+    await expect(await body.findByRole("group", { name: args.label })).toHaveTextContent(
       args.explanation,
     );
     await userEvent.keyboard("{Escape}");
-    await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
-    await waitFor(() => expect(trigger).toHaveFocus());
+    await waitFor(() => expect(body.queryByRole("group")).not.toBeInTheDocument());
     await userEvent.click(trigger);
   },
 };

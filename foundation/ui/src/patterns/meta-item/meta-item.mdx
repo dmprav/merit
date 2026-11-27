@@ -1,0 +1,24 @@
+import { ArgTypes, Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as MetaItemStories from "./meta-item.stories";
+
+<Meta of={MetaItemStories} />
+
+# Show a metadata fact
+
+`MetaItem` presents one quiet fact beside a title or in a row of metadata: a
+16px icon and muted detail text, such as the date a response is due. Dates,
+times and other metadata read this way; they are not badges.
+
+<Canvas of={MetaItemStories.Default} />
+
+Use `Badge` only for a status, `Attribution` for who recorded something and
+when, and `Toggletip` for an explanation behind an info icon. The icon is
+decorative, so state what the fact is in text. Where the icon and value make it
+plain to sighted readers, add visually hidden text for assistive technology and
+render dates with `CalendarDate` so the value keeps its machine-readable form.
+
+<Canvas of={MetaItemStories.Dates} />
+
+## API
+
+<ArgTypes of={MetaItemStories} />

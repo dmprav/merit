@@ -8,7 +8,8 @@ import styles from "./tooltip.module.css";
 export const TOOLTIP_OPEN_DELAY = 350;
 export const TOOLTIP_CLOSE_DELAY = 150;
 
-const useDelayed = (value: boolean) => {
+/** Follows a flag after the shared open or close delay, so hover never flickers a hint. */
+export const useDelayed = (value: boolean) => {
   const [delayed, setDelayed] = useState(false);
 
   useEffect(() => {

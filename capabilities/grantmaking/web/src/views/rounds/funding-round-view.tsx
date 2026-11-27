@@ -57,7 +57,10 @@ export const FundingRoundView = ({
         <>
           <PageHeader
             title={content.title}
-            actions={content.actions ?? (readOnly && <Badge>{t("mode.readOnly")}</Badge>)}
+            actions={
+              content.actions ??
+              (readOnly && <Text variant="supporting">{t("mode.readOnly")}</Text>)
+            }
           />
           <div className={localStyles.feedback}>{content.feedback}</div>
           <PropertiesLayout

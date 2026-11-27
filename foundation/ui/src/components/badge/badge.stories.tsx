@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { Icon } from "../icon/icon";
 import { Inline, Stack } from "../layout/layout";
 import { Badge } from "./badge";
 import styles from "./badge.stories.module.css";
@@ -53,7 +52,7 @@ export const LongLabels: Story = {
   render: () => (
     <div className={styles.narrow}>
       <Stack gap={2}>
-        <Badge>Read only</Badge>
+        <Badge>Not accepted</Badge>
         <Badge tone="warning">Application changed since this review</Badge>
         <Badge>Review basis unavailable</Badge>
         <Badge lang="de">Finanzierungsentscheidung ausstehend</Badge>
@@ -66,16 +65,16 @@ export const PlainStatus: Story = {
   parameters: { controls: { disable: true } },
   render: () => (
     <Stack gap={3}>
-      <Badge appearance="plain">
-        <Icon name="clock" />
+      <Badge appearance="plain" icon="clock">
         Awaiting acceptance
       </Badge>
+      <Badge appearance="plain" tone="success">
+        Accepted
+      </Badge>
       <Badge appearance="plain" tone="warning">
-        <Icon name="info" />
         Sending unconfirmed
       </Badge>
       <Badge appearance="plain" tone="danger">
-        <Icon name="warning" />
         Email sending failed
       </Badge>
     </Stack>

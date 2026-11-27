@@ -175,7 +175,7 @@ const SearchMessage = ({ search, retry }: { search: SearchOutcome; retry: ReactN
     <StateMessage
       size="compact"
       tone="danger"
-      illustration={<Icon name="warning" />}
+      illustration={<Icon name="attention" />}
       title={t("search.unavailable")}
       description={t("search.unavailableHint")}
       actions={retry}
@@ -279,16 +279,17 @@ const searchItems = (
       : application.intakeStatus === "in_preparation"
         ? "preparing"
         : undefined;
+    const withdrawn = t("applications.withdrawn");
     const labelText =
       status === "withdrawn"
-        ? t("applications.withdrawn")
+        ? withdrawn
         : status === "preparing"
           ? t("intake.preparing")
           : undefined;
-    const label = status === "withdrawn" ? <Badge>{labelText}</Badge> : labelText;
+    const label = status === "withdrawn" ? <Badge>{withdrawn}</Badge> : labelText;
     return {
       id: `application:${application.id}`,
-      icon: "application",
+      icon: "document",
       textValue: `${application.title}, ${detail}${labelText ? `, ${labelText}` : ""}`,
       href: links.href(destination),
       renderLink: (props) => links.render(destination, props),

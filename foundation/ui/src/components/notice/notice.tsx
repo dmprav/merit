@@ -1,14 +1,7 @@
 import type { AriaRole, ReactNode } from "react";
 
-import { IconBase } from "../icon/icon-base";
+import { IconBase, toneIcons } from "../icon/icon-base";
 import styles from "./notice.module.css";
-
-const icons = {
-  danger: "failure",
-  warning: "attention",
-  success: "success",
-  neutral: "info",
-} as const;
 
 /**
  * Notice provides persistent feedback beside the work it concerns. Choose neutral for information,
@@ -55,7 +48,7 @@ export const Notice = ({
       data-appearance={appearance}
       className={styles.notice}
     >
-      <IconBase className={styles.icon} name={icons[tone]} />
+      <IconBase className={styles.icon} name={toneIcons[tone]} />
       <div className={styles.body}>
         {/* Controls belong in actions; Storybook rejects any inside the message. */}
         <div className={styles.message} data-notice-message>

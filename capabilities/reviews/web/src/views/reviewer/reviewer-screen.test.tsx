@@ -49,15 +49,18 @@ it("shows the private draft while a reviewer is writing", async () => {
   );
   expect(screen.getByText("Draft saved, private until you submit")).toBeVisible();
   const assessment = within(screen.getByRole("region", { name: "Your assessment" }));
-  expect(assessment.getByText(/^Due /)).toBeVisible();
+  const due = assessment.getByText("10 February 2027");
+  expect(due.tagName).toBe("TIME");
+  expect(due).toHaveAttribute("datetime", "2027-02-10");
+  expect(due).toBeVisible();
 
   await user.click(assessment.getByRole("button", { name: "About this request" }));
-  const details = within(dialog("About this request"));
-  expect(details.getByText("Requested by Dana Reed")).toBeVisible();
-  expect(details.getByText(/Response requested by/)).toBeVisible();
+  const details = within(screen.getByRole("group", { name: "About this request" }));
+  expect(details.getByText(/Requested by Dana Reed/)).toBeVisible();
+  expect(details.queryByText(/10 February 2027/)).not.toBeInTheDocument();
   expect(
     details.getByText(
-      "Your draft is private. The manager can read your assessment after you submit it.",
+      /Your draft is private. The manager can read your assessment after you submit it./,
     ),
   ).toBeVisible();
   expect(screen.queryByRole("link", { name: "Ask a question by email" })).not.toBeInTheDocument();

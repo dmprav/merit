@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
 import { Form, FormActions, FormDateField, FormDialog, FormTextField, useForm } from "@merit/forms";
-import { useFormat } from "@merit/i18n/format";
 import type { PageSource } from "@merit/query/contracts";
 import { RemotePagedContent } from "@merit/query/pages";
 import type { ReviewerEvent } from "@merit/reviews/api";
@@ -29,6 +28,7 @@ import { useReadingNavigation } from "@merit/ui/reference-workspace";
 import { SectionHeader } from "@merit/ui/section-header";
 import { Text } from "@merit/ui/text";
 import { Timeline, TimelineEntry } from "@merit/ui/timeline";
+import { CalendarDate } from "@merit/ui/timestamp";
 import { useToastWhile } from "@merit/ui/toast";
 
 import type { useManagerReviewers } from "../../controllers/reviewer/use-manager-reviewers";
@@ -346,7 +346,6 @@ const AssignmentFacts = ({
   state: AssignmentState;
 }) => {
   const { t } = useTranslation("reviewer");
-  const format = useFormat();
   return (
     <div className={styles.assignmentFacts}>
       <DescriptionList layout="columns">
@@ -361,7 +360,7 @@ const AssignmentFacts = ({
           </Badge>
         </DescriptionListItem>
         <DescriptionListItem label={t("due")}>
-          {assignment.dueDate ? format.calendarDate(assignment.dueDate) : t("noDue")}
+          {assignment.dueDate ? <CalendarDate value={assignment.dueDate} /> : t("noDue")}
         </DescriptionListItem>
         {assignment.status === "invited" && (
           <DescriptionListItem label={t("delivery")}>

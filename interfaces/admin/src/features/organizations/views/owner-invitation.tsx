@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { administratorInvitationState, type OrganizationSummary } from "@merit/organizations/api";
 import { Badge } from "@merit/ui/badge";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
-import { Icon } from "@merit/ui/icon";
 import { Notice } from "@merit/ui/notice";
 import { Text } from "@merit/ui/text";
 import { Timestamp } from "@merit/ui/timestamp";
@@ -26,12 +25,12 @@ export const invitationNeedsAttention = (
 };
 
 const invitationPresentation = {
-  needsAdmin: { label: "needsAdmin", tone: "warning", icon: "warning" },
-  expired: { label: "expired", tone: "warning", icon: "warning" },
-  pending: { label: "pending", tone: "neutral", icon: "clock" },
-  joined: { label: "joined", tone: "success", icon: "check" },
-  failed: { label: "deliveryFailedShort", tone: "danger", icon: "warning" },
-  unconfirmed: { label: "deliveryPendingShort", tone: "warning", icon: "info" },
+  needsAdmin: { label: "needsAdmin", tone: "warning" },
+  expired: { label: "expired", tone: "warning" },
+  pending: { label: "pending", tone: "neutral" },
+  joined: { label: "joined", tone: "success" },
+  failed: { label: "deliveryFailedShort", tone: "danger" },
+  unconfirmed: { label: "deliveryPendingShort", tone: "warning" },
 } as const;
 
 export const InvitationBadge = ({
@@ -51,8 +50,7 @@ export const InvitationBadge = ({
       delivery === "failed" ? "failed" : delivery === "pending" ? "unconfirmed" : state
     ];
   return (
-    <Badge appearance={appearance} tone={presentation.tone}>
-      {appearance === "plain" && <Icon name={presentation.icon} />}
+    <Badge appearance={appearance} tone={presentation.tone} icon="clock">
       {t(presentation.label)}
     </Badge>
   );

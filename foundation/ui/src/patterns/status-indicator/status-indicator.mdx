@@ -5,15 +5,15 @@ import * as Status from "./status-indicator.stories";
 
 # Explain a status qualification
 
-Place `StatusIndicator` after the value it qualifies, such as review progress or
+`StatusIndicator` is a [toggletip](?path=/docs/components-toggletip--docs) preset for a
+status qualification. Place `StatusIndicator` after the value it qualifies, such as review progress or
 an earlier recommendation. Keep the status itself visible and give the icon a
 specific accessible label. The feature owns the meaning and localized explanation.
 
 <Canvas of={Status.Default} />
 
-The same concise explanation appears on hover or keyboard focus and in a compact
-panel on click or tap. Escape and outside press dismiss the panel and return focus
-to its trigger. Keep the explanation to one or two sentences;
+The explanation appears once, on hover or keyboard focus, and stays open when
+pressed or tapped. Escape and outside press dismiss it. Keep the explanation to one or two sentences;
 substantial evidence belongs in the owning workflow.
 
 <Canvas of={Status.Keyboard} />

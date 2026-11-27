@@ -29,6 +29,7 @@ import * as judgment from "@merit/ui/judgment";
 import * as layout from "@merit/ui/layout";
 import * as link from "@merit/ui/link";
 import * as messageBox from "@merit/ui/message-box";
+import * as metaItem from "@merit/ui/meta-item";
 import * as moneyField from "@merit/ui/money-field";
 import * as notice from "@merit/ui/notice";
 import * as outcomeSummary from "@merit/ui/outcome-summary";
@@ -54,10 +55,12 @@ import * as textField from "@merit/ui/text-field";
 import * as timeline from "@merit/ui/timeline";
 import * as timestamp from "@merit/ui/timestamp";
 import * as toast from "@merit/ui/toast";
+import * as toggletip from "@merit/ui/toggletip";
 import * as tooltip from "@merit/ui/tooltip";
 import * as visuallyHidden from "@merit/ui/visually-hidden";
 
 import manifest from "../package.json";
+import { iconNames, type IconName } from "./components/icon/icon-base";
 
 /** Every public module, keyed by its package export. */
 const publicModules = {
@@ -87,6 +90,7 @@ const publicModules = {
   "./layout": layout,
   "./link": link,
   "./message-box": messageBox,
+  "./meta-item": metaItem,
   "./money-field": moneyField,
   "./notice": notice,
   "./outcome-summary": outcomeSummary,
@@ -109,6 +113,7 @@ const publicModules = {
   "./text-field": textField,
   "./timestamp": timestamp,
   "./toast": toast,
+  "./toggletip": toggletip,
   "./tooltip": tooltip,
   "./visually-hidden": visuallyHidden,
   "./attribution": attribution,
@@ -137,6 +142,20 @@ it("keeps rule colour and weight to the two strengths", () => {
   expectTypeOf<Parameters<typeof divider.Divider>[0]["strength"]>().toEqualTypeOf<
     "subtle" | "edge" | undefined
   >();
+});
+
+it("keeps Badge to a status label", () => {
+  expectTypeOf<Parameters<typeof badge.Badge>[0]["children"]>().toEqualTypeOf<string>();
+});
+
+it("names icons for what they draw, never for a Merit concept", () => {
+  type Domain = Extract<IconName, "round" | "application" | "team" | "contacts">;
+
+  expectTypeOf<Domain>().toEqualTypeOf<never>();
+  expect(iconNames).not.toEqual(expect.arrayContaining(["round"]));
+  expect(iconNames.filter((name) => ["application", "team", "contacts"].includes(name))).toEqual(
+    [],
+  );
 });
 
 it("checks every public module", () => {
