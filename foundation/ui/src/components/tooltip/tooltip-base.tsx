@@ -8,6 +8,12 @@ import styles from "./tooltip.module.css";
 export const TOOLTIP_OPEN_DELAY = 350;
 export const TOOLTIP_CLOSE_DELAY = 150;
 
+/** Whether `target` sits in a dialog or menu that does not also hold the tooltip's trigger. */
+export const isInExternalOverlay = (target: Element | null, trigger: Element | null) => {
+  const overlay = target?.closest('dialog, [role="dialog"], [role="menu"]');
+  return Boolean(overlay && trigger && !overlay.contains(trigger));
+};
+
 /** Follows a flag after the shared open or close delay, so hover never flickers a hint. */
 export const useDelayed = (value: boolean) => {
   const [delayed, setDelayed] = useState(false);
@@ -29,7 +35,9 @@ export const useDelayed = (value: boolean) => {
  * hover and keyboard focus and anchors the tooltip to the part it describes; the control keeps its
  * own full accessible name. Hover opens after the shared delay and closes after the shared delay
  * too, staying open while the pointer is over the tooltip; keyboard focus opens at once. Escape
- * dismisses it immediately for as long as it was open, wherever the pointer or focus is.
+ * dismisses it immediately for as long as it was open, wherever the pointer or focus is. Focus
+ * moving into a dialog or menu that does not hold the anchor dismisses it too, so it never takes
+ * that overlay's Escape.
  */
 export const AnchoredTooltipBase = ({
   anchorRef,
@@ -70,6 +78,19 @@ export const AnchoredTooltipBase = ({
       return;
     }
 
+    const anchor = anchorRef.current;
+    // Another dialog or menu has taken over; the hint has done its job.
+    if (isInExternalOverlay(document.activeElement, anchor)) {
+      setIsDismissed(true);
+      return;
+    }
+
+    const onFocusIn = (event: FocusEvent) => {
+      if (event.target instanceof Element && isInExternalOverlay(event.target, anchor)) {
+        setIsDismissed(true);
+      }
+    };
+
     // Escape closes only the tooltip: it is caught first, so a dialog or menu around it stays open.
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") {
@@ -79,10 +100,14 @@ export const AnchoredTooltipBase = ({
       setIsDismissed(true);
     };
 
+    document.addEventListener("focusin", onFocusIn, true);
     document.addEventListener("keydown", onKeyDown, true);
 
-    return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [isOpen]);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [anchorRef, isOpen]);
 
   return (
     <TooltipTrigger isOpen={isOpen}>

@@ -553,6 +553,37 @@ test("Escape dismisses a cut-off tab's tooltip while the pointer is on it", asyn
   await expect(tooltip).toHaveCount(0);
 });
 
+test.describe("on a touch screen", () => {
+  test.use({ hasTouch: true });
+
+  test("a tap shows a cut-off tab's full label, and a tap elsewhere dismisses it", async ({
+    page,
+  }) => {
+    await open(page, "components-tabs--long-label");
+    const long = page.getByRole("tab", {
+      name: "Application evidence and supporting financial documentation",
+    });
+    const short = page.getByRole("tab", { name: "Reviewer assessments" });
+    const tooltip = page.getByRole("tooltip");
+
+    // A tab whose label fits has nothing to show.
+    await short.tap();
+    await expect(short).toHaveAttribute("aria-selected", "true");
+    await expect(tooltip).toHaveCount(0);
+
+    // The tap that shows the full label also selects the tab, as any tap does.
+    await long.tap();
+    await expect(long).toHaveAttribute("aria-selected", "true");
+    await expect(tooltip).toHaveText("Application evidence and supporting financial documentation");
+
+    // Dismissing selects nothing else.
+    const panel = (await page.getByRole("tabpanel").boundingBox())!;
+    await page.touchscreen.tap(panel.x + panel.width / 2, panel.y + panel.height - 4);
+    await expect(tooltip).toHaveCount(0);
+    await expect(long).toHaveAttribute("aria-selected", "true");
+  });
+});
+
 test("a large quiet action aligned at the end meets the edge with its text", async ({ page }) => {
   await open(page, "components-button--aligned-at-end");
   const large = page.getByRole("button", { name: "Review all assessments" });
