@@ -43,16 +43,27 @@ controls aligned with other property values; feature CSS arranges their containe
 
 Use `InlineName` for a short name and `DateChoice` for a calendar date. `DateChoice`
 composes the shared [date field](?path=/docs/components-date-field--docs) and calendar,
-keeping an unsuccessful choice visible for retry. Typed values
-have inline check (**Save**) and × (**Cancel**) icon controls, accessible names,
-and tooltips. Enter saves and Escape cancels; neither blur nor an undisclosed
-shortcut is the only save route. Cancel abandons this small edit.
+keeping an unsuccessful choice visible for retry.
+
+`InlineName` renames in place. Activating the name turns it into a field that occupies
+exactly the box the name did, with the same font, line height, and text position, so
+nothing around it moves. Enter or leaving the field saves; Escape reverts and returns focus
+to the name. An unchanged or empty name reverts without saving. There are no Save or Cancel
+buttons: this single-field rename is the one exception to explicit save and close controls.
+A pencil in a trailing slot marks the name as editable, becomes a spinner while the save is
+pending (the field stays focused but read-only) or while the editor prepares, and becomes a
+failure glyph when the save fails. The failure message is an alert caption that overlays
+the content below instead of pushing it down; the draft and focus stay for another try.
+
+<Canvas of={Editing.InlineNameEditor} />
+<Canvas of={Editing.InlineNameSaveFailure} />
+<Canvas of={Editing.InlineNamePending} />
+<Canvas of={Editing.InlineNamePreparing} />
 
 A calendar date or person choice can commit immediately when its scope is clear,
 with feedback and recovery such as undo. Explain additional consequences before
 commitment. The feature owns saving, conflicts, and revision-checked undo.
 
-<Canvas of={Editing.InlineNameEditor} />
 <Canvas of={Editing.DateChoiceEditor} />
 
 Use `ChoiceList` for a searchable property picker. Its selection commits through

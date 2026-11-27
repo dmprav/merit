@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vite-plus/test";
 
@@ -8,29 +8,30 @@ import { ChoiceList } from "./choice-list";
 import { DateChoice } from "./date-choice";
 import { InlineName } from "./inline-name";
 
+const props = {
+  value: "Community grants",
+  label: "Rename round",
+  errorMessage: "Could not save",
+};
+
+const openEditor = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(screen.getByRole("button", { name: "Community grants" }));
+  return screen.getByRole("textbox", { name: "Rename round" });
+};
+
 it("renames with Enter using the save boundary captured when editing began", async () => {
   const before = vi.fn(async () => null);
   const after = vi.fn(async () => null);
-  const props = {
-    value: "Community grants",
-    label: "Rename round",
-    saveLabel: "Save name",
-    cancelLabel: "Cancel",
-    errorMessage: "Could not save",
-  };
   const view = render(<InlineName {...props} onSave={before} />);
   const user = userEvent.setup();
   expect(screen.getByRole("button", { name: "Community grants" })).not.toHaveFocus();
-  await user.click(screen.getByRole("button", { name: "Community grants" }));
+  const input = await openEditor(user);
 
-  expect(screen.getByRole("button", { name: "Save name" })).toHaveAttribute(
-    "data-icon-only",
-    "true",
-  );
-  expect(screen.getByRole("button", { name: "Cancel" })).toHaveAttribute("data-icon-only", "true");
+  expect(screen.queryByRole("button", { name: "Save name" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
 
-  await user.clear(screen.getByRole("textbox", { name: "Rename round" }));
-  await user.type(screen.getByRole("textbox"), "New name");
+  await user.clear(input);
+  await user.type(input, "New name");
   view.rerender(<InlineName {...props} onSave={after} />);
   // A frame may run before React commits the button that replaces the editor.
   const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
@@ -50,45 +51,131 @@ it("renames with Enter using the save boundary captured when editing began", asy
   );
 });
 
-it("cancels a rename with Escape without saving and returns focus to the name", async () => {
+it("saves when focus leaves the field and leaves focus where the person put it", async () => {
   const save = vi.fn(async () => null);
   render(
-    <InlineName
-      value="Community grants"
-      label="Rename round"
-      saveLabel="Save name"
-      cancelLabel="Cancel"
-      errorMessage="Could not save"
-      onSave={save}
-    />,
+    <>
+      <InlineName {...props} onSave={save} />
+      <button>Elsewhere</button>
+    </>,
   );
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "Community grants" }));
-  await user.type(screen.getByRole("textbox"), " cancelled");
+  await user.type(await openEditor(user), " 2027");
+  await user.click(screen.getByRole("button", { name: "Elsewhere" }));
+
+  await waitFor(() => expect(save).toHaveBeenCalledWith("Community grants 2027"));
+  await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
+  expect(screen.getByRole("button", { name: "Elsewhere" })).toHaveFocus();
+});
+
+it("cancels a rename with Escape without saving, even when blur follows, and returns focus", async () => {
+  const save = vi.fn(async () => null);
+  render(<InlineName {...props} onSave={save} />);
+  const user = userEvent.setup();
+  const input = await openEditor(user);
+  await user.type(input, " cancelled");
   await user.keyboard("{Escape}");
+  // The browser may report the editor's blur after it is gone.
+  fireEvent.blur(input);
 
   expect(save).not.toHaveBeenCalled();
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Community grants" })).toHaveFocus();
 });
 
-it("preserves a failed rename and exposes the recovery message", async () => {
-  const user = userEvent.setup();
+it.each([
+  ["empty", "{Backspace>16/}"],
+  ["unchanged", " {Backspace}"],
+])("reverts an %s draft on blur without saving", async (_name, keys) => {
+  const save = vi.fn(async () => null);
   render(
-    <InlineName
-      value="Community grants"
-      label="Rename round"
-      saveLabel="Save name"
-      cancelLabel="Cancel"
-      errorMessage="Could not save"
-      onSave={async () => "Someone changed this round. Close and reopen to use its latest version."}
-    />,
+    <>
+      <InlineName {...props} onSave={save} />
+      <button>Elsewhere</button>
+    </>,
   );
-  await user.click(screen.getByRole("button", { name: "Community grants" }));
-  await user.type(screen.getByRole("textbox"), " 2027{Enter}");
+  const user = userEvent.setup();
+  await user.type(await openEditor(user), keys);
+  await user.click(screen.getByRole("button", { name: "Elsewhere" }));
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("Someone changed this round");
-  expect(screen.getByRole("textbox")).toHaveValue("Community grants 2027");
+  await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
+  expect(save).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Community grants" })).toBeInTheDocument();
+});
+
+it("is read-only while saving and does not save twice", async () => {
+  let finish: (failure: string | null) => void = () => {};
+
+  const save = vi.fn(() => new Promise<string | null>((resolve) => (finish = resolve)));
+  render(<InlineName {...props} onSave={save} />);
+  const user = userEvent.setup();
+  const input = await openEditor(user);
+  await user.type(input, " 2027{Enter}");
+
+  expect(input).toHaveAttribute("readonly");
+  expect(input).not.toBeDisabled();
+  expect(input).toHaveAttribute("aria-busy", "true");
+  await user.keyboard("{Enter}");
+  fireEvent.blur(input);
+  await user.type(input, "ignored");
+  expect(save).toHaveBeenCalledTimes(1);
+  expect(input).toHaveValue("Community grants 2027");
+
+  finish(null);
+  await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
+});
+
+it("preserves a failed rename, its focus, and exposes the recovery message", async () => {
+  const user = userEvent.setup();
+  const message = "Someone changed this round. Close and reopen to use its latest version.";
+  render(<InlineName {...props} onSave={async () => message} />);
+  const input = await openEditor(user);
+  await user.type(input, " 2027{Enter}");
+
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("Someone changed this round");
+  expect(input).toHaveValue("Community grants 2027");
+  expect(input).toHaveAttribute("aria-invalid", "true");
+  expect(input).toHaveAccessibleDescription(message);
+  await waitFor(() => expect(input).toHaveFocus());
+});
+
+it("keeps the draft and the editor open when a blur starts a save that fails", async () => {
+  render(
+    <>
+      <InlineName {...props} onSave={async () => "Not saved"} />
+      <button>Elsewhere</button>
+    </>,
+  );
+  const user = userEvent.setup();
+  const input = await openEditor(user);
+  await user.type(input, " 2027");
+  await user.click(screen.getByRole("button", { name: "Elsewhere" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Not saved");
+  expect(input).toHaveValue("Community grants 2027");
+  expect(screen.getByRole("button", { name: "Elsewhere" })).toHaveFocus();
+});
+
+it("shows a read-only editor while it prepares and closes without saving on blur", async () => {
+  const save = vi.fn(async () => null);
+  render(
+    <MessagesProvider messages={{}}>
+      <InlineName {...props} onSave={save} isPreparing />
+      <button>Elsewhere</button>
+    </MessagesProvider>,
+  );
+  const user = userEvent.setup();
+  const input = await openEditor(user);
+
+  expect(input).toHaveAttribute("readonly");
+  expect(input).toHaveAttribute("aria-busy", "true");
+  await user.keyboard("{Enter}");
+  expect(screen.getByRole("textbox")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Elsewhere" }));
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(save).not.toHaveBeenCalled();
 });
 
 it("searches people and commits a choice with the keyboard", async () => {
@@ -218,8 +305,6 @@ it("refreshes the name when preparation finishes so saving unchanged does not ov
   const recovered = vi.fn(async () => null);
   const props = {
     label: "Rename round",
-    saveLabel: "Save name",
-    cancelLabel: "Close",
     errorMessage: "Could not save",
   };
 
@@ -232,11 +317,12 @@ it("refreshes the name when preparation finishes so saving unchanged does not ov
   const view = render(tree("Community grants", true));
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Community grants" }));
-  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(screen.getByRole("textbox")).toHaveAttribute("readonly");
 
   view.rerender(tree("Renamed by a colleague", false, recovered));
   expect(screen.getByRole("textbox")).toHaveValue("Renamed by a colleague");
-  await user.click(screen.getByRole("button", { name: "Save name" }));
+  expect(screen.getByRole("textbox")).not.toHaveAttribute("readonly");
+  await user.keyboard("{Enter}");
 
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   expect(before).not.toHaveBeenCalled();
@@ -247,8 +333,6 @@ const preparingName = () => {
   const props = {
     value: "Community grants",
     label: "Rename round",
-    saveLabel: "Save name",
-    cancelLabel: "Close",
     errorMessage: "Could not save",
   };
 
@@ -265,16 +349,16 @@ const preparingName = () => {
   return { name: props.value, tree };
 };
 
-it("keeps a preparing name editor closable without opening it once preparation finishes", async () => {
+it("closes a preparing name editor with Escape without reopening it once preparation finishes", async () => {
   const save = vi.fn(async () => null);
   const { name, tree } = preparingName();
   const view = render(tree(true, save));
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name }));
 
-  expect(screen.getByText("Preparing editor…")).toBeVisible();
-  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+  expect(screen.getByRole("status")).toHaveTextContent("Preparing editor…");
+  expect(screen.getByRole("textbox")).toHaveAttribute("readonly");
+  expect(screen.getByRole("textbox")).toHaveFocus();
 
   await user.keyboard("{Escape}");
   view.rerender(tree(false, save));

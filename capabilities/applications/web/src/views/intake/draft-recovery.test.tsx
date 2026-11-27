@@ -146,8 +146,8 @@ it("cancels an early title opening when recovery reveals existing unfinished con
   };
   const { data, setApplicationEdit, recover } = show(1, titleDraft);
   await user.click(screen.getByRole("button", { name: "Saved application" }));
-  expect(screen.getByText("Preparing editor…")).toBeVisible();
-  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent("Preparing editor…");
+  expect(screen.getByRole("textbox")).toHaveAttribute("readonly");
   recover();
   const title = await screen.findByRole("button", { name: "Saved application" });
   expect(title).toBeDisabled();

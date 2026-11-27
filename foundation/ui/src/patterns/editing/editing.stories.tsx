@@ -6,6 +6,7 @@ import { MessagesProvider } from "@merit/i18n";
 
 import { PickerPopover } from "../../components/dialog/dialog";
 import { Stack } from "../../components/layout/layout";
+import { PageHeader } from "../page-header/page-header";
 import { PersonIdentity } from "../person-identity/person-identity";
 import { ChoiceList } from "./choice-list";
 import { DateChoice } from "./date-choice";
@@ -26,8 +27,6 @@ const meta = {
   args: {
     value: "Local Connections 2027",
     label: "Rename round",
-    saveLabel: "Save name",
-    cancelLabel: "Cancel",
     errorMessage: "Could not save. Your name is still here.",
     onSave: saveOutcome(null),
   },
@@ -44,19 +43,21 @@ const meta = {
   render: function Render(args) {
     const [name, setName] = useState(args.value);
     return (
-      <h1>
-        <InlineName
-          {...args}
-          value={name}
-          onSave={async (value) => {
-            const error = await args.onSave(value);
-            if (!error) {
-              setName(value);
-            }
-            return error;
-          }}
-        />
-      </h1>
+      <PageHeader
+        title={
+          <InlineName
+            {...args}
+            value={name}
+            onSave={async (value) => {
+              const error = await args.onSave(value);
+              if (!error) {
+                setName(value);
+              }
+              return error;
+            }}
+          />
+        }
+      />
     );
   },
 } satisfies Meta<typeof InlineName>;
@@ -65,22 +66,68 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
+/** The box and the text position the editor and the name share, so renaming moves nothing. */
+const measure = (canvasElement: HTMLElement) => {
+  const box = (canvasElement.querySelector("[data-inline-name-editor]") ??
+    canvasElement.querySelector("h1 button"))!.getBoundingClientRect();
+  const field = canvasElement.querySelector("input");
+  const text = (field ?? canvasElement.querySelector("h1 button span"))!.getBoundingClientRect();
+  return { height: box.height, width: box.width, textX: text.x };
+};
+
 export const InlineNameEditor: Story = {
   name: "Inline name",
-  play: async ({ canvas, userEvent }) => {
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await canvasElement.ownerDocument.fonts.ready;
+    const resting = measure(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Local Connections 2027" }));
 
     await expect(canvas.getByRole("textbox", { name: "Rename round" })).toHaveFocus();
+    const editing = measure(canvasElement);
+    await expect(Math.abs(editing.height - resting.height)).toBeLessThanOrEqual(1);
+    await expect(Math.abs(editing.textX - resting.textX)).toBeLessThanOrEqual(1);
+    await expect(Math.abs(editing.width - resting.width)).toBeLessThanOrEqual(1);
   },
 };
 
 export const InlineNameSaveFailure: Story = {
+  name: "Inline name failure",
   args: { onSave: saveOutcome("Could not save. Your name is still here.") },
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: "Local Connections 2027" }));
     await userEvent.type(canvas.getByRole("textbox"), " updated{Enter}");
 
-    await expect(canvas.getByRole("alert")).toBeVisible();
+    const field = canvas.getByRole("textbox");
+    await expect(await canvas.findByRole("alert")).toBeVisible();
+    await expect(field).toHaveAttribute("aria-invalid", "true");
+    await expect(field).toHaveAccessibleDescription("Could not save. Your name is still here.");
+    await expect(field).toHaveFocus();
+  },
+};
+
+export const InlineNamePending: Story = {
+  name: "Inline name pending",
+  args: { onSave: fn(() => new Promise<string | null>(() => {})) },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "Local Connections 2027" }));
+    await userEvent.type(canvas.getByRole("textbox"), " updated{Enter}");
+
+    const field = canvas.getByRole("textbox");
+    await expect(field).toHaveAttribute("readonly");
+    await expect(field).toHaveAttribute("aria-busy", "true");
+    await expect(field).toHaveFocus();
+  },
+};
+
+export const InlineNamePreparing: Story = {
+  name: "Inline name preparing",
+  args: { isPreparing: true },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "Local Connections 2027" }));
+
+    const field = canvas.getByRole("textbox", { name: "Rename round" });
+    await expect(field).toHaveAttribute("readonly");
+    await expect(field).toHaveValue("Local Connections 2027");
   },
 };
 

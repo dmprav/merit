@@ -137,8 +137,6 @@ export const IntakeTitle = ({
       <InlineName
         value={intake.application.title}
         label={t(intake.preparing ? "intake.rename" : "intake.renameRecorded")}
-        saveLabel={t(intake.preparing ? "preparation.saveName" : "intake.correct")}
-        cancelLabel={t("common:cancel")}
         errorMessage={t("intake.saveError")}
         isPreparing={!intake.ready}
         isDisabled={intake.pending || intake.unsavedContent}

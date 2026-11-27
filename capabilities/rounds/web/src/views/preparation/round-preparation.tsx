@@ -283,8 +283,6 @@ export const RoundTitle = ({
     <InlineName
       value={preparation.round.title}
       label={t("preparation.edit.title")}
-      saveLabel={t("preparation.saveName")}
-      cancelLabel={t("common:cancel")}
       errorMessage={t("preparation.saveError")}
       isPreparing={!preparation.ready}
       isDisabled={preparation.pending}
