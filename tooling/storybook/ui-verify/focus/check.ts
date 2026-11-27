@@ -22,8 +22,12 @@ export const checkKeyboardFocusTraversal = async (
     // The page navigated before traversal began, so none of its controls were checked.
     return { stopsChecked: 0, traversal: { complete: false, reason: "trackerLost" }, failures: [] };
   }
-  const { stops, traversal } = await traverseTabStops(page, maxStops);
-  await captureFinalBaseline(page, stops);
+  const { stops, traversal: tabTraversal } = await traverseTabStops(page, maxStops);
+  const reachedSibling = await captureFinalBaseline(page, stops);
+  const traversal =
+    tabTraversal.complete && !reachedSibling
+      ? ({ complete: false, reason: "siblingFocus" } as const)
+      : tabTraversal;
   await captureUnfocusedBaselines(page, stops);
   return { stopsChecked: stops.length, traversal, failures: judgeStops(stops) };
 };

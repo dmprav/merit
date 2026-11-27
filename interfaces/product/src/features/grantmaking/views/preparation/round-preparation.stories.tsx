@@ -205,7 +205,7 @@ export const AssignManager: Story = {
   args: { reassign: true },
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(await canvas.findByRole("button", { name: /^Assign manager:/ }));
-    const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
+    const dialog = within(await within(canvasElement.ownerDocument.body).findByRole("dialog"));
 
     await expect(dialog.getByRole("textbox", { name: "Search people" })).toHaveFocus();
     await expect(dialog.queryByRole("heading", { name: "Assign manager" })).not.toBeInTheDocument();
@@ -255,7 +255,7 @@ export const BudgetHistory: Story = {
   },
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(await canvas.findByRole("button", { name: /^Edit budget:/ }));
-    const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
+    const dialog = within(await within(canvasElement.ownerDocument.body).findByRole("dialog"));
     await expect(readBudgetHistory).not.toHaveBeenCalled();
     await userEvent.click(dialog.getByRole("button", { name: "Budget history" }));
 
@@ -274,7 +274,9 @@ export const BudgetReasonRequired: Story = {
     await context.userEvent.click(
       await context.canvas.findByRole("button", { name: /^Edit budget:/ }),
     );
-    const dialog = within(within(context.canvasElement.ownerDocument.body).getByRole("dialog"));
+    const dialog = within(
+      await within(context.canvasElement.ownerDocument.body).findByRole("dialog"),
+    );
     await context.userEvent.clear(dialog.getByRole("textbox", { name: "Round budget" }));
     await context.userEvent.type(dialog.getByRole("textbox", { name: "Round budget" }), "95000");
     await context.userEvent.click(dialog.getByRole("button", { name: "Update budget" }));
@@ -310,7 +312,7 @@ export const DeleteEmptyRound: Story = {
     const body = within(canvasElement.ownerDocument.body);
     await userEvent.click(body.getByRole("menuitem", { name: "Delete round" }));
 
-    await expect(body.getByRole("dialog")).toHaveTextContent(example.title);
+    await expect(await body.findByRole("dialog")).toHaveTextContent(example.title);
   },
 };
 export const DeleteFailure: Story = {
@@ -320,7 +322,9 @@ export const DeleteFailure: Story = {
   },
   play: async (context) => {
     await DeleteEmptyRound.play!(context);
-    const dialog = within(within(context.canvasElement.ownerDocument.body).getByRole("dialog"));
+    const dialog = within(
+      await within(context.canvasElement.ownerDocument.body).findByRole("dialog"),
+    );
     await context.userEvent.click(dialog.getByRole("button", { name: "Delete round" }));
 
     await waitFor(async () => expect(await dialog.findByRole("alert")).toBeVisible());
@@ -365,7 +369,7 @@ export const RenameRound: Story = {
 export const CommitteeDate: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(await canvas.findByRole("button", { name: /^Edit committee date:/ }));
-    const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
+    const dialog = within(await within(canvasElement.ownerDocument.body).findByRole("dialog"));
 
     await expect(dialog.getByRole("textbox", { name: "Committee date" })).toHaveFocus();
     await expect(

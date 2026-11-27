@@ -1,0 +1,4 @@
+/* A note around a picker's list lines up with the list's row text, as the feature pickers do. */
+.pickerNote {
+  padding: var(--space-1) var(--space-2) var(--space-2);
+}

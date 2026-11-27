@@ -317,7 +317,7 @@ export const WithdrawalStatus = ({
 
   return (
     <Stack as="section" gap={4} aria-label={t("intake.withdrawn")}>
-      <Divider />
+      <Divider spacing={4} />
       <div>
         <SectionHeader
           level={3}
@@ -329,7 +329,7 @@ export const WithdrawalStatus = ({
           <Reading as="p">{withdrawal.reason}</Reading>
         </Stack>
       </div>
-      <Divider />
+      <Divider spacing={4} />
     </Stack>
   );
 };

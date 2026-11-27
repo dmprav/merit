@@ -3,20 +3,20 @@
  * divider above the results and the shared focus bar along that divider.
  */
 .search {
-  /* Run edge to edge across the popover, whatever its inset, so the divider spans it. */
-  --inset: var(--popover-inset, 0px);
+  /* stylelint-disable-next-line property-no-unknown -- CSS Modules shares the popover divider rule. */
+  composes: divided from "./popover.module.css";
+  /* stylelint-disable-next-line property-no-unknown -- CSS Modules shares the popover focus bar. */
+  composes: focusBar from "./popover.module.css";
   display: flex;
   align-items: center;
   gap: var(--space-2);
   min-height: 2.5rem;
-  margin: calc(-1 * var(--inset)) calc(-1 * var(--inset)) var(--space-1);
+  /* A list below carries its own inset, so only the rest of one space-1 gap is added. */
+  margin-block: calc(-1 * var(--popover-gutter, 0px))
+    calc(var(--space-1) - var(--popover-inset, 0px));
   border-bottom: 1px solid var(--border);
-  padding-inline: calc(var(--inset) + var(--space-2));
+  padding-inline: calc(var(--divider-inline) + var(--space-2));
   color: var(--muted);
-}
-
-.search:focus-within {
-  box-shadow: inset 0 -2px var(--focus);
 }
 
 .input {
@@ -36,11 +36,4 @@
 
 .input::-webkit-search-cancel-button {
   display: none;
-}
-
-@media (forced-colors: active) {
-  .search:focus-within {
-    outline: 2px solid Highlight;
-    outline-offset: -2px;
-  }
 }

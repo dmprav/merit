@@ -2,7 +2,12 @@ import { useSyncExternalStore, type ReactNode } from "react";
 import { Dialog, DialogTrigger } from "react-aria-components/Dialog";
 import { Popover, type PopoverProps } from "react-aria-components/Popover";
 
-import motion from "../../foundations/motion.module.css";
+import {
+  popoverContainerPadding,
+  popoverMaxHeight,
+  popoverOffset,
+  popoverSurface,
+} from "../../foundations/popover";
 import { DialogContent, DialogFrameContext } from "./dialog-content";
 import styles from "./dialog.module.css";
 import { FrameHeader, frameRoot } from "./frame";
@@ -79,13 +84,12 @@ const FloatingDialog = ({
     >
       {trigger}
       <Popover
-        // Pickers can open nested overlays before their entrance finishes, so they only fade.
-        className={`${styles.popover} ${motion.fadeOut} ${picker ? motion.fadeIn : ""}`}
+        className={`${popoverSurface} ${styles.popover}`}
         data-appearance={appearance}
         placement={compact ? "bottom end" : (placement ?? "right bottom")}
-        offset={8}
-        containerPadding={16}
-        maxHeight={560}
+        offset={popoverOffset}
+        containerPadding={popoverContainerPadding}
+        maxHeight={popoverMaxHeight}
         getTargetRect={picker ? pixelAlignedTriggerRect : undefined}
         // Pickers lock background scrolling so nested forms do not dismiss their parent.
         isNonModal={!compact && !picker}

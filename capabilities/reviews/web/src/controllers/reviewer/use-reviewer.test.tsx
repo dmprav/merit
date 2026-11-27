@@ -53,6 +53,7 @@ const setup = (adjust?: (page: ReviewerPage) => void) => {
         note: "",
       },
     },
+    work: { available: true },
   };
   adjust?.(page);
   const data = {
@@ -332,4 +333,27 @@ it("restores the submitted judgment when the reviewer discards an amendment", as
   });
   expect(result.current.amendmentDraft).toBe(false);
   await waitFor(() => expect(result.current.dirty).toBe(false));
+});
+
+it("keeps an unsaved amendment local when Reviews reports the application withdrawn", async () => {
+  const { result, data } = setupSubmitted();
+  // The reviewer last opened an amendment; the application has since been withdrawn.
+  const { result: withdrawn } = renderHook(() =>
+    useReviewer(
+      {
+        ...result.current.page,
+        work: { available: false, reason: "application_withdrawn" },
+      },
+      data,
+      undefined,
+      { amending: true, draft: { ...result.current.draft!, reasoning: "Typed after" } },
+    ),
+  );
+
+  expect(withdrawn.current.canWrite).toBe(false);
+  expect(withdrawn.current.dirty).toBe(true);
+  // Autosave goes through save(), which sends nothing while work is unavailable.
+  expect(await act(() => withdrawn.current.save())).toBeNull();
+  expect(data.save).not.toHaveBeenCalled();
+  expect(withdrawn.current.draft?.reasoning).toBe("Typed after");
 });

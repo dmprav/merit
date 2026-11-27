@@ -1,17 +1,6 @@
 .popover {
-  z-index: 50;
   /* Keep measurement independent of the remaining space beside the trigger. */
   width: max-content;
-  min-width: 160px;
+  min-width: 10rem;
   max-width: calc(100vw - 32px);
-  padding: var(--space-1);
-  border: 1px solid var(--border);
-  border-radius: var(--control-radius);
-  background: var(--surface);
-  color: var(--foreground);
-  box-shadow: var(--popover-shadow);
-}
-
-.menu {
-  outline: none;
 }

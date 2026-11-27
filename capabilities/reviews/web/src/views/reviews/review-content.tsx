@@ -14,7 +14,6 @@ import {
 import { ActionProvenance } from "@merit/ui/action-provenance";
 import { Button } from "@merit/ui/button";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
-import { Divider } from "@merit/ui/divider";
 import { Icon } from "@merit/ui/icon";
 import { Inline, Reading, Stack } from "@merit/ui/layout";
 import { PersonIdentity } from "@merit/ui/person-identity";
@@ -357,21 +356,27 @@ const AssessmentList = ({
     <>
       {focusedId && !latest.length && !pending.length && <p>{t("selectedUnavailable")}</p>}
       {!focusedId && !state.assessments.length && !state.requests.length && <p>{t("noReviews")}</p>}
-      {latest.map((assessment) => (
-        <AssessmentEntry
-          key={assessment.id}
-          assessment={assessment}
-          application={application}
-          round={round}
-          assessmentActions={assessmentActions}
-          detailed={Boolean(inspection)}
-          showHistory={inspection?.kind === "history"}
-          onDetails={() => inspect({ kind: "assessment", id: assessment.id })}
-          onHistory={() => inspect({ kind: "history", id: assessment.id })}
-          onInspectCriteria={(version) => inspect({ kind: "criteria", id: assessment.id, version })}
-          onInspectVersion={onInspectVersion}
-        />
-      ))}
+      {latest.length > 0 && (
+        <Stack gap={5} divided="between">
+          {latest.map((assessment) => (
+            <AssessmentEntry
+              key={assessment.id}
+              assessment={assessment}
+              application={application}
+              round={round}
+              assessmentActions={assessmentActions}
+              detailed={Boolean(inspection)}
+              showHistory={inspection?.kind === "history"}
+              onDetails={() => inspect({ kind: "assessment", id: assessment.id })}
+              onHistory={() => inspect({ kind: "history", id: assessment.id })}
+              onInspectCriteria={(version) =>
+                inspect({ kind: "criteria", id: assessment.id, version })
+              }
+              onInspectVersion={onInspectVersion}
+            />
+          ))}
+        </Stack>
+      )}
       {pending.length > 0 && (
         <PendingRequests
           pending={pending}
@@ -544,7 +549,7 @@ const AssessmentEntry = ({
     return null;
   }
   return (
-    <Stack as="article" gap={4} aria-label={t("by", { name: assessment.reviewer })}>
+    <article aria-label={t("by", { name: assessment.reviewer })}>
       <div>
         <div className={styles.assessmentHeader}>
           <span className={styles.assessmentAuthor}>
@@ -606,8 +611,7 @@ const AssessmentEntry = ({
           )}
         </Stack>
       </div>
-      <Divider />
-    </Stack>
+    </article>
   );
 };
 
@@ -625,32 +629,33 @@ const AssessmentHistory = ({
   const state = application.reviews;
   const criteria = round.criteria;
   return (
-    <>
-      {state.assessments
-        .filter((item) => item.contactId === assessment.contactId)
-        .flatMap((item) =>
-          (item.id === assessment.id ? item.versions.slice(0, -1) : item.versions).map(
-            (version, index) => (
-              <Stack as="section" key={`${item.id}/${index}`} gap={4}>
-                <div className={styles.card}>
-                  <SectionHeader level={3} title={t("editCount", { version: index + 1 })} />
-                  <RecordedAssessment
-                    version={version}
-                    detailed
-                    applicationVersion={application.version}
-                    criteriaVersion={round.criteriaVersion}
-                    criteria={criteria}
-                    onInspectVersion={onInspectVersion}
-                    onInspectCriteria={() => onInspectCriteria(version)}
-                    criteriaAction={`${item.id}:${index}:criteria`}
-                  />
-                </div>
-                <Divider />
-              </Stack>
+    <div className={styles.history}>
+      <Stack gap={4} divided="between">
+        {state.assessments
+          .filter((item) => item.contactId === assessment.contactId)
+          .flatMap((item) =>
+            (item.id === assessment.id ? item.versions.slice(0, -1) : item.versions).map(
+              (version, index) => (
+                <section key={`${item.id}/${index}`}>
+                  <div className={styles.card}>
+                    <SectionHeader level={3} title={t("editCount", { version: index + 1 })} />
+                    <RecordedAssessment
+                      version={version}
+                      detailed
+                      applicationVersion={application.version}
+                      criteriaVersion={round.criteriaVersion}
+                      criteria={criteria}
+                      onInspectVersion={onInspectVersion}
+                      onInspectCriteria={() => onInspectCriteria(version)}
+                      criteriaAction={`${item.id}:${index}:criteria`}
+                    />
+                  </div>
+                </section>
+              ),
             ),
-          ),
-        )}
-    </>
+          )}
+      </Stack>
+    </div>
   );
 };
 

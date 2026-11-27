@@ -1,6 +1,7 @@
 import { useEffect, useState, type RefObject } from "react";
 import { Tooltip as AriaTooltip, TooltipTrigger } from "react-aria-components/Tooltip";
 
+import { popoverOffset, popoverSurface } from "../../foundations/popover";
 import styles from "./tooltip.module.css";
 
 /** The timing every hint shares, so hovering a cut-off label waits like any other. */
@@ -57,10 +58,10 @@ export const AnchoredTooltipBase = ({
   return (
     <TooltipTrigger isOpen={isOpen}>
       <AriaTooltip
-        className={styles.tooltip}
+        className={`${popoverSurface} ${styles.tooltip}`}
         triggerRef={anchorRef}
         placement={placement}
-        offset={6}
+        offset={popoverOffset}
         onPointerEnter={() => setIsOverTooltip(true)}
         onPointerLeave={() => setIsOverTooltip(false)}
       >

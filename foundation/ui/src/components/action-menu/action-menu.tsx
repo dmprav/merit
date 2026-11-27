@@ -10,6 +10,7 @@ import { Menu, MenuItem, MenuTrigger, Pressable } from "react-aria-components/Me
 import { Popover } from "react-aria-components/Popover";
 
 import rowStyles from "../../foundations/list-row.module.css";
+import { popoverOffset, popoverScroller, popoverSurface } from "../../foundations/popover";
 import { IconBase, type IconName } from "../icon/icon-base";
 import { Tooltip } from "../tooltip/tooltip";
 import styles from "./action-menu.module.css";
@@ -98,14 +99,15 @@ export const ActionMenu = ({
       )}
       <Popover
         placement={activation === "contextMenu" ? undefined : "bottom end"}
-        offset={activation === "contextMenu" ? 0 : 4}
-        className={styles.popover}
+        // A context menu opens at the pointer, so there is no trigger edge to keep clear of.
+        offset={activation === "contextMenu" ? 0 : popoverOffset}
+        className={`${popoverSurface} ${styles.popover}`}
       >
         <MenuFocusGuard menuRef={menuRef} />
         <Menu
           ref={menuRef}
           aria-label={label}
-          className={styles.menu}
+          className={popoverScroller}
           onAction={(key) => onAction(String(key))}
         >
           {items.map((item) => (
