@@ -381,6 +381,27 @@ for (const story of [
   });
 }
 
+/**
+ * Stories whose play functions assume a desktop viewport and throw at 390px (a Testing Library
+ * assertion or a missing element). They fail the same way on the base commit, before the edge
+ * alignment change, and test:stories owns them at their intended viewport.
+ */
+const KNOWN_MOBILE_PLAY_FAILURES = new Set([
+  "features-workspace-search--results",
+  "features-workspace-search--no-matches",
+  "features-workspace-search--loading-keeps-results",
+  "features-workspace-search--failure",
+  "features-workspace-request-access--submitting",
+  "features-team-manage-team--invite-reviewer",
+  "features-merit-ai-conversation--closed",
+  "features-contacts-edit-contact--saving",
+  "features-contacts-directory--no-search-results",
+  "features-applications-manage-reviewer-invitations--undelivered-invitation",
+  "features-applications-manage-intake--ready-for-review",
+  "features-team-manage-team--resume-access",
+]);
+const PLAY_FAILURE = /Tf:|TestingLibraryElementError/;
+
 test("no header or panel action wraps in any feature or pattern story", async ({
   page: first,
   request,
@@ -422,14 +443,17 @@ test("no header or panel action wraps in any feature or pattern story", async ({
     }
   }
 
-  // Some stories' play functions assume a desktop viewport and already fail at 390px on main;
-  // test:stories owns them. Their assertion errors are not this sweep's findings, anything else is.
+  // At 390px only the known play-function failures are allowed; every other error fails the test.
   if (width < 500) {
-    const play = /Tf:|TestingLibraryElementError/;
+    const known = (error: { message: string; url: string }) => {
+      const id = new URL(error.url).searchParams.get("id") ?? "";
+      return KNOWN_MOBILE_PLAY_FAILURES.has(id) && PLAY_FAILURE.test(error.message);
+    };
+
     browserErrors.splice(
       0,
       browserErrors.length,
-      ...browserErrors.filter((error) => !play.test(error.message)),
+      ...browserErrors.filter((error) => !known(error)),
     );
   }
 
@@ -502,4 +526,14 @@ test("a large quiet action aligned at the end meets the edge with its text", asy
   const parent = await edges(large.locator(".."));
 
   expect((await textEdges(large)).end).toBeCloseTo(parent.right, 0);
+});
+
+test("a start-aligned icon button's glyph meets the container's edge", async ({ page }) => {
+  await open(page, "components-button--icon-aligned-at-start");
+  for (const name of ["Edit", "Edit large"]) {
+    const button = page.getByRole("button", { name, exact: true });
+    const parent = await edges(button.locator(".."));
+
+    expect((await glyphEdges(button.locator("svg"))).start, name).toBeCloseTo(parent.left, 0);
+  }
 });

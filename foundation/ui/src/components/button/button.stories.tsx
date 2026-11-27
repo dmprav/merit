@@ -121,6 +121,25 @@ export const AlignedAtEnd: Story = {
     </section>
   ),
 };
+export const IconAlignedAtStart: Story = {
+  args: { variant: "quiet", alignment: "start", iconOnly: true },
+  argTypes: { children: { control: false } },
+  render: (args) => (
+    <section className={localStyles.variant}>
+      <p>An icon action at the start of a row puts its glyph on the content's leading edge.</p>
+      <div className={localStyles.grid}>
+        <Button {...args} aria-label="Edit">
+          <Icon name="edit" />
+        </Button>
+      </div>
+      <div className={localStyles.grid}>
+        <Button {...args} size="large" aria-label="Edit large">
+          <Icon name="edit" />
+        </Button>
+      </div>
+    </section>
+  ),
+};
 export const FillingWidth: Story = {
   args: { variant: "secondary", alignment: "fill" },
   parameters: {
