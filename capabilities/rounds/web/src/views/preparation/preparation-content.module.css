@@ -19,8 +19,10 @@
   margin-top: var(--space-5);
 }
 
+/* A status beside the manager moves below the name when the pane is too narrow for both. */
 .manager {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
   width: 100%;
