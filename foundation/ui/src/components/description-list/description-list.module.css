@@ -33,7 +33,8 @@
 
 .list[data-layout="rows"] .item {
   display: grid;
-  grid-template-columns: minmax(7.5rem, 8.5rem) minmax(0, 1fr);
+  /* A narrow host, such as a properties pane, lowers the label's upper bound to give values room. */
+  grid-template-columns: minmax(7.5rem, var(--description-list-label-max, 8.5rem)) minmax(0, 1fr);
   align-items: center;
   gap: var(--space-3);
 }
