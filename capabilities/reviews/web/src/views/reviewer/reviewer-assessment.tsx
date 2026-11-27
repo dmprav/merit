@@ -493,7 +493,7 @@ export const RetainedDraft = ({ work }: { work: ReviewerWork }) => {
 
   return (
     <Stack as="section" gap={5} aria-label={t("unsavedAssessment")}>
-      <Divider />
+      <Divider spacing={5} />
       <Stack gap={3}>
         <SectionHeader
           title={t("unsavedAssessment")}

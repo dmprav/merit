@@ -6,6 +6,8 @@
   --foreground: #292d29;
   --muted: #62685f;
   --border: #e0e3dc;
+  /* A rule inside a surface, lighter than the edge of one. */
+  --border-subtle: color-mix(in srgb, var(--border) 55%, var(--surface));
   --border-control: #899184;
   /* The edge of a surface raised over content: popovers, menus, toasts. */
   --border-raised: #d6d9d1;

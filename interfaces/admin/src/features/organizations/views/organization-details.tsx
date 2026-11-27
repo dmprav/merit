@@ -361,7 +361,7 @@ const InvitationActions = ({
       )}
       {work.active && (
         <Stack gap={4}>
-          <Divider />
+          <Divider spacing={4} />
           <div>
             <Button variant="quiet" isDisabled={disabled} onPress={work.requestRevoke}>
               {t("revoke")}

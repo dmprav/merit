@@ -353,7 +353,7 @@ const ParticipationActions = ({
   const { t } = useTranslation("reviewer");
   return (
     <Stack gap={4}>
-      <Divider />
+      <Divider spacing={4} />
       <Inline>
         <Button isDisabled={work.busy} onPress={() => void work.respond("accept", "")}>
           {t("accept")}

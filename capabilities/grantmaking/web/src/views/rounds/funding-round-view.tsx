@@ -124,7 +124,7 @@ const RoundBudget = ({ round }: { round: RoundPage }) => {
   return (
     <div className={localStyles.budget}>
       <Stack as="section" gap={4} aria-label={t("round.summary")}>
-        <Divider />
+        <Divider spacing={4} />
         <Stack gap={2}>
           <div className={localStyles.budgetScope}>
             <Text variant="caption">{t("applications.wholeRound")}</Text>

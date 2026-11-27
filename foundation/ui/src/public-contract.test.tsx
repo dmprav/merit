@@ -132,6 +132,13 @@ it("keeps presentation and interaction with the shared components", () => {
   expectTypeOf<Offenders>().toEqualTypeOf<never>();
 });
 
+it("keeps rule colour and weight to the two strengths", () => {
+  expectTypeOf<Parameters<typeof divider.Divider>[0]>().not.toHaveProperty("tone");
+  expectTypeOf<Parameters<typeof divider.Divider>[0]["strength"]>().toEqualTypeOf<
+    "subtle" | "edge" | undefined
+  >();
+});
+
 it("checks every public module", () => {
   const modules = Object.entries(manifest.exports)
     .filter(([, path]) => path.endsWith(".tsx"))

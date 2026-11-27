@@ -362,7 +362,6 @@ const ComparisonSection = ({
           heading={afterHeading}
           showHeading={renamed}
           value={afterValue}
-          emphasis
         />
       </div>
     </section>
@@ -374,17 +373,14 @@ const ComparedValue = ({
   heading,
   showHeading,
   value,
-  emphasis = false,
 }: {
   label: string;
   heading?: string;
   showHeading: boolean;
   value: string;
-  /** Marks the recorded side of the comparison. */
-  emphasis?: boolean;
 }) => (
   <Stack gap={3}>
-    <Divider tone={emphasis ? "emphasis" : "default"} />
+    <Divider />
     <div>
       <Text variant="caption">{label}</Text>
       {showHeading && heading && (
@@ -510,7 +506,7 @@ const HistoricalSummary = ({ value }: { value: HistorySnapshot }) => {
   const { t } = useTranslation("fundingRounds");
   return value.summaryAuthor || value.summary ? (
     <Stack as="section" gap={4}>
-      <Divider />
+      <Divider spacing={4} />
       <DescriptionList>
         <DescriptionListItem label={t("history.summary")}>
           <Stack gap={2}>
