@@ -1,3 +1,5 @@
+import { stripVTControlCharacters } from "node:util";
+
 import type { Locator, Page } from "@playwright/test";
 
 import { test, expect } from "@merit/test-support/browser";
@@ -386,21 +388,27 @@ for (const story of [
  * assertion or a missing element). They fail the same way on the base commit, before the edge
  * alignment change, and test:stories owns them at their intended viewport.
  */
-const KNOWN_MOBILE_PLAY_FAILURES = new Set([
-  "features-workspace-search--results",
-  "features-workspace-search--no-matches",
-  "features-workspace-search--loading-keeps-results",
-  "features-workspace-search--failure",
-  "features-workspace-request-access--submitting",
-  "features-team-manage-team--invite-reviewer",
-  "features-merit-ai-conversation--closed",
-  "features-contacts-edit-contact--saving",
-  "features-contacts-directory--no-search-results",
-  "features-applications-manage-reviewer-invitations--undelivered-invitation",
-  "features-applications-manage-intake--ready-for-review",
-  "features-team-manage-team--resume-access",
+const KNOWN_MOBILE_PLAY_FAILURES = new Map([
+  // Each fragment is what that story's failing assertion prints about the element it cannot see.
+  ["features-workspace-search--results", 'data-key="round:k7m2p9x4n6rt"'],
+  ["features-workspace-search--no-matches", "is not visible:\n  <p"],
+  ["features-workspace-search--loading-keeps-results", 'data-key="application:b8q3w5j7c2df"'],
+  ["features-workspace-search--failure", "is not visible:\n  <p"],
+  ["features-workspace-request-access--submitting", 'aria-label="Request an invitation"'],
+  ["features-team-manage-team--invite-reviewer", 'aria-haspopup="listbox"'],
+  ["features-team-manage-team--resume-access", 'data-key="edit"'],
+  [
+    "features-merit-ai-conversation--closed",
+    'Unable to find role="button" and name "Ask Merit AI"',
+  ],
+  ["features-contacts-edit-contact--saving", 'aria-label="Edit contact details"'],
+  ["features-contacts-directory--no-search-results", 'aria-label="Clear search"'],
+  [
+    "features-applications-manage-reviewer-invitations--undelivered-invitation",
+    'data-key="resend"',
+  ],
+  ["features-applications-manage-intake--ready-for-review", 'data-key="start_revision"'],
 ]);
-const PLAY_FAILURE = /Tf:|TestingLibraryElementError/;
 
 test("no header or panel action wraps in any feature or pattern story", async ({
   page: first,
@@ -447,7 +455,9 @@ test("no header or panel action wraps in any feature or pattern story", async ({
   if (width < 500) {
     const known = (error: { message: string; url: string }) => {
       const id = new URL(error.url).searchParams.get("id") ?? "";
-      return KNOWN_MOBILE_PLAY_FAILURES.has(id) && PLAY_FAILURE.test(error.message);
+      const fragment = KNOWN_MOBILE_PLAY_FAILURES.get(id);
+
+      return fragment !== undefined && stripVTControlCharacters(error.message).includes(fragment);
     };
 
     browserErrors.splice(
