@@ -9,7 +9,7 @@ import {
 } from "react-aria-components/Tooltip";
 
 import { popoverOffset, popoverSurface } from "../../foundations/popover";
-import { TOOLTIP_CLOSE_DELAY, TOOLTIP_OPEN_DELAY } from "./tooltip-base";
+import { isInExternalOverlay, TOOLTIP_CLOSE_DELAY, TOOLTIP_OPEN_DELAY } from "./tooltip-base";
 import styles from "./tooltip.module.css";
 
 type TooltipProps = {
@@ -20,11 +20,6 @@ type TooltipProps = {
   isDisabled?: boolean;
   /** Connect a real DOM link or a ref-forwarding router link to the tooltip. */
   customTrigger?: boolean;
-};
-
-const isInExternalOverlay = (target: Element | null, trigger: Element | null) => {
-  const overlay = target?.closest('[role="dialog"], [role="menu"]');
-  return Boolean(overlay && trigger && !overlay.contains(trigger));
 };
 
 // React Aria intercepts Escape in a document capture listener whenever any tooltip is open.

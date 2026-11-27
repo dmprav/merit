@@ -41,3 +41,26 @@ it("stays open while the pointer is on it after keyboard focus leaves", async ()
 
   expect(screen.getByRole("tooltip")).toBeVisible();
 });
+
+it("closes when focus enters a dialog that does not hold its anchor, leaving that dialog Escape", async () => {
+  const dialogEscape = vi.fn();
+  document.addEventListener("keydown", dialogEscape);
+  render(
+    <>
+      <Anchored isFocused={false} isHovered />
+      <dialog open aria-label="Filter">
+        <button type="button">Status</button>
+      </dialog>
+    </>,
+  );
+  const tooltip = await screen.findByRole("tooltip");
+
+  // The pointer stays on the tooltip while keyboard focus moves into an unrelated dialog.
+  fireEvent.pointerEnter(tooltip);
+  screen.getByRole("button", { name: "Status" }).focus();
+
+  await waitFor(() => expect(screen.queryByRole("tooltip")).not.toBeInTheDocument());
+  fireEvent.keyDown(screen.getByRole("button", { name: "Status" }), { key: "Escape" });
+  expect(dialogEscape).toHaveBeenCalledOnce();
+  document.removeEventListener("keydown", dialogEscape);
+});
