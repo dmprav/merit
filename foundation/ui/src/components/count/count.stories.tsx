@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Inline } from "../layout/layout";
+import { Text } from "../text/text";
 import { Count } from "./count";
 
 const meta = {
@@ -21,9 +22,13 @@ export const Overview: Story = {
       <Count>0</Count>
       <Count>12</Count>
       <Count>1,204</Count>
-      <Count tone="warning" title="Two are overdue">
-        3
-      </Count>
+      {/* A warning count states its reason in text too, since hover is not available everywhere. */}
+      <Inline gap={2}>
+        <Count tone="warning" title="Two are overdue">
+          3
+        </Count>
+        <Text variant="supporting">Two are overdue</Text>
+      </Inline>
     </Inline>
   ),
 };
