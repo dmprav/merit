@@ -4,12 +4,12 @@ import styles from "./description-list.module.css";
 
 /**
  * DescriptionList and DescriptionListItem present label/value pairs with native dl, dt, and dd
- * semantics. They own typography, item spacing, and wrapping. Values share a 32px minimum row, with
- * text, identities, and controls vertically centered; long content can grow. Choose the layout by
+ * semantics. They own typography, item spacing, and wrapping. Each value sits close to its own label
+ * and has no minimum height; a control that needs one brings it. Choose the layout by
  * how people read the facts:
  *
  * - stacked: descriptive facts, labels above values.
- * - rows: compact property panels, labels beside values; rows stack again in containers narrower
+ * - rows: compact property panels, labels beside values in a fixed column; rows stack again in containers narrower
  *   than 17rem.
  * - columns: a short summary of separate facts, side by side where there is room.
  * - figures: amounts to compare, with values aligned at the end in tabular figures.

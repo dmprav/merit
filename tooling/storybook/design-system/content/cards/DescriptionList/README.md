@@ -9,7 +9,7 @@ Label/value pairs with native `dl`, `dt` and `dd` semantics, for the facts of a 
   - `columns`: a short summary of separate facts, side by side where there is room.
   - `figures`: amounts to compare, values aligned at the end in tabular figures.
 - Set `divided` to rule off each item with a `border-subtle` rule, for a record people edit row by row.
-- The list owns typography (labels in `muted`), item spacing (`space-1` to `space-6`) and wrapping. Values share a 32px minimum row with text, identities and controls vertically centred; long content grows.
+- The list owns typography (labels in `muted`), item spacing (`space-1` to `space-6`) and wrapping. Each value sits close under or beside its own label, with the gap between items carrying the separation; values have no minimum height, so a control that needs one brings it. `rows` labels take a fixed 7.5–8.5rem column; `figures` values share one end edge.
 - Features supply labels, values, formatting and conditional items, and keep the list's width and surrounding panels.
 - Use `Badge` for statuses and `PersonIdentity` for people inside values.
 

@@ -130,6 +130,10 @@ The packaged worker can connect to local Temporal or Temporal Cloud using the sa
   with the same environment as the web server, without `MERIT_LOCAL_WORKER`. It needs outbound
   access to Temporal and, once capabilities register workflows, to the database and other
   services their activities use. Stop it with `SIGTERM` so it finishes work in flight.
+- **Recovery interval.** Invitation requests hand off to Temporal immediately after commit.
+  If that handoff is lost, the worker recovers it on its next scheduled sweep or at worker startup.
+  The shared recovery Schedule runs hourly by default. Set `MERIT_RECONCILE_INTERVAL_SECONDS`
+  to a positive whole number of seconds on the worker and restart it to update the Schedule.
 
 ## Prepare the database
 

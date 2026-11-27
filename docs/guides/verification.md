@@ -70,27 +70,41 @@ include the full matrix for the [full verification milestones](#verification).
 
 Choose checks for the part you changed:
 
-| When you need to…                                                    | Run…                                                                  |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Check formatting, lint, and types                                    | `vp run check:code` (build first to generate route types)             |
-| Check React Compiler diagnostics across UI code                      | `vp run check:react-compiler`                                         |
-| Check capability packages without application-generated types        | `vp run -r typecheck`                                                 |
-| Typecheck one extracted web capability                               | `vp run @merit/grantmaking-web#typecheck`                             |
-| Check CSS correctness and spacing                                    | `vp run check:css`                                                    |
-| Check local documentation links and heading anchors                  | `vp run check:docs`                                                   |
-| Check dependency boundaries after moving code or changing imports    | `vp run architecture`                                                 |
-| Check for unused code and incorrect dependency declarations          | `vp run code-health`                                                  |
-| Check production function complexity                                 | `vp run check:complexity`                                             |
-| Scan repository files for secrets and audit dependencies             | `vp run check:security`                                               |
-| Run package tests                                                    | `vp run -r test`, or `vp run <package>#test` for the affected package |
-| Check all stories, their interactions, and accessibility             | `vp run test:stories`                                                 |
-| Check Storybook layouts and visual baselines without the application | `vp run test:browser:stories`                                         |
-| Check application flows                                              | `vp run test:browser:app`                                             |
-| Check shared browser fixtures without starting a server              | `vp run test:browser:tooling`                                         |
-| Run shared browser checks, Storybook, and application flows          | `vp run test:browser`                                                 |
-| Build the workspace                                                  | `vp run -r build`                                                     |
-| Check database integration                                           | `vp run @merit/app#test:integration`                                  |
-| Check persisted workspace navigation without Clerk                   | `vp run @merit/app#test:workspace`                                    |
+| When you need to…                                                 | Run…                                                                  |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Check formatting, lint, and types                                 | `vp run check:code` (build first to generate route types)             |
+| Check React Compiler diagnostics across UI code                   | `vp run check:react-compiler`                                         |
+| Check capability packages without application-generated types     | `vp run -r typecheck`                                                 |
+| Typecheck one extracted web capability                            | `vp run @merit/grantmaking-web#typecheck`                             |
+| Check CSS correctness and spacing                                 | `vp run check:css`                                                    |
+| Check local documentation links and heading anchors               | `vp run check:docs`                                                   |
+| Check dependency boundaries after moving code or changing imports | `vp run architecture`                                                 |
+| Check for unused code and incorrect dependency declarations       | `vp run code-health`                                                  |
+| Check production function complexity                              | `vp run check:complexity`                                             |
+| Scan repository files for secrets and audit dependencies          | `vp run check:security`                                               |
+| Run package tests                                                 | `vp run -r test`, or `vp run <package>#test` for the affected package |
+| Check all stories, their interactions, and accessibility          | `vp run test:stories`                                                 |
+| Check Storybook layouts and interactions without the application  | `vp run test:browser:stories`                                         |
+| Check visual baselines in the pinned Playwright container         | `vp run test:browser:stories:container`                               |
+| Update visual baselines in the pinned Playwright container        | `vp run ui:verify --container --update`                               |
+| Check application flows                                           | `vp run test:browser:app`                                             |
+| Check shared browser fixtures without starting a server           | `vp run test:browser:tooling`                                         |
+| Run shared browser checks, Storybook, and application flows       | `vp run test:browser`                                                 |
+| Build the workspace                                               | `vp run -r build`                                                     |
+| Check database integration                                        | `vp run @merit/app#test:integration`                                  |
+| Check persisted workspace navigation without Clerk                | `vp run @merit/app#test:workspace`                                    |
+
+Visual comparisons and baseline updates are valid only inside the pinned Playwright image
+(`vp run test:browser:stories:container`, or CI). Every host run that includes the Storybook
+browser suite, such as `vp run test:browser:stories`, `test:browser`, the `:all` variants, and
+`ready`, also runs `visual.spec.ts`; its failures there are expected on any OS and are not
+signal. Every other test in that run must pass; check visual changes with the container row.
+That failure also stops the steps queued after the Storybook suite: `test:browser` and
+`test:browser:all` skip the application flows, and `ready` also skips
+`@merit/app#test:workspace:all` and `test:checks`. Run the skipped steps separately; after a host
+`ready` run, that is `vp run test:browser:app:all`, `vp run @merit/app#test:workspace:all`, and
+`vp run test:checks`. Do not skip a baseline for a new story because the host run diffs; see
+[Review visual changes](ui-verification.md#review-visual-changes).
 
 The application owns the browser compilation: `app/tsconfig.json` includes
 product, site, and admin source and the generated router context. Their
@@ -235,12 +249,12 @@ Exercise the base behavior as well as any optional enhancement or fallback.
 The shared [browser projects](../../tooling/testing/browser/config.ts) retain the complete
 matrix for Storybook, the public application, and persisted workspaces:
 
-| Projects            | Coverage                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------ |
-| `desktop`           | Full suites in desktop Chromium, including visual baselines; the short-loop default. |
-| `mobile`            | Full suites in mobile Chromium, including visual baselines.                          |
-| `firefox`, `webkit` | Representative `@cross-browser` checks at desktop width.                             |
-| `webkit-mobile`     | The same representative checks with a narrow, touch viewport.                        |
+| Projects            | Coverage                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------ |
+| `desktop`           | Full suites in desktop Chromium; visual baselines only in the container or CI; the short-loop default. |
+| `mobile`            | Full suites in mobile Chromium; visual baselines only in the container or CI.                          |
+| `firefox`, `webkit` | Representative `@cross-browser` checks at desktop width.                                               |
+| `webkit-mobile`     | The same representative checks with a narrow, touch viewport.                                          |
 
 The selected checks cover navigation, drafts, saving and reloading, conflicting
 edits, access recovery, responsive tables, enlarged text, confirmation retry, and

@@ -1,6 +1,6 @@
 .sections {
   display: grid;
-  gap: var(--space-6);
+  gap: var(--space-section);
   min-width: 0;
 }
 

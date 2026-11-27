@@ -15,7 +15,8 @@ explains page framing and arrangements for reading, comparison, and editing.
 Import `Stack` and `Inline` from `@merit/ui/layout`. `Stack` arranges direct children
 vertically; `Inline` wraps them in reading order as the available space allows,
 including in a narrow panel on a wide screen. Set `gap` to a step in the spacing
-scale when a group needs a different rhythm.
+scale when a group needs a different rhythm, or `gap="section"` on a `Stack` of
+consecutive page or pane sections, which spaces them with `--space-section`.
 
 Choose an appropriate element with `as`: label sections, preserve article semantics,
 and supply `li` children for lists. These components add no headings or landmarks
