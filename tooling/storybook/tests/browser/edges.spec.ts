@@ -530,6 +530,23 @@ test("a cut-off tab's tooltip stays open while the pointer is on it", async ({ p
   await expect(tooltip).toHaveCount(0);
 });
 
+test("Escape dismisses a cut-off tab's tooltip while the pointer is on it", async ({ page }) => {
+  await open(page, "components-tabs--long-label");
+  await page
+    .getByRole("tab", { name: "Application evidence and supporting financial documentation" })
+    .hover();
+  const tooltip = page.getByRole("tooltip");
+  await expect(tooltip).toBeVisible();
+
+  const box = (await tooltip.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+  await page.waitForTimeout(400);
+  await expect(tooltip).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(tooltip).toHaveCount(0);
+});
+
 test("a large quiet action aligned at the end meets the edge with its text", async ({ page }) => {
   await open(page, "components-button--aligned-at-end");
   const large = page.getByRole("button", { name: "Review all assessments" });

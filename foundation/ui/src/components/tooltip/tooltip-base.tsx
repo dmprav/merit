@@ -27,32 +27,51 @@ const useDelayed = (value: boolean) => {
  * focus, such as a tab whose label is cut off. For modules inside this package. The caller reports
  * hover and keyboard focus and anchors the tooltip to the part it describes; the control keeps its
  * own full accessible name. Hover opens after the shared delay and closes after the shared delay
- * too, staying open while the pointer is over the tooltip; keyboard focus opens at once. isDismissed
- * closes it immediately, such as on Escape.
+ * too, staying open while the pointer is over the tooltip; keyboard focus opens at once. Escape
+ * dismisses it immediately for as long as it was open, wherever the pointer or focus is.
  */
 export const AnchoredTooltipBase = ({
   anchorRef,
   content,
   isHovered,
   isFocused,
-  isDismissed = false,
   placement = "top",
 }: {
   anchorRef: RefObject<Element | null>;
   content: string;
   isHovered: boolean;
   isFocused: boolean;
-  isDismissed?: boolean;
   placement?: "top" | "bottom";
 }) => {
   const [isOverTooltip, setIsOverTooltip] = useState(false);
   const hoverOpen = useDelayed(isHovered || isOverTooltip);
-  const isOpen = !isDismissed && (isFocused || hoverOpen);
+  const [isDismissed, setIsDismissed] = useState(false);
+  const wanted = isFocused || hoverOpen;
+  const isOpen = !isDismissed && wanted;
 
   useEffect(() => {
     if (!isOpen) {
       setIsOverTooltip(false);
     }
+  }, [isOpen]);
+
+  // The dismissal lasts until the tooltip would close anyway, then resets for the next time.
+  useEffect(() => {
+    if (!wanted) {
+      setIsDismissed(false);
+    }
+  }, [wanted]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => event.key === "Escape" && setIsDismissed(true);
+
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, [isOpen]);
 
   return (

@@ -1,12 +1,4 @@
-import {
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-  type Ref,
-} from "react";
+import { useId, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { Tab, TabList, TabPanel, Tabs as AriaTabs } from "react-aria-components/Tabs";
 
 import { ButtonBase } from "../button/button-base";
@@ -344,23 +336,6 @@ const TabContent = <Id extends string>({
 }) => {
   const text = useRef<HTMLSpanElement>(null);
   const [cutOff, setCutOff] = useState<string | null>(null);
-  const [dismissed, setDismissed] = useState(false);
-
-  const isReached = isHovered || isFocused;
-
-  // Escape dismisses the tooltip until the tab is reached again.
-  useEffect(() => {
-    if (!isReached) {
-      setDismissed(false);
-      return;
-    }
-
-    const onKeyDown = (event: KeyboardEvent) => event.key === "Escape" && setDismissed(true);
-
-    document.addEventListener("keydown", onKeyDown);
-
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isReached]);
 
   useLayoutEffect(() => {
     const node = text.current;
@@ -387,7 +362,6 @@ const TabContent = <Id extends string>({
         content={cutOff ?? ""}
         isHovered={cutOff != null && isHovered}
         isFocused={cutOff != null && isFocused}
-        isDismissed={dismissed}
       />
     </>
   );
