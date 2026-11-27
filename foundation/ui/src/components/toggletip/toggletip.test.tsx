@@ -83,7 +83,10 @@ it("previews at once on keyboard focus and closes with Escape", async () => {
   render(<Example />);
   await user.tab();
   expect(await screen.findByRole("group", { name: label })).toHaveTextContent(text);
-  await user.keyboard("{Escape}");
+  // Cancelled as well as stopped, so a native modal dialog does not also close on this press.
+  expect(fireEvent.keyDown(screen.getByRole("button", { name: label }), { key: "Escape" })).toBe(
+    false,
+  );
   await waitFor(() => expect(content()).not.toBeInTheDocument());
   expect(screen.getByRole("button", { name: label })).toHaveFocus();
 });

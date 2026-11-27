@@ -48,7 +48,9 @@ const useDismissal = (
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        // Cancelled too, so a native modal dialog around it does not also close on this press.
         event.stopPropagation();
+        event.preventDefault();
         onDismiss();
       }
     };
