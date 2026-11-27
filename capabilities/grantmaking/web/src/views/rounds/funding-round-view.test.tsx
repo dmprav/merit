@@ -348,7 +348,7 @@ it("qualifies known requests and explains unknown amounts beside the total", asy
   ).toBeVisible();
   expect(within(screen.getByRole("row", { name: /Ride Together/ })).getByText("€0")).toBeVisible();
   await user.click(summary.getByRole("button", { name: "Unknown requested amounts" }));
-  expect(screen.getByRole("dialog", { name: "Unknown requested amounts" })).toHaveTextContent(
+  expect(screen.getByRole("group", { name: "Unknown requested amounts" })).toHaveTextContent(
     "1 requested amount is not known.",
   );
 });
@@ -480,7 +480,7 @@ it("labels withdrawn applications and explains exclusions through whole-round sc
     within(screen.getByRole("row", { name: /Neighbour Table/ })).queryByText("Withdrawn"),
   ).not.toBeInTheDocument();
   await user.click(within(summary).getByRole("button", { name: "Round totals scope" }));
-  const explanation = screen.getByRole("dialog", { name: "Round totals scope" });
+  const explanation = screen.getByRole("group", { name: "Round totals scope" });
   expect(explanation).toHaveTextContent(
     "Totals cover the whole round, regardless of the application filters.",
   );
@@ -605,7 +605,7 @@ it("keeps excess allocations visible and explains their draft status beside the 
   const warning = summary.getByRole("button", { name: "Over budget" });
   expect(warning.closest("dd")).toHaveTextContent("€2,000");
   await user.click(warning);
-  expect(screen.getByRole("dialog", { name: "Over budget" })).toHaveTextContent(
+  expect(screen.getByRole("group", { name: "Over budget" })).toHaveTextContent(
     "Proposed allocations exceed the round budget by €2,000. These are draft recommendations, not funding commitments.",
   );
 });
@@ -628,7 +628,7 @@ it("keeps an earlier recommendation warning separate from review progress", asyn
   ).not.toBeInTheDocument();
   expect(screen.queryByText("Earlier version")).not.toBeInTheDocument();
   await user.click(warning);
-  expect(screen.getByRole("dialog")).toHaveTextContent(
-    "This recommendation was recorded for an earlier application version.",
-  );
+  expect(
+    screen.getByRole("group", { name: "Recommendation uses an earlier version" }),
+  ).toHaveTextContent("This recommendation was recorded for an earlier application version.");
 });

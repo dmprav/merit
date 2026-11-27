@@ -34,6 +34,7 @@
 .suggestions {
   display: grid;
   gap: var(--space-1);
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- Rows of quiet buttons have no shared option for pulling a whole list to the edges. */
   margin: 0 calc(-1 * (var(--space-2) + 2px));
   padding: 0;
   list-style: none;

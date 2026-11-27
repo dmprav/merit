@@ -1,0 +1,45 @@
+<!-- @dsCard group="Components" height=172 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Toggletip — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px; max-width: 440px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 4 },
+            h(
+              M.Inline,
+              { gap: 1 },
+              "Your assessment",
+              h(
+                M.Toggletip,
+                { label: "About this request" },
+                "Requested by Dana Reed. Your draft is private until you submit it.",
+              ),
+            ),
+            h(
+              M.Inline,
+              { gap: 1 },
+              "Fund in full",
+              h(
+                M.Toggletip,
+                { label: "Earlier recommendation", tone: "warning" },
+                "This recommendation was prepared for an earlier application version.",
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

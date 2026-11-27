@@ -5,16 +5,28 @@
   min-height: var(--button-height);
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--space-1-5);
   border: 1px solid transparent;
   border-radius: var(--control-radius);
-  padding: var(--space-1) calc(var(--space-2) + 2px);
+  padding: var(--space-1) var(--space-2-5);
   font-size: var(--text-control);
   font-weight: var(--weight-medium);
   line-height: 1.5;
   text-align: center;
   overflow-wrap: anywhere;
   cursor: pointer;
+  /*
+   * Where the glyph of an icon-only button sits inside its box, on either side. It follows the
+   * button's width, so touch and large buttons differ. Patterns that line a glyph up with an edge
+   * outdent by this amount.
+   */
+  --button-icon-inset: calc((var(--button-height) - var(--icon-size)) / 2);
+  /*
+   * How far a quiet button is shifted at the end of a row so its text, or its glyph when icon-only,
+   * meets the content edge. The shift is positional, so the button's own width is unchanged and its
+   * label never wraps. Patterns that place a trailing action reuse this one derivation.
+   */
+  --button-end-outdent: calc(-1 * var(--button-quiet-inset));
   transition:
     background-color var(--motion-fast),
     border-color var(--motion-fast),
@@ -121,6 +133,17 @@
   margin-inline-start: calc(-1 * var(--button-quiet-inset));
 }
 
+/* An icon-only button's glyph, not text, meets the edge. */
+.button[data-variant="quiet"][data-alignment="start"][data-icon-only] {
+  margin-inline-start: calc(-1 * var(--button-icon-inset));
+}
+
+.button[data-variant="quiet"][data-alignment="end"] {
+  justify-self: end;
+  position: relative;
+  inset-inline-start: calc(-1 * var(--button-end-outdent));
+}
+
 .button[data-alignment="fill"] {
   width: 100%;
   justify-content: flex-start;
@@ -131,9 +154,13 @@
   width: var(--button-height);
   padding: 0;
   flex-shrink: 0;
+  --button-end-outdent: calc(-1 * var(--button-icon-inset));
 }
 
 .button[data-size="large"] {
+  /* The text sits inside the larger padding and the border. */
+  --button-quiet-inset: calc(var(--space-5) + 1px);
+  --button-icon-inset: calc((var(--target-touch) - var(--icon-size)) / 2);
   min-height: var(--target-touch);
   padding: var(--space-2) var(--space-5);
   font-size: var(--text-body);
@@ -193,6 +220,7 @@
 
   .button[data-icon-only] {
     width: var(--target-touch);
+    --button-icon-inset: calc((var(--target-touch) - var(--icon-size)) / 2);
   }
 }
 
@@ -203,8 +231,8 @@
 .button[data-draft]::after {
   content: "";
   position: absolute;
-  inset-block-start: 2px;
-  inset-inline-end: 2px;
+  inset-block-start: var(--space-0-5);
+  inset-inline-end: var(--space-0-5);
   width: 6px;
   height: 6px;
   border-radius: 50%;

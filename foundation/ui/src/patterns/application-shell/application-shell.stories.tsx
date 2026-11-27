@@ -124,11 +124,11 @@ const ShellExample = ({ name, loading, signedIn, companion }: ShellExampleProps)
             Funding rounds
           </a>
           <a href="#main" className={styles.navigationGroupStart}>
-            <Icon name="contacts" />
+            <Icon name="addressBook" />
             Contacts
           </a>
           <a href="#main">
-            <Icon name="team" />
+            <Icon name="people" />
             Team
           </a>
           {companion && <AssistantOpener onOpen={() => setOpen(true)} />}

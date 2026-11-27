@@ -119,6 +119,35 @@ export const SectionHeaders: Story = {
   ),
 };
 
+export const SectionHeaderQuietActions: Story = {
+  render: () => (
+    <div className={styles.preview}>
+      <section className={styles.section} aria-labelledby="contacts-title">
+        <SectionHeader
+          id="contacts-title"
+          title="Contacts"
+          aside={<Button variant="quiet">View all</Button>}
+        />
+        <p className={styles.description}>A trailing quiet text action ends on the content edge.</p>
+      </section>
+      <section className={styles.section} aria-labelledby="notes-title">
+        <SectionHeader
+          id="notes-title"
+          title="Notes"
+          aside={
+            <Button variant="quiet" iconOnly aria-label="Edit notes">
+              <Icon name="edit" />
+            </Button>
+          }
+        />
+        <p className={styles.description}>
+          A trailing icon action ends with its glyph on the edge.
+        </p>
+      </section>
+    </div>
+  ),
+};
+
 const renderPageLayout = ({
   width = "standard",
   density = "comfortable",

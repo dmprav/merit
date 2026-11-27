@@ -94,7 +94,7 @@ describe("funding rounds list", () => {
     expect(initials(cell)).toBe("SP");
     await user.click(within(cell).getByRole("button", { name: "Reassignment needed" }));
 
-    expect(await screen.findByRole("dialog", { name: "Reassignment needed" })).toHaveTextContent(
+    expect(await screen.findByRole("group", { name: "Reassignment needed" })).toHaveTextContent(
       "This person can no longer manage this round. Assign a current program manager.",
     );
   });

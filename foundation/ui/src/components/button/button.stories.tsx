@@ -99,6 +99,47 @@ export const AlignedWithContent: Story = {
     </section>
   ),
 };
+export const AlignedAtEnd: Story = {
+  args: { variant: "quiet", alignment: "end", children: "All assessments" },
+  argTypes: { children: { control: false } },
+  render: (args) => (
+    <section className={localStyles.variant}>
+      <p>A quiet action at the end of a row puts its text on the content's trailing edge.</p>
+      <div className={localStyles.grid}>
+        <Button {...args} />
+      </div>
+      <div className={localStyles.grid}>
+        <Button {...args} size="large">
+          Review all assessments
+        </Button>
+      </div>
+      <div className={localStyles.grid}>
+        <Button {...args} iconOnly aria-label="Edit">
+          <Icon name="edit" />
+        </Button>
+      </div>
+    </section>
+  ),
+};
+export const IconAlignedAtStart: Story = {
+  args: { variant: "quiet", alignment: "start", iconOnly: true },
+  argTypes: { children: { control: false } },
+  render: (args) => (
+    <section className={localStyles.variant}>
+      <p>An icon action at the start of a row puts its glyph on the content's leading edge.</p>
+      <div className={localStyles.grid}>
+        <Button {...args} aria-label="Edit">
+          <Icon name="edit" />
+        </Button>
+      </div>
+      <div className={localStyles.grid}>
+        <Button {...args} size="large" aria-label="Edit large">
+          <Icon name="edit" />
+        </Button>
+      </div>
+    </section>
+  ),
+};
 export const FillingWidth: Story = {
   args: { variant: "secondary", alignment: "fill" },
   parameters: {

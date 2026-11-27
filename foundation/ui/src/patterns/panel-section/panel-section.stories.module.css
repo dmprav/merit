@@ -2,7 +2,3 @@
   width: 420px;
   max-width: 100%;
 }
-
-.choices {
-  margin-inline: calc(-1 * var(--space-2));
-}

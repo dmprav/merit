@@ -33,16 +33,16 @@
 
 .skip {
   position: fixed;
-  top: -5rem;
-  left: 1rem;
-  z-index: 100;
-  padding: 0.75rem;
+  top: -100%;
+  left: var(--space-4);
+  z-index: var(--z-skip-link);
+  padding: var(--space-3);
   background: var(--surface);
   border-radius: var(--control-radius);
 }
 
 .skip:focus {
-  top: 1rem;
+  top: var(--space-4);
 }
 
 .sidebar,
@@ -58,14 +58,14 @@
   overflow-y: auto;
   background: var(--surface-muted);
   border-right: 1px solid var(--border);
-  padding: 16px 14px;
+  padding: var(--space-4) var(--space-3-5);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
 
 .brand {
-  padding: 0 10px;
+  padding: 0 var(--space-2-5);
   font-size: 20px;
   font-weight: var(--weight-heading);
   line-height: 24px;
@@ -176,7 +176,7 @@ button.contextTrigger {
 
 .nav {
   display: grid;
-  gap: 2px;
+  gap: var(--space-0-5);
 }
 
 /* Navigation items are links, or a button that opens something over the page, such as Search. */
@@ -187,7 +187,7 @@ button.contextTrigger {
   gap: var(--space-2);
   text-align: left;
   min-height: 32px;
-  padding: 6px 10px;
+  padding: var(--space-1-5) var(--space-2-5);
   font-size: var(--text-detail);
 }
 
@@ -315,7 +315,7 @@ button.contextTrigger {
 .sidebarBottom {
   margin-top: auto;
   display: grid;
-  gap: 14px;
+  gap: var(--space-3-5);
 }
 
 .account {
@@ -372,7 +372,7 @@ button.contextTrigger {
 }
 
 .documentationLink {
-  padding: 8px 10px;
+  padding: var(--space-2) var(--space-2-5);
   color: var(--muted);
   font-size: var(--text-detail);
   border-radius: var(--control-radius);
@@ -410,7 +410,7 @@ button.accountTrigger,
 
 .drawerOverlay {
   /* Menus opened from the drawer sit above it; confirmation dialogs stay above both. */
-  --modal-layer: 35;
+  --modal-layer: var(--z-drawer-modal);
   display: flex;
   align-items: stretch;
   justify-content: flex-start;
@@ -488,7 +488,7 @@ button.accountTrigger,
 
 .topbar,
 .content {
-  --page-gutter: 36px;
+  --page-gutter: var(--space-gutter);
 }
 
 .topbar {
@@ -512,11 +512,11 @@ button.accountTrigger,
 @media (min-width: 1400px) {
   .topbar,
   .content {
-    --page-gutter: 44px;
+    --page-gutter: var(--space-gutter-wide);
   }
 
   .content {
-    padding-block: 36px;
+    padding-block: calc(var(--space-8) + var(--space-1));
   }
 }
 
@@ -791,7 +791,7 @@ button.accountTrigger,
 .standaloneContent {
   width: min(100%, 28rem);
   font-size: var(--text-body);
-  margin: clamp(2rem, 14vh, 8rem) auto 0;
+  margin: clamp(var(--space-8), 14vh, calc(var(--space-8) * 4)) auto 0;
   padding: var(--space-6);
   outline: none;
 }

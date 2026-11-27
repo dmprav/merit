@@ -14,12 +14,27 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+/*
+ * The tab and label padding is outdented, so the first label's text meets the content edge while
+ * its hover fill extends into the gutter. The rail keeps starting at the edge.
+ */
 .list {
+  --tab-outdent: calc(var(--space-1) + var(--space-2));
   display: flex;
+  margin-inline-start: calc(-1 * var(--tab-outdent));
   min-width: 0;
   flex: 1;
   gap: var(--space-1);
   overflow-x: auto;
+}
+
+/* Once scrolled, nothing is drawn before the rail: the outdent is clipped away. */
+.list[data-scrolled] {
+  clip-path: inset(0 0 0 var(--tab-outdent));
+}
+
+.list[data-scrolled]:dir(rtl) {
+  clip-path: inset(0 var(--tab-outdent) 0 0);
 }
 
 .list[data-overflow] {
@@ -31,6 +46,7 @@
 }
 
 .tab {
+  position: relative;
   display: flex;
   min-height: var(--control-height);
   max-width: var(--tab-max-width);
@@ -39,15 +55,37 @@
   align-items: center;
   justify-content: center;
   border-bottom: 2px solid transparent;
-  padding: 2px var(--space-1) var(--space-1);
+  padding: var(--space-0-5) var(--space-1) var(--space-1);
   font-size: var(--text-detail);
   font-weight: var(--weight-medium);
   color: var(--muted);
   outline: none;
 }
 
+/* The indicator spans the label text, not the padding that is outdented into the gutter. */
+.tab::after {
+  content: "";
+  position: absolute;
+  inset-inline: var(--tab-outdent);
+  bottom: calc(-1 * var(--space-0-5));
+  height: 2px;
+}
+
+.tab[data-selected]::after {
+  background: var(--action);
+}
+
+/* Forced colors erase backgrounds, so the rule keeps a system colour. */
+@media (forced-colors: active) {
+  .tab[data-selected]::after {
+    background: Highlight;
+    forced-color-adjust: none;
+  }
+}
+
 .tab[data-selected] {
-  border-color: var(--action);
+  --count-background: var(--action-subtle);
+  --count-color: var(--action);
   color: var(--foreground);
 }
 
@@ -57,14 +95,23 @@
 }
 
 .label {
+  display: flex;
   min-width: 0;
+  align-items: center;
+  gap: var(--space-1-5);
   border-radius: var(--control-radius);
   padding: var(--space-1) var(--space-2);
-  text-align: center;
-  overflow-wrap: anywhere;
   transition:
     background-color var(--motion-fast),
     color var(--motion-fast);
+}
+
+/* A long label stays on one line; the shared tooltip carries the full text when it is cut off. */
+.text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tab[data-hovered] .label {
@@ -75,32 +122,6 @@
 .tab[data-pressed] .label {
   background: var(--border);
   color: var(--foreground);
-}
-
-.count {
-  display: inline-block;
-  min-width: 1.25rem;
-  margin-inline-start: var(--space-1);
-  border-radius: var(--space-1);
-  padding-inline: 6px;
-  background: var(--surface-muted);
-  color: var(--muted);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
-  line-height: 1.25rem;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.tab[data-selected] .count {
-  background: var(--action-subtle);
-  color: var(--action);
-}
-
-.tab .count[data-warning] {
-  background: var(--warning-subtle);
-  color: var(--warning);
 }
 
 .tab[data-focus-visible] .label {
@@ -115,9 +136,9 @@
   display: flex;
   flex-shrink: 0;
   align-self: center;
-  gap: 2px;
+  gap: var(--space-0-5);
   padding-inline-start: var(--space-1);
-  padding-block: 2px;
+  padding-block: var(--space-0-5);
 }
 
 .direction:dir(rtl) {
@@ -151,7 +172,6 @@
 
   .scrollPanels > .toolbar {
     flex-shrink: 0;
-    margin-inline: var(--tabs-panel-inset, 0px);
     margin-bottom: 0;
   }
 
@@ -161,9 +181,9 @@
     /* A layout that scrolls the tabs along with their surroundings sets --tabs-panel-overflow. */
     overflow-y: var(--tabs-panel-overflow, auto);
     overscroll-behavior-y: contain;
-    scrollbar-gutter: stable;
-    padding: 0 max(8px, var(--tabs-panel-inset, 0px)) var(--space-6)
-      max(2px, var(--tabs-panel-inset, 0px));
+    /* A bleed area keeps outdented content, such as table rows, on the rail's edges without scrolling sideways. */
+    margin-inline: calc(-1 * var(--space-4));
+    padding: 0 var(--space-4) var(--space-6);
   }
 
   /* The space above the content scrolls away, so sticky content, such as a toolbar, meets the edge. */

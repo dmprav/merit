@@ -180,9 +180,11 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Overview: Story = {
-  play: async ({ canvas }) => {
+  play: async ({ canvas, canvasElement }) => {
     const manager = await canvas.findByRole("button", { name: "Assign manager: Dana Reed" });
     const name = within(manager).getByText("Dana Reed");
+    // Measure the name in its final font: a wider fallback face can wrap it before the font loads.
+    await canvasElement.ownerDocument.fonts.ready;
     await expect(name.getBoundingClientRect().height).toBeLessThanOrEqual(
       Number.parseFloat(getComputedStyle(name).lineHeight),
     );

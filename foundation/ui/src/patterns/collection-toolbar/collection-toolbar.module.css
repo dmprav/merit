@@ -15,7 +15,7 @@
 
 /* The filter glyph lines up with the collection's leading edge, as text would. */
 .toolbar > :first-child {
-  margin-inline-start: calc((16px - var(--button-height)) / 2);
+  margin-inline-start: calc(-1 * var(--button-icon-inset));
 }
 
 .filters {
@@ -27,13 +27,13 @@
 /* The criteria are the panel's one scroller, so a long set scrolls and the reset stays in view. */
 .criteria {
   display: grid;
-  gap: 2px;
+  gap: var(--space-0-5);
 }
 
 .reset {
   /* stylelint-disable-next-line property-no-unknown -- CSS Modules shares the popover divider rule. */
   composes: divided from "../../foundations/popover.module.css";
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-subtle);
   padding: var(--popover-inset, 0px) var(--divider-inline);
 }
 

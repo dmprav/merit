@@ -25,6 +25,7 @@
   gap: var(--space-2);
   min-width: 0;
   /* Takes back the gutter, so the pins are as wide as the pills above them. */
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- The pins undo the pinned section's own gutter, which a disclosure option cannot see. */
   margin-inline: calc(-1 * var(--disclosure-inset));
 }
 

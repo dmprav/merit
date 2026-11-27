@@ -73,20 +73,17 @@ export const SidePanel: Story = {
           </>
         }
       >
-        {/* A feature lets choices run to the edges so their avatars line up with the label. */}
-        <div className={styles.choices}>
-          <JudgmentChoice
-            author="Sam Morgan"
-            onPress={onChooseJudgment}
-            summary={
-              <>
-                <strong>Fund</strong>
-                <span>Proposed amount: €18,000</span>
-              </>
-            }
-            basis={<span>Based on an earlier submission</span>}
-          />
-        </div>
+        <JudgmentChoice
+          author="Sam Morgan"
+          onPress={onChooseJudgment}
+          summary={
+            <>
+              <strong>Fund</strong>
+              <span>Proposed amount: €18,000</span>
+            </>
+          }
+          basis={<span>Based on an earlier submission</span>}
+        />
       </PanelSection>
     </PanelSections>
   ),

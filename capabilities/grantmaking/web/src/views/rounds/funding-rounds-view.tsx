@@ -8,6 +8,7 @@ import { PageHeader } from "@merit/ui/page-header";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { StatusIndicator } from "@merit/ui/status-indicator";
 import { Text } from "@merit/ui/text";
+import { CalendarDate } from "@merit/ui/timestamp";
 
 import styles from "./funding-rounds-view.module.css";
 
@@ -49,7 +50,7 @@ export const FundingRoundsView = ({
   renderApplicationsLink: (round: RoundSummary, children: ReactNode) => ReactNode;
 }) => {
   const { t } = useTranslation("fundingRounds");
-  const { money, calendarDate } = useFormat();
+  const { money } = useFormat();
   const columns: TableColumn<RoundSummary>[] = [
     {
       id: "round",
@@ -89,9 +90,11 @@ export const FundingRoundsView = ({
       layout: { width: "15%" },
       cell: (round) => (
         <>
-          {round.meetingDate === null
-            ? t("preparation.notScheduled")
-            : calendarDate(round.meetingDate)}
+          {round.meetingDate === null ? (
+            t("preparation.notScheduled")
+          ) : (
+            <CalendarDate value={round.meetingDate} />
+          )}
         </>
       ),
     },

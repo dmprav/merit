@@ -75,12 +75,6 @@
   transform: rotate(90deg);
 }
 
-.count {
-  color: var(--muted);
-  font-weight: var(--weight-regular);
-  font-variant-numeric: tabular-nums;
-}
-
 /*
  * React Aria measures the panel, so its height animates between closed and its content's. The
  * clip stays on once open, so the panel bleeds sideways by the trigger's outdent and its

@@ -28,24 +28,10 @@
             h(
               M.Stack,
               { gap: 3 },
-              h(
-                M.Badge,
-                { appearance: "plain" },
-                h(M.Icon, { name: "clock" }),
-                "Awaiting acceptance",
-              ),
-              h(
-                M.Badge,
-                { appearance: "plain", tone: "warning" },
-                h(M.Icon, { name: "info" }),
-                "Sending unconfirmed",
-              ),
-              h(
-                M.Badge,
-                { appearance: "plain", tone: "danger" },
-                h(M.Icon, { name: "warning" }),
-                "Email sending failed",
-              ),
+              h(M.Badge, { appearance: "plain", icon: "clock" }, "Awaiting acceptance"),
+              h(M.Badge, { appearance: "plain", tone: "success" }, "Accepted"),
+              h(M.Badge, { appearance: "plain", tone: "warning" }, "Sending unconfirmed"),
+              h(M.Badge, { appearance: "plain", tone: "danger" }, "Email sending failed"),
             ),
             h(
               "div",
@@ -53,7 +39,7 @@
               h(
                 M.Stack,
                 { gap: 2 },
-                h(M.Badge, null, "Read only"),
+                h(M.Badge, null, "Not accepted"),
                 h(M.Badge, { tone: "warning" }, "Application changed since this review"),
               ),
             ),

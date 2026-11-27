@@ -3,20 +3,18 @@ import { useTranslation } from "react-i18next";
 
 import { ConflictBanner } from "@merit/forms";
 import { useLocaleSettings } from "@merit/i18n";
-import { useFormat } from "@merit/i18n/format";
 import { decodeMoney } from "@merit/money";
 import type { ReviewerPage } from "@merit/reviews/api";
 import type { ReviewerSubmissionProblem } from "@merit/reviews/domain";
 import { Attribution } from "@merit/ui/attribution";
-import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
-import { PickerPopover } from "@merit/ui/dialog";
 import { Disclosure } from "@merit/ui/disclosure";
 import { Divider } from "@merit/ui/divider";
 import { Icon } from "@merit/ui/icon";
 import { Inline, Reading, Stack } from "@merit/ui/layout";
 import { Link } from "@merit/ui/link";
+import { MetaItem } from "@merit/ui/meta-item";
 import { MoneyField } from "@merit/ui/money-field";
 import { Notice } from "@merit/ui/notice";
 import { WorkPane } from "@merit/ui/reference-workspace";
@@ -25,8 +23,11 @@ import { Select } from "@merit/ui/select";
 import { Text } from "@merit/ui/text";
 import { TextField } from "@merit/ui/text-field";
 import { Timeline, TimelineEntry } from "@merit/ui/timeline";
+import { CalendarDate } from "@merit/ui/timestamp";
 import { showToast, useEventToast } from "@merit/ui/toast";
+import { Toggletip } from "@merit/ui/toggletip";
 import { Tooltip } from "@merit/ui/tooltip";
+import { VisuallyHidden } from "@merit/ui/visually-hidden";
 
 import { reconcileObservations } from "../../controllers/reviews/observations";
 import { AssessmentOutcome } from "../reviews/assessment-outcome";
@@ -107,8 +108,8 @@ const WithdrawnNotice = ({ page }: { page: ReviewerPage }) => {
 };
 
 /**
- * When the response is due beside the pane title, and on request who asked, by when, and while
- * writing, who can read the draft.
+ * When the response is due beside the pane title, and on request who asked, followed by help text
+ * about privacy or amendments. A review with no due date shows no date at all.
  */
 const AssessmentRequest = ({
   assignment,
@@ -118,33 +119,20 @@ const AssessmentRequest = ({
   note?: string;
 }) => {
   const { t } = useTranslation("reviewer");
-  const format = useFormat();
-  const due = assignment.dueDate && format.calendarDate(assignment.dueDate);
-  const [open, setOpen] = useState(false);
   return (
     <>
-      {due && <Badge>{t("dueBadge", { date: due })}</Badge>}
-      <PickerPopover
-        title={t("requestDetails")}
-        placement="bottom start"
-        isOpen={open}
-        onOpenChange={setOpen}
-        trigger={
-          <Tooltip content={t("requestDetails")} isDisabled={open}>
-            <Button variant="quiet" iconOnly aria-label={t("requestDetails")}>
-              <Icon name="info" />
-            </Button>
-          </Tooltip>
-        }
-      >
-        <Text as="div" variant="supporting">
-          <Stack gap={2}>
-            <p>{t("requestedBy", { name: assignment.managerName })}</p>
-            <p>{due ? t("dueOn", { date: due }) : t("noDue")}</p>
-            {note && <p>{note}</p>}
-          </Stack>
-        </Text>
-      </PickerPopover>
+      {assignment.dueDate && (
+        <MetaItem icon="calendar">
+          <VisuallyHidden>{t("due")} </VisuallyHidden>
+          <CalendarDate value={assignment.dueDate} />
+        </MetaItem>
+      )}
+      <Toggletip label={t("requestDetails")}>
+        <Stack gap={1}>
+          <span>{t("requestedBy", { name: assignment.managerName })}</span>
+          {note && <span>{note}</span>}
+        </Stack>
+      </Toggletip>
     </>
   );
 };

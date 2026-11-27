@@ -28,7 +28,7 @@ it("links progress directly to reviews and retains every exceptional reason in o
   const trigger = screen.getByRole("button", { name: "Review details for Community meals" });
   trigger.focus();
   await user.keyboard("{Enter}");
-  const dialog = within(screen.getByRole("dialog", { name: "Review details for Community meals" }));
+  const dialog = within(screen.getByRole("group", { name: "Review details for Community meals" }));
   expect(
     dialog.getByText(
       /1 review basis unknown, 2 current reviews, 1 outdated review, 3 awaiting review/,
@@ -65,6 +65,6 @@ it.each([
     });
     expect(screen.getByText("1 of 1 reviewed")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Review details for this round" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent(explanation);
+    expect(screen.getByRole("group")).toHaveTextContent(explanation);
   },
 );

@@ -1,5 +1,6 @@
 import { createElement, type ReactNode, type Ref } from "react";
 
+import { Count } from "../../components/count/count";
 import { Inline } from "../../components/layout/layout";
 import styles from "./section-header.module.css";
 
@@ -40,7 +41,12 @@ export const SectionHeader = ({
         `h${level}`,
         { id, ref: headingRef, tabIndex: headingRef ? -1 : undefined, className: styles.title },
         title,
-        count != null && <span className={styles.count}> {count}</span>,
+        count != null && (
+          <>
+            {" "}
+            <Count>{count}</Count>
+          </>
+        ),
       )}
       {aside != null && (
         <div className={styles.aside} data-header-actions>

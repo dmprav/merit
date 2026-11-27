@@ -43,24 +43,22 @@ export const DemoToolsView = ({
         isOpen={open}
         onOpenChange={setOpen}
         footer={
-          <div className={styles.workspaceActions}>
-            <Inline gap={1}>
-              <RoutedLink variant="quiet" to="/">
-                <Icon name="exit" />
-                {t("fundingRounds:demo.exit")}
-              </RoutedLink>
-              <Button
-                variant="quiet"
-                onPress={() => {
-                  reset.open();
-                  setOpen(false);
-                }}
-              >
-                <Icon name="reset" />
-                {t("fundingRounds:demo.reset")}
-              </Button>
-            </Inline>
-          </div>
+          <Inline gap={1}>
+            <RoutedLink variant="quiet" alignment="start" to="/">
+              <Icon name="exit" />
+              {t("fundingRounds:demo.exit")}
+            </RoutedLink>
+            <Button
+              variant="quiet"
+              onPress={() => {
+                reset.open();
+                setOpen(false);
+              }}
+            >
+              <Icon name="reset" />
+              {t("fundingRounds:demo.reset")}
+            </Button>
+          </Inline>
         }
         trigger={
           <Button variant="secondary" isDisabled={!hydrated}>

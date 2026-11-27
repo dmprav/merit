@@ -20,7 +20,7 @@ import styles from "./navigation.module.css";
 
 const PIN_SEGMENTS = { review: "work", round: "rounds", application: "applications" };
 /** Each pin repeats its collection's sidebar icon, so a mixed list stays scannable. */
-const PIN_ICONS = { round: "layers", application: "application", review: "edit" } as const;
+const PIN_ICONS = { round: "layers", application: "document", review: "edit" } as const;
 
 const pinLocation = (pin: NavigationPin): LinkOptions => {
   const workspaceSlug = pin.workspaceSlug ?? "";

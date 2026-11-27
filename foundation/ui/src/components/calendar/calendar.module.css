@@ -63,7 +63,7 @@
 .cell[data-today]::after {
   content: "";
   position: absolute;
-  bottom: 3px;
+  bottom: calc(var(--space-1) - 1px);
   width: 4px;
   height: 4px;
   border: 2px solid currentColor;

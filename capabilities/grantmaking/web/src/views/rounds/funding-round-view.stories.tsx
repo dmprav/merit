@@ -184,7 +184,7 @@ export const WithdrawnApplication: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: "Round totals scope" }));
     const body = within(canvasElement.ownerDocument.body);
-    await expect(body.getByRole("dialog", { name: "Round totals scope" })).toHaveTextContent(
+    await expect(body.getByRole("group", { name: "Round totals scope" })).toHaveTextContent(
       "1 withdrawn application not counted.",
     );
     await userEvent.keyboard("{Escape}");

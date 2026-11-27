@@ -1,0 +1,28 @@
+<!-- @dsCard group="Components" height=120 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Count — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Inline,
+            null,
+            h(M.Count, null, "0"),
+            h(M.Count, null, "12"),
+            h(M.Count, { tone: "warning", title: "Two are overdue" }, "3"),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

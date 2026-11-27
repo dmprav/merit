@@ -3,7 +3,6 @@ import { Link, useBlocker } from "@tanstack/react-router";
 import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useFormat } from "@merit/i18n/format";
 import { ReviewerScreen } from "@merit/reviews-web/reviewer";
 import type { ReviewerSummary } from "@merit/reviews/api";
 import { DataTable, type TableColumn } from "@merit/tables";
@@ -13,6 +12,7 @@ import { Stack } from "@merit/ui/layout";
 import { PageHeader } from "@merit/ui/page-header";
 import { SectionHeader } from "@merit/ui/section-header";
 import { Text } from "@merit/ui/text";
+import { CalendarDate } from "@merit/ui/timestamp";
 
 import { AppPage } from "../../app/app-shell";
 import { WorkspaceStatusPage } from "../../app/workspace-page";
@@ -78,7 +78,6 @@ export const ReviewerUnavailable = ({ status }: { status?: string }) => (
 );
 
 export const MyWorkPage = ({ workspaceSlug }: { workspaceSlug: string }) => {
-  const format = useFormat();
   const { t } = useTranslation(["reviewer", "web"]);
   const { data } = useSuspenseQuery(reviewerListOptions(workspaceSlug));
   if (data.status !== "ok") {
@@ -125,7 +124,7 @@ export const MyWorkPage = ({ workspaceSlug }: { workspaceSlug: string }) => {
       layout: { width: "25%" },
       cell: (assignment) =>
         assignment.dueDate ? (
-          <time dateTime={assignment.dueDate}>{format.calendarDate(assignment.dueDate)}</time>
+          <CalendarDate value={assignment.dueDate} />
         ) : (
           <Text variant="missing">{t("noDue")}</Text>
         ),

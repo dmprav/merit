@@ -476,7 +476,7 @@ const localCommands = (onAction = vi.fn()): SearchCommand[] => [
     names: ["Contacts", "Go to contacts"],
     title: "Go to contacts",
     textValue: "Go to contacts",
-    icon: "contacts",
+    icon: "addressBook",
     label: "Page",
     href: "/contacts",
     renderLink: ({ children, ...props }) => <a {...props}>{children}</a>,
