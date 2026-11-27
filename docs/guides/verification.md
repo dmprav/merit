@@ -99,7 +99,11 @@ Visual comparisons and baseline updates are valid only inside the pinned Playwri
 browser suite, such as `vp run test:browser:stories`, `test:browser`, the `:all` variants, and
 `ready`, also runs `visual.spec.ts`; its failures there are expected on any OS and are not
 signal. Every other test in that run must pass; check visual changes with the container row.
-Do not skip a baseline for a new story because the host run diffs; see
+That failure also stops the steps queued after the Storybook suite: `test:browser` and
+`test:browser:all` skip the application flows, and `ready` also skips
+`@merit/app#test:workspace:all` and `test:checks`. Run the skipped steps separately; after a host
+`ready` run, that is `vp run test:browser:app:all`, `vp run @merit/app#test:workspace:all`, and
+`vp run test:checks`. Do not skip a baseline for a new story because the host run diffs; see
 [Review visual changes](ui-verification.md#review-visual-changes).
 
 The application owns the browser compilation: `app/tsconfig.json` includes
