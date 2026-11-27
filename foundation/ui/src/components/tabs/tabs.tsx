@@ -1,4 +1,12 @@
-import { useId, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { Tab, TabList, TabPanel, Tabs as AriaTabs } from "react-aria-components/Tabs";
 
 import { ButtonBase } from "../button/button-base";
@@ -330,7 +338,7 @@ const TabContent = <Id extends string>({
 }: {
   item: TabsProps<Id>["items"][number];
   warningId: string;
-  /** A hovered or keyboard-focused tab explains its label when it is cut off. */
+  /** A hovered, keyboard-focused, or tapped tab explains its label when it is cut off. */
   isHovered: boolean;
   isFocused: boolean;
 }) => {
@@ -360,14 +368,35 @@ const TabContent = <Id extends string>({
     };
   }, [item.label]);
 
+  // Touch reports neither hover nor visible focus, so a tap on a cut-off label shows it in full
+  // until the next press anywhere. The tap still selects the tab, and dismissing selects nothing.
+  const [isTapped, setIsTapped] = useState(false);
+
+  useEffect(() => {
+    if (!isTapped) {
+      return;
+    }
+
+    const dismiss = () => setIsTapped(false);
+
+    document.addEventListener("pointerdown", dismiss, true);
+
+    return () => document.removeEventListener("pointerdown", dismiss, true);
+  }, [isTapped]);
+
   return (
     <>
-      <TabLabel item={item} warningId={warningId} text={text} />
+      <TabLabel
+        item={item}
+        warningId={warningId}
+        text={text}
+        onTap={() => setIsTapped(cutOff != null)}
+      />
       <AnchoredTooltipBase
         anchorRef={text}
         content={cutOff ?? ""}
         isHovered={cutOff != null && isHovered}
-        isFocused={cutOff != null && isFocused}
+        isFocused={cutOff != null && (isFocused || isTapped)}
       />
     </>
   );
@@ -377,12 +406,21 @@ const TabLabel = <Id extends string>({
   item,
   warningId,
   text,
+  onTap,
 }: {
   item: TabsProps<Id>["items"][number];
   warningId: string;
   text: Ref<HTMLSpanElement>;
+  onTap: () => void;
 }) => (
-  <span className={styles.label}>
+  <span
+    className={styles.label}
+    onPointerUp={(event) => {
+      if (event.pointerType === "touch") {
+        onTap();
+      }
+    }}
+  >
     <span ref={text} className={styles.text}>
       {item.label}
     </span>
