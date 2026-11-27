@@ -36,6 +36,7 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
+import { roundCommitments } from "./application-work";
 import { contactWork } from "./contact-work";
 
 it("paginates independently of exact whole-round totals and enforces current access", async ({
@@ -113,12 +114,17 @@ it("reads one criteria version independently of later edits", async ({ db }) => 
   });
   assert(round.status === "ok");
   const criteria = [{ id: randomUUID(), title: "Local impact", description: "Community outcomes" }];
-  const updated = await editFundingRound(db, actor, {
-    workspaceSlug,
-    publicId: round.publicId,
-    expectedRevision: 0,
-    change: { section: "criteria", criteria },
-  });
+  const updated = await editFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      publicId: round.publicId,
+      expectedRevision: 0,
+      change: { section: "criteria", criteria },
+    },
+    roundCommitments,
+  );
   assert(updated.status === "ok");
   const address = { workspaceSlug, roundId: round.publicId, section: "criteria" as const };
   const current = await getFundingRoundContent(db, actor, address);

@@ -67,6 +67,7 @@ export const reviewerPage = (): ReviewerPage => ({
       note: "",
     },
   },
+  work: { available: true },
 });
 
 export const submittedPage = (): ReviewerPage => {
@@ -117,6 +118,7 @@ export const reviewerTransport = (initial: ReviewerPage, scenario: SaveScenario 
               material: null,
               criteria: null,
               draft: null,
+              work: { available: false, reason: "action_unavailable" },
             };
       return { status: "ok", value: page.assignment };
     }),
@@ -144,6 +146,7 @@ export const reviewerTransport = (initial: ReviewerPage, scenario: SaveScenario 
             material: null,
             criteria: null,
             draft: null,
+            work: { available: false, reason: "action_unavailable" },
           };
           return { status: "not_found" };
         }

@@ -3,6 +3,7 @@ import { and, eq, sql, type SQLWrapper } from "drizzle-orm";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { caseWithdrawn } from "@merit/applications/scope";
 import type { Database } from "@merit/db";
+import { decisionOverview } from "@merit/decisions/scope";
 import { recommendationOverview } from "@merit/recommendations/scope";
 import { reviewOverview } from "@merit/reviews/scope";
 import { fundingRounds } from "@merit/rounds/schema";
@@ -17,6 +18,7 @@ const roundApplications = (
     applicationCases.id,
     applicationCases.materialVersion,
   );
+  const decision = decisionOverview(db, applicationCases.id);
   return db
     .select({
       id: applicationCases.id,
@@ -24,6 +26,7 @@ const roundApplications = (
       withdrawn: caseWithdrawn.as("withdrawn"),
       requested: materialVersions.requestedMinorUnits,
       proposed: recommendation.allocationMinorUnits,
+      committed: decision.committedMinorUnits,
     })
     .from(applicationCases)
     .innerJoin(
@@ -34,6 +37,7 @@ const roundApplications = (
       ),
     )
     .leftJoinLateral(recommendation, sql`true`)
+    .leftJoinLateral(decision, sql`true`)
     .where(
       and(
         eq(applicationCases.organizationId, organizationId),
@@ -52,6 +56,10 @@ const financialTotals = (a: ReturnType<typeof roundApplications>) => ({
   proposed: sql<string>`coalesce(sum(${a.proposed}) filter (where not ${a.withdrawn}), 0)::text`.as(
     "proposed",
   ),
+  committed:
+    sql<string>`coalesce(sum(${a.committed}) filter (where not ${a.withdrawn}), 0)::text`.as(
+      "committed",
+    ),
   unknownRequests:
     sql<number>`count(*) filter (where not ${a.withdrawn} and ${a.requested} is null)::integer`.as(
       "unknown_requests",

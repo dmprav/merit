@@ -1,8 +1,8 @@
 # Grantmaking workflows
 
 Merit currently supports a program manager's work from round preparation through
-funding recommendations. Managers record applications and assessments received
-elsewhere; applicants and external correspondents need no Merit account. These
+funding recommendations and the committee's recorded decisions. Managers record
+applications, assessments, and decisions made elsewhere; applicants and external correspondents need no Merit account. These
 manager workflows are available through web and authenticated MCP. Invited reviewers
 can use a separate browser workspace or authenticated MCP to submit their own assessments. The browser demo runs them in
 an isolated workspace with fictional starting data.
@@ -14,6 +14,7 @@ an isolated workspace with fictional starting data.
 | [Request and record reviews](review-applications.md)     | Review requests, received judgments, attribution, and changed evidence or criteria. |
 | [Participate in a review](participate-in-review.md)      | Invitation, private drafts, independent submission, amendment, and access recovery. |
 | [Recommend funding](recommend-funding.md)                | Manager judgments, proposed allocations, budget effects, and save conflicts.        |
+| [Record committee decisions](record-decisions.md)        | Decisions made outside Merit, committed funding, amendments, and budget limits.     |
 
 ## Find and return to work
 
@@ -97,7 +98,7 @@ read "Changed".
 | Round created, details, budget, criteria, or manager changed, or deleted                                                                                                               | Reviewer drafts and email delivery, which are not recorded |
 | Review requested or cancelled; reviewer invited, renewed, accepted, declined, withdrew, reported or cleared a conflict, ended, or reinstated                                           |                                                            |
 | Assessment recorded, corrected, submitted, or amended                                                                                                                                  |                                                            |
-| Recommendation saved                                                                                                                                                                   |                                                            |
+| Recommendation saved; committee decision recorded or amended, with the amendment's explanation                                                                                         |                                                            |
 
 Members & access shows team changes. Merit writes each Activity entry in the
 same transaction as its grant-work change, so a rejected or
@@ -106,8 +107,8 @@ conflicting write leaves none and a failure to record it leaves the change unsav
 Activity loads 50 entries at a time and loads the next page as the reader approaches
 the end, with a manual loading control also available (MCP: follow `nextPage`).
 A failed read keeps loaded entries visible and offers a retry. The **Round** filter matches the round and its
-applications, including their review requests, reviewer responses, assessments, and
-recommendations; **Person** matches the
+applications, including their review requests, reviewer responses, assessments,
+recommendations, and committee decisions; **Person** matches the
 recorded person. The filters belong to the page and reset when it is left. Unlike
 Applications' round filter they never appear in the address, so a person's
 identifier stays out of URLs, browser history, and logs. Changing a filter starts
@@ -134,10 +135,11 @@ prerequisites, and conflict recovery. The
 [business model](../../capabilities/grantmaking/business/README.md) explains record
 ownership and cross-capability coordination.
 
-## Beyond recommendations
+## Beyond recorded decisions
 
 Applicant-facing submission, attachments, live AI processing, reviewer discussions,
-committee briefs, publication, and funding decision recording are not implemented.
+committee briefs, publication, voting, award terms, and payments are not implemented.
+[Recording committee decisions](record-decisions.md) is the end of current grant work.
 [Future committee design](committee-decisions.md) preserves the agreed direction
 separately from current behavior. GitHub issues and milestones track delivery.
 

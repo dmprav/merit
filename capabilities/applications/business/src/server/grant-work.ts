@@ -23,8 +23,17 @@ export type ApplicationRecommendationWork = {
   ) => Promise<"allocation_total_too_large" | null>;
 };
 
+/** Downstream committee decision work, supplied by Decisions. */
+export type ApplicationDecisionWork = {
+  /** Whether any decision version exists for the case. */
+  hasDecision: (tx: Transaction, caseId: string) => Promise<boolean>;
+  /** Whether the case's current decision commits funding (Fund or Fund with conditions). */
+  hasCommitment: (tx: Transaction, caseId: string) => Promise<boolean>;
+};
+
 /** Collaborators use the caller's transaction and existing workspace/round/case locks. */
 export type ApplicationWork = {
   reviews: ApplicationReviewWork;
   recommendations: ApplicationRecommendationWork;
+  decisions: ApplicationDecisionWork;
 };

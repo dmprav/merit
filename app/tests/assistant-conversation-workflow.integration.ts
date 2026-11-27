@@ -327,8 +327,9 @@ const it = roundTest
           },
           { timeout: 10_000, interval: 50 },
         );
-        mail.hold = false;
+        // A repeated start joins the held delivery until its outcome is durable.
         await deliverInline(held);
+        mail.hold = false;
       },
       driver,
       background,

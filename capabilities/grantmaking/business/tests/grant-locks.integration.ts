@@ -26,6 +26,7 @@ import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit
 import { createTestDatabase } from "@merit/test-support/test-database";
 
 import { applicationWork } from "./application-work";
+import { roundCommitments } from "./application-work";
 import { contactWork } from "./contact-work";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -172,12 +173,17 @@ const fixture = async (email = "sam@example.test") => {
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 
 const roundEdit = (connection: Database, data: Fixture) =>
-  editFundingRound(connection, actor, {
-    workspaceSlug,
-    publicId: data.roundId,
-    expectedRevision: 0,
-    change: { section: "details", title: "Updated round", purpose: "", meetingDate: null },
-  });
+  editFundingRound(
+    connection,
+    actor,
+    {
+      workspaceSlug,
+      publicId: data.roundId,
+      expectedRevision: 0,
+      change: { section: "details", title: "Updated round", purpose: "", meetingDate: null },
+    },
+    roundCommitments,
+  );
 
 const updateProfile = (connection: Database, data: Fixture) =>
   changeWorkspaceContact(

@@ -6,7 +6,7 @@ A menu of secondary commands behind a trigger; use it when a command is useful b
 - Supply `label` (the menu's accessible name), `trigger` (usually a quiet, icon-only `Button` with an `aria-label` such as "More actions"), `items` and `onAction(id)`.
 - Each item is `{ id, label, icon? }`. Give every item an icon or none, so labels stay aligned.
 - `activation="press"` (default) opens below the trigger, aligned to its end. `activation="contextMenu"` wraps a real link: it keeps the link's normal navigation and opens on right-click or long-press; pair it with `tooltip` to hint that the menu exists.
-- The menu sits on `surface` with a `border`, `control-radius` corners and `popover-shadow`; items use the shared list-row hover and focus treatment.
+- The menu is the shared popover surface (`surface`, `border-raised`, `popover-radius`, `popover-shadow`), fading in and out, 6px from its trigger; the context-menu activation opens at the pointer with no gap. Items use the shared list-row hover and focus treatment inside the popover scroller.
 - Keyboard: Enter or Space opens the menu and focuses the first item; Escape closes it and returns focus to the trigger.
 - Write item labels as verbs naming the outcome ("Copy link", "Discard draft"), sentence case.
 

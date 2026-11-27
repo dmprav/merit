@@ -154,6 +154,34 @@ CREATE TABLE "contacts" (
 	CONSTRAINT "contacts_revision_check" CHECK ("contacts"."revision" >= 0)
 );
 --> statement-breakpoint
+CREATE TABLE "committee_decision_versions" (
+	"case_id" text NOT NULL,
+	"revision" integer NOT NULL,
+	"outcome" text NOT NULL,
+	"amount_minor_units" numeric(30, 0) NOT NULL,
+	"amount_currency" text DEFAULT 'EUR' NOT NULL,
+	"conditions" text,
+	"reason" text NOT NULL,
+	"decided_by" text NOT NULL,
+	"decision_date" date NOT NULL,
+	"change_explanation" text,
+	"material_version" integer,
+	"actor_user_id" text,
+	"actor_name" text NOT NULL,
+	"provenance_interface" text,
+	"provenance_client_id" text,
+	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "committee_decision_versions_case_id_revision_pk" PRIMARY KEY("case_id","revision"),
+	CONSTRAINT "committee_decision_version_positive" CHECK ("committee_decision_versions"."revision" > 0),
+	CONSTRAINT "committee_decision_outcome_check" CHECK ("committee_decision_versions"."outcome" IN ('Fund', 'Fund with conditions', 'Defer', 'Decline')),
+	CONSTRAINT "committee_decision_amount_check" CHECK ("committee_decision_versions"."amount_minor_units" >= 0 AND "committee_decision_versions"."amount_minor_units" <> 'NaN' AND "committee_decision_versions"."amount_currency" = 'EUR' AND (("committee_decision_versions"."outcome" IN ('Defer', 'Decline') AND "committee_decision_versions"."amount_minor_units" = 0) OR ("committee_decision_versions"."outcome" IN ('Fund', 'Fund with conditions') AND "committee_decision_versions"."amount_minor_units" > 0))),
+	CONSTRAINT "committee_decision_conditions_check" CHECK (("committee_decision_versions"."outcome" = 'Fund with conditions') = ("committee_decision_versions"."conditions" IS NOT NULL AND length(btrim("committee_decision_versions"."conditions")) > 0)),
+	CONSTRAINT "committee_decision_reason_check" CHECK (length(btrim("committee_decision_versions"."reason")) > 0),
+	CONSTRAINT "committee_decision_decided_by_check" CHECK (length(btrim("committee_decision_versions"."decided_by")) > 0),
+	CONSTRAINT "committee_decision_explanation_check" CHECK (("committee_decision_versions"."revision" = 1) = ("committee_decision_versions"."change_explanation" IS NULL) AND ("committee_decision_versions"."change_explanation" IS NULL OR length(btrim("committee_decision_versions"."change_explanation")) > 0)),
+	CONSTRAINT "committee_decision_provenance_check" CHECK ((("committee_decision_versions"."provenance_interface" IS NULL AND "committee_decision_versions"."provenance_client_id" IS NULL) OR ("committee_decision_versions"."provenance_interface" = 'web' AND "committee_decision_versions"."provenance_client_id" IS NULL) OR ("committee_decision_versions"."provenance_interface" = 'mcp' AND "committee_decision_versions"."provenance_client_id" IS NOT NULL AND length("committee_decision_versions"."provenance_client_id") > 0)) IS TRUE)
+);
+--> statement-breakpoint
 CREATE TABLE "grant_navigation_pins" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" text NOT NULL,
@@ -519,6 +547,9 @@ ALTER TABLE "material_versions" ADD CONSTRAINT "material_versions_case_id_applic
 ALTER TABLE "material_versions" ADD CONSTRAINT "material_versions_recorded_by_user_id_app_users_id_fk" FOREIGN KEY ("recorded_by_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_actor_user_id_app_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "contacts" ADD CONSTRAINT "contacts_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "committee_decision_versions" ADD CONSTRAINT "committee_decision_versions_case_id_application_cases_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."application_cases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "committee_decision_versions" ADD CONSTRAINT "committee_decision_versions_actor_user_id_app_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "committee_decision_versions" ADD CONSTRAINT "committee_decision_versions_case_id_material_version_material_versions_case_id_version_fk" FOREIGN KEY ("case_id","material_version") REFERENCES "public"."material_versions"("case_id","version") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "grant_navigation_pins" ADD CONSTRAINT "grant_navigation_pins_user_id_app_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."app_users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "grant_navigation_pins" ADD CONSTRAINT "grant_navigation_pins_round_id_funding_rounds_id_fk" FOREIGN KEY ("round_id") REFERENCES "public"."funding_rounds"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "grant_navigation_pins" ADD CONSTRAINT "grant_navigation_pins_case_id_application_cases_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."application_cases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -574,6 +605,8 @@ CREATE INDEX "audit_events_round_time_idx" ON "audit_events" USING btree ("organ
 CREATE INDEX "audit_events_actor_user_idx" ON "audit_events" USING btree ("actor_user_id");--> statement-breakpoint
 CREATE INDEX "audit_events_actor_time_idx" ON "audit_events" USING btree ("organization_id","actor_user_id","recorded_at","id");--> statement-breakpoint
 CREATE INDEX "audit_events_assignment_idx" ON "audit_events" USING btree ("organization_id","assignment_id","recorded_at","id");--> statement-breakpoint
+CREATE INDEX "committee_decision_versions_material_idx" ON "committee_decision_versions" USING btree ("case_id","material_version");--> statement-breakpoint
+CREATE INDEX "committee_decision_versions_actor_user_idx" ON "committee_decision_versions" USING btree ("actor_user_id");--> statement-breakpoint
 CREATE INDEX "grant_navigation_pins_round_idx" ON "grant_navigation_pins" USING btree ("round_id");--> statement-breakpoint
 CREATE INDEX "grant_navigation_pins_case_idx" ON "grant_navigation_pins" USING btree ("case_id");--> statement-breakpoint
 CREATE INDEX "grant_navigation_pins_assignment_idx" ON "grant_navigation_pins" USING btree ("assignment_id");--> statement-breakpoint
@@ -674,6 +707,7 @@ CREATE TRIGGER criteria_version_items_immutable BEFORE INSERT OR UPDATE OR DELET
 CREATE TRIGGER assessment_versions_immutable BEFORE UPDATE OR DELETE ON assessment_versions FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
 CREATE TRIGGER assessment_version_observations_immutable BEFORE INSERT OR UPDATE OR DELETE ON assessment_version_observations FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
 CREATE TRIGGER recommendation_versions_immutable BEFORE UPDATE OR DELETE ON recommendation_versions FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
+CREATE TRIGGER committee_decision_versions_immutable BEFORE UPDATE OR DELETE ON committee_decision_versions FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
 --> statement-breakpoint
 CREATE FUNCTION preserve_assessment_author() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -772,7 +806,7 @@ BEGIN
     ('EXISTS (SELECT 1 FROM application_cases parent WHERE parent.id = case_id)', ARRAY[
       'material_draft_answers', 'material_drafts', 'material_version_answers',
       'material_version_evidence', 'material_versions', 'recommendation_versions',
-      'assessment_version_observations', 'review_states']),
+      'committee_decision_versions', 'assessment_version_observations', 'review_states']),
     ('EXISTS (SELECT 1 FROM funding_rounds parent WHERE parent.id = round_id)', ARRAY[
       'criteria_version_items', 'criteria_versions']),
     ('EXISTS (SELECT 1 FROM review_assignments parent WHERE parent.id = assignment_id)', ARRAY[

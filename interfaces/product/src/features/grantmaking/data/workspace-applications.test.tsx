@@ -25,6 +25,7 @@ const application: ApplicationOverview = {
   requested: null,
   reviews: { current: 0, outstanding: 0, outdated: 0, unknown: 0 },
   criteriaChanged: false,
+  decision: null,
   recommendation: null,
 };
 

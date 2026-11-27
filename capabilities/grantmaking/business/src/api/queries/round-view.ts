@@ -32,10 +32,16 @@ export type ApplicationRoundContext = Pick<
   | "criteriaVersion"
   | "criteriaHistory"
 > & {
-  totals: { proposed: Money; remaining: Money | null; withdrawnApplications: number };
+  totals: {
+    proposed: Money;
+    remaining: Money | null;
+    withdrawnApplications: number;
+    committed: Money;
+    available: Money | null;
+  };
 };
 
-export const roundView = (round: FundingRoundOverview) => {
+export const roundView = (round: FundingRoundOverview, committed?: Money) => {
   const applications = round.applications.map((application) =>
     applicationView(application, round.criteria, round.criteriaVersion),
   );
@@ -59,7 +65,7 @@ export const roundView = (round: FundingRoundOverview) => {
         0,
       ),
     },
-    totals: summarizeRound(round.budget, applications),
+    totals: summarizeRound(round.budget, applications, committed),
     applications,
   };
 };

@@ -23,6 +23,8 @@
     "@merit/contacts-web": "workspace:*",
     "@merit/dates": "workspace:*",
     "@merit/db": "workspace:*",
+    "@merit/decisions": "workspace:*",
+    "@merit/decisions-web": "workspace:*",
     "@merit/drafts": "workspace:*",
     "@merit/forms": "workspace:*",
     "@merit/grantmaking": "workspace:*",

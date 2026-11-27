@@ -56,6 +56,7 @@ export const publication = {
   mark_application_ready: write,
   publish_application_revision: write,
   record_assessment: write,
+  record_committee_decision: write,
   reinstate_application: write,
   request_review: write,
   respond_to_review: { ...write, scope: "reviews:write" },

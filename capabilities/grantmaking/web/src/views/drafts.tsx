@@ -3,6 +3,10 @@ import { useTranslation } from "react-i18next";
 
 import { DraftContext as IntakeContext, useIntakeDraftStore } from "@merit/applications-web/drafts";
 import {
+  DraftContext as DecisionContext,
+  useDecisionDraftStore,
+} from "@merit/decisions-web/drafts";
+import {
   DraftContext as RecommendationContext,
   useRecommendationDraftStore,
 } from "@merit/recommendations-web/drafts";
@@ -31,8 +35,9 @@ const DraftSession = ({ children, storageScope }: DraftProps) => {
   const intake = useIntakeDraftStore(storageScope);
   const creation = useCreationDraftStore(storageScope);
   const recommendation = useRecommendationDraftStore(storageScope);
+  const decision = useDecisionDraftStore(storageScope);
   const review = useReviewDraftStore(storageScope);
-  const stores = [preparation, intake, creation, recommendation, review];
+  const stores = [preparation, intake, creation, recommendation, decision, review];
   const conflict = stores.some((store) => store.status === "conflict");
   const unavailable = stores.some((store) => store.unavailable);
 
@@ -41,14 +46,16 @@ const DraftSession = ({ children, storageScope }: DraftProps) => {
       <IntakeContext value={intake.value}>
         <CreationContext value={creation.value}>
           <RecommendationContext value={recommendation.value}>
-            <ReviewContext value={review.value}>
-              {unavailable && (
-                <Notice tone="warning">
-                  {t(conflict ? "draftRecoveryConflict" : "draftRecoveryUnavailable")}
-                </Notice>
-              )}
-              {children}
-            </ReviewContext>
+            <DecisionContext value={decision.value}>
+              <ReviewContext value={review.value}>
+                {unavailable && (
+                  <Notice tone="warning">
+                    {t(conflict ? "draftRecoveryConflict" : "draftRecoveryUnavailable")}
+                  </Notice>
+                )}
+                {children}
+              </ReviewContext>
+            </DecisionContext>
           </RecommendationContext>
         </CreationContext>
       </IntakeContext>

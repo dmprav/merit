@@ -49,6 +49,7 @@ it.each([null, 10000n])(
         totals: { proposed: { minorUnits: "0", currency: "EUR" } },
       },
       [encodeMoney(fromMinorUnits(12001n)), null],
+      [encodeMoney(fromMinorUnits(5200n))],
       3,
     );
 
@@ -57,19 +58,23 @@ it.each([null, 10000n])(
     expect(context.totals.remaining).toEqual(budget === null ? null : fromMinorUnits(-2001n));
     expect(context.criteria).toEqual(round.criteria);
     expect(context.title).toBe(round.title);
+    expect(encodeMoney(context.totals.committed).minorUnits).toBe("5200");
+    expect(context.totals.available).toEqual(
+      budget === null ? null : fromMinorUnits(budget - 5200n),
+    );
     expect(context.totals.withdrawnApplications).toBe(3);
   },
 );
 
 it("rejects application context with criteria version zero", () => {
   expect(() =>
-    decodeApplicationContext({ ...makeRound(), criteriaVersion: 0 }, [], 0),
+    decodeApplicationContext({ ...makeRound(), criteriaVersion: 0 }, [], [], 0),
   ).toThrowError(/criteriaVersion/);
 });
 
 it("rejects application context containing a negative allocation", () => {
   expect(() =>
-    decodeApplicationContext(makeRound(), [{ minorUnits: "-1", currency: "EUR" }], 0),
+    decodeApplicationContext(makeRound(), [{ minorUnits: "-1", currency: "EUR" }], [], 0),
   ).toThrow();
 });
 

@@ -2,13 +2,14 @@ import { encodeApplicationMaterial } from "@merit/applications/domain";
 import { recordApplicationChange } from "@merit/applications/server/demo";
 import { seedExampleContacts } from "@merit/contacts/server/demo";
 import type { Transaction } from "@merit/db";
+import { encodeDecision } from "@merit/decisions/domain";
 import { fromMinorUnits } from "@merit/money";
 import { encodeRound } from "@merit/rounds/domain";
 import { insertPreparedRound } from "@merit/rounds/server/demo";
 
 import { decodeApplication, encodeRoundOverview } from "../domain/encoding";
 import { applicationRecordSchema } from "../domain/model";
-import { exampleRound } from "../examples/example-data";
+import { exampleDecisions, exampleRound } from "../examples/example-data";
 import { getExampleRound } from "../examples/get-example-round";
 import { insertExampleApplication, deleteDemoFunding } from "./persistence/commands/demo";
 
@@ -75,6 +76,8 @@ const seedExampleApplication = async (
     reviews,
     contactId: application.contactId ? (contactIds.get(application.contactId) ?? null) : null,
   };
+  const exampleDecision = exampleDecisions[application.id];
+  const seededAt = new Date();
   const earlierMaterial =
     application.id === "A3" ? originalWorkshopMaterial(example, content) : undefined;
   const saved = await insertExampleApplication(db, {
@@ -82,6 +85,13 @@ const seedExampleApplication = async (
     roundId,
     position,
     snapshot: content,
+    decision:
+      exampleDecision &&
+      encodeDecision({
+        ...exampleDecision,
+        decisionDate: seededAt.toISOString().slice(0, 10),
+        recordedAt: seededAt.toISOString(),
+      }),
     revision: earlierMaterial ? 1 : 0,
     recordedByUserId: authorUserId,
     earlierMaterial: earlierMaterial

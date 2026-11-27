@@ -26,6 +26,7 @@ const makeOverview = (
   requested: null,
   reviews: { current: 1, outdated: 0, outstanding: 0, unknown: 0 },
   criteriaChanged: false,
+  decision: null,
   recommendation: {
     position: "Fund",
     outdated: false,

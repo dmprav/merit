@@ -16,6 +16,7 @@ import { Disclosure } from "@merit/ui/disclosure";
 import { Divider } from "@merit/ui/divider";
 import { Icon } from "@merit/ui/icon";
 import { Inline, Reading, Stack } from "@merit/ui/layout";
+import { Link } from "@merit/ui/link";
 import { MoneyField } from "@merit/ui/money-field";
 import { Notice } from "@merit/ui/notice";
 import { WorkPane } from "@merit/ui/reference-workspace";
@@ -42,7 +43,7 @@ const fundingPositions = new Set(["Fund", "Fund with a condition"]);
 export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
   const { t } = useTranslation("reviewer");
   const { page } = work;
-  const writing = Boolean(work.draft) && (!page.assessment || work.amending);
+  const writing = work.canWrite && Boolean(work.draft) && (!page.assessment || work.amending);
   const form = useRef<HTMLDivElement>(null);
   const [attempt, setAttempt] = useState(0);
 
@@ -64,7 +65,9 @@ export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
           note={writing ? t(page.assessment ? "amendmentHelp" : "privacy") : undefined}
         />
       }
-      titleActions={!writing && page.assessment && <AmendmentTrigger work={work} />}
+      titleActions={
+        work.canWrite && !writing && page.assessment && <AmendmentTrigger work={work} />
+      }
       footer={
         writing && (
           <ReviewerSubmitActions work={work} onInvalid={() => setAttempt((value) => value + 1)} />
@@ -74,11 +77,32 @@ export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
       <SubmissionConfirmation page={page} />
       <div ref={form}>
         <Stack gap={5}>
+          <WithdrawnNotice page={page} />
           {writing ? <ReviewerDraftForm work={work} /> : <SubmittedAssessment work={work} />}
           <EarlierVersions page={page} />
+          <RetainedDraft work={work} />
         </Stack>
       </div>
     </WorkPane>
+  );
+};
+
+/** Access that ends removes the material, so only withdrawal explains itself in this pane. */
+const WithdrawnNotice = ({ page }: { page: ReviewerPage }) => {
+  const { t } = useTranslation("reviewer");
+  if (page.work.available || page.work.reason !== "application_withdrawn") {
+    return null;
+  }
+  const { managerEmail, managerName } = page.assignment;
+  return (
+    <Notice
+      tone="neutral"
+      actions={
+        <Link href={`mailto:${managerEmail}`}>{t("contactManager", { name: managerName })}</Link>
+      }
+    >
+      {t("withdrawnReadOnly")}
+    </Notice>
   );
 };
 
@@ -493,7 +517,7 @@ export const RetainedDraft = ({ work }: { work: ReviewerWork }) => {
 
   return (
     <Stack as="section" gap={5} aria-label={t("unsavedAssessment")}>
-      <Divider />
+      <Divider spacing={5} />
       <Stack gap={3}>
         <SectionHeader
           title={t("unsavedAssessment")}

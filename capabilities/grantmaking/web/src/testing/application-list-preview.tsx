@@ -18,6 +18,7 @@ import { FundingRoundView } from "../views/rounds/funding-round-view";
 export const applicationOverviewForPreview = (
   round: RoundView,
   application: RoundView["applications"][number],
+  decision: ApplicationOverview["decision"] = null,
 ): ApplicationOverview => ({
   id: application.id,
   title: application.title,
@@ -29,6 +30,7 @@ export const applicationOverviewForPreview = (
   requested: application.requested === null ? null : encodeMoney(application.requested),
   reviews: summarizeAssessments(application.assessments),
   criteriaChanged: application.assessments.some((review) => review.criteriaChanged),
+  decision,
   recommendation: application.managerRecommendation
     ? {
         position: application.managerRecommendation.position,
@@ -148,13 +150,16 @@ export const ApplicationsOverviewPreview = (props: OverviewProps) => {
 
 export const FundingRoundPreview = ({
   round,
+  decisions = {},
   ...props
 }: Omit<ComponentProps<typeof FundingRoundView>, "round" | "applicationList"> & {
   round: RoundView;
+  /** Committee decisions by application ID; an application without one has none. */
+  decisions?: Record<string, ApplicationOverview["decision"]>;
 }) => {
   const list = useApplicationListPreview({
     applications: round.applications.map((application) =>
-      applicationOverviewForPreview(round, application),
+      applicationOverviewForPreview(round, application, decisions[application.id] ?? null),
     ),
   });
   return <FundingRoundView {...props} round={round} applicationList={list} />;

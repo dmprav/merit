@@ -25,4 +25,50 @@ export const BetweenBlocks: Story = {
   ),
 };
 
-export const Emphasis: Story = { args: { tone: "emphasis" } };
+/** Choose edge where the rule marks the edge of a region, such as above a footer strip. */
+export const Edge: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <Stack gap={4}>
+      <p>The invitation was sent to dana@example.test.</p>
+      <Stack gap={0}>
+        <Divider strength="edge" spacing={3} />
+        <div>
+          <Button variant="quiet">Revoke invitation</Button>
+        </div>
+      </Stack>
+    </Stack>
+  ),
+};
+
+export const Tight: Story = { ...BetweenBlocks, args: { spacing: 3 } };
+
+/** The same spacing gives the same visible space whatever gap the parent Stack publishes. */
+export const AcrossStackGaps: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <Stack gap={6}>
+      {([3, 6] as const).map((gap) => (
+        <Stack as="section" key={gap} gap={gap} aria-label={`Gap ${gap}`}>
+          <p>Above the rule in a stack with gap {gap}.</p>
+          <Divider />
+          <p>Below the rule in a stack with gap {gap}.</p>
+        </Stack>
+      ))}
+    </Stack>
+  ),
+};
+
+/** A wrapper between the Stack and the rule hides the Stack's gap, so the rule keeps its spacing. */
+export const InsideWrapper: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <Stack gap={3}>
+      <section aria-label="Wrapped">
+        <p>Above the rule in a wrapper.</p>
+        <Divider />
+        <p>Below the rule in a wrapper.</p>
+      </section>
+    </Stack>
+  ),
+};

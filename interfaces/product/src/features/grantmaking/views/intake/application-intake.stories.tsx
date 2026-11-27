@@ -45,9 +45,11 @@ export const ReadyForReview: Story = {
       canvas.queryByRole("button", { name: "Start revised submission" }),
     ).not.toBeInTheDocument();
     await userEvent.click(canvas.getByRole("button", { name: "Application actions" }));
-    await expect(
-      within(document.body).getByRole("menuitem", { name: "Start revised submission" }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        within(document.body).getByRole("menuitem", { name: "Start revised submission" }),
+      ).toBeVisible(),
+    );
     await userEvent.keyboard("{Escape}");
   },
 };
@@ -90,7 +92,7 @@ export const ConfirmDiscardRevision: Story = {
     );
 
     await expect(
-      within(canvasElement.ownerDocument.body).getByRole("dialog"),
+      await within(canvasElement.ownerDocument.body).findByRole("dialog"),
     ).toHaveAccessibleDescription(/current application and earlier versions/);
   },
 };
@@ -103,9 +105,26 @@ export const ConfirmDelete: Story = {
       }),
     );
 
-    await expect(within(canvasElement.ownerDocument.body).getByRole("dialog")).toHaveTextContent(
-      original.title,
-    );
+    await expect(
+      await within(canvasElement.ownerDocument.body).findByRole("dialog"),
+    ).toHaveTextContent(original.title);
+  },
+};
+
+/** A funded application cannot be withdrawn until a new decision version supersedes the commitment. */
+export const WithdrawFundedApplication: Story = {
+  args: { state: "funded" },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole("button", { name: "Application actions" }));
+    await userEvent.click(body.getByRole("menuitem", { name: "Withdraw application" }));
+    // The closing menu fades out beside the opening dialog, so find the dialog by its name.
+    const dialog = within(await body.findByRole("dialog", { name: /^Withdraw application/ }));
+
+    // The dialog fades in, so wait for its explanation to be shown.
+    await waitFor(() => expect(dialog.getByText(/has committed funding/)).toBeVisible());
+    await expect(dialog.queryByRole("textbox")).not.toBeInTheDocument();
+    await expect(dialog.getByRole("button", { name: "Close" })).toBeVisible();
   },
 };
 

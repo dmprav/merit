@@ -29,6 +29,7 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { readApplicationOverviews } from "../src/server/persistence/queries/application-overview";
+import { roundCommitments } from "./application-work";
 import { contactWork } from "./contact-work";
 import { roundTest as it } from "./round-test";
 
@@ -270,21 +271,26 @@ it("uses the latest assessment version and counts a replacement only once", asyn
 
   const page = await getFundingRoundPage(db, actor, rounds.pageInput);
   assert.isNotNull(page);
-  const revised = await editFundingRound(db, actor, {
-    workspaceSlug: "alder",
-    publicId: rounds.pageInput.publicId,
-    expectedRevision: page.preparation.revision,
-    change: {
-      section: "criteria",
-      criteria: [
-        {
-          id: "20000000-0000-4000-8000-000000000001",
-          title: "Venue",
-          description: "Check the replacement venue.",
-        },
-      ],
+  const revised = await editFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug: "alder",
+      publicId: rounds.pageInput.publicId,
+      expectedRevision: page.preparation.revision,
+      change: {
+        section: "criteria",
+        criteria: [
+          {
+            id: "20000000-0000-4000-8000-000000000001",
+            title: "Venue",
+            description: "Check the replacement venue.",
+          },
+        ],
+      },
     },
-  });
+    roundCommitments,
+  );
   assert(revised.status === "ok");
   expect(await reviews()).toMatchObject({
     criteriaChanged: true,

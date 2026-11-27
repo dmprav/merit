@@ -228,6 +228,7 @@ export const intakeMenuActions = (
   >,
   working: WorkingRevision | null,
   hasTitleDraft: boolean,
+  decisions = { hasDecision: false, hasCommitment: false },
 ) =>
   // A withdrawn case is read-only; reinstating it is offered by its status area.
   isWithdrawn(application)
@@ -249,6 +250,9 @@ export const intakeMenuActions = (
             application.reviews.requests.length || application.reviews.assessments.length,
           ),
           hasRecommendation: application.managerRecommendation !== null,
+          hasDecision: decisions.hasDecision,
+          // The server rechecks a commitment under the case lock when withdrawing.
+          hasCommitment: decisions.hasCommitment,
         })
           ? ["delete" as const]
           : []),

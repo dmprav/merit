@@ -12,6 +12,7 @@
     "./scope": "./src/server/persistence/projections.ts",
     "./locks": "./src/server/persistence/commands/locks.ts",
     "./readers": "./src/server/persistence/queries/preparation.ts",
+    "./server/grant-work": "./src/server/grant-work.ts",
     "./server/demo": "./src/server/demo.ts"
   },
   "dependencies": {

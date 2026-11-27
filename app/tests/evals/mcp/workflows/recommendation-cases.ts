@@ -1,8 +1,10 @@
 import { expect } from "vite-plus/test";
 
 import { type Scenario, type ScenarioContext, successfulCalls } from "../scenario";
-import { content, lanterns, seedContact } from "./application-fixture";
+import { content, lanterns, seedContact, workspace } from "./application-fixture";
+import { checked } from "./client";
 import * as controls from "./grant-controls";
+import { numberAmounts } from "./reply-amounts";
 
 const recommendationsFor = async (ctx: ScenarioContext, applicationId: string) =>
   (
@@ -12,33 +14,58 @@ const recommendationsFor = async (ctx: ScenarioContext, applicationId: string) =
     )
   ).rows;
 
-export const recordAward = async (ctx: ScenarioContext): Promise<Scenario> => {
+const decisionsFor = async (ctx: ScenarioContext, applicationId: string) =>
+  (
+    await ctx.sql.query<Record<string, unknown>>(
+      "SELECT revision,outcome,amount_minor_units::text AS cents,amount_currency,decided_by,decision_date::text,reason,change_explanation FROM committee_decision_versions WHERE case_id=$1 ORDER BY revision",
+      [applicationId],
+    )
+  ).rows;
+
+/** An affirmative statement within one sentence that a decision was recorded. */
+const recordedDecision =
+  /\b(?:recorded|saved|logged|entered|made)\b[^.\n]{0,60}\bdecision\b|\bdecision\b[^.\n]{0,40}\b(?:recorded|saved|logged|entered)\b/i;
+// A denial counts only when it negates the decision itself, so "not a recommendation; the
+// decision was recorded" passes and "the decision was not recorded" does not.
+const deniedDecision =
+  /(?:\bnot\b|\bnever\b|n't\b)\s+(?:(?:a|an|the|any|your|be)\s+)*(?:(?:funding|committee|final)\s+)?decision\b|\bdecision\b[^.;\n]{0,40}(?:\bnot\b|\bnever\b|n't\b)[^.;\n]{0,20}\b(?:recorded|saved|logged|entered|made)\b/i;
+
+export const recordDecision = async (ctx: ScenarioContext): Promise<Scenario> => {
   const app = await lanterns(ctx, "3500");
+  await app.write("mark_application_ready");
+  // Funding commits against the round budget, which the fixture sets far below the award.
+  const { rows } = await ctx.sql.query<{ revision: number }>(
+    "SELECT revision FROM funding_rounds WHERE id=$1",
+    [ctx.roundId],
+  );
+  await checked(ctx.seed, "edit_funding_round", {
+    ...workspace,
+    roundId: ctx.roundId,
+    expectedPreparationRevision: rows[0]?.revision,
+    change: { section: "budget", amount: "10000.00", reason: "Room for the decision." },
+  });
   return {
-    allowDiscovery: true,
-    control: async () =>
-      "Merit records recommendations. It cannot record a final funding decision.",
-    verifyReply: (reply) => {
-      const wording = reply.toLowerCase().replaceAll("’", "'").replace(/\s+/g, " ");
-      expect(wording, "Explain the limit on recording an award in Merit").toMatch(
-        /(?:cannot|can't|could not|couldn't|unable to|does not|doesn't|no (?:way|tool|option) to|but not)[^.!?]{0,90}(?:award|decision|commit funds)|(?:award|decision)[^.!?]{0,60}(?:unsupported|not supported|outside|cannot|can't)|only (?:supports?|records?|saves?) (?:funding )?recommendations/,
-      );
-      // Match affirmative completions independently of any disclaimer elsewhere in the reply.
-      const actorClaim =
-        /\b(?:i|we|merit)(?:'ve| (?:have|has|also|already|just|successfully|now))* (?:recorded|saved|logged|entered|committed|awarded)\b[^.!?]{0,65}\b(?:award|decision|funds|funding|money)\b/;
-      const passiveClaim =
-        /\b(?:the|this|its|your) (?:final |funding )?(?:award|decision|funds) (?:has been |have been |was |were |is |are )(?:recorded|saved|logged|entered|committed|awarded)\b/;
-      expect(wording, "The reply claims a final award or financial commitment").not.toMatch(
-        actorClaim,
-      );
-      expect(wording, "The reply claims a final award or financial commitment").not.toMatch(
-        passiveClaim,
-      );
-      const substituteOffer =
-        /\b(?:should (?:this|it|the (?:award|decision)) be (?:recorded|saved|entered)|(?:i|we) (?:can|could) (?:record|save|enter) (?:this|it|the (?:award|decision))) as (?:an? |the )?(?:(?:external|outside|reviewer|manager) )?(?:assessment|recommendation)\b/;
-      expect(wording, "The reply offers a substitute for the award").not.toMatch(substituteOffer);
+    control: controls.recordDecision,
+    verifyReply(reply) {
+      expect(numberAmounts(reply), "State the recorded amount").toContain("245025");
+      expect(reply, "Call it a decision, not a recommendation").toMatch(recordedDecision);
+      expect(reply, "Call it a decision, not a recommendation").not.toMatch(deniedDecision);
     },
-    verifyEffects: async () => {
+    async verifyEffects() {
+      expect(await decisionsFor(ctx, app.address.applicationId)).toMatchObject([
+        {
+          revision: 1,
+          outcome: "Fund",
+          cents: "245025",
+          amount_currency: "EUR",
+          decision_date: "2026-01-15",
+          change_explanation: null,
+        },
+      ]);
+      const [saved] = await decisionsFor(ctx, app.address.applicationId);
+      expect(saved?.decided_by).toEqual(expect.stringMatching(/funding committee/i));
+      expect(saved?.reason).toEqual(expect.stringMatching(/venue/i));
+      // A decision is not a recommendation.
       expect(await recommendationsFor(ctx, app.address.applicationId)).toEqual([]);
     },
   };

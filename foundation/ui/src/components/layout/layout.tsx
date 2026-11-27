@@ -23,10 +23,10 @@ type LayoutProps = FlowProps & {
 
 type StackProps = LayoutProps & {
   /**
-   * Rule off direct children, such as entries in a record list: between puts a rule centered in
-   * each gap, after also ends the last entry with one, and around also opens the list with one.
+   * Rule off direct children, such as entries in a record list: between puts a subtle rule
+   * centered in each gap.
    */
-  divided?: "between" | "after" | "around";
+  divided?: "between";
 };
 
 type InlineProps = LayoutProps & {

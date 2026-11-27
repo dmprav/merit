@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode, type Ref } from "react";
+import { type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -25,6 +25,7 @@ import {
 import { Button } from "@merit/ui/button";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { DialogContent } from "@merit/ui/dialog";
+import { useEditorFocusRestore } from "@merit/ui/editor-focus";
 import { EditorLoading, EditorClose } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
 import { Stack } from "@merit/ui/layout";
@@ -89,7 +90,7 @@ export const RecommendationEditor = (props: RecommendationEditorProps) => {
   } = props;
   const { t } = useTranslation("fundingRecommendations");
   const withdrawn = !canChangeRecommendation(application);
-  const { editButton, markRestoreFocus } = useRecommendationFocus();
+  const { editButton, markRestoreFocus } = useEditorFocusRestore();
   const editor = useRecommendationEditor({
     application,
     ready,
@@ -209,24 +210,6 @@ const RecommendationSection = ({
       {editor}
     </>
   );
-};
-
-const useRecommendationFocus = () => {
-  const editButton = useRef<HTMLButtonElement>(null);
-  const restoreFocus = useRef(false);
-  useEffect(() => {
-    if (restoreFocus.current && editButton.current) {
-      editButton.current.focus();
-      restoreFocus.current = false;
-    }
-  });
-
-  return {
-    editButton,
-    markRestoreFocus: () => {
-      restoreFocus.current = true;
-    },
-  };
 };
 
 const RecommendationWriting = ({

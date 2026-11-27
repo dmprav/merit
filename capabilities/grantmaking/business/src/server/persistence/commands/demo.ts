@@ -5,6 +5,7 @@ import {
   deleteDemoApplications,
 } from "@merit/applications/server/demo";
 import type { Transaction } from "@merit/db";
+import { insertDemoDecision } from "@merit/decisions/server/demo";
 import { insertDemoRecommendation } from "@merit/recommendations/server/demo";
 import { recordReviewChange } from "@merit/reviews/server/demo";
 import { deleteDemoRounds } from "@merit/rounds/server/demo";
@@ -15,6 +16,7 @@ export const insertExampleApplication = async (
   db: Transaction,
   value: Parameters<typeof insertIntakeApplication>[1] & {
     snapshot: ReturnType<typeof encodeApplication>;
+    decision?: unknown;
     earlierMaterial?: {
       content: ReturnType<typeof encodeApplicationMaterial>;
       reason: string;
@@ -51,6 +53,13 @@ export const insertExampleApplication = async (
       caseId: saved.id,
       applicationVersion: application.managerRecommendation.recorded?.applicationVersion,
       content: value.snapshot.managerRecommendation,
+      actorUserId: value.recordedByUserId,
+    });
+  }
+  if (value.decision !== undefined) {
+    await insertDemoDecision(db, {
+      caseId: saved.id,
+      content: value.decision,
       actorUserId: value.recordedByUserId,
     });
   }

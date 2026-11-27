@@ -18,6 +18,7 @@ it("lists contact-related applications using the signed-in actor's grantmaking q
     intakeRevision: 0,
     reviewRevision: 0,
     recommendationRevision: 0,
+    decisionRevision: 0,
     intakeStatus: "in_preparation",
     withdrawn: false,
     requested: null,

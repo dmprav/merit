@@ -18,6 +18,12 @@ import { ButtonBase } from "../../components/button/button-base";
 import { ModalFrame } from "../../components/dialog/modal-frame";
 import { IconBase, type IconName } from "../../components/icon/icon-base";
 import { Notice } from "../../components/notice/notice";
+import {
+  popoverContainerPadding,
+  popoverOffset,
+  popoverScroller,
+  popoverSurface,
+} from "../../foundations/popover";
 import { PersonIdentity } from "../person-identity/person-identity";
 import styles from "./application-shell.module.css";
 import { CompanionPanel, type ApplicationCompanion } from "./companion-panel";
@@ -283,13 +289,13 @@ export const ApplicationContext = ({
         <IconBase name="down" />
       </ButtonBase>
       <Popover
-        className={styles.contextPopover}
+        className={`${popoverSurface} ${styles.contextPopover}`}
         placement="bottom start"
-        offset={4}
-        containerPadding={16}
+        offset={popoverOffset}
+        containerPadding={popoverContainerPadding}
         isNonModal={!compact}
       >
-        <Dialog aria-label={label} className={styles.contextDialog}>
+        <Dialog aria-label={label} className={popoverScroller}>
           {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Clicks bubble from real links, including keyboard activation; this wrapper is not a control. */}
           <div
             className={styles.contextLinks}

@@ -352,12 +352,16 @@ it("rejects a submitted reviewer's amendment, draft, and response while the appl
   });
   expect(submitted).toMatchObject({ status: "ok" });
   expect(await s.draft("Amendment drafted before the withdrawal")).toMatchObject({ status: "ok" });
+  expect((await s.reviewerPage()).work).toEqual({ available: true });
   expect(await s.edit(withdrawal())).toMatchObject({ status: "ok" });
 
   // The submitted review keeps its access, but nothing can be written to the withdrawn case.
   const page = await s.reviewerPage();
   expect(page.assignment.status).toBe("submitted");
+  expect(page.material).not.toBeNull();
   expect(page.assessment?.versions).toHaveLength(1);
+  // The read reports the block the writes below enforce, so the screen offers no amendment.
+  expect(page.work).toEqual({ available: false, reason: "application_withdrawn" });
   expect(await s.draft("Amendment after the withdrawal")).toEqual({
     status: "invalid",
     error: "application_withdrawn",

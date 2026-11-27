@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 
 import { CollectionFilter, CollectionToolbar } from "./collection-toolbar";
 
@@ -127,11 +127,16 @@ export const Filtering: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
     await userEvent.click(body.getByRole("button", { name: "Status All projects" }));
     await userEvent.click(body.getByRole("option", { name: "Ready" }));
+    // The list fades out, and keeps Escape, until it leaves the page and returns focus.
+    await waitFor(() => expect(body.queryByRole("listbox")).not.toBeInTheDocument());
+    await waitFor(() => expect(body.getByRole("button", { name: /^Status/ })).toHaveFocus());
     await userEvent.keyboard("{Escape}");
     await expect(canvas.getByRole("button", { name: "Remove Ready filter" })).toBeVisible();
     await expect(canvas.getByRole("status")).toHaveTextContent("5 of 12 projects");
+    // The panel fades out before it leaves the page.
+    await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
     await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
-    await userEvent.type(body.getByRole("searchbox"), "Community");
+    await userEvent.type(await body.findByRole("searchbox"), "Community");
     await userEvent.keyboard("{Escape}");
     await expect(
       canvas.getByRole("button", { name: "Clear search: Search projects: Community" }),

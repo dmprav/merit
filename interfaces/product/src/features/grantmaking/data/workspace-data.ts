@@ -15,11 +15,13 @@ import {
 
 import { WorkspaceNavigationContext } from "../../workspace/workspace-navigation";
 import { workspaceCreationData } from "./creation/workspace-data";
+import { workspaceDecisionData } from "./decisions/workspace-data";
 import { workspaceIntakeData } from "./intake/workspace-data";
 import { workspacePreparationData } from "./preparation/workspace-data";
 import { applicationOptions, roundOptions, roundsOptions } from "./queries";
 import { workspaceRecommendationData } from "./recommendations/workspace-data";
 import { workspaceReviewData } from "./reviews/workspace-data";
+import { recordDecision } from "./server/decisions/decisions.functions";
 import { saveRecommendation } from "./server/recommendations/recommendations.functions";
 import { useWorkspaceApplications } from "./workspace-applications";
 
@@ -70,6 +72,9 @@ export const useWorkspaceApplicationData = (workspaceSlug: string, publicId: str
   const { mutateAsync: save } = useMutation({
     mutationFn: (input: Parameters<typeof saveRecommendation>[0]) => saveRecommendation(input),
   });
+  const { mutateAsync: saveDecision } = useMutation({
+    mutationFn: (input: Parameters<typeof recordDecision>[0]) => recordDecision(input),
+  });
   const { data: current } = useSuspenseQuery(applicationOptions(workspaceSlug, publicId));
 
   return useMemo(() => {
@@ -89,10 +94,17 @@ export const useWorkspaceApplicationData = (workspaceSlug: string, publicId: str
         current.recommendationVersion,
         save,
       ),
+      decision: workspaceDecisionData(
+        client,
+        workspaceSlug,
+        publicId,
+        current.decision,
+        saveDecision,
+      ),
     };
 
     return { status: "ok" as const, data, workspaceSlug: current.workspaceSlug };
-  }, [current, client, workspaceSlug, publicId, save, inviteReviewers]);
+  }, [current, client, workspaceSlug, publicId, save, saveDecision, inviteReviewers]);
 };
 
 export const useWorkspaceRoundsData = (workspaceSlug: string, workspaceName: string) => {

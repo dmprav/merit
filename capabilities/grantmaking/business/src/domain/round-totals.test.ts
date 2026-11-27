@@ -69,8 +69,19 @@ it("returns zero activity and the full budget for a round with no applications",
     requested: fromMinorUnits(0n),
     proposed: fromMinorUnits(0n),
     remaining: fromMinorUnits(6000000n),
+    committed: fromMinorUnits(0n),
+    available: fromMinorUnits(6000000n),
     reviews: { assigned: 0, submitted: 0, current: 0, outdated: 0, outstanding: 0, unknown: 0 },
   });
+});
+
+it("reports the committed funding the caller supplies beside the proposed total", () => {
+  const totals = summarizeRound(fromMinorUnits(6000000n), [], fromMinorUnits(2400000n));
+
+  expect(totals.proposed).toEqual(fromMinorUnits(0n));
+  expect(totals.committed).toEqual(fromMinorUnits(2400000n));
+  expect(totals.available).toEqual(fromMinorUnits(3600000n));
+  expect(summarizeRound(null, [], fromMinorUnits(100n)).available).toBeNull();
 });
 
 it("counts unknown requested amounts separately while summing known amounts", () => {
@@ -135,6 +146,8 @@ it("excludes withdrawn applications from every total and discloses how many it l
     withdrawnApplications: 2,
     proposed: fromMinorUnits(2000000n),
     remaining: fromMinorUnits(4000000n),
+    committed: fromMinorUnits(0n),
+    available: fromMinorUnits(6000000n),
     reviews: { assigned: 1, submitted: 0, current: 0, outdated: 0, outstanding: 1, unknown: 0 },
   });
 });

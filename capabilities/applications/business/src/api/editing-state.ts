@@ -8,5 +8,7 @@ export type IntakeState = {
   materialVersions?: MaterialVersion[];
   revision: number;
   workingRevision: WorkingRevision | null;
+  /** Committee decision facts Decisions owns, for actions the case's decision rules out. */
+  decisions?: { hasDecision: boolean; hasCommitment: boolean };
   history: RecordedChange<Omit<IntakeApplication, "requested"> & { requested: MoneyData | null }>[];
 };

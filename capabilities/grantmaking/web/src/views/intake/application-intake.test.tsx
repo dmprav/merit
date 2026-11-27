@@ -56,6 +56,7 @@ const renderIntake = (
   messages: ResourceLanguage = grantmakingMessages,
   base = original,
   editor?: ReactNode,
+  decisions?: IntakeState["decisions"],
 ) => {
   const calls = vi.fn<IntakeData["save"]>();
 
@@ -65,6 +66,7 @@ const renderIntake = (
       revision: 0,
       workingRevision: null,
       history: [],
+      decisions,
     });
 
     calls.mockImplementation(async (change, revision) => {
@@ -86,6 +88,8 @@ const renderIntake = (
             application.reviews.requests.length || application.reviews.assessments.length,
           ),
           hasRecommendation: application.managerRecommendation !== null,
+          hasDecision: false,
+          hasCommitment: false,
         },
       );
       if (!result.ok) {
@@ -677,7 +681,9 @@ it("withdraws with a date and reason, then offers only reinstatement while the c
 
   // The dialog explains what is kept, and omits the review sentence when nothing is outstanding.
   expect(
-    dialog.getByText(/The application, its material, reviews, and recommendation are kept/),
+    dialog.getByText(
+      /The application, its material, reviews, recommendation, and committee decision are kept/,
+    ),
   ).toBeVisible();
   expect(dialog.queryByText(/outstanding review request/)).not.toBeInTheDocument();
   expect(dialog.getByRole("textbox", { name: /Withdrawal date/ })).toHaveValue(
@@ -771,8 +777,24 @@ it("states how many outstanding review requests will close", async () => {
   const { user } = renderIntake(undefined, undefined, undefined, withRequests);
 
   expect(await openWithdrawal(user)).toHaveAccessibleDescription(
-    /The application, its material, reviews, and recommendation are kept\. 2 outstanding review requests will close, and their reviewers’ access will end\./,
+    /The application, its material, reviews, recommendation, and committee decision are kept\. 2 outstanding review requests will close, and their reviewers’ access will end\./,
   );
+});
+
+it("explains a committed decision without offering withdrawal", async () => {
+  const { user, calls } = renderIntake(undefined, undefined, undefined, undefined, undefined, {
+    hasDecision: true,
+    hasCommitment: true,
+  });
+  const dialog = within(await openWithdrawal(user));
+
+  expect(dialog.getByText(/has committed funding/)).toBeVisible();
+  expect(dialog.queryByRole("alert")).not.toBeInTheDocument();
+  expect(dialog.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(dialog.queryByRole("button", { name: "Withdraw application" })).not.toBeInTheDocument();
+  await user.click(dialog.getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(calls).not.toHaveBeenCalled();
 });
 
 it("accepts a withdrawal date as soon as it is today in UTC+14", async ({ onTestFinished }) => {

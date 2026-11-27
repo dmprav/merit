@@ -35,12 +35,16 @@ it("counts conditional allocations in full and separates outdated from missing r
     requested: encodeMoney(round.totals.requested),
     proposed: encodeMoney(round.totals.proposed),
     remaining: encodeMoney(round.totals.remaining!),
+    committed: encodeMoney(round.totals.committed),
+    available: encodeMoney(round.totals.available!),
   }).toEqual({
     unknownRequests: 0,
     withdrawnApplications: 0,
     requested: { minorUnits: "7400000", currency: "EUR" },
     proposed: { minorUnits: "5200000", currency: "EUR" },
     remaining: { minorUnits: "800000", currency: "EUR" },
+    committed: { minorUnits: "2400000", currency: "EUR" },
+    available: { minorUnits: "3600000", currency: "EUR" },
     reviews: { assigned: 6, submitted: 5, current: 4, outdated: 1, outstanding: 1, unknown: 0 },
   });
   assert.isDefined(round.applications[2]);

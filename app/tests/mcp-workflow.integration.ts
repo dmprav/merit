@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { assert, expect } from "vite-plus/test";
 
+import { roundCommitments } from "@merit/decisions/server/integrations";
 import { getFundingApplicationPage, getFundingRoundPage } from "@merit/grantmaking/server";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
@@ -294,12 +295,17 @@ it("rejects a round edit using a stale preparation revision without changing the
 }) => {
   const read = async () => (await getFundingRoundPage(db, actor, { ...pageInput, kind: "round" }))!;
 
-  const colleague = await editFundingRound(db, actor, {
-    workspaceSlug: "alder",
-    publicId: pageInput.publicId,
-    expectedRevision: (await read()).preparation.revision,
-    change: { section: "budget", amount: "1000", reason: "A colleague's envelope" },
-  });
+  const colleague = await editFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug: "alder",
+      publicId: pageInput.publicId,
+      expectedRevision: (await read()).preparation.revision,
+      change: { section: "budget", amount: "1000", reason: "A colleague's envelope" },
+    },
+    roundCommitments,
+  );
   assert(colleague.status === "ok", "Could not prepare the colleague's round edit");
   const before = await read();
 
@@ -318,4 +324,77 @@ it("rejects a round edit using a stale preparation revision without changing the
     ).structuredContent,
   ).toEqual({ status: "conflict" });
   expect(await read()).toEqual(before);
+});
+
+it("records, amends, and budget-checks a committee decision through MCP", async ({
+  db,
+  rounds,
+  transport: { callMcp },
+}) => {
+  const application = await rounds.createApplication("Community garden");
+  const address = { workspaceSlug: "alder", applicationId: application.publicId };
+
+  const invoke = async (name: string, args: Record<string, unknown>) =>
+    (await callMcp(actor.userId, args, name)).structuredContent as Record<string, unknown>;
+
+  const read = async () =>
+    (await getFundingApplicationPage(db, actor, application))!.decision.versions;
+
+  await invoke("mark_application_ready", { ...address, expectedIntakeRevision: 0 });
+  const decision = {
+    ...address,
+    outcome: "Fund",
+    amount: { minorUnits: "6000", currency: "EUR" },
+    reason: "Meets the round's priorities.",
+    decidedBy: "Funding committee",
+    decisionDate: new Date().toISOString().slice(0, 10),
+  };
+
+  const recorded = await invoke("record_committee_decision", {
+    ...decision,
+    expectedDecisionRevision: 0,
+  });
+  expect(recorded).toMatchObject({
+    status: "ok",
+    recorded: true,
+    applicationId: address.applicationId,
+  });
+  expect((await read())[0]?.decision.recorder).toMatchObject({
+    userId: "dana",
+    provenance: { interface: "mcp", clientId: "integration-client" },
+  });
+
+  // A change to an existing decision needs its explanation.
+  const amendment = { ...decision, amount: { minorUnits: "5000", currency: "EUR" } };
+  expect(
+    await invoke("record_committee_decision", { ...amendment, expectedDecisionRevision: 1 }),
+  ).toMatchObject({ status: "invalid", error: "change_explanation_required" });
+  expect(await read()).toHaveLength(1);
+
+  const amended = await invoke("record_committee_decision", {
+    ...amendment,
+    changeExplanation: "Reduced after the budget review.",
+    expectedDecisionRevision: 1,
+  });
+  expect(amended).toMatchObject({ status: "ok", recorded: true });
+  expect(await read()).toMatchObject([
+    { revision: 2, decision: { changeExplanation: "Reduced after the budget review." } },
+    { revision: 1 },
+  ]);
+
+  // The round's €100.00 budget cannot cover a €120.00 commitment.
+  expect(
+    await invoke("record_committee_decision", {
+      ...decision,
+      amount: { minorUnits: "12000", currency: "EUR" },
+      changeExplanation: "Raised.",
+      expectedDecisionRevision: 2,
+    }),
+  ).toMatchObject({
+    status: "invalid",
+    error: "commitment_exceeds_budget",
+    budget: { minorUnits: "10000" },
+    excess: { minorUnits: "2000" },
+  });
+  expect(await read()).toHaveLength(2);
 });

@@ -13,6 +13,7 @@ import {
   type ReviewerDraft,
   type ReviewerProblem,
   type ReviewerStatus,
+  type ReviewerWorkAvailability,
 } from "../domain/reviewer";
 import { reviewIdSchema, type ReviewState } from "../domain/reviews";
 
@@ -88,6 +89,8 @@ export type ReviewerPage = {
   criteria: ReviewState["requests"][number]["criteria"] | null;
   draft: { revision: number; content: ReviewerDraft } | null;
   assessment: ReviewState["assessments"][number] | null;
+  /** Whether a save, submission, or amendment can succeed now; writes check again on commit. */
+  work: ReviewerWorkAvailability;
 };
 
 export type ReviewerResult<T> =

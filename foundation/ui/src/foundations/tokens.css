@@ -6,6 +6,8 @@
   --foreground: #292d29;
   --muted: #62685f;
   --border: #e0e3dc;
+  /* A rule inside a surface, lighter than the edge of one. */
+  --border-subtle: color-mix(in srgb, var(--border) 55%, var(--surface));
   --border-control: #899184;
   /* The edge of a surface raised over content: popovers, menus, toasts. */
   --border-raised: #d6d9d1;
@@ -28,6 +30,8 @@
   --control-radius: 0.375rem;
   --control-focus-width: 2px;
   --panel-radius: 0.625rem;
+  /* Menus, pickers, calendars, and tooltips: one corner for every popover. */
+  --popover-radius: 0.5rem;
 
   /* Spacing */
   --space-1: 0.25rem;

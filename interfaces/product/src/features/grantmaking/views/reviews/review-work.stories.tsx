@@ -72,6 +72,36 @@ const makeReviews = (withCorrection: boolean): ReviewState => ({
   ],
 });
 
+/** Two reviewers' assessments, one corrected twice, so the history lists several entries. */
+const makeManyVersions = (): ReviewState => {
+  const base = makeReviews(true);
+  const secondCorrection = {
+    ...correctedVersion,
+    content: {
+      ...correctedVersion.content,
+      reasoning: "A second correction after the site visit.",
+    },
+  };
+  return {
+    ...base,
+    assessments: [
+      {
+        ...base.assessments[0]!,
+        versions: [originalVersion, correctedVersion, secondCorrection],
+      },
+      {
+        id: "9e1d976a-d388-54dc-9be1-a5f56aaf137d",
+        contactId: jules,
+        reviewer: "Jules Patel",
+        requestId: null,
+        previousId: null,
+        versions: [originalVersion],
+      },
+    ],
+    requests: [],
+  };
+};
+
 const submittedReviews = makeReviews(false);
 const correctedReviews = makeReviews(true);
 
@@ -443,6 +473,9 @@ export const CorrectingAssessment: Story = {
   },
 };
 export const AssessmentHistory: Story = { args: { initialReviews: correctedReviews } };
+export const ManyRecordedVersions: Story = {
+  args: { initialReviews: makeManyVersions() },
+};
 export const Saving: Story = {
   beforeEach: () => {
     mocked(saveReview).mockImplementation(() => new Promise(() => {}));
