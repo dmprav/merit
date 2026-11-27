@@ -75,6 +75,14 @@
   background: var(--action);
 }
 
+/* Forced colors erase backgrounds, so the rule keeps a system colour. */
+@media (forced-colors: active) {
+  .tab[data-selected]::after {
+    background: Highlight;
+    forced-color-adjust: none;
+  }
+}
+
 .tab[data-selected] {
   color: var(--foreground);
 }

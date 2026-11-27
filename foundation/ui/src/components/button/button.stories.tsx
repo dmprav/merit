@@ -109,6 +109,11 @@ export const AlignedAtEnd: Story = {
         <Button {...args} />
       </div>
       <div className={localStyles.grid}>
+        <Button {...args} size="large">
+          Review all assessments
+        </Button>
+      </div>
+      <div className={localStyles.grid}>
         <Button {...args} iconOnly aria-label="Edit">
           <Icon name="edit" />
         </Button>

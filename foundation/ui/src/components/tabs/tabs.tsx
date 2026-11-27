@@ -385,8 +385,9 @@ const TabContent = <Id extends string>({
       <AnchoredTooltipBase
         anchorRef={text}
         content={cutOff ?? ""}
-        isHovered={cutOff != null && isHovered && !dismissed}
-        isFocused={cutOff != null && isFocused && !dismissed}
+        isHovered={cutOff != null && isHovered}
+        isFocused={cutOff != null && isFocused}
+        isDismissed={dismissed}
       />
     </>
   );

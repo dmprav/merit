@@ -267,6 +267,9 @@
   .table [data-row-actions] {
     grid-column: 2;
     grid-row: 1;
+    /* The trailing icon button is shifted onto the edge, so its cell reaches past the card's padding to hold it. */
+    padding-inline-end: var(--space-4);
+    margin-inline-end: calc(-1 * var(--space-4));
   }
 }
 

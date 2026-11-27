@@ -153,6 +153,8 @@
 }
 
 .button[data-size="large"] {
+  /* The text sits inside the larger padding and the border. */
+  --button-quiet-inset: calc(var(--space-5) + 1px);
   --button-icon-inset: calc((var(--target-touch) - 1rem) / 2);
   min-height: var(--target-touch);
   padding: var(--space-2) var(--space-5);

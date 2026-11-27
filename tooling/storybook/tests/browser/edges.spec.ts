@@ -382,45 +382,60 @@ for (const story of [
 }
 
 test("no header or panel action wraps in any feature or pattern story", async ({
-  browser,
-}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop", "Sets its own viewport sizes.");
+  page: first,
+  request,
+  baseURL,
+  browserErrors,
+}) => {
   test.setTimeout(900_000);
-  const response = await browser.newContext();
-  const index = (await (
-    await response.request.get(`${testInfo.project.use.baseURL}/index.json`)
-  ).json()) as { entries: Record<string, { id: string; type: string }> };
+  const index = (await (await request.get(`${baseURL}/index.json`)).json()) as {
+    entries: Record<string, { id: string; type: string }>;
+  };
   const stories = Object.values(index.entries)
     .filter((entry) => entry.type === "story" && /^(features|patterns)-/.test(entry.id))
     .map((entry) => entry.id);
-  await response.close();
 
+  const width = first.viewportSize()!.width;
+  const context = first.context();
   const wrapped: string[] = [];
-  for (const width of [1440, 390]) {
-    let context = await browser.newContext({ viewport: { width, height: 900 } });
-    let page = await context.newPage();
-    for (const [position, story] of stories.entries()) {
-      // A long sweep outlives a single page, so each batch of stories gets a fresh one.
-      if (position > 0 && position % 40 === 0) {
-        await context.close();
-        context = await browser.newContext({ viewport: { width, height: 900 } });
-        page = await context.newPage();
-      }
-      await page.goto(`${testInfo.project.use.baseURL}/iframe.html?id=${story}&viewMode=story`);
-      await page
-        .locator("#storybook-root")
-        .waitFor({ state: "attached", timeout: 15_000 })
-        .catch(() => {});
-      await page.waitForTimeout(150).catch(() => {});
-      for (const action of await headerActions(page).catch(() => [])) {
-        if (action.height > action.single + 1) {
-          wrapped.push(`${story} @${width}: ${action.name} is ${action.height}px`);
-        }
+  let measured = 0;
+  let page = first;
+  for (const [position, story] of stories.entries()) {
+    // A long sweep outlives a single page, so each batch of stories gets a fresh one.
+    if (position > 0 && position % 40 === 0) {
+      await page.close();
+      page = await context.newPage();
+    }
+    await page.goto(`/iframe.html?id=${story}&viewMode=story`);
+    // "error" marks a finding the story's own checks report, such as an accessibility rule; the
+    // story is rendered and measurable either way.
+    await expect(page.locator("#storybook-root"), story).toHaveAttribute(
+      "data-story-ready",
+      /^(true|error)$/,
+    );
+    const actions = await headerActions(page);
+    measured += actions.length > 0 ? 1 : 0;
+    for (const action of actions) {
+      if (action.height > action.single + 1) {
+        wrapped.push(`${story} @${width}: ${action.name} is ${action.height}px`);
       }
     }
-    await context.close();
   }
 
+  // Some stories' play functions assume a desktop viewport and already fail at 390px on main;
+  // test:stories owns them. Their assertion errors are not this sweep's findings, anything else is.
+  if (width < 500) {
+    const play = /Tf:|TestingLibraryElementError/;
+    browserErrors.splice(
+      0,
+      browserErrors.length,
+      ...browserErrors.filter((error) => !play.test(error.message)),
+    );
+  }
+
+  // Reported so a sweep that measures nothing is noticed.
+  console.log(`${stories.length} stories swept at ${width}px, ${measured} with header actions`);
+  expect(measured).toBeGreaterThan(0);
   expect(wrapped).toEqual([]);
 });
 
@@ -443,4 +458,48 @@ test("the collection filter's glyph starts on the content edge", async ({ page }
   );
 
   expect(glyph.start).toBeCloseTo(heading.start, 0);
+});
+
+test("a selected tab's rule is still painted in forced colors", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await open(page, "components-tabs--default");
+  const rule = await page.getByRole("tab", { selected: true }).evaluate((node) => {
+    const style = getComputedStyle(node, "::after");
+    const page = getComputedStyle(node);
+    return {
+      painted:
+        style.backgroundColor !== "rgba(0, 0, 0, 0)" &&
+        style.backgroundColor !== page.backgroundColor,
+      height: Number.parseFloat(style.height),
+    };
+  });
+
+  expect(rule.painted).toBe(true);
+  expect(rule.height).toBeGreaterThan(0);
+});
+
+test("a cut-off tab's tooltip stays open while the pointer is on it", async ({ page }) => {
+  await open(page, "components-tabs--long-label");
+  await page
+    .getByRole("tab", { name: "Application evidence and supporting financial documentation" })
+    .hover();
+  const tooltip = page.getByRole("tooltip");
+  await expect(tooltip).toBeVisible();
+
+  const box = (await tooltip.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+  // Past the shared close delay, a pointer on the tooltip keeps it open.
+  await page.waitForTimeout(500);
+  await expect(tooltip).toBeVisible();
+
+  await page.mouse.move(700, 500);
+  await expect(tooltip).toHaveCount(0);
+});
+
+test("a large quiet action aligned at the end meets the edge with its text", async ({ page }) => {
+  await open(page, "components-button--aligned-at-end");
+  const large = page.getByRole("button", { name: "Review all assessments" });
+  const parent = await edges(large.locator(".."));
+
+  expect((await textEdges(large)).end).toBeCloseTo(parent.right, 0);
 });
