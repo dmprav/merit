@@ -11,6 +11,8 @@ import {
 } from "react-aria-components/Select";
 
 import rowStyles from "../../../foundations/list-row.module.css";
+import { popoverOffset, popoverScroller, popoverSurface } from "../../../foundations/popover";
+import scrollStyles from "../../../foundations/scroll-area.module.css";
 import { IconBase, type IconName } from "../../icon/icon-base";
 import { FieldLabel, FieldFeedback, type FieldPresentationProps } from "../field-parts";
 import fieldStyles from "../field.module.css";
@@ -93,8 +95,8 @@ export const Select = <Id extends string>({
             {label}
           </FieldLabel>
           <SelectTrigger label={label} appearance={appearance} isInvalid={isInvalid} />
-          <Popover className={styles.popover} offset={4}>
-            <ListBox className={styles.list}>
+          <Popover className={`${popoverSurface} ${styles.popover}`} offset={popoverOffset}>
+            <ListBox className={popoverScroller}>
               {items.map((item) => (
                 <ListBoxItem
                   key={item.id}
@@ -114,7 +116,7 @@ export const Select = <Id extends string>({
               ))}
             </ListBox>
             {actions && actions.length > 0 && (
-              <div className={rowStyles.actionGroup}>
+              <div className={`${rowStyles.actionGroup} ${scrollStyles.dividerUntilEnd}`}>
                 {actions.map((action) => (
                   // Opt out of the select's trigger context; this is a separate command.
                   <RowButton

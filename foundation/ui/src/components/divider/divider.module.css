@@ -1,10 +1,39 @@
 .divider {
   width: 100%;
-  margin: 0;
+  /* The visible space on each side equals the spacing token whatever gap the parent Stack adds. */
+  margin: max(0px, calc(var(--divider-spacing) - var(--parent-stack-gap, 0px))) 0;
   border: 0;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-subtle);
 }
 
-.divider[data-tone="emphasis"] {
-  border-top-color: var(--action);
+.divider[data-strength="edge"] {
+  border-top-color: var(--border);
+}
+
+.divider[data-spacing="0"] {
+  --divider-spacing: 0px;
+}
+
+.divider[data-spacing="2"] {
+  --divider-spacing: var(--space-2);
+}
+
+.divider[data-spacing="3"] {
+  --divider-spacing: var(--space-3);
+}
+
+.divider[data-spacing="4"] {
+  --divider-spacing: var(--space-4);
+}
+
+.divider[data-spacing="5"] {
+  --divider-spacing: var(--space-5);
+}
+
+.divider[data-spacing="6"] {
+  --divider-spacing: var(--space-6);
+}
+
+.divider[data-spacing="8"] {
+  --divider-spacing: var(--space-8);
 }

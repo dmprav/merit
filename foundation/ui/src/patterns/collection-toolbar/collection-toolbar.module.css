@@ -19,18 +19,22 @@
 }
 
 .filters {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
+/* The criteria are the panel's one scroller, so a long set scrolls and the reset stays in view. */
 .criteria {
   display: grid;
   gap: 2px;
-  padding-block: var(--space-1);
 }
 
 .reset {
+  /* stylelint-disable-next-line property-no-unknown -- CSS Modules shares the popover divider rule. */
+  composes: divided from "../../foundations/popover.module.css";
   border-top: 1px solid var(--border);
-  padding-top: var(--space-1);
+  padding: var(--popover-inset, 0px) var(--divider-inline);
 }
 
 .summary {

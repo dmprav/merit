@@ -8,7 +8,7 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import { reviewerHistoryInput } from "../../api/reviewer";
 import type { ReviewerSummary, ReviewerService } from "../../api/reviewer";
-import { compareReviewBasis, reviewCriteriaSchema } from "../../domain";
+import { compareReviewBasis, decideReviewerWork, reviewCriteriaSchema } from "../../domain";
 import {
   activeReviewer,
   reviewerIdentityCurrent,
@@ -110,6 +110,10 @@ export const readReviewerAssignment = (
       return { status: "not_found" };
     }
     const assignment = reviewerSummary(record);
+    const work = decideReviewerWork({
+      permitted: record.evidenceAvailable,
+      withdrawn: record.withdrawn,
+    });
     if (!record.evidenceAvailable) {
       return {
         status: "ok",
@@ -119,6 +123,7 @@ export const readReviewerAssignment = (
           criteria: null,
           draft: null,
           assessment: null,
+          work,
         },
       };
     }
@@ -132,6 +137,7 @@ export const readReviewerAssignment = (
         criteria: evidence.criteria,
         draft: draft ? { revision: draft.revision, content: draft.content } : null,
         assessment: await readReviewerAssessment(tx, record),
+        work,
       },
     };
   });

@@ -40,7 +40,7 @@ const focusTraversalSchema = z.discriminatedUnion("complete", [
   z.object({ complete: z.literal(true) }),
   z.object({
     complete: z.literal(false),
-    reason: z.enum(["cap", "opaqueFrame", "trackerLost"]),
+    reason: z.enum(["cap", "opaqueFrame", "trackerLost", "siblingFocus"]),
   }),
 ]);
 
@@ -138,6 +138,8 @@ const INCOMPLETE_TRAVERSAL_LABELS = {
   opaqueFrame: () =>
     "Incomplete: focus entered a cross-origin frame whose controls cannot be inspected",
   trackerLost: () => "Incomplete: the page navigated to a new document during focus traversal",
+  siblingFocus: () =>
+    "Incomplete: focus did not move to a sibling item, so the focused item could not be compared with an unfocused one",
 } as const;
 
 /** Why Tab traversal stopped short, or undefined when it reached every stop. */

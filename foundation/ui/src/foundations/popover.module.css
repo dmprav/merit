@@ -1,0 +1,80 @@
+/*
+ * The one raised surface for everything that opens over the page beside a control: select lists,
+ * menus, pickers, calendars, reference popovers, and tooltips. The surface has no padding of its
+ * own, so a scroller inside it carries the inset and its scrollbar sits at the surface edge.
+ * Entrance and exit come from `motion.module.css`; see `popover.ts` for the class that joins them.
+ */
+.surface {
+  /* How far rows sit from the surface edge, and the padding a padded parent adds beyond it. */
+  --popover-inset: var(--space-1);
+  --popover-gutter: 0px;
+  --motion-duration: var(--motion-fast);
+  /* The footer edge follows how far the popover's list has scrolled. */
+  timeline-scope: --popover-list;
+  --edge-timeline: --popover-list;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-raised);
+  border-radius: var(--popover-radius);
+  background: var(--surface);
+  color: var(--foreground);
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the shared popover surface defines it */
+  box-shadow: var(--popover-shadow);
+  /* Popovers render outside the application shell, so they set the body text size themselves. */
+  font-size: var(--popover-font-size, var(--text-body));
+}
+
+/* The shared focus bar along the bottom divider of a search that heads a list. */
+.focusBar:focus-within {
+  box-shadow: inset 0 -2px var(--focus);
+}
+
+/*
+ * A divider inside a popover runs edge to edge: it bleeds through the padding of a padded parent
+ * and puts the rows' inset back inside, so content keeps one left edge. Users set their own
+ * padding-inline from `--divider-inline`, and any block spacing.
+ */
+.divided {
+  --divider-inline: calc(var(--popover-gutter, 0px) + var(--popover-inset, 0px));
+  margin-inline: calc(-1 * var(--popover-gutter, 0px));
+}
+
+/*
+ * A list that scrolls inside a popover. It is cut mid-row so a long list visibly continues, and
+ * its padding keeps row hover and selected backgrounds clear of the scrollbar.
+ */
+.scroller {
+  min-height: 0;
+  max-height: 19rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-timeline: --popover-list block;
+  padding: var(--popover-inset, 0px);
+  scroll-padding-block: var(--popover-inset, 0px);
+  outline: none;
+}
+
+/* A list with nothing to move to, such as an empty one, still shows the shared focus bar. */
+.scroller:is([role="listbox"], [role="menu"]):focus-visible {
+  box-shadow: inset 3px 0 var(--focus);
+}
+
+@media (forced-colors: active) {
+  .focusBar:focus-within {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .surface {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+    box-shadow: none;
+  }
+
+  .scroller:is([role="listbox"], [role="menu"]):focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

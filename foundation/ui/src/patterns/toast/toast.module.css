@@ -34,6 +34,7 @@
   border: 1px solid var(--border-raised);
   border-radius: var(--panel-radius);
   background: var(--surface);
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- a toast is not a popover but floats at the same elevation */
   box-shadow: var(--popover-shadow);
   color: var(--foreground);
   font-size: var(--text-detail);

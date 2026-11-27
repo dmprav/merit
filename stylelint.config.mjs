@@ -110,6 +110,18 @@ export default {
       },
     },
     {
+      // A popover takes its surface from foundations/popover.module.css instead of restyling it.
+      // The surface itself, the toast, and the search palette box (not popovers) say why they
+      // borrow the shadow with a scoped disable.
+      files: ["foundation/ui/src/**/*.css"],
+      rules: {
+        "declaration-property-value-disallowed-list": [
+          { "box-shadow": [/--popover-shadow/] },
+          { message: "Use the shared popover surface from foundations/popover.module.css" },
+        ],
+      },
+    },
+    {
       files: ["foundation/ui/src/foundations/tokens.css"],
       rules: { "color-no-hex": null, "color-named": null, "function-disallowed-list": null },
     },

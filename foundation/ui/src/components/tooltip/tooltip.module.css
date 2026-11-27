@@ -1,47 +1,12 @@
 .tooltip {
-  z-index: 50;
+  --popover-font-size: var(--text-detail);
   width: max-content;
   max-width: min(18rem, calc(100vw - 32px));
   /* The same raised surface as an explanation opened by press, so hover and press look alike. */
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-raised);
-  border-radius: var(--panel-radius);
-  background: var(--surface);
-  color: var(--foreground);
-  box-shadow: var(--popover-shadow);
   font-family: var(--font-sans);
-  font-size: var(--text-detail);
   font-weight: var(--weight-regular);
   line-height: 1.45;
   overflow-wrap: anywhere;
   text-wrap: pretty;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .tooltip[data-entering]:not([data-exiting]) {
-    animation: tooltip-in var(--motion-fast) ease-out;
-  }
-
-  .tooltip[data-exiting] {
-    animation: tooltip-in var(--motion-fast) ease-in reverse forwards;
-  }
-}
-
-@media (forced-colors: active) {
-  .tooltip {
-    border-color: CanvasText;
-    background: Canvas;
-    color: CanvasText;
-    box-shadow: none;
-  }
-}
-
-@keyframes tooltip-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
 }

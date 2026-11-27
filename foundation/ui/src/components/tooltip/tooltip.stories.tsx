@@ -44,7 +44,7 @@ export const Keyboard: Story = {
     // Leave the keyboard state open for visual inspection.
     await userEvent.tab();
     await userEvent.tab({ shift: true });
-    await expect(await page.findByRole("tooltip")).toBeVisible();
+    await waitFor(async () => expect(await page.findByRole("tooltip")).toBeVisible());
   },
 };
 
@@ -56,16 +56,16 @@ export const Hover: Story = {
 
     const page = within(canvasElement.ownerDocument.body);
     const tooltip = await page.findByRole("tooltip");
-    await expect(tooltip).toBeVisible();
+    await waitFor(() => expect(tooltip).toBeVisible());
 
     await userEvent.unhover(canvas.getByRole("button"));
     await userEvent.hover(tooltip);
-    await expect(tooltip).toBeVisible();
+    await waitFor(() => expect(tooltip).toBeVisible());
     await userEvent.unhover(tooltip);
     await waitFor(() => expect(page.queryByRole("tooltip")).not.toBeInTheDocument());
 
     await userEvent.hover(canvas.getByRole("button"));
-    await expect(await page.findByRole("tooltip")).toBeVisible();
+    await waitFor(async () => expect(await page.findByRole("tooltip")).toBeVisible());
   },
 };
 
@@ -82,9 +82,9 @@ export const LongContent: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.tab();
     canvas.getByRole("button").focus();
-    await expect(
-      await within(canvasElement.ownerDocument.body).findByRole("tooltip"),
-    ).toBeVisible();
+    await waitFor(async () =>
+      expect(await within(canvasElement.ownerDocument.body).findByRole("tooltip")).toBeVisible(),
+    );
   },
 };
 

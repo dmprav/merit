@@ -33,7 +33,6 @@
 }
 
 .assignment {
-  padding-block-end: var(--space-4);
   overflow-wrap: anywhere;
 }
 

@@ -82,10 +82,10 @@
 
 .list[data-divided] {
   gap: 0;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .list[data-divided] .item {
   padding-block: var(--space-3);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-subtle);
 }

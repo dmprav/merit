@@ -737,7 +737,7 @@ const ReviewFeedback = ({ work }: { work: ReturnType<typeof useReview> }) => {
     <>
       {(error || refreshError) && (
         <div>
-          <Divider />
+          <Divider strength="edge" spacing={0} />
           <div className={styles.workspaceFeedback}>
             {error && (
               <Notice appearance="inline" role="alert" tone="danger">

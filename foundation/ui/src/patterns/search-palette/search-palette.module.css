@@ -14,6 +14,7 @@
   border: 1px solid var(--border);
   border-radius: var(--panel-radius);
   background: var(--surface);
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- the palette box is a modal, not a popover, at the same elevation */
   box-shadow: var(--popover-shadow);
 }
 
@@ -67,6 +68,8 @@
 }
 
 .field {
+  /* stylelint-disable-next-line property-no-unknown -- CSS Modules shares the popover focus bar. */
+  composes: focusBar from "../../foundations/popover.module.css";
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -128,7 +131,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-timeline: --search-results block;
-  padding: var(--space-3);
+  padding: var(--space-2);
   outline: none;
 }
 
@@ -152,35 +155,21 @@
 
 .heading {
   order: 0;
+  /* The same inset as a row's content, so headings and rows share one left edge. */
   padding: var(--space-2) var(--space-2) var(--space-1);
   color: var(--muted);
   font-size: var(--text-meta);
   font-weight: var(--weight-heading);
 }
 
+/* The shared list row, taller for a title with a detail line and a destination link. */
 .option {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+  /* stylelint-disable-next-line property-no-unknown -- CSS Modules builds the option on the shared row, emitted before this rule. */
+  composes: row from "../../foundations/list-row.module.css";
   min-height: var(--target-touch);
-  border-radius: calc(var(--control-radius) - 2px);
-  padding: var(--space-2) var(--space-3);
-  color: var(--foreground);
-  font-size: var(--text-control);
+  gap: var(--space-3);
+  padding-block: var(--space-2);
   text-decoration: none;
-  cursor: pointer;
-  outline: none;
-}
-
-.option[data-hovered],
-.option[data-focused] {
-  background: var(--surface-muted);
-}
-
-.option[data-focus-visible] {
-  background: var(--action-subtle);
-  outline: 1px solid var(--focus);
-  outline-offset: -1px;
 }
 
 .primary {
@@ -249,7 +238,18 @@
   }
 }
 
-/* Rows of an earlier query show no highlight while newer results load. */
+/* The top match reads as a hovered row until a key moves the highlight; then it takes the bar. */
+.palette:not([data-navigated]) .option[data-focus-visible] {
+  background: var(--surface-muted);
+  box-shadow: none;
+}
+
+/* Rows of an earlier query read as normal rows, without a highlight, while newer results load. */
+.option[data-disabled] {
+  color: var(--foreground);
+  cursor: default;
+}
+
 .option[data-disabled]:is([data-focused], [data-focus-visible]) {
   background: none;
   box-shadow: none;
@@ -319,10 +319,5 @@
   /* The field is the box's only text control; forced colors restore an explicit indicator. */
   .field:focus-within {
     border-bottom-color: Highlight;
-  }
-
-  .option[data-focused],
-  .option[data-focus-visible] {
-    outline: 1px solid Highlight;
   }
 }

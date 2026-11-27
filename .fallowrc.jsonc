@@ -28,6 +28,13 @@
     ],
     "suggestInlineSuppression": false,
   },
+  "ignoreExports": [
+    {
+      // Shared rules other CSS modules reach through `composes`, which the import graph does not follow.
+      "file": "foundation/ui/src/foundations/popover.module.css",
+      "exports": ["focusBar", "divided"],
+    },
+  ],
   "supportEntry": [
     // The release image starts its HTTP server through app/runtime/start.
     "app/scripts/serve.ts",

@@ -14,6 +14,7 @@ import {
   PopoverDialog,
   SidePanel as SidePanelFrame,
 } from "./dialog";
+import storyStyles from "./dialog.stories.module.css";
 
 const PopoverExample = (args: ComponentProps<typeof ModalDialog>) => {
   const [open, setOpen] = useState(false);
@@ -237,6 +238,60 @@ export const Picker: Story = {
     await waitFor(() =>
       expect(within(dialog).getByRole("textbox", { name: "Change status…" })).toHaveFocus(),
     );
+  },
+};
+
+const reviewers = Array.from({ length: 14 }, (_, index) => ({
+  id: `reviewer-${index}`,
+  label: `Reviewer ${index + 1}`,
+}));
+
+const PickerWithNotesExample = () => {
+  const [reviewer, setReviewer] = useState<string | null>(null);
+  const [items, setItems] = useState(reviewers);
+
+  // Adding a reviewer appends one and chooses it, so the action completes in the example.
+  const addReviewer = () => {
+    const added = { id: `reviewer-${items.length}`, label: `Reviewer ${items.length + 1}` };
+    setItems([...items, added]);
+    setReviewer(added.id);
+  };
+
+  return (
+    <PickerPopover
+      title="Request a review"
+      placement="bottom start"
+      isOpen
+      trigger={<Button variant="secondary">Request review</Button>}
+    >
+      <div>
+        <div className={storyStyles.pickerNote}>
+          <Text as="p" variant="caption">
+            Choose a reviewer to record a request. No message is sent.
+          </Text>
+        </div>
+        <ChoiceList
+          label="Reviewer"
+          searchLabel="Find a reviewer"
+          emptyLabel="No matching reviewer"
+          items={items}
+          selectedKey={reviewer}
+          onChoose={setReviewer}
+          actions={[{ id: "add", label: "Add reviewer", icon: "add", onAction: addReviewer }]}
+        />
+      </div>
+    </PickerPopover>
+  );
+};
+
+/** A long list with a note above it: the picker is the one scroller, with its scrollbar at the edge. */
+export const PickerWithNotes: Story = {
+  render: () => <PickerWithNotesExample />,
+  play: async ({ canvasElement }) => {
+    const dialog = await within(canvasElement.ownerDocument.body).findByRole("dialog", {
+      name: "Request a review",
+    });
+    await waitFor(() => expect(within(dialog).getByRole("textbox")).toHaveFocus());
   },
 };
 
