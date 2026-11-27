@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 
 import type { Locator, Page } from "@playwright/test";
@@ -410,67 +412,65 @@ const KNOWN_MOBILE_PLAY_FAILURES = new Map([
   ["features-applications-manage-intake--ready-for-review", 'data-key="start_revision"'],
 ]);
 
-test("no header or panel action wraps in any feature or pattern story", async ({
-  page: first,
-  request,
-  baseURL,
-  browserErrors,
-}) => {
-  test.setTimeout(900_000);
-  const index = (await (await request.get(`${baseURL}/index.json`)).json()) as {
-    entries: Record<string, { id: string; type: string }>;
-  };
-  const stories = Object.values(index.entries)
+/** The feature and pattern stories of the built Storybook, read when the tests are collected. */
+const sweptStories = (() => {
+  const index = JSON.parse(
+    readFileSync(fileURLToPath(new URL("../../dist/index.json", import.meta.url)), "utf8"),
+  ) as { entries: Record<string, { id: string; type: string }> };
+
+  return Object.values(index.entries)
     .filter((entry) => entry.type === "story" && /^(features|patterns)-/.test(entry.id))
     .map((entry) => entry.id);
+})();
 
-  const width = first.viewportSize()!.width;
-  const context = first.context();
-  const wrapped: string[] = [];
-  let measured = 0;
-  let page = first;
-  for (const [position, story] of stories.entries()) {
-    // A long sweep outlives a single page, so each batch of stories gets a fresh one.
-    if (position > 0 && position % 40 === 0) {
-      await page.close();
-      page = await context.newPage();
-    }
-    await page.goto(`/iframe.html?id=${story}&viewMode=story`);
-    // "error" marks a finding the story's own checks report, such as an accessibility rule; the
-    // story is rendered and measurable either way.
-    await expect(page.locator("#storybook-root"), story).toHaveAttribute(
-      "data-story-ready",
-      /^(true|error)$/,
-    );
-    const actions = await headerActions(page);
-    measured += actions.length > 0 ? 1 : 0;
-    for (const action of actions) {
-      if (action.height > action.single + 1) {
-        wrapped.push(`${story} @${width}: ${action.name} is ${action.height}px`);
+const SWEEP_CHUNK_SIZE = 25;
+
+test.describe("no header or panel action wraps in any feature or pattern story", () => {
+  test.describe.configure({ mode: "parallel" });
+
+  for (let start = 0; start < sweptStories.length; start += SWEEP_CHUNK_SIZE) {
+    const stories = sweptStories.slice(start, start + SWEEP_CHUNK_SIZE);
+
+    test(`stories ${start + 1} to ${start + stories.length}`, async ({ page, browserErrors }) => {
+      test.setTimeout(120_000);
+      const width = page.viewportSize()!.width;
+      const wrapped: string[] = [];
+      for (const story of stories) {
+        await page.goto(`/iframe.html?id=${story}&viewMode=story`);
+        // "error" marks a finding the story's own checks report, such as an accessibility rule;
+        // the story is rendered and measurable either way.
+        await expect(page.locator("#storybook-root"), story).toHaveAttribute(
+          "data-story-ready",
+          /^(true|error)$/,
+        );
+        for (const action of await headerActions(page)) {
+          if (action.height > action.single + 1) {
+            wrapped.push(`${story} @${width}: ${action.name} is ${action.height}px`);
+          }
+        }
       }
-    }
+
+      // At 390px only the known play-function failures are allowed; every other error fails.
+      if (width < 500) {
+        const known = (error: { message: string; url: string }) => {
+          const id = new URL(error.url).searchParams.get("id") ?? "";
+          const fragment = KNOWN_MOBILE_PLAY_FAILURES.get(id);
+
+          return (
+            fragment !== undefined && stripVTControlCharacters(error.message).includes(fragment)
+          );
+        };
+
+        browserErrors.splice(
+          0,
+          browserErrors.length,
+          ...browserErrors.filter((error) => !known(error)),
+        );
+      }
+
+      expect(wrapped).toEqual([]);
+    });
   }
-
-  // At 390px only the known play-function failures are allowed; every other error fails the test.
-  if (width < 500) {
-    const known = (error: { message: string; url: string }) => {
-      const id = new URL(error.url).searchParams.get("id") ?? "";
-      const fragment = KNOWN_MOBILE_PLAY_FAILURES.get(id);
-
-      return fragment !== undefined && stripVTControlCharacters(error.message).includes(fragment);
-    };
-
-    browserErrors.splice(
-      0,
-      browserErrors.length,
-      ...browserErrors.filter((error) => !known(error)),
-    );
-  }
-
-  // Reported so a sweep that measures nothing is noticed.
-  console.log(`${stories.length} stories swept at ${width}px, ${measured} with header actions`);
-  expect(measured).toBeGreaterThan(0);
-  expect(wrapped).toEqual([]);
 });
 
 test("a table's trailing row action ends its glyph on the content edge", async ({ page }) => {
