@@ -28,7 +28,10 @@ export const Disclosure = ({
   /** How many entries the panel holds, shown beside the title. */
   count?: number;
   headingLevel?: 2 | 3 | 4;
-  /** Lines the panel up with the title. Turn off for content that carries its own leading icons. */
+  /**
+   * Lines the panel up with the title. Turn off for content that must line up with rows outside
+   * the disclosure, as in navigation.
+   */
   indent?: boolean;
   defaultExpanded?: boolean;
   /** The caller owns the open state, such as a log entry that folds when its work is done. */

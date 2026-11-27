@@ -81,6 +81,22 @@ export const RecordingFailure: Story = {
     await waitFor(async () => expect(await canvas.findByRole("alert")).toBeVisible());
   },
 };
+/** A long recovery message under the title stays inside the page on a narrow screen. */
+export const RenameConflict: Story = {
+  args: { state: "complete" },
+  beforeEach: () => {
+    mocked(editApplication).mockResolvedValueOnce({ status: "conflict" });
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(await canvas.findByRole("button", { name: "Neighbour Table" }));
+    await userEvent.type(
+      await canvas.findByRole("textbox", { name: /Rename application|Correct application title/ }),
+      " again{Enter}",
+    );
+
+    await expect(await canvas.findByRole("alert")).toBeVisible();
+  },
+};
 export const ConfirmDiscardRevision: Story = {
   args: { state: "revision" },
   play: async ({ canvas, canvasElement, userEvent }) => {

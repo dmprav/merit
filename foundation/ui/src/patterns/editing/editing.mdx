@@ -48,7 +48,8 @@ keeping an unsuccessful choice visible for retry.
 `InlineName` renames in place. Activating the name turns it into a field that occupies
 exactly the box the name did, with the same font, line height, and text position, so
 nothing around it moves. Enter or leaving the field saves; Escape reverts and returns focus
-to the name. An unchanged or empty name reverts without saving. There are no Save or Cancel
+to the name. Enter and Escape keep or return focus to the name, while leaving the field leaves
+focus where the person put it. A long name wraps in both modes and is never truncated. An unchanged or empty name reverts without saving. There are no Save or Cancel
 buttons: this single-field rename is the one exception to explicit save and close controls.
 A pencil in a trailing slot marks the name as editable, becomes a spinner while the save is
 pending (the field stays focused but read-only) or while the editor prepares, and becomes a

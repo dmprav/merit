@@ -75,12 +75,40 @@ it("cancels a rename with Escape without saving, even when blur follows, and ret
   const input = await openEditor(user);
   await user.type(input, " cancelled");
   await user.keyboard("{Escape}");
-  // The browser may report the editor's blur after it is gone.
-  fireEvent.blur(input);
 
   expect(save).not.toHaveBeenCalled();
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Community grants" })).toHaveFocus();
+});
+
+it("does not pull focus back to the name when a delayed Enter save resolves after focus moved", async () => {
+  let finish: (failure: string | null) => void = () => {};
+
+  const save = vi.fn(() => new Promise<string | null>((resolve) => (finish = resolve)));
+  render(
+    <>
+      <InlineName {...props} onSave={save} />
+      <button>Elsewhere</button>
+    </>,
+  );
+  const user = userEvent.setup();
+  await user.type(await openEditor(user), " 2027{Enter}");
+  await user.click(screen.getByRole("button", { name: "Elsewhere" }));
+  finish(null);
+
+  await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
+  expect(save).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("button", { name: "Elsewhere" })).toHaveFocus();
+});
+
+it("turns pasted line breaks into spaces and keeps Enter from adding one", async () => {
+  render(<InlineName {...props} onSave={async () => null} />);
+  const user = userEvent.setup();
+  const input = await openEditor(user);
+  await user.clear(input);
+  await user.paste("First\nSecond\r\nThird");
+
+  expect(input).toHaveValue("First Second Third");
 });
 
 it.each([

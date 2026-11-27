@@ -70,7 +70,7 @@ type Story = StoryObj<typeof meta>;
 const measure = (canvasElement: HTMLElement) => {
   const box = (canvasElement.querySelector("[data-inline-name-editor]") ??
     canvasElement.querySelector("h1 button"))!.getBoundingClientRect();
-  const field = canvasElement.querySelector("input");
+  const field = canvasElement.querySelector("textarea");
   const text = (field ?? canvasElement.querySelector("h1 button span"))!.getBoundingClientRect();
   return { height: box.height, width: box.width, textX: text.x };
 };

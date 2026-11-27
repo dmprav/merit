@@ -38,7 +38,7 @@ export const InlineName = ({
 }: InlineNameProps) => {
   const { t } = useTranslation("common");
   const errorId = useId();
-  const { editing, draft, setDraft, pending, error, trigger, onKeyDown, onBlur, open } =
+  const { editing, draft, setDraft, pending, error, trigger, field, onKeyDown, onBlur, open } =
     useNameEditing({ value, onSave, errorMessage, isPreparing, isDisabled });
 
   if (!editing) {
@@ -68,7 +68,9 @@ export const InlineName = ({
       <span className={styles.mirror} aria-hidden="true">
         {draft || value}
       </span>
-      <input
+      <textarea
+        ref={field}
+        rows={1}
         autoFocus
         aria-label={label}
         value={draft}
@@ -78,7 +80,8 @@ export const InlineName = ({
         aria-busy={busy}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? errorId : undefined}
-        onChange={(event) => setDraft(event.target.value)}
+        // A name is one line of text that wraps; pasted line breaks become spaces.
+        onChange={(event) => setDraft(event.target.value.replace(/\s*[\r\n]+\s*/g, " "))}
         onKeyDown={(event) => onKeyDown(event)}
         onBlur={() => onBlur()}
       />
@@ -111,10 +114,9 @@ const useNameEditing = ({
   const saveAtOpen = useRef(onSave);
   const awaitingPreparation = useRef(false);
   const trigger = useRef<HTMLButtonElement>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
   const requestTriggerFocus = useTriggerFocus(trigger);
   const saving = useRef(false);
-  // Escape reverts; the blur that follows must not save the draft it just discarded.
-  const reverted = useRef(false);
 
   useLayoutEffect(() => {
     if (editing && !isPreparing && awaitingPreparation.current) {
@@ -165,27 +167,23 @@ const useNameEditing = ({
     setError(failure);
     // A failure keeps the editor open with its draft; focus stays wherever the person has it.
     if (!failure) {
-      close(restore);
+      // A save that resolves after the person moved on must not pull focus back.
+      const active = document.activeElement;
+      close(restore && (!active || active === document.body || active === field.current));
     }
   };
 
-  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) =>
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) =>
     handleNameKey(event, {
       revert: () => {
         if (!saving.current) {
-          reverted.current = true;
           close(true);
         }
       },
       save: () => void save(true),
     });
 
-  const onBlur = () => {
-    if (reverted.current) {
-      return;
-    }
-    void save(false);
-  };
+  const onBlur = () => void save(false);
 
   return {
     editing,
@@ -194,12 +192,12 @@ const useNameEditing = ({
     pending,
     error,
     trigger,
+    field,
     onKeyDown,
     onBlur,
     open: () => {
       awaitingPreparation.current = Boolean(isPreparing);
       saveAtOpen.current = onSave;
-      reverted.current = false;
       setDraft(value);
       setEditing(true);
     },
@@ -221,7 +219,7 @@ const useTriggerFocus = (trigger: RefObject<HTMLButtonElement | null>) => {
 };
 
 const handleNameKey = (
-  event: KeyboardEvent<HTMLInputElement>,
+  event: KeyboardEvent<HTMLTextAreaElement>,
   actions: { revert: () => void; save: () => void },
 ) => {
   if (event.nativeEvent.isComposing) {

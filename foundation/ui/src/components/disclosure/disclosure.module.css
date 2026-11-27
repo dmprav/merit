@@ -1,4 +1,6 @@
+/* A parent may set --disclosure-inset to match the inset of the rows the trigger lines up with. */
 .disclosure {
+  /* Switch to --icon-size when it exists. */
   --disclosure-icon-size: 16px;
   --disclosure-gap: var(--space-2);
   min-width: 0;
@@ -17,11 +19,11 @@
   display: flex;
   align-items: center;
   gap: var(--disclosure-gap);
-  width: calc(100% + 2 * var(--space-2));
+  width: calc(100% + 2 * var(--disclosure-inset, var(--space-2)));
   min-height: var(--button-height);
-  margin-inline: calc(-1 * var(--space-2));
+  margin-inline: calc(-1 * var(--disclosure-inset, var(--space-2)));
   border-radius: var(--control-radius);
-  padding-inline: var(--space-2);
+  padding-inline: var(--disclosure-inset, var(--space-2));
   color: var(--muted);
   font-size: var(--text-control);
   font-weight: var(--weight-medium);
@@ -79,10 +81,16 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* React Aria measures the panel, so its height animates between closed and its content's. */
+/*
+ * React Aria measures the panel, so its height animates between closed and its content's. The
+ * clip stays on once open, so the panel bleeds sideways by the trigger's outdent and its
+ * content's hover backgrounds and rounded corners are not cut off.
+ */
 .panel {
   height: var(--disclosure-panel-height);
   overflow: clip;
+  margin-inline: calc(-1 * var(--disclosure-inset, var(--space-2)));
+  padding-inline: var(--disclosure-inset, var(--space-2));
   transition: height var(--motion-fast) ease-out;
 }
 

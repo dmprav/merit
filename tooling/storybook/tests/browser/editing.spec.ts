@@ -28,8 +28,6 @@ test.describe("inline name", () => {
     const editor = page.locator("[data-inline-name-editor]");
     const input = page.getByRole("textbox", { name: "Rename round" });
     await expect(page.getByRole("alert")).toBeVisible();
-    const withError = await rect(editor);
-    const headerWithError = await rect(header);
 
     await input.press("Escape");
     const trigger = name(page, "Local Connections 2027");
@@ -48,9 +46,72 @@ test.describe("inline name", () => {
     await input.press("Enter");
     await expect(page.getByRole("alert")).toBeVisible();
     expectSameBox(await rect(header), headerAtRest);
-    expectSameBox(await rect(header), headerWithError);
-    expect(Math.abs((await rect(editor)).y - withError.y)).toBeLessThanOrEqual(1);
     expectSameBox({ ...(await rect(editor)), width: resting.width }, resting);
+  });
+
+  const longName =
+    "Neighbourhood connections through shared meals and community activities across the whole district 2027";
+
+  test("a long name wraps in view and edit modes and keeps the same box", async ({ page }) => {
+    await open(page, "patterns-editing--inline-name-editor");
+    const input = page.getByRole("textbox", { name: "Rename round" });
+    const editor = page.locator("[data-inline-name-editor]");
+    const short = await rect(editor);
+
+    // The editor grows with what is typed, and Enter saves without adding a line break.
+    await input.fill(longName);
+    const growing = await rect(editor);
+    expect(growing.height).toBeGreaterThan(short.height * 1.5);
+    expect(await input.evaluate((node) => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
+    await input.press("Enter");
+
+    const trigger = name(page, longName);
+    await expect(trigger).toBeFocused();
+    const resting = await rect(trigger);
+    expectSameBox(resting, growing);
+    // Nothing is cut off: the wrapped text fits the box it sits in.
+    const text = trigger.locator("span").first();
+    expect(await text.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+    const textBox = await rect(text);
+    expect(textBox.height).toBeGreaterThan(short.height * 1.5);
+
+    await trigger.click();
+    await expect(input).toBeFocused();
+    expect(await input.inputValue()).not.toContain("\n");
+    expectSameBox(await rect(editor), resting);
+    expect(Math.abs((await rect(input)).x - textBox.x)).toBeLessThanOrEqual(1);
+  });
+
+  for (const story of ["inline-name-save-failure", "inline-name-pending"]) {
+    test(`a long name is not clipped in ${story}`, async ({ page }) => {
+      await open(page, `patterns-editing--${story}`);
+      const input = page.getByRole("textbox", { name: "Rename round" });
+      // "Local Connections 2027 updated" wraps within the story's 360px column.
+      await expect(input).toHaveValue("Local Connections 2027 updated");
+      const box = await rect(page.locator("[data-inline-name-editor]"));
+      expect(await input.evaluate((node) => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
+      expect(await input.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+      expect(box.width).toBeLessThanOrEqual(360);
+    });
+  }
+
+  test("a long failure message stays inside a narrow screen and ignores pointers", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await open(page, "features-applications-manage-intake--rename-conflict");
+    const alert = page.getByRole("alert").filter({ hasText: "Your edits are preserved" });
+    await expect(alert).toBeVisible();
+
+    const box = await rect(alert);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    await expect(alert).toHaveCSS("pointer-events", "none");
   });
 
   test("saves on Enter and on blur, and reverts on Escape", async ({ page }) => {

@@ -6,11 +6,16 @@
   margin-top: var(--space-2);
 }
 
-/* The toggle's chevron lines up with the destination icons; the pins keep the row gutter. */
+/*
+ * The disclosure outdents its trigger and panel by one gutter, so this gutter on both sides makes
+ * them span exactly the width of the navigation pills; the chevron then sits in the icon column.
+ */
 .pinned {
+  /* The navigation pills' inline padding. */
+  --disclosure-inset: 10px;
   min-width: 0;
   margin-bottom: var(--space-3);
-  padding-inline-start: var(--space-2);
+  padding-inline: var(--disclosure-inset);
 }
 
 .pinList {
@@ -19,7 +24,8 @@
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   min-width: 0;
-  margin-inline-start: calc(-1 * var(--space-2));
+  /* Takes back the gutter, so the pins are as wide as the pills above them. */
+  margin-inline: calc(-1 * var(--disclosure-inset));
 }
 
 .pinLabel {

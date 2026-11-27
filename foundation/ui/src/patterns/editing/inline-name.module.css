@@ -3,9 +3,10 @@
 .editor {
   display: inline-grid;
   grid-template-columns: minmax(0, 1fr) var(--inline-name-slot);
-  align-items: center;
+  align-items: start;
   column-gap: var(--space-2);
   max-width: 100%;
+  /* Switch to --icon-size when it exists. */
   --inline-name-slot: 16px;
 }
 
@@ -20,15 +21,20 @@
   text-align: start;
 }
 
-.text {
+/* A long name wraps; it is never cut off. The mirror and the textarea wrap the same way. */
+.text,
+.mirror,
+.input {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .slot {
   display: inline-flex;
+  align-items: center;
+  /* Centred on the first line of the name, however many lines it wraps to. */
+  height: 1lh;
   width: var(--inline-name-slot);
   color: var(--muted);
 }
@@ -44,6 +50,7 @@
 .mirror,
 .input {
   grid-area: 1 / 1;
+  align-self: stretch;
   min-width: 0;
   font: inherit;
   letter-spacing: inherit;
@@ -52,15 +59,15 @@
 
 /* Holds the text's width and height in the cell the input shares. */
 .mirror {
-  overflow: hidden;
   visibility: hidden;
-  white-space: pre;
 }
 
 /* Zero intrinsic width: the mirror, not the input's default size, sets the cell's width. */
 .input {
   width: 0;
   min-width: 100%;
+  resize: none;
+  overflow: hidden;
   margin: 0;
   padding: 0;
   border: 0;
@@ -68,7 +75,6 @@
   background: transparent;
   color: inherit;
   outline: none;
-  text-overflow: ellipsis;
 }
 
 /* Outside the box, so showing focus never moves the text. */
@@ -76,15 +82,18 @@
   box-shadow: 0 1px 0 var(--focus);
 }
 
-/* The error floats over what follows instead of pushing it down. */
+/* The error floats over what follows instead of pushing it down; its background keeps it legible. */
 .error {
   position: absolute;
   inset-block-start: 100%;
   inset-inline-start: 0;
   z-index: 1;
   width: max-content;
-  max-width: min(24rem, 100vw);
-  padding-block-start: var(--space-1);
+  /* The page header is the size container; the editor starts at its edge, so this fits the row. */
+  max-width: min(24rem, 100cqw);
+  padding-block: var(--space-1);
+  background: var(--background);
+  pointer-events: none;
   font-size: var(--text-detail);
   font-weight: var(--weight-regular);
   letter-spacing: normal;
