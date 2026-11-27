@@ -77,6 +77,8 @@ const useToggletipState = (
   // The pointer over the text keeps it open, and the shared delay covers the move back to the
   // button and the move away.
   const wanted = isFocused || hoverOpen || isOverContent;
+  // Hover or focus that shows a preview now or will once the delay passes.
+  const engaged = wanted || isHovered;
   const isOpen = isPinned || (wanted && !isDismissed);
 
   useEffect(() => {
@@ -87,14 +89,16 @@ const useToggletipState = (
 
   // A dismissal lasts until the preview would close anyway, then resets for the next time.
   useEffect(() => {
-    if (!wanted) {
+    if (!engaged) {
       setIsDismissed(false);
     }
-  }, [wanted]);
+  }, [engaged]);
 
+  // Only a current or pending preview stays dismissed; after a touch pin there is none, so the
+  // next hover or keyboard focus still previews.
   const dismiss = () => {
     setIsPinned(false);
-    setIsDismissed(true);
+    setIsDismissed(engaged);
   };
 
   useDismissal(isOpen, trigger, content, dismiss);

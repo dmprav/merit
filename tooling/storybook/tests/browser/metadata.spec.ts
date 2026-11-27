@@ -65,6 +65,37 @@ test.describe("toggletip", () => {
     await expect(content(page)).toHaveCount(0);
   });
 
+  test("stays closed after a quick press and Escape while the pointer rests on it", async ({
+    page,
+  }) => {
+    await open(page, toggletip);
+    // The press pins before the hover delay has passed, so no preview is showing yet.
+    await trigger(page).click();
+    await page.keyboard.press("Escape");
+    await expect(content(page)).toHaveCount(0);
+    await pastCloseDelay(page);
+    await expect(content(page)).toHaveCount(0);
+  });
+
+  test.describe("on a touch screen", () => {
+    test.use({ hasTouch: true });
+
+    test("a dismissed touch pin leaves the next keyboard focus free to preview", async ({
+      page,
+    }) => {
+      await open(page, toggletip);
+      await trigger(page).tap();
+      await expect(content(page)).toBeVisible();
+      await page.touchscreen.tap(2, 2);
+      await expect(content(page)).toHaveCount(0);
+
+      await page.locator("body").focus();
+      await page.keyboard.press("Tab");
+      await expect(trigger(page)).toBeFocused();
+      await expect(content(page)).toBeVisible();
+    });
+  });
+
   test("platform guard: the icon and surface stay painted in forced colors", async ({ page }) => {
     await open(page, "components-toggletip--pinned", { forcedColors: "active" });
     const paint = await trigger(page).evaluate((button) => {
