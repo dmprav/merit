@@ -158,6 +158,17 @@ it("closes from the popover's dismiss button for screen readers", async () => {
   await waitFor(() => expect(content()).not.toBeInTheDocument());
 });
 
+it("keeps a pinned text open when the page scrolls", async () => {
+  const user = userEvent.setup();
+  render(<Example />);
+  await user.click(screen.getByRole("button", { name: label }));
+  await screen.findByRole("group", { name: label });
+
+  fireEvent.scroll(document.body);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  expect(content()).toBeInTheDocument();
+});
+
 it("draws the icon for its tone", () => {
   render(
     <Toggletip label={label} tone="warning">
