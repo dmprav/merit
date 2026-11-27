@@ -148,6 +148,7 @@ export const Toggletip = ({
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const content = useRef<HTMLDivElement>(null);
+  const focusInContent = useRef(false);
   const { isOpen, setIsHovered, setIsFocused, setIsOverContent, dismiss, toggle } =
     useToggletipState(trigger, content);
 
@@ -165,8 +166,19 @@ export const Toggletip = ({
         aria-describedby={isOpen ? `${id}-text` : undefined}
         onPress={toggle}
         onHoverChange={setIsHovered}
-        onFocus={(event) => setIsFocused(event.target.matches(":focus-visible"))}
-        onBlur={() => setIsFocused(false)}
+        onFocus={(event) => {
+          // Focus coming back from the open text, as it does after its dismiss button, is not a
+          // new request for a preview.
+          const returning = focusInContent.current;
+          focusInContent.current = false;
+          setIsFocused(!returning && event.target.matches(":focus-visible"));
+        }}
+        onBlur={(event) => {
+          focusInContent.current =
+            event.relatedTarget instanceof Node &&
+            Boolean(content.current?.contains(event.relatedTarget));
+          setIsFocused(false);
+        }}
       >
         <IconBase name={toneIcons[tone]} />
       </ButtonBase>
