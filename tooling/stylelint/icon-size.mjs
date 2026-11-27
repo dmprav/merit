@@ -7,7 +7,9 @@ const messages = stylelint.utils.ruleMessages(ruleName, {
 });
 
 const iconCompound = /(?:^|[^\w.#-])svg(?![\w-])|\.icon(?![\w-])/;
-const dimension = /^(?:width|height|inline-size|block-size)$/;
+const dimension = /^(?:(?:min|max)-)?(?:width|height|inline-size|block-size)$/;
+// A local icon-size property may only alias a token, so a literal cannot hide behind the name.
+const iconSizeProperty = /^--icon-size/;
 const iconToken = /^var\(--icon-size[a-z-]*\)$/;
 // Their arguments describe other elements, not the element the declaration sizes.
 const relationalPseudo = /:(?:has|not)$/;
@@ -109,8 +111,9 @@ const sizesIcon = (node) => {
 };
 
 /**
- * An svg or `.icon` is sized by an icon-size token, so glyphs stay one size across controls. Only
- * the selector's subject counts: `.button:has(svg)` sizes the button, not the svg.
+ * An svg or `.icon` is sized, including its minimum and maximum, by an icon-size token, so glyphs
+ * stay one size across controls, and a local `--icon-size*` property only aliases one. Only the
+ * selector's subject counts: `.button:has(svg)` sizes the button, not the svg.
  * Limit: a stylesheet cannot tell which class a component hands to an icon, so only these two
  * selectors are checked; a differently named glyph class is caught in review.
  */
@@ -120,10 +123,13 @@ const rule = (enabled) => (root, result) => {
     return;
   }
   root.walkDecls((declaration) => {
-    if (!dimension.test(declaration.prop) || iconToken.test(declaration.value.trim())) {
+    if (iconToken.test(declaration.value.trim())) {
       return;
     }
-    if (!sizesIcon(declaration.parent)) {
+    const sizesIconHere =
+      iconSizeProperty.test(declaration.prop) ||
+      (dimension.test(declaration.prop) && sizesIcon(declaration.parent));
+    if (!sizesIconHere) {
       return;
     }
     stylelint.utils.report({
