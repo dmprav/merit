@@ -1,6 +1,6 @@
 # PanelSection
 
-Arranges supporting side-panel sections with equal spacing, quiet section headings, optional counts and status summaries, and quiet end-edge actions.
+Arranges supporting side-panel sections with equal `--space-section` spacing, quiet section headings, optional counts and status summaries, and quiet end-edge actions.
 
 ## Usage
 

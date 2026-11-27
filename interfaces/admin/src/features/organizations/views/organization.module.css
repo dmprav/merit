@@ -13,11 +13,13 @@
 
 .recordEditor {
   align-self: stretch;
+  min-height: var(--control-height-small);
   min-width: 0;
 }
 
 .recordValue {
   align-self: stretch;
+  min-height: var(--control-height-small);
   display: flex;
   align-items: center;
   justify-content: space-between;

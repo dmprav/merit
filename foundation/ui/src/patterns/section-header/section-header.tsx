@@ -7,7 +7,8 @@ import styles from "./section-header.module.css";
  * A section's heading with an optional count and aside, such as the section's action. Like
  * PageHeader, it owns the space before the section's content, and its actions are secondary or
  * quiet: filled buttons commit work in the content below. Levels 3 to 5 head nested
- * subsections, such as questions within a submission, keeping the document outline. quiet
+ * subsections, such as questions within a submission, keeping the document outline; each level
+ * steps down in size, so use the next level rather than skipping one for its look. quiet
  * suits the summary sections of a supporting pane, where the content matters more than the
  * headings, and keeps its row one control tall so headings line up whether or not they carry an
  * action. meta is one supporting line directly under the heading, such as a status summary of the
@@ -33,7 +34,7 @@ export const SectionHeader = ({
   emphasis?: "default" | "quiet";
   headingRef?: Ref<HTMLHeadingElement>;
 }) => (
-  <div className={styles.header} data-emphasis={emphasis}>
+  <div className={styles.header} data-emphasis={emphasis} data-level={level}>
     <Inline gap={3} justify="between">
       {createElement(
         `h${level}`,
