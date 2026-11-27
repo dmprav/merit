@@ -155,7 +155,8 @@ enforcement boundary and the limits of what Merit can know about external client
 without silently replacing newer saved information.**
 
 Keep reference material available during editing and provide explicit ways to
-save, close, and discard.
+save, close, and discard. The exception is a single-field rename, which commits on
+Enter or when focus leaves the field and reverts on Escape.
 
 The shared [editing pattern](../../foundation/ui/src/patterns/editing/editing.mdx) owns action
 semantics, draft lifetime, control presentation, and recovery. Individual workflows

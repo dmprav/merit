@@ -369,7 +369,13 @@ export const PinnedSection = ({
 
   return (
     <div className={styles.pinned}>
-      <Disclosure title={t("pins.section")} count={pins.length} headingLevel={2} defaultExpanded>
+      <Disclosure
+        title={t("pins.section")}
+        count={pins.length}
+        headingLevel={2}
+        indent={false}
+        defaultExpanded
+      >
         <div className={styles.pinList}>
           {kinds.map((kind) => {
             const group = pins.filter((pin) => pin.target.kind === kind);

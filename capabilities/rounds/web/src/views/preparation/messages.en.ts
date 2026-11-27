@@ -4,7 +4,6 @@ export const preparationMessages = {
     searchPeople: "Search people",
     noPeople: "No matching people",
     clearDate: "Clear date",
-    saveName: "Save name",
     updateBudget: "Update budget",
     undo: "Undo",
     undone: "Change undone",

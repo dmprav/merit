@@ -1,3 +1,5 @@
+import type { Locator } from "@playwright/test";
+
 import { test, expect, checkPage } from "@merit/test-support/browser";
 import { openNavigation } from "@merit/test-support/browser/navigation";
 
@@ -311,4 +313,37 @@ test("breadcrumbs preserve keyboard links and wrap long locations", async ({ pag
 
   await checkPage(page);
   await page.screenshot({ path: testInfo.outputPath("breadcrumbs-long-labels.png") });
+});
+
+test("pinned items line up with the other navigation items", async ({ page }) => {
+  await page.goto("/iframe.html?id=features-workspace-pins--pinned&viewMode=story");
+  await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+  const navigation = await openNavigation(page);
+  // On mobile the drawer slides in; compare positions only once it has settled.
+  await expect(page.locator("[data-entering], [data-exiting]")).toHaveCount(0);
+
+  const box = (locator: Locator) =>
+    locator.evaluate((node) => {
+      const { x, width } = node.getBoundingClientRect();
+      return { x, right: x + width };
+    });
+
+  const pinned = navigation.locator("a[data-pin-id]").first();
+  const other = navigation.locator("a[data-pin-collection]").first();
+  const chevron = navigation.getByRole("button", { name: /Pinned/ }).locator("svg");
+  const trigger = navigation.getByRole("button", { name: /Pinned/ });
+
+  // The pill and its trigger start and end where the other pills do, and the chevron sits
+  // in the icon column.
+  expect(Math.abs((await box(pinned)).x - (await box(other)).x)).toBeLessThanOrEqual(1);
+  expect(Math.abs((await box(trigger)).x - (await box(other)).x)).toBeLessThanOrEqual(1);
+  expect(Math.abs((await box(trigger)).right - (await box(other)).right)).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs((await box(chevron)).x - (await box(other.locator("svg").first())).x),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(
+      (await box(pinned.locator("svg").first())).x - (await box(other.locator("svg").first())).x,
+    ),
+  ).toBeLessThanOrEqual(1);
 });

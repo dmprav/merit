@@ -1,4 +1,7 @@
+/* A parent may set --disclosure-inset to match the inset of the rows the trigger lines up with. */
 .disclosure {
+  --disclosure-icon-size: var(--icon-size);
+  --disclosure-gap: var(--space-2);
   min-width: 0;
 }
 
@@ -7,18 +10,23 @@
   font-weight: inherit;
 }
 
-/* A quiet trigger whose label lines up with the content around it. */
+/*
+ * The whole row is the target. The trigger is outdented by its padding so the chevron lines up
+ * with the content around it while the hover background bleeds past it.
+ */
 .trigger {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: var(--space-1-5);
+  gap: var(--disclosure-gap);
+  width: calc(100% + 2 * var(--disclosure-inset, var(--space-2)));
   min-height: var(--button-height);
-  margin-inline-start: calc(-1 * var(--space-2));
+  margin-inline: calc(-1 * var(--disclosure-inset, var(--space-2)));
   border-radius: var(--control-radius);
-  padding-inline: var(--space-2);
+  padding-inline: var(--disclosure-inset, var(--space-2));
   color: var(--muted);
   font-size: var(--text-control);
   font-weight: var(--weight-medium);
+  text-align: start;
   cursor: pointer;
   outline: none;
   transition:
@@ -31,6 +39,10 @@
   color: var(--foreground);
 }
 
+.trigger[data-pressed] {
+  background: var(--border);
+}
+
 .trigger[data-focus-visible] {
   background: var(--action-subtle);
   color: var(--action);
@@ -39,31 +51,55 @@
   text-underline-offset: 4px;
 }
 
+/* First in the row, as the cue that it opens; the markup keeps the label first. */
 .chevron {
-  width: var(--icon-size-small);
-  height: var(--icon-size-small);
+  order: -1;
   color: var(--muted);
-  opacity: 0.8;
-  transition:
-    transform var(--motion-fast),
-    opacity var(--motion-fast);
+  transition: transform var(--motion-fast) ease-out;
 }
 
 .trigger[data-hovered] .chevron {
-  opacity: 1;
+  color: var(--foreground);
 }
 
 .disclosure[data-expanded] .chevron {
   transform: rotate(90deg);
 }
 
-.panel[aria-hidden="false"] {
+.chevron:dir(rtl) {
+  transform: rotate(180deg);
+}
+
+.disclosure[data-expanded] .chevron:dir(rtl) {
+  transform: rotate(90deg);
+}
+
+/*
+ * React Aria measures the panel, so its height animates between closed and its content's. The
+ * clip stays on once open, so the panel bleeds sideways by the trigger's outdent and its
+ * content's hover backgrounds and rounded corners are not cut off.
+ */
+.panel {
+  height: var(--disclosure-panel-height);
+  overflow: clip;
+  margin-inline: calc(-1 * var(--disclosure-inset, var(--space-2)));
+  padding-inline: var(--disclosure-inset, var(--space-2));
+  transition: height var(--motion-fast) ease-out;
+}
+
+/* Inside the measured panel, so the height includes the space above the content. */
+.content {
   padding-top: var(--space-2);
+}
+
+.content[data-indent] {
+  padding-inline-start: calc(var(--disclosure-icon-size) + var(--disclosure-gap));
 }
 
 @media (prefers-reduced-motion: reduce) {
   .trigger,
-  .chevron {
+  .chevron,
+  .panel {
     transition: none;
   }
 }

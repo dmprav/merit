@@ -101,10 +101,6 @@
   padding-bottom: var(--space-6);
 }
 
-.title:has([data-inline-name-editor]) {
-  flex: 1;
-}
-
 /* A contained page keeps its header in place above the regions that scroll. */
 @media (min-width: 901px) and (min-height: 600px) {
   :where([data-contained]) > :where(main) > .header {

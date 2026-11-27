@@ -15,7 +15,6 @@ export const en = {
   preparation: {
     close: "Close",
     discard: "Discard changes",
-    saveName: "Save name",
     undo: "Undo",
     accessLost: "You no longer have access to change this round. Your draft is still here.",
   },
