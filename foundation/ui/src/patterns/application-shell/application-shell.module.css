@@ -488,7 +488,7 @@ button.accountTrigger,
 
 .topbar,
 .content {
-  --page-gutter: 36px;
+  --page-gutter: var(--space-gutter);
 }
 
 .topbar {
@@ -512,7 +512,7 @@ button.accountTrigger,
 @media (min-width: 1400px) {
   .topbar,
   .content {
-    --page-gutter: 44px;
+    --page-gutter: var(--space-gutter-wide);
   }
 
   .content {

@@ -173,6 +173,14 @@
       "family": "spacing",
       "usage": "Between consecutive sections of a page or pane; the space under a section heading stays space-3."
     },
+    "space-gutter": {
+      "family": "spacing",
+      "usage": "The page's side gutter, shared by the top bar and content."
+    },
+    "space-gutter-wide": {
+      "family": "spacing",
+      "usage": "The page's side gutter on large screens."
+    },
     "space-8": {
       "family": "spacing",
       "usage": "Page-level separation."

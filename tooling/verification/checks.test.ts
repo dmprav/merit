@@ -502,6 +502,10 @@ it("requires tokens for spacing, corners, motion, layers, and icon sizes in shar
     ".a { z-index: 40; }",
     ".a svg { width: 14px; }",
     ".icon { height: 1rem; }",
+    ".a { --gap: 6px; gap: var(--gap); }",
+    ".a { --local-radius: 7px; }",
+    ".a { --d: 200ms; }",
+    ".a { --enter-duration: 200ms; }",
   ];
   const allowed = [
     ".a { padding: 0 var(--space-2); margin: auto; gap: calc(var(--space-2) * 2); }",
@@ -514,6 +518,8 @@ it("requires tokens for spacing, corners, motion, layers, and icon sizes in shar
     ".a { z-index: 2; }",
     ".a svg { width: var(--icon-size); height: var(--icon-size-small); }",
     ".box { width: 14px; }",
+    ".a { --page-gutter: var(--space-gutter); --card-radius: var(--control-radius); }",
+    ".a { --enter-duration: var(--motion-fast); --pane-inset: var(--space-4); }",
   ];
 
   const rules = async (code: string, path: string) =>

@@ -50,6 +50,9 @@
   --space-8: 2rem;
   /* Between consecutive sections, whatever container holds them. */
   --space-section: var(--space-7);
+  /* The page's side gutter, and its wider step on large screens. */
+  --space-gutter: 2.25rem;
+  --space-gutter-wide: 2.75rem;
 
   /* Page frame */
   --measure-page: 75rem;
@@ -111,13 +114,13 @@
   --motion-spin: 1s;
   --motion-sweep: 1.1s;
   --motion-delay: 300ms;
-  /* Layers, lowest to highest: a sticky header, a modal, a toast, the skip link. */
+  /* Layers, lowest to highest: a sticky header, a modal opened from the navigation drawer
+     (above it, below confirmation dialogs), a modal, a toast, the skip link. */
   --z-sticky: 3;
+  --z-drawer-modal: 35;
   --z-modal: 50;
   --z-toast: 60;
   --z-skip-link: 100;
-  /* A modal opened from the navigation drawer sits above it and below confirmation dialogs. */
-  --z-drawer-modal: 35;
   --dialog-shadow: 0 16px 64px #20283926;
   --popover-shadow: 0 1px 2px #2028390f, 0 10px 28px -6px #2028392e;
 }

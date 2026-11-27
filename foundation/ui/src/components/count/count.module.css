@@ -2,7 +2,6 @@
   display: inline-block;
   flex-shrink: 0;
   min-width: 1.25rem;
-  margin-inline-start: var(--space-1);
   border-radius: var(--badge-radius);
   padding-inline: var(--space-1-5);
   background: var(--count-background, var(--surface-muted));

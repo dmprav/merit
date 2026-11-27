@@ -46,11 +46,15 @@ const negativeEverywhere = new RegExp(String.raw`^(?=${negative})${token}$`);
 
 // Shared UI spacing is written with --space-* tokens; a length literal is a value tokens.css lacks.
 // A 1px or half-pixel hairline stays literal.
+// A local custom property named for spacing, such as `--page-gutter`, is held to the same rule.
 const uiSpacing =
-  "/^(padding|margin|inset|gap|row-gap|column-gap|top|right|bottom|left)(-(top|right|bottom|left|block|inline)(-(start|end))?)?$/";
+  "/^((padding|margin|inset|gap|row-gap|column-gap|top|right|bottom|left)(-(top|right|bottom|left|block|inline)(-(start|end))?)?|--[a-z-]*(gap|gutter|inset|outdent|spacing|padding|margin))$/";
 const literalLength = /(?<![\w.])(?!(?:1|0?\.5)px\b)(?:\d*\.\d+|[1-9]\d*)(?:px|rem|em|ch|pt)\b/;
 const literalTime = /(?<![\w.])\d*\.?\d+m?s\b/;
-const uiRadius = "/^border((-(top|bottom))?-(left|right|start|end))?(-(start|end))?-radius$/";
+const uiRadius =
+  "/^(border((-(top|bottom))?-(left|right|start|end))?(-(start|end))?-radius|--[a-z-]*-radius)$/";
+// Any local custom property is held to this: a time literal in one is only ever a duration.
+const uiTime = "/^((transition|animation)(-duration|-delay)?|--[a-z-]+)$/";
 // A radius token, or one inset from it so a nested surface stays concentric.
 const radiusValue =
   /^(?:(?:var\(--[a-z]+-radius\)|calc\(var\(--[a-z]+-radius\) - \d+px\)|0|50%|999px)(?:\s+|$))+$/;
@@ -165,13 +169,17 @@ export default {
           {
             "box-shadow": [/--popover-shadow/],
             [uiSpacing]: [literalLength],
-            "/^(transition|animation)(-duration|-delay)?$/": [literalTime],
+            [uiTime]: [literalTime],
           },
           {
             message: (property) =>
               property === "box-shadow"
                 ? "Use the shared popover surface from foundations/popover.module.css"
-                : `Use a token from tokens.css for "${property}": "--space-*" for spacing, "--motion-*" for durations`,
+                : /^(transition|animation)/.test(String(property))
+                  ? `Use a "--motion-*" token from tokens.css for "${property}"`
+                  : String(property).startsWith("--")
+                    ? `Use a "--space-*" or "--motion-*" token from tokens.css for "${property}"`
+                    : `Use a "--space-*" token from tokens.css for "${property}"`,
           },
         ],
         "declaration-property-value-allowed-list": [

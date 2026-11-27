@@ -10,7 +10,11 @@ const iconSelector = /(?:^|[\s>+~,(])svg(?![\w-])|\.icon(?![\w-])/;
 const dimension = /^(?:width|height|inline-size|block-size)$/;
 const iconToken = /^var\(--icon-size[a-z-]*\)$/;
 
-/** An svg or `.icon` is sized by an icon-size token, so glyphs stay one size across controls. */
+/**
+ * An svg or `.icon` is sized by an icon-size token, so glyphs stay one size across controls.
+ * Limit: a stylesheet cannot tell which class a component hands to an icon, so only these two
+ * selectors are checked; a differently named glyph class is caught in review.
+ */
 /** @type {import("stylelint").Rule} */
 const rule = (enabled) => (root, result) => {
   if (!enabled) {

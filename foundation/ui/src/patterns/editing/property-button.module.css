@@ -1,6 +1,6 @@
 .property[data-variant][data-variant] {
   display: inline-grid;
-  grid-template-columns: minmax(0, auto) 13px;
+  grid-template-columns: minmax(0, auto) var(--icon-size-small);
   align-items: center;
   min-height: var(--control-height-small);
   justify-content: start;
@@ -22,6 +22,6 @@
 .cue {
   flex-shrink: 0;
   color: var(--muted);
-  width: 13px;
-  height: 13px;
+  width: var(--icon-size-small);
+  height: var(--icon-size-small);
 }

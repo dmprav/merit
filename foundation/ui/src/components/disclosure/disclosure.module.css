@@ -40,8 +40,8 @@
 }
 
 .chevron {
-  width: 14px;
-  height: 14px;
+  width: var(--icon-size-small);
+  height: var(--icon-size-small);
   color: var(--muted);
   opacity: 0.8;
   transition:

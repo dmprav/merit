@@ -114,7 +114,6 @@ export const IconBase = ({ name, className }: { name: IconName; className?: stri
   return (
     <Glyph
       aria-hidden="true"
-      size={16}
       strokeWidth={name === "pinned" ? 1.25 : 1.75}
       // Solid glyphs mark a state by shape as well as tone: a pinned item, and the square that stops
       // work in progress. Everything else is drawn in outline.

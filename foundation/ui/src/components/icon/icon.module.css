@@ -1,3 +1,9 @@
+/* :where keeps the default size at zero specificity so a control can size its own glyph. */
+:where(.icon) {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
 .icon {
   flex-shrink: 0;
 }

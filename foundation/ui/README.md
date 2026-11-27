@@ -83,6 +83,8 @@ package: headings, labelled facts, attribution, and status have their own
 components; `Text` supplies the few remaining text roles, and `VisuallyHidden`
 keeps content for assistive technology. The [stylelint configuration](../../stylelint.config.mjs)
 enforces that boundary for product and admin features.
+Inside this package it also requires spacing, corners, motion, layers, and icon sizes to come from
+[`tokens.css`](src/foundations/tokens.css), including in local custom properties.
 
 Modules inside this package compose each other through unexported bases, such as
 `button-base.tsx` and `icon-base.tsx`, which accept a pattern's `className`. The
