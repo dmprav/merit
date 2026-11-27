@@ -14,7 +14,7 @@
   /* A list below carries its own inset, so only the rest of one space-1 gap is added. */
   margin-block: calc(-1 * var(--popover-gutter, 0px))
     calc(var(--space-1) - var(--popover-inset, 0px));
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-subtle);
   padding-inline: calc(var(--divider-inline) + var(--space-2));
   color: var(--muted);
 }

@@ -2,7 +2,7 @@
   position: fixed;
   inset: 0;
   /* Navigation drawers sit below menus they open; other frames stay above both. */
-  z-index: var(--modal-layer, 50);
+  z-index: var(--modal-layer, var(--z-modal));
   overflow-y: auto;
   background: var(--overlay);
 }

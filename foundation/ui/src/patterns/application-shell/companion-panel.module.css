@@ -37,7 +37,7 @@
 .separator {
   position: absolute;
   inset-block: 0;
-  inset-inline-start: -4px;
+  inset-inline-start: calc(-1 * var(--space-1));
   z-index: 1;
   width: 8px;
   cursor: col-resize;
@@ -49,7 +49,7 @@
   content: "";
   position: absolute;
   inset-block: 0;
-  inset-inline-start: 3px;
+  inset-inline-start: calc(var(--space-1) - 1px);
   width: 2px;
   background: transparent;
   transition: background-color var(--motion-fast);
@@ -63,12 +63,12 @@
 
 @media (pointer: coarse) {
   .separator {
-    inset-inline-start: -11px;
+    inset-inline-start: calc(1px - var(--space-3));
     width: 24px;
   }
 
   .separator::after {
-    inset-inline-start: 11px;
+    inset-inline-start: calc(var(--space-3) - 1px);
   }
 }
 

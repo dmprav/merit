@@ -11,7 +11,7 @@
 .trigger {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1-5);
   min-height: var(--button-height);
   margin-inline-start: calc(-1 * var(--space-2));
   border-radius: var(--control-radius);
@@ -40,8 +40,8 @@
 }
 
 .chevron {
-  width: 14px;
-  height: 14px;
+  width: var(--icon-size-small);
+  height: var(--icon-size-small);
   color: var(--muted);
   opacity: 0.8;
   transition:
@@ -55,12 +55,6 @@
 
 .disclosure[data-expanded] .chevron {
   transform: rotate(90deg);
-}
-
-.count {
-  color: var(--muted);
-  font-weight: var(--weight-regular);
-  font-variant-numeric: tabular-nums;
 }
 
 .panel[aria-hidden="false"] {

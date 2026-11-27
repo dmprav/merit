@@ -121,17 +121,37 @@
       "family": "radius",
       "usage": "Corners of every popover: menus, select lists, pickers, calendars, reference popovers, tooltips."
     },
+    "badge-radius": {
+      "family": "radius",
+      "usage": "Badges, counts, and other small chips."
+    },
+    "space-0-5": {
+      "family": "spacing",
+      "usage": "Hairline gaps: the space between stacked tab items and between menu rows."
+    },
     "space-1": {
       "family": "spacing",
       "usage": "Label to field, badge gap, tight stacks."
+    },
+    "space-1-5": {
+      "family": "spacing",
+      "usage": "Icon to label in a button; inline padding of a count or small chip."
     },
     "space-2": {
       "family": "spacing",
       "usage": "Gap between buttons, icon to label, a source and its passage."
     },
+    "space-2-5": {
+      "family": "spacing",
+      "usage": "Navigation row inline padding."
+    },
     "space-3": {
       "family": "spacing",
       "usage": "Control inline padding, notice padding, list row padding."
+    },
+    "space-3-5": {
+      "family": "spacing",
+      "usage": "Navigation sidebar inline padding and its group gap."
     },
     "space-4": {
       "family": "spacing",
@@ -152,6 +172,14 @@
     "space-section": {
       "family": "spacing",
       "usage": "Between consecutive sections of a page or pane; the space under a section heading stays space-3."
+    },
+    "space-gutter": {
+      "family": "spacing",
+      "usage": "The page's side gutter, shared by the top bar and content."
+    },
+    "space-gutter-wide": {
+      "family": "spacing",
+      "usage": "The page's side gutter on large screens."
     },
     "space-8": {
       "family": "spacing",
@@ -265,6 +293,14 @@
       "family": "size",
       "usage": "The application top bar, and the headers of panels beside it that line up with it."
     },
+    "icon-size": {
+      "family": "size",
+      "usage": "Interface icons and the glyph slot beside text."
+    },
+    "icon-size-small": {
+      "family": "size",
+      "usage": "Icons inside dense inline controls, such as a sort arrow or an inline edit pencil."
+    },
     "avatar-compact-size": {
       "family": "size",
       "usage": "Avatar in dense rows."
@@ -285,6 +321,38 @@
       "family": "css",
       "reason": "Duration; the format has no motion tokens."
     },
+    "motion-spin": {
+      "family": "css",
+      "reason": "Duration; a spinner turn."
+    },
+    "motion-sweep": {
+      "family": "css",
+      "reason": "Duration; an indeterminate progress sweep."
+    },
+    "motion-delay": {
+      "family": "css",
+      "reason": "Duration; the pause before a loading state appears."
+    },
+    "z-sticky": {
+      "family": "css",
+      "reason": "Layer; a sticky page header over scrolled content."
+    },
+    "z-modal": {
+      "family": "css",
+      "reason": "Layer; modal dialogs."
+    },
+    "z-toast": {
+      "family": "css",
+      "reason": "Layer; toasts above dialogs."
+    },
+    "z-skip-link": {
+      "family": "css",
+      "reason": "Layer; the skip link above everything."
+    },
+    "z-drawer-modal": {
+      "family": "css",
+      "reason": "Layer; a modal opened from the navigation drawer, above the drawer and below confirmation dialogs."
+    },
     "dialog-shadow": {
       "family": "shadow",
       "usage": "Modal dialogs over the overlay."
@@ -294,14 +362,7 @@
       "usage": "Menus, popovers, tooltips, the search palette."
     }
   },
-  "extra": [
-    {
-      "family": "radius",
-      "name": "badge-radius",
-      "value": "0.25rem",
-      "usage": "Badges and the section-count chip (written literally in badge.module.css and section-header.module.css)."
-    }
-  ],
+  "extra": [],
   "type": {
     "families": {
       "sans": "--font-sans"

@@ -28,7 +28,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .loading {
-    animation: appear var(--motion-medium) ease-out 300ms both;
+    animation: appear var(--motion-medium) ease-out var(--motion-delay) both;
   }
 }
 

@@ -14,6 +14,7 @@
     "./avatar": "./src/components/avatar/avatar.tsx",
     "./person-identity": "./src/patterns/person-identity/person-identity.tsx",
     "./badge": "./src/components/badge/badge.tsx",
+    "./count": "./src/components/count/count.tsx",
     "./brand": "./src/components/brand/brand.tsx",
     "./breadcrumbs": "./src/components/breadcrumbs/breadcrumbs.tsx",
     "./button": "./src/components/button/button.tsx",
