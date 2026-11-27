@@ -1,8 +1,6 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 
-import type { Locator, Page } from "@playwright/test";
+import type { APIRequestContext, Locator, Page } from "@playwright/test";
 
 import { test, expect } from "@merit/test-support/browser";
 
@@ -412,26 +410,34 @@ const KNOWN_MOBILE_PLAY_FAILURES = new Map([
   ["features-applications-manage-intake--ready-for-review", 'data-key="start_revision"'],
 ]);
 
-/** The feature and pattern stories of the built Storybook, read when the tests are collected. */
-const sweptStories = (() => {
-  const index = JSON.parse(
-    readFileSync(fileURLToPath(new URL("../../dist/index.json", import.meta.url)), "utf8"),
-  ) as { entries: Record<string, { id: string; type: string }> };
+/**
+ * The sweep runs as a fixed number of parallel chunks, each taking its share of the feature and
+ * pattern stories from the served Storybook's index at run time. No build has to exist when the
+ * tests are collected, and every story is covered however many there are.
+ */
+const SWEEP_CHUNKS = 18;
+
+const sweptStories = async (request: APIRequestContext) => {
+  const response = await request.get("/index.json");
+  expect(response.ok(), "the served Storybook has an index").toBe(true);
+  const index = (await response.json()) as {
+    entries: Record<string, { id: string; type: string }>;
+  };
 
   return Object.values(index.entries)
     .filter((entry) => entry.type === "story" && /^(features|patterns)-/.test(entry.id))
-    .map((entry) => entry.id);
-})();
-
-const SWEEP_CHUNK_SIZE = 25;
+    .map((entry) => entry.id)
+    .toSorted();
+};
 
 test.describe("no header or panel action wraps in any feature or pattern story", () => {
   test.describe.configure({ mode: "parallel" });
 
-  for (let start = 0; start < sweptStories.length; start += SWEEP_CHUNK_SIZE) {
-    const stories = sweptStories.slice(start, start + SWEEP_CHUNK_SIZE);
-
-    test(`stories ${start + 1} to ${start + stories.length}`, async ({ page, browserErrors }) => {
+  for (let chunk = 0; chunk < SWEEP_CHUNKS; chunk += 1) {
+    test(`chunk ${chunk + 1} of ${SWEEP_CHUNKS}`, async ({ page, request, browserErrors }) => {
+      const all = await sweptStories(request);
+      const size = Math.ceil(all.length / SWEEP_CHUNKS);
+      const stories = all.slice(chunk * size, chunk * size + size);
       test.setTimeout(120_000);
       const width = page.viewportSize()!.width;
       const wrapped: string[] = [];
