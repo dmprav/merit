@@ -462,6 +462,7 @@ it("returns the reviewer's complete validated page and strips uncontracted field
     criteria: null,
     draft: { revision: 7, content: draft },
     assessment: null,
+    work: { available: false, reason: "application_withdrawn" } as const,
     privateInternalField: "hidden",
   };
   vi.mocked(operations.reviewer.read).mockResolvedValue({ status: "ok", value: page });
@@ -471,6 +472,7 @@ it("returns the reviewer's complete validated page and strips uncontracted field
     expect(result.structuredContent).toMatchObject({
       status: "ok",
       draft: { revision: 7, content: draft },
+      work: { available: false, reason: "application_withdrawn" },
     });
     expect(JSON.stringify(result)).not.toContain("hidden");
     expect(result.content).toEqual([

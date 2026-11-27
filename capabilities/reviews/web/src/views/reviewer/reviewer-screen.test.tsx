@@ -20,6 +20,7 @@ const invitation = () => {
   page.material = null;
   page.criteria = null;
   page.draft = null;
+  page.work = { available: false, reason: "action_unavailable" };
   return page;
 };
 
@@ -268,11 +269,45 @@ it("keeps unsaved writing visible after access ends", async () => {
   expect(screen.getByRole("button", { name: "Copy draft" })).toBeVisible();
 });
 
+const withdrawnApplication = () => {
+  const page = submittedPage();
+  page.work = { available: false, reason: "application_withdrawn" };
+  return page;
+};
+
+it("keeps a submitted assessment readable but offers no change after withdrawal", () => {
+  renderReviewer(withdrawnApplication(), "ordinary", { amending: true });
+
+  const assessment = within(screen.getByRole("region", { name: "Your assessment" }));
+  expect(assessment.getByText(/^This application was withdrawn/)).toBeVisible();
+  expect(assessment.getByRole("link", { name: "Contact Dana Reed" })).toHaveAttribute(
+    "href",
+    "mailto:dana@example.test",
+  );
+  expect(assessment.getByText(/^The free venue/)).toBeVisible();
+  expect(screen.getByRole("region", { name: "Application material" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Amend assessment" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Resume amendment" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("textbox", { name: "Overall reasoning" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
+});
+
+it("retains an unsaved amendment for copying once withdrawal closes the editor", () => {
+  const page = withdrawnApplication();
+  const draft = { ...page.draft!.content, reasoning: "Typed before the refusal." };
+  renderReviewer(page, "ordinary", { amending: true, draft });
+
+  const retained = within(screen.getByRole("region", { name: "Unsaved assessment" }));
+  expect(retained.getByText("Typed before the refusal.")).toBeVisible();
+  expect(retained.getByRole("button", { name: "Copy draft" })).toBeEnabled();
+});
+
 const retainedDraft = () => {
   const initial = reviewerPage();
   initial.assignment.status = "cancelled";
   initial.material = null;
   initial.criteria = null;
+  initial.work = { available: false, reason: "action_unavailable" };
   const draft = {
     ...initial.draft!.content,
     amount: "123.456",

@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { accessScope } from "@merit/access/scope";
 import { decodeApplicationMaterial } from "@merit/applications/domain";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
-import { readMaterialVersionRecord } from "@merit/applications/scope";
+import { caseWithdrawn, readMaterialVersionRecord } from "@merit/applications/scope";
 import { appUsers } from "@merit/auth/schema";
 import type { Database, Transaction } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
@@ -58,6 +58,7 @@ const selectReviewerRows = (db: Database, reviewerId?: string) =>
       title: materialVersions.title,
       applicant: sql<string>`coalesce(${materialVersions.applicantOrganization}, '')`,
       currentVersion: applicationCases.materialVersion,
+      withdrawn: caseWithdrawn,
       currentCriteriaVersion: fundingRounds.criteriaVersion,
       organization: organizations.name,
       organizationKind: organizations.kind,

@@ -246,7 +246,12 @@ it("completes an independently authored review with reviewer membership and no s
     value: { id: s.assignmentId },
   });
   expect(s.messages).toHaveLength(1);
-  expect(await s.read()).toMatchObject({ material: null, draft: null, assessment: null });
+  expect(await s.read()).toMatchObject({
+    material: null,
+    draft: null,
+    assessment: null,
+    work: { available: false, reason: "action_unavailable" },
+  });
   expect(await s.service.read({ userId: "other" }, { assignmentId: s.assignmentId })).toEqual({
     status: "not_found",
   });
@@ -424,8 +429,14 @@ it("pauses conflicts and revokes immediately while preserving private drafts for
   await s.save("Retain this private writing");
   const before = await s.read();
   assert(before.draft);
+  expect(before.work).toEqual({ available: true });
   await s.manage("cancel");
-  expect(await s.read()).toMatchObject({ material: null, draft: null });
+  // Ended access reports no work, so the screen keeps unsent writing to copy.
+  expect(await s.read()).toMatchObject({
+    material: null,
+    draft: null,
+    work: { available: false, reason: "action_unavailable" },
+  });
   expect(
     await s.service.saveDraft(sam, {
       assignmentId: s.assignmentId,

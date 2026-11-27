@@ -6,6 +6,7 @@ import {
   decideInvitation,
   decideManagerAction,
   decideParticipation,
+  decideReviewerWork,
   resumptionProblem,
   reviewerSubmission,
   reviewerSubmissionProblems,
@@ -283,3 +284,16 @@ it.each([
     expect(isInvitationExpired({ status, expiresAt }, now)).toBe(expired);
   },
 );
+
+it("reports why reviewer work is unavailable, with access decided before withdrawal", () => {
+  expect(decideReviewerWork({ permitted: true, withdrawn: false })).toEqual({ available: true });
+  expect(decideReviewerWork({ permitted: true, withdrawn: true })).toEqual({
+    available: false,
+    reason: "application_withdrawn",
+  });
+  // Writes report missing access before withdrawal, so a read matches what a write returns first.
+  expect(decideReviewerWork({ permitted: false, withdrawn: true })).toEqual({
+    available: false,
+    reason: "action_unavailable",
+  });
+});

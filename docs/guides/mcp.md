@@ -212,6 +212,12 @@ criteria, private draft, and submitted versions. Before acceptance or while acce
 is paused, protected content is null; a visible invitation does not grant access
 to evidence. Other people's drafts are never available to managers.
 
+The read's `work` says whether a save, submission, or amendment can succeed now. When
+`work.available` is false, `work.reason` is `action_unavailable` before acceptance or
+while access is paused or ended, and `application_withdrawn` while the application is
+withdrawn, which also refuses every `respond_to_review` action. Writes check again when
+they commit.
+
 Use `respond_to_review` with `accept`, `decline`, or `report_conflict`. Declining an
 accepted assignment withdraws before submission. Acceptance verifies the invited
 email on your account. Keep `assignment.revision` as `expectedRevision` and reuse

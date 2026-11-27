@@ -52,6 +52,7 @@ invitation.assignment = { ...invitation.assignment, status: "invited", dueDate: 
 invitation.material = null;
 invitation.criteria = null;
 invitation.draft = null;
+invitation.work = { available: false, reason: "action_unavailable" };
 export const Invitation: Story = { args: { initial: invitation } };
 export const InvitationWithResponseDate: Story = {
   args: {
@@ -166,6 +167,13 @@ unfinishedAmendment.draft!.content = {
 };
 export const ResumeAmendment: Story = { args: { initial: unfinishedAmendment } };
 
+const withdrawnApplication = structuredClone(unfinishedAmendment);
+withdrawnApplication.work = { available: false, reason: "application_withdrawn" };
+/** A withdrawn application keeps the submitted assessment readable and offers no change to it. */
+export const WithdrawnApplication: Story = {
+  args: { initial: withdrawnApplication, session: { amending: true } },
+};
+
 export const AccessEnded: Story = {
   args: {
     initial: { ...invitation, assignment: { ...invitation.assignment, status: "cancelled" } },
@@ -177,6 +185,7 @@ const unsent = `${revoked.draft!.content.reasoning} This writing has not reached
 revoked.assignment = { ...revoked.assignment, status: "cancelled" };
 revoked.material = null;
 revoked.criteria = null;
+revoked.work = { available: false, reason: "action_unavailable" };
 export const RevokedWhileWriting: Story = {
   args: {
     initial: revoked,
