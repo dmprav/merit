@@ -2,6 +2,13 @@
   /* The title's first line sets where the actions centre. */
   --title-size: var(--text-page);
   --title-leading: 1.3;
+  /* The header stacks by its own width, so a narrow container never squeezes the title. */
+  container: page-header / inline-size;
+  padding-bottom: var(--space-7);
+  flex-shrink: 0;
+}
+
+.layout {
   display: grid;
   /* A long action wraps within half the header; it never squeezes the title below a line's worth. */
   grid-template-columns: minmax(min(100%, 16rem), 1fr) fit-content(50%);
@@ -10,12 +17,10 @@
     "description description";
   align-items: start;
   gap: var(--space-2) var(--space-4);
-  padding-bottom: var(--space-7);
-  flex-shrink: 0;
 }
 
 /* The kicker has its own row, so the actions sit beside the title whether or not one is there. */
-.header:has(.kicker) {
+.layout:has(.kicker) {
   grid-template-areas:
     "kicker kicker"
     "title actions"
@@ -65,15 +70,15 @@
   color: var(--muted);
 }
 
-@media (max-width: 600px) {
-  .header,
-  .header:has(.kicker) {
+/* A narrow header stacks: the title takes the full width and the actions wrap below the context. */
+@container page-header (max-width: 36rem) {
+  .layout,
+  .layout:has(.kicker) {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: none;
   }
 
-  /* On narrow screens the actions wrap below the context, one header gap down. */
-  .header > * {
+  .layout > * {
     grid-area: auto;
   }
 
@@ -82,7 +87,9 @@
     margin-top: var(--space-2);
     justify-self: start;
   }
+}
 
+@media (max-width: 600px) {
   .header {
     --title-size: var(--text-page-compact);
   }

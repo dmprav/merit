@@ -315,6 +315,34 @@ test("editing an organization's name does not move the rows below it", async ({ 
   expect(Math.abs(editing.row - reading.row)).toBeLessThanOrEqual(1);
 });
 
+test("a page header in a narrow container stacks its actions inside its bounds", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "The container is narrowed at desktop width.");
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await open(page, "patterns-page-composition--long-action-label");
+  // A wide viewport with a narrow container: the header must stack by its own width.
+  const bounds = await page.evaluate(() => {
+    const header = document.querySelector<HTMLElement>("#storybook-root header")!;
+    header.parentElement!.style.width = "20rem";
+
+    const box = (node: Element) => node.getBoundingClientRect();
+
+    const title = document.querySelector("#storybook-root h1")!;
+    const actions = document.querySelector("#storybook-root [data-page-actions]")!;
+    // The title's row spans the header once stacked; the title text itself may be shorter.
+    return {
+      header: box(header),
+      title: box(title),
+      titleRow: box(title.parentElement!),
+      actions: box(actions),
+    };
+  });
+  expect(bounds.actions.right).toBeLessThanOrEqual(bounds.header.right + 1);
+  expect(bounds.actions.top).toBeGreaterThanOrEqual(bounds.title.bottom);
+  expect(bounds.titleRow.width).toBeGreaterThanOrEqual(bounds.header.width - 1);
+});
+
 test("a long action label does not squeeze the page title", async ({ page }, testInfo) => {
   test.skip(
     testInfo.project.name !== "desktop",

@@ -26,17 +26,19 @@ export const PageHeader = ({
 
   return (
     <header ref={header} className={styles.header} data-density={density}>
-      {kicker && <p className={styles.kicker}>{kicker}</p>}
-      <div className={styles.titleRow}>
-        <h1 className={styles.title}>{title}</h1>
-        {status}
-      </div>
-      {description && <div className={styles.description}>{description}</div>}
-      {actions && (
-        <div className={styles.actions} data-page-actions>
-          {actions}
+      <div className={styles.layout}>
+        {kicker && <p className={styles.kicker}>{kicker}</p>}
+        <div className={styles.titleRow}>
+          <h1 className={styles.title}>{title}</h1>
+          {status}
         </div>
-      )}
+        {description && <div className={styles.description}>{description}</div>}
+        {actions && (
+          <div className={styles.actions} data-page-actions>
+            {actions}
+          </div>
+        )}
+      </div>
     </header>
   );
 };
