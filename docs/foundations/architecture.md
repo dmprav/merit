@@ -461,8 +461,8 @@ else carries. History is ciphertext in the Temporal UI, and the namespace's rete
 bounds how long it is kept; Postgres, not history, is the record. A failed email send is retried
 with backoff for about fifteen minutes while the message or invitation stays `pending`, then
 recorded as `failed`; the manager's resend, retry, or the assistant's own retry is the way to
-try again. A once-a-minute reconciliation Schedule restarts committed work that has no running
-workflow, including organization invitations that still await handoff. The
+try again. A reconciliation Schedule runs hourly by default and restarts committed work that has no
+running workflow, including organization invitations that still await handoff. The
 [email guide](../guides/emails.md#ownership-and-delivery) defines the delivery integration and
 the [workflows package](../../foundation/workflows/README.md) the runtime.
 
