@@ -6,8 +6,7 @@
   align-items: start;
   column-gap: var(--space-2);
   max-width: 100%;
-  /* Switch to --icon-size when it exists. */
-  --inline-name-slot: 16px;
+  --inline-name-slot: var(--icon-size);
 }
 
 .trigger[data-variant] {

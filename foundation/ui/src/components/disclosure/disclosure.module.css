@@ -1,7 +1,6 @@
 /* A parent may set --disclosure-inset to match the inset of the rows the trigger lines up with. */
 .disclosure {
-  /* Switch to --icon-size when it exists. */
-  --disclosure-icon-size: 16px;
+  --disclosure-icon-size: var(--icon-size);
   --disclosure-gap: var(--space-2);
   min-width: 0;
 }
