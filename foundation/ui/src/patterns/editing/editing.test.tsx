@@ -51,6 +51,18 @@ it("renames with Enter using the save boundary captured when editing began", asy
   );
 });
 
+it("reverts an untouched draft even when the name changes while the editor is open", async () => {
+  const user = userEvent.setup();
+  const save = vi.fn(async () => null);
+  const view = render(<InlineName {...props} onSave={save} />);
+  const input = await openEditor(user);
+
+  view.rerender(<InlineName {...props} value="Community grants 2027" onSave={save} />);
+  await user.type(input, "{Enter}");
+
+  expect(save).not.toHaveBeenCalled();
+});
+
 it("saves when focus leaves the field and leaves focus where the person put it", async () => {
   const save = vi.fn(async () => null);
   render(

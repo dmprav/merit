@@ -319,6 +319,8 @@ test("pinned items line up with the other navigation items", async ({ page }) =>
   await page.goto("/iframe.html?id=features-workspace-pins--pinned&viewMode=story");
   await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
   const navigation = await openNavigation(page);
+  // On mobile the drawer slides in; compare positions only once it has settled.
+  await expect(page.locator("[data-entering], [data-exiting]")).toHaveCount(0);
 
   const box = (locator: Locator) =>
     locator.evaluate((node) => {

@@ -112,6 +112,8 @@ const useNameEditing = ({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const saveAtOpen = useRef(onSave);
+  // The name when editing opened: an untouched draft reverts even if the record changes meanwhile.
+  const openedValue = useRef(value);
   const awaitingPreparation = useRef(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -122,6 +124,7 @@ const useNameEditing = ({
     if (editing && !isPreparing && awaitingPreparation.current) {
       setDraft(value);
       saveAtOpen.current = onSave;
+      openedValue.current = value;
       awaitingPreparation.current = false;
       if (isDisabled) {
         setEditing(false);
@@ -148,7 +151,7 @@ const useNameEditing = ({
       return;
     }
     const next = draft.trim();
-    if (!next || next === value) {
+    if (!next || next === openedValue.current) {
       close(restore);
       return;
     }
@@ -198,6 +201,7 @@ const useNameEditing = ({
     open: () => {
       awaitingPreparation.current = Boolean(isPreparing);
       saveAtOpen.current = onSave;
+      openedValue.current = value;
       setDraft(value);
       setEditing(true);
     },
@@ -209,8 +213,12 @@ const useTriggerFocus = (trigger: RefObject<HTMLButtonElement | null>) => {
   const restoreFocus = useRef(false);
   useEffect(() => {
     if (restoreFocus.current && trigger.current) {
-      trigger.current.focus();
       restoreFocus.current = false;
+      // Only take focus back if nothing else has it, such as a control the save mounted.
+      const active = document.activeElement;
+      if (!active || active === document.body) {
+        trigger.current.focus();
+      }
     }
   });
   return (restore: boolean) => {
