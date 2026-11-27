@@ -346,12 +346,18 @@ const TabContent = <Id extends string>({
     const measure = () =>
       setCutOff(node.scrollWidth > node.clientWidth ? (node.textContent ?? null) : null);
 
-    const observer = new ResizeObserver(measure);
+    // A label can change size, or its text can change in place, as a live child updates.
+    const resize = new ResizeObserver(measure);
+    const mutation = new MutationObserver(measure);
 
     measure();
-    observer.observe(node);
+    resize.observe(node);
+    mutation.observe(node, { characterData: true, childList: true, subtree: true });
 
-    return () => observer.disconnect();
+    return () => {
+      resize.disconnect();
+      mutation.disconnect();
+    };
   }, [item.label]);
 
   return (

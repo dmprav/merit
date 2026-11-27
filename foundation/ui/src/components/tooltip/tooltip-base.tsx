@@ -46,7 +46,9 @@ export const AnchoredTooltipBase = ({
   const [isOverTooltip, setIsOverTooltip] = useState(false);
   const hoverOpen = useDelayed(isHovered || isOverTooltip);
   const [isDismissed, setIsDismissed] = useState(false);
-  const wanted = isFocused || hoverOpen;
+  // The pointer can only be over the tooltip while it shows, so it keeps the tooltip open through
+  // a handoff from focus or hover, whatever the delayed hover state says.
+  const wanted = isFocused || hoverOpen || isOverTooltip;
   const isOpen = !isDismissed && wanted;
 
   useEffect(() => {
@@ -67,11 +69,18 @@ export const AnchoredTooltipBase = ({
       return;
     }
 
-    const onKeyDown = (event: KeyboardEvent) => event.key === "Escape" && setIsDismissed(true);
+    // Escape closes only the tooltip: it is caught first, so a dialog or menu around it stays open.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      event.stopPropagation();
+      setIsDismissed(true);
+    };
 
-    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown, true);
 
-    return () => document.removeEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
   }, [isOpen]);
 
   return (
