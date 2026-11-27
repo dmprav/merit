@@ -100,9 +100,37 @@ test("quiet pane headings are no lighter than the first text under them", async 
   }
 });
 
+test("subsection headings in a reference pane stay as large as the answers under them", async ({
+  page,
+}) => {
+  for (const story of [
+    "features-applications-review-an-assigned-application--writing",
+    "features-applications-manage-intake--intake-correction",
+  ]) {
+    await open(page, story);
+    const pairs = await page.evaluate(() => {
+      const size = (node: Element) => Number.parseFloat(getComputedStyle(node).fontSize);
+
+      return [...document.querySelectorAll("[data-reading-viewport] :is(h3, h4, h5)")].flatMap(
+        (heading) => {
+          const text = heading.closest("section")?.querySelector("p");
+          return text
+            ? [{ name: heading.textContent, heading: size(heading), text: size(text) }]
+            : [];
+        },
+      );
+    });
+    expect(pairs.length, story).toBeGreaterThan(0);
+    for (const pair of pairs) {
+      expect(pair.heading, `${story}: ${pair.name}`).toBeGreaterThanOrEqual(pair.text);
+    }
+  }
+});
+
 test("no subsection heading in a work pane or dialog body outsizes the frame title", async ({
   page,
 }) => {
+  let checked = 0;
   for (const story of [
     "features-applications-review-an-assigned-application--writing",
     "features-applications-manage-reviews--criterion-notes",
@@ -112,16 +140,21 @@ test("no subsection heading in a work pane or dialog body outsizes the frame tit
       const size = (node: Element) => Number.parseFloat(getComputedStyle(node).fontSize);
 
       const titles = [...document.querySelectorAll("[data-dialog-header] h2")].map(size);
-      const bodies = [...document.querySelectorAll("[data-frame-body] :is(h3, h4, h5)")].map(
-        (heading) => ({ name: heading.textContent, size: size(heading) }),
-      );
+      const bodies = [
+        ...document.querySelectorAll(
+          "[data-frame-body]:not([data-reading-viewport]) :is(h3, h4, h5)",
+        ),
+      ].map((heading) => ({ name: heading.textContent, size: size(heading) }));
       return { title: Math.min(...titles), bodies };
     });
-    expect(sizes.bodies.length, story).toBeGreaterThan(0);
     for (const heading of sizes.bodies) {
       expect(heading.size, `${story}: ${heading.name}`).toBeLessThanOrEqual(sizes.title);
     }
+
+    checked += sizes.bodies.length;
   }
+
+  expect(checked).toBeGreaterThan(0);
 });
 
 test("consecutive sections are separated by the section spacing", async ({ page }) => {
@@ -187,11 +220,21 @@ const measure = () => {
 
 test("page actions centre on the title, with and without a kicker", async ({ page }, testInfo) => {
   const narrow = testInfo.project.name !== "desktop";
-  for (const story of [
-    "patterns-page-composition--standard",
-    "patterns-page-composition--overview",
-    "patterns-page-composition--without-kicker",
-  ]) {
+  const cases = [
+    { story: "patterns-page-composition--standard", width: undefined },
+    { story: "patterns-page-composition--overview", width: undefined },
+    { story: "patterns-page-composition--without-kicker", width: undefined },
+    { story: "patterns-page-composition--long-title", width: 900 },
+    { story: "patterns-page-composition--long-title", width: 1100 },
+  ];
+  for (const { story, width } of cases) {
+    if (width && narrow) {
+      continue;
+    }
+    if (width) {
+      await page.setViewportSize({ width, height: 1000 });
+    }
+
     await open(page, story);
     const centres = await page.evaluate(measure);
     if (narrow) {
@@ -239,4 +282,16 @@ test("rows labels keep a fixed column and fit on one line in the properties pane
     return node.getBoundingClientRect().height / Number.parseFloat(style.lineHeight);
   });
   expect(height).toBeLessThan(1.5);
+});
+
+test("an editable properties pane keeps one row pitch", async ({ page }) => {
+  await open(page, "features-funding-rounds-manage-round--overview");
+  const heights = await page
+    .getByRole("complementary")
+    .locator("dl > div")
+    .evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
+  expect(heights.length).toBeGreaterThan(3);
+  for (const height of heights) {
+    expect(height).toBeCloseTo(heights[0]!, 0);
+  }
 });

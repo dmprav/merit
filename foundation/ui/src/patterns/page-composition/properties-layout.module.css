@@ -84,3 +84,9 @@
     padding-bottom: var(--space-6);
   }
 }
+
+/* Editable values take control height, so read-only rows share it and the list keeps one rhythm. */
+.properties dl[data-layout="rows"] dd {
+  min-height: var(--control-height-small);
+  justify-content: center;
+}

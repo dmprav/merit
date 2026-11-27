@@ -51,13 +51,16 @@ applies these choices to whole screens.
 **Give each heading level its own step, never smaller than the text it introduces.**
 Headings use `--weight-heading` and step down with the level:
 
-| Level                | Size                               | Product size |
-| -------------------- | ---------------------------------- | ------------ |
-| Page title           | `--text-page`                      | 24px         |
-| Section (level 2)    | `--text-section`                   | 17px         |
-| Subsection (level 3) | `--text-subsection`                | 15px         |
-| Levels 4 and 5       | `--text-body`                      | 13px         |
-| Quiet pane heading   | `--text-detail`, `--weight-medium` | 13px         |
+| Level                                                  | Size                | Product size |
+| ------------------------------------------------------ | ------------------- | ------------ |
+| Page title                                             | `--text-page`       | 24px         |
+| Section (level 2)                                      | `--text-section`    | 17px         |
+| Subsection (level 3)                                   | `--text-subsection` | 15px         |
+| Levels 4 and 5                                         | `--text-body`       | 13px         |
+| Quiet pane heading                                     | `--text-detail`     | 13px         |
+| Levels 3 to 5 inside a work pane, dialog or side panel | `--text-body`       | 13px         |
+
+Inside a work pane, dialog or side panel, levels 3 to 5 render at `--text-body` so they never outrank the frame's title; a reference pane keeps the scale of the material it shows.
 
 Set the level through `SectionHeader`'s `level` and keep the DOM levels sequential, rather than
 skipping one for its look. Separate consecutive sections with `--space-section` (28px), through

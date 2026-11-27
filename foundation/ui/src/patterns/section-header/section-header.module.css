@@ -35,8 +35,11 @@
   font-size: var(--text-body);
 }
 
-/* Inside a frame, subsections never outrank the frame's title; DialogSection does the same. */
-:where([data-frame-body])
+/*
+ * Inside a work pane, dialog or side panel, subsections never outrank the frame's title;
+ * DialogSection does the same. A reference pane keeps the scale of the material it shows.
+ */
+:where([data-frame-body]:not([data-reading-viewport]))
   :is(.header[data-level="3"], .header[data-level="4"], .header[data-level="5"])
   .title {
   font-size: var(--text-body);

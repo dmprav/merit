@@ -100,7 +100,7 @@ export const SectionHeaders: Story = {
         </div>
         <div className={styles.subsection}>
           <SectionHeader level={4} title="Evidence" />
-          <Reading as="p">Survey results and letters of support.</Reading>
+          <p className={styles.description}>Survey results and letters of support.</p>
         </div>
       </section>
       <section

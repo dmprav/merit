@@ -1,6 +1,8 @@
 .property[data-variant][data-variant] {
   display: inline-grid;
   grid-template-columns: minmax(0, auto) 13px;
+  align-items: center;
+  min-height: var(--control-height-small);
   justify-content: start;
   max-width: 100%;
   margin-inline-start: calc(-1 * var(--space-2));

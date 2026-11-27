@@ -1,10 +1,13 @@
 .header {
+  /* The title's first line sets where the actions centre. */
+  --title-size: var(--text-page);
+  --title-leading: 1.3;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     "title actions"
     "description description";
-  align-items: center;
+  align-items: start;
   gap: var(--space-2) var(--space-4);
   padding-bottom: var(--space-7);
   flex-shrink: 0;
@@ -30,6 +33,7 @@
   grid-area: actions;
   display: flex;
   align-items: center;
+  min-height: calc(var(--title-size) * var(--title-leading));
   flex-wrap: wrap;
   gap: var(--space-2);
   min-width: 0;
@@ -39,8 +43,8 @@
 .title {
   min-width: 0;
   overflow-wrap: anywhere;
-  font-size: var(--text-page);
-  line-height: 1.3;
+  font-size: var(--title-size);
+  line-height: var(--title-leading);
   letter-spacing: -0.025em;
   font-weight: var(--weight-heading);
 }
@@ -78,18 +82,15 @@
     justify-self: start;
   }
 
-  .title {
-    font-size: var(--text-page-compact);
+  .header {
+    --title-size: var(--text-page-compact);
   }
 }
 
 .header[data-density="compact"] {
+  --title-size: var(--text-page-compact);
+  --title-leading: 1.4;
   padding-bottom: var(--space-6);
-}
-
-.header[data-density="compact"] .title {
-  font-size: var(--text-page-compact);
-  line-height: 1.4;
 }
 
 .title:has([data-inline-name-editor]) {
