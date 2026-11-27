@@ -111,7 +111,7 @@ test("subsection headings in a reference pane stay as large as the answers under
     const pairs = await page.evaluate(() => {
       const size = (node: Element) => Number.parseFloat(getComputedStyle(node).fontSize);
 
-      return [...document.querySelectorAll("[data-reading-viewport] :is(h3, h4, h5)")].flatMap(
+      return [...document.querySelectorAll("[data-reference-body] :is(h3, h4, h5)")].flatMap(
         (heading) => {
           const text = heading.closest("section")?.querySelector("p");
           return text
@@ -142,7 +142,7 @@ test("no subsection heading in a work pane or dialog body outsizes the frame tit
       const titles = [...document.querySelectorAll("[data-dialog-header] h2")].map(size);
       const bodies = [
         ...document.querySelectorAll(
-          "[data-frame-body]:not([data-reading-viewport]) :is(h3, h4, h5)",
+          "[data-frame-body]:not([data-reference-body]) :is(h3, h4, h5)",
         ),
       ].map((heading) => ({ name: heading.textContent, size: size(heading) }));
       return { title: Math.min(...titles), bodies };
