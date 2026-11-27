@@ -64,6 +64,7 @@ export const Pinned: Story = {
     const page = within(canvasElement.ownerDocument.body);
     await userEvent.click(canvas.getByRole("button", { name: args.label }));
     await userEvent.unhover(canvas.getByRole("button", { name: args.label }));
-    await expect(await page.findByRole("group", { name: args.label })).toBeVisible();
+    const content = await page.findByRole("group", { name: args.label });
+    await waitFor(() => expect(content).toBeVisible());
   },
 };
