@@ -61,26 +61,13 @@ const useDismissal = (
 };
 
 /**
- * An info icon that explains something brief beside a value. It previews its text on hover or
- * keyboard focus like a tooltip, and pins it open on press or tap so it can be read at leisure.
- * The text stays open while the pointer is over it; Escape or a press elsewhere closes it. The
- * button needs a `label` that names the topic, and `children` is plain or short inline text:
- * keep anything needed to finish the task visible beside it instead. Use `tone="warning"` for a
- * qualification the reader should not miss.
+ * When the text shows: previewed on hover or keyboard focus after the shared delay, kept while the
+ * pointer is over it, pinned by a press, and dismissed by Escape or a press elsewhere.
  */
-export const Toggletip = ({
-  label,
-  children,
-  tone = "info",
-}: {
-  /** Names the button, such as "About this request". */
-  label: string;
-  children: ReactNode;
-  tone?: "info" | "warning";
-}) => {
-  const id = useId();
-  const trigger = useRef<HTMLButtonElement>(null);
-  const content = useRef<HTMLDivElement>(null);
+const useToggletipState = (
+  trigger: RefObject<Element | null>,
+  content: RefObject<Element | null>,
+) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isOverContent, setIsOverContent] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -105,19 +92,47 @@ export const Toggletip = ({
     }
   }, [wanted]);
 
-  useDismissal(isOpen, trigger, content, () => {
+  const dismiss = () => {
     setIsPinned(false);
     setIsDismissed(true);
-  });
-
-  const toggle = () => {
-    if (isPinned) {
-      setIsPinned(false);
-      setIsDismissed(true);
-    } else {
-      setIsPinned(true);
-    }
   };
+
+  useDismissal(isOpen, trigger, content, dismiss);
+
+  return {
+    isOpen,
+    setIsHovered,
+    setIsFocused,
+    setIsOverContent,
+    toggle: () => (isPinned ? dismiss() : setIsPinned(true)),
+  };
+};
+
+/**
+ * An info icon that explains something brief beside a value. It previews its text on hover or
+ * keyboard focus like a tooltip, and pins it open on press or tap so it can be read at leisure.
+ * The text stays open while the pointer is over it; Escape or a press elsewhere closes it. The
+ * button needs a `label` that names the topic, and `children` is plain or short inline text:
+ * keep anything needed to finish the task visible beside it instead. Use `tone="warning"` for a
+ * qualification the reader should not miss.
+ */
+export const Toggletip = ({
+  label,
+  children,
+  tone = "info",
+}: {
+  /** Names the button, such as "About this request". */
+  label: string;
+  children: ReactNode;
+  tone?: "info" | "warning";
+}) => {
+  const id = useId();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  const { isOpen, setIsHovered, setIsFocused, setIsOverContent, toggle } = useToggletipState(
+    trigger,
+    content,
+  );
 
   return (
     <>
