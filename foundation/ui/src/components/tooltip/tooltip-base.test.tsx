@@ -25,7 +25,11 @@ it("closes only itself on Escape, leaving a surrounding dialog's Escape handling
   render(<Anchored isFocused isHovered={false} />);
 
   expect(await screen.findByRole("tooltip")).toBeVisible();
-  fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+  // Cancelled as well as stopped, so a native modal dialog does not also close on this press.
+  const notCancelled = fireEvent.keyDown(document.activeElement ?? document.body, {
+    key: "Escape",
+  });
+  expect(notCancelled).toBe(false);
 
   await waitFor(() => expect(screen.queryByRole("tooltip")).not.toBeInTheDocument());
   expect(dialogEscape).not.toHaveBeenCalled();

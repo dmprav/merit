@@ -91,11 +91,13 @@ export const AnchoredTooltipBase = ({
     };
 
     // Escape closes only the tooltip: it is caught first, so a dialog or menu around it stays open.
+    // Cancelling it too stops a native modal dialog's own close on the same press.
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") {
         return;
       }
       event.stopPropagation();
+      event.preventDefault();
       setIsDismissed(true);
     };
 
