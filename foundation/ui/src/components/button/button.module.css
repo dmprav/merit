@@ -5,10 +5,10 @@
   min-height: var(--button-height);
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--space-1-5);
   border: 1px solid transparent;
   border-radius: var(--control-radius);
-  padding: var(--space-1) calc(var(--space-2) + 2px);
+  padding: var(--space-1) var(--space-2-5);
   font-size: var(--text-control);
   font-weight: var(--weight-medium);
   line-height: 1.5;
@@ -231,8 +231,8 @@
 .button[data-draft]::after {
   content: "";
   position: absolute;
-  inset-block-start: 2px;
-  inset-inline-end: 2px;
+  inset-block-start: var(--space-0-5);
+  inset-inline-end: var(--space-0-5);
   width: 6px;
   height: 6px;
   border-radius: 50%;

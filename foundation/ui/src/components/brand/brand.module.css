@@ -1,6 +1,8 @@
 .brand {
   display: inline-flex;
   align-items: center;
+  /* The wordmark spaces its parts in proportion to its own size. */
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list */
   gap: 0.3em;
   vertical-align: middle;
   font-weight: var(--weight-brand);

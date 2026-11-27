@@ -470,6 +470,76 @@ it("keeps type, color, and surfaces out of feature styles", async () => {
   expect(await rules("foundation/ui/src/components/probe.module.css")).toEqual([]);
 });
 
+it("keeps the base rules in examples, development tools, and third-party appearance files", async () => {
+  const configFile = join(REPO_ROOT, "stylelint.config.mjs");
+  const code = ".one { font-weight: 700; color: var(--muted); }\n";
+
+  const rules = async (path: string) =>
+    (
+      await stylelint.lint({ code, codeFilename: join(REPO_ROOT, path), configFile })
+    ).results.flatMap(({ warnings }) => warnings.map(({ rule }) => rule));
+
+  for (const path of [
+    "interfaces/product/src/features/probe.stories.module.css",
+    "app/src/development/probe.module.css",
+    "app/src/auth/probe.clerk.module.css",
+  ]) {
+    expect(await rules(path)).toEqual(["declaration-property-value-allowed-list"]);
+  }
+});
+
+it("requires tokens for spacing, corners, motion, layers, and icon sizes in shared UI", async () => {
+  const configFile = join(REPO_ROOT, "stylelint.config.mjs");
+  const flagged = [
+    ".a { padding: 6px; }",
+    ".a { margin-inline: 0 -0.5rem; }",
+    ".a { gap: calc(var(--space-2) + 3px); }",
+    ".a { inset-block-start: 10px; }",
+    ".a { border-radius: 6px; }",
+    ".a { border-start-start-radius: 0.25rem; }",
+    ".a { transition: opacity 160ms; }",
+    ".a { animation-duration: 1s; }",
+    ".a { z-index: 40; }",
+    ".a svg { width: 14px; }",
+    ".icon { height: 1rem; }",
+  ];
+  const allowed = [
+    ".a { padding: 0 var(--space-2); margin: auto; gap: calc(var(--space-2) * 2); }",
+    ".a { padding: 2%; inset-inline: clamp(var(--space-2), 5vw, var(--space-4)); }",
+    ".a { border-bottom: 1px solid var(--border); inset-block-end: -1px; }",
+    ".a { border-radius: var(--badge-radius) 0 50% 999px; }",
+    ".a { border-radius: calc(var(--control-radius) - 2px); }",
+    ".a { transition: opacity var(--motion-fast); animation-duration: var(--motion-spin); }",
+    ".a { z-index: var(--z-modal); }",
+    ".a { z-index: 2; }",
+    ".a svg { width: var(--icon-size); height: var(--icon-size-small); }",
+    ".box { width: 14px; }",
+  ];
+
+  const rules = async (code: string, path: string) =>
+    (
+      await stylelint.lint({ code, codeFilename: join(REPO_ROOT, path), configFile })
+    ).results.flatMap(({ warnings }) =>
+      warnings.map(({ rule }) => rule).filter((rule) => rule !== "no-duplicate-selectors"),
+    );
+
+  const component = "foundation/ui/src/components/probe/probe.module.css";
+
+  for (const code of flagged) {
+    expect(await rules(code, component), code).not.toEqual([]);
+  }
+  for (const code of allowed) {
+    expect(await rules(code, component), code).toEqual([]);
+  }
+  expect(
+    await rules(
+      flagged.join("\n\n"),
+      "foundation/ui/src/components/probe/probe.stories.module.css",
+    ),
+  ).toEqual([]);
+  expect(await rules(flagged.join("\n\n"), "foundation/ui/src/foundations/tokens.css")).toEqual([]);
+});
+
 it.each([
   "applications",
   "contacts",

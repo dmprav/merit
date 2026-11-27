@@ -13,6 +13,7 @@ import {
 } from "@merit/reviews/domain";
 import { ActionProvenance } from "@merit/ui/action-provenance";
 import { Button } from "@merit/ui/button";
+import { Count } from "@merit/ui/count";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { Icon } from "@merit/ui/icon";
 import { Inline, Reading, Stack } from "@merit/ui/layout";
@@ -393,7 +394,7 @@ const AssessmentList = ({
           data-review-action="requests"
           onPress={() => inspect({ kind: "requests" })}
         >
-          {t("requestHistory")} <Text variant="supporting">{state.requests.length}</Text>
+          {t("requestHistory")} <Count>{state.requests.length}</Count>
         </Button>
       )}
     </>

@@ -6,6 +6,7 @@ import {
   Heading,
 } from "react-aria-components/Disclosure";
 
+import { Count } from "../count/count";
 import { IconBase } from "../icon/icon-base";
 import styles from "./disclosure.module.css";
 
@@ -43,7 +44,12 @@ export const Disclosure = ({
       <Button slot="trigger" className={styles.trigger}>
         <span>{title}</span>
         {/* The space keeps the title and count separate words in the accessible name. */}
-        {count !== undefined && <span className={styles.count}> {count}</span>}
+        {count !== undefined && (
+          <>
+            {" "}
+            <Count>{count}</Count>
+          </>
+        )}
         {/* After the label, as a quiet cue that the section opens, rather than a bullet before it. */}
         <IconBase name="right" className={styles.chevron} />
       </Button>

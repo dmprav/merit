@@ -10,6 +10,7 @@ import {
 import { Tab, TabList, TabPanel, Tabs as AriaTabs } from "react-aria-components/Tabs";
 
 import { ButtonBase } from "../button/button-base";
+import { Count } from "../count/count";
 import { IconBase } from "../icon/icon-base";
 import { AnchoredTooltipBase } from "../tooltip/tooltip-base";
 import styles from "./tabs.module.css";
@@ -427,13 +428,9 @@ const TabLabel = <Id extends string>({
     {item.count != null && (
       <>
         {" "}
-        <span
-          className={styles.count}
-          data-warning={Boolean(item.countWarning) || undefined}
-          title={item.countWarning}
-        >
+        <Count tone={item.countWarning ? "warning" : "neutral"} title={item.countWarning}>
           {item.count}
-        </span>
+        </Count>
         {item.countWarning && (
           <span id={`${warningId}-${item.id}`} hidden>
             {item.countWarning}

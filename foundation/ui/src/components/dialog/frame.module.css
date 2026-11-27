@@ -90,7 +90,7 @@
   flex-shrink: 0;
   align-items: center;
   gap: var(--space-1);
-  margin-inline-end: calc((1rem - var(--button-height)) / 2);
+  margin-inline-end: calc((var(--space-4) - var(--button-height)) / 2);
 }
 
 .content {

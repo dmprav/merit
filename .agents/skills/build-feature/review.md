@@ -87,3 +87,20 @@ Standard: [UI development](../../../docs/guides/ui.md),
   narrow widths, with keyboard focus and long/missing content handled cleanly?
 - Are redundant controls removed while keeping consequences, recovery states,
   and historical basis clear before acting?
+
+### UI polish
+
+Check in the precedent pair and the changed pair, at both widths:
+
+- One gutter, with text on the content edge; only an icon or control optically
+  outdents so its glyph meets the edge.
+- One separator strength per job: a rule inside a surface is lighter than the
+  edge of one, and a popover's own border is the raised edge.
+- No layout shift between states (hover, selected, loading, empty, error, edit).
+- Emphasis has a reason: Badge for status only, and no fact shown twice.
+- A heading is never smaller than the text it introduces.
+- Popovers and menus use the shared popover surface.
+- Recurring review checks: WCAG 1.4.13 (hover or focus content is dismissible,
+  hoverable, and persistent), forced-colors rendering, shared browser-error
+  fixtures instead of local ones, tests that fail when the rule breaks, and a
+  composed-screen case beside each component case.

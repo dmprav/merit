@@ -44,8 +44,22 @@ const negativeValue = (position) =>
 /** A single negative value, which a shorthand applies to every side. */
 const negativeEverywhere = new RegExp(String.raw`^(?=${negative})${token}$`);
 
+// Shared UI spacing is written with --space-* tokens; a length literal is a value tokens.css lacks.
+// A 1px or half-pixel hairline stays literal.
+const uiSpacing =
+  "/^(padding|margin|inset|gap|row-gap|column-gap|top|right|bottom|left)(-(top|right|bottom|left|block|inline)(-(start|end))?)?$/";
+const literalLength = /(?<![\w.])(?!(?:1|0?\.5)px\b)(?:\d*\.\d+|[1-9]\d*)(?:px|rem|em|ch|pt)\b/;
+const literalTime = /(?<![\w.])\d*\.?\d+m?s\b/;
+const uiRadius = "/^border((-(top|bottom))?-(left|right|start|end))?(-(start|end))?-radius$/";
+// A radius token, or one inset from it so a nested surface stays concentric.
+const radiusValue =
+  /^(?:(?:var\(--[a-z]+-radius\)|calc\(var\(--[a-z]+-radius\) - \d+px\)|0|50%|999px)(?:\s+|$))+$/;
+// A --z-* layer, or a component's own custom property that falls back to one.
+const layerValue = /^(?:var\(--z-[a-z-]+\)|var\(--[a-z-]+, var\(--z-[a-z-]+\)\)|[012])$/;
+
 /** @type {import("stylelint").Config} */
 export default {
+  plugins: ["./tooling/stylelint/icon-size.mjs"],
   ignoreFiles: [
     "**/node_modules/**",
     "**/dist/**",
@@ -104,7 +118,6 @@ export default {
   overrides: [
     {
       files: featureStyles,
-      ignoreFiles: featureStyleExceptions,
       rules: {
         "property-disallowed-list": [
           [...typography, ...surfaces],
@@ -130,14 +143,69 @@ export default {
       },
     },
     {
+      // Examples, development tools, and third-party appearance classes keep the base rules but
+      // may style what the feature-specific bans would otherwise reserve for @merit/ui.
+      files: featureStyleExceptions,
+      rules: {
+        "property-disallowed-list": null,
+        "declaration-property-value-disallowed-list": null,
+        "selector-disallowed-list": null,
+      },
+    },
+    {
+      // Shared components take spacing, corners, motion, and layers from tokens.css so a value
+      // changes in one place. Zero, auto, percentages, and 1px hairlines need no token.
       // A popover takes its surface from foundations/popover.module.css instead of restyling it.
       // The surface itself, the toast, and the search palette box (not popovers) say why they
       // borrow the shadow with a scoped disable.
       files: ["foundation/ui/src/**/*.css"],
       rules: {
+        "merit/icon-size": true,
+        "declaration-property-value-disallowed-list": [
+          {
+            "box-shadow": [/--popover-shadow/],
+            [uiSpacing]: [literalLength],
+            "/^(transition|animation)(-duration|-delay)?$/": [literalTime],
+          },
+          {
+            message: (property) =>
+              property === "box-shadow"
+                ? "Use the shared popover surface from foundations/popover.module.css"
+                : `Use a token from tokens.css for "${property}": "--space-*" for spacing, "--motion-*" for durations`,
+          },
+        ],
+        "declaration-property-value-allowed-list": [
+          {
+            "font-weight": ["/^var\\(--weight-[a-z]+\\)$/", "inherit"],
+            [uiRadius]: [radiusValue],
+            "z-index": [layerValue],
+          },
+          {
+            message: (property) =>
+              property === "font-weight"
+                ? 'Use a "--weight-*" token for font-weight'
+                : property === "z-index"
+                  ? 'Use a "--z-*" token for z-index (0, 1, or 2 for local stacking)'
+                  : 'Use a "--*-radius" token for corners (0, 50%, or 999px stay)',
+          },
+        ],
+      },
+    },
+    {
+      // Examples demonstrate with whatever values they need, and tokens.css defines the values.
+      files: [
+        "foundation/ui/src/**/*.stories.module.css",
+        "foundation/ui/src/foundations/tokens.css",
+      ],
+      rules: {
+        "merit/icon-size": null,
         "declaration-property-value-disallowed-list": [
           { "box-shadow": [/--popover-shadow/] },
           { message: "Use the shared popover surface from foundations/popover.module.css" },
+        ],
+        "declaration-property-value-allowed-list": [
+          { "font-weight": ["/^var\\(--weight-[a-z]+\\)$/", "inherit"] },
+          { message: () => 'Use a "--weight-*" token for font-weight' },
         ],
       },
     },
