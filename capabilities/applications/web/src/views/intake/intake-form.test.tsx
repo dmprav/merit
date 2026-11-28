@@ -72,7 +72,12 @@ const Session = ({
   data: IntakeData;
   current?: typeof application;
 }) => {
-  const intake = useApplicationIntake({ application: current, data, onDeleted: async () => {} });
+  const intake = useApplicationIntake({
+    activity: { hasReviews: false, hasRecommendation: false, outstandingReviews: 0 },
+    application: current,
+    data,
+    onDeleted: async () => {},
+  });
   return (
     <>
       <button onClick={() => intake.open(section)}>Edit</button>

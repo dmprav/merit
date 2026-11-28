@@ -7,7 +7,9 @@ import {
   encodeRecommendation,
   decodeRecommendation,
 } from "../domain/encoding";
+import { decodeBudgetTotals, encodeBudgetTotals, totalsDataSchema } from "./budget-totals";
 import { saveRecommendationRequestSchema } from "./commands";
+import { encodeRecommendationResult } from "./results";
 
 const recorded = (position: "Fund" | "Defer") => ({
   position,
@@ -71,6 +73,10 @@ it.each([null, fromMinorUnits(10000n)])("preserves unknown and exceeded budgets:
     [encodeMoney(fromMinorUnits(12001n)), null, encodeMoney(fromMinorUnits(0n))],
     0,
   );
+  const encoded = totalsDataSchema.parse(
+    JSON.parse(JSON.stringify(encodeBudgetTotals(context.totals))),
+  );
+  expect(decodeBudgetTotals(encoded)).toEqual(context.totals);
   expect(context.budget).toEqual(budget);
   expect(context.totals).toEqual({
     proposed: fromMinorUnits(12001n),
@@ -93,4 +99,35 @@ it("rejects persisted allocations whose total exceeds the money limit", () => {
       0,
     ),
   ).toThrow(RangeError);
+});
+
+it.each([null, fromMinorUnits(20000n)])(
+  "encodes the recommendation save result with budget %s",
+  (budget) => {
+    const recommendation = recorded("Fund");
+    const totals = {
+      proposed: recommendation.allocation,
+      remaining: budget,
+      withdrawnApplications: 2,
+    };
+    expect(
+      encodeRecommendationResult({
+        status: "ok",
+        recommendation,
+        recommendationVersion: 7,
+        budget,
+        totals,
+      }),
+    ).toEqual({
+      status: "ok",
+      recommendation: encodeRecommendation(recommendation),
+      recommendationVersion: 7,
+      budget: budget === null ? null : encodeMoney(budget),
+      totals: encodeBudgetTotals(totals),
+    });
+  },
+);
+
+it("preserves save failures", () => {
+  expect(encodeRecommendationResult({ status: "conflict" })).toEqual({ status: "conflict" });
 });

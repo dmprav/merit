@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -8,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vite-plus/test";
 import { z } from "zod";
 
+import { runProcess } from "../../testing/process";
 import architectureConfig from "./config";
 
 const config = fileURLToPath(new URL("./config.ts", import.meta.url));
@@ -157,43 +157,14 @@ const collaborationFiles = {
   ),
 };
 
-// runLinter kills the linter after linterTimeout. Vitest's 5 s default is too short on 2-vCPU
+// runProcess kills the linter after linterTimeout. Vitest's 5 s default is too short on 2-vCPU
 // agents, where concurrent oxlint runs compete for CPU, so each test gets that budget per check()
 // plus a margin for check()'s fixture setup, which runs before the kill timer starts. A hung
-// linter then fails with runLinter's "Timed out running …" error and output, not a Vitest timeout.
+// linter then fails with runProcess's "timed out" error and output, not a Vitest timeout.
 const linterTimeout = 15_000;
 const checkSetupMargin = 5_000;
 
 const checkTimeout = (checks = 1) => checks * (linterTimeout + checkSetupMargin);
-
-const runLinter = (args: string[], cwd: string) =>
-  new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve, reject) => {
-    const child = spawn(process.execPath, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error(`Timed out running ${args.join(" ")}:\n${stderr}${stdout}`));
-    }, linterTimeout);
-
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      stdout += chunk;
-    });
-    child.stderr.on("data", (chunk: string) => {
-      stderr += chunk;
-    });
-    child.on("error", (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    child.on("close", (status, signal) => {
-      clearTimeout(timer);
-      expect(signal).toBeNull();
-      resolve({ status, stdout, stderr });
-    });
-  });
 
 const check = async (files: Record<string, string>, message?: string, viaVp = false) => {
   const root = mkdtempSync(join(tmpdir(), "merit-boundaries-"));
@@ -264,7 +235,10 @@ const check = async (files: Record<string, string>, message?: string, viaVp = fa
       args = [oxlint, "--config", oxlintConfig, "--format", "json", "."];
     }
 
-    const result = await runLinter(args, root);
+    const result = await runProcess(process.execPath, args, {
+      cwd: root,
+      timeoutMs: linterTimeout,
+    });
     const report = resultSchema.parse(JSON.parse(result.stdout));
     expect(result.status, result.stderr + result.stdout).toBe(message ? 1 : 0);
     if (message) {
@@ -626,6 +600,21 @@ describe.concurrent("architecture rules", { timeout: checkTimeout() }, () => {
         "interfaces/product/src/index.ts": "export const value = 1;",
       },
       message,
+    );
+  });
+
+  test("the site cannot import a public entry from the product interface", async () => {
+    await check(
+      {
+        "interfaces/site/src/features/landing/landing-page.tsx":
+          'import { RequestAccess } from "@merit/product/access-request"; export { RequestAccess };',
+        "interfaces/product/package.json": JSON.stringify({
+          name: "@merit/product",
+          exports: { "./access-request": "./src/access-request.tsx" },
+        }),
+        "interfaces/product/src/access-request.tsx": "export const RequestAccess = () => null;",
+      },
+      "Interfaces cannot depend on other interfaces.",
     );
   });
 

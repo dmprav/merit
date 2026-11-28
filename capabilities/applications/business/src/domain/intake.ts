@@ -147,6 +147,7 @@ export type IntakeChangeError =
   | "application_in_use"
   | "application_withdrawn"
   | "application_not_withdrawn"
+  | "application_has_commitment"
   | "withdrawal_date_in_future";
 
 export const intakeContent = (
@@ -188,6 +189,7 @@ export const canDeleteApplication = (application: IntakeState, usage: Applicatio
   !isWithdrawn(application) &&
   application.intakeStatus === "in_preparation" &&
   !usage.hasRecommendation &&
+  !usage.hasDecision &&
   !usage.hasReviews;
 
 export const canStartIntakeRevision = (application: IntakeState, working: WorkingRevision | null) =>
@@ -301,7 +303,12 @@ const prepareWithdrawal = (
   workingRevision: WorkingRevision | null,
   change: Extract<IntakeChange, { action: "withdraw" }>,
   author: { userId: string; name: string; recordedAt: string },
+  usage: ApplicationUsage,
 ) => {
+  // A commitment must be superseded by a new decision version before the application leaves the round.
+  if (usage.hasCommitment) {
+    return invalidIntakeChange("application_has_commitment");
+  }
   if (change.withdrawnOn > latestWithdrawalDate(author.recordedAt)) {
     return invalidIntakeChange("withdrawal_date_in_future");
   }
@@ -410,7 +417,7 @@ export const prepareIntakeChange = (
       return { ...unchanged, action: change.action };
 
     case "withdraw":
-      return prepareWithdrawal(application, workingRevision, change, author);
+      return prepareWithdrawal(application, workingRevision, change, author, usage);
 
     case "reinstate":
       return prepareReinstatement(application, workingRevision, change.reason);

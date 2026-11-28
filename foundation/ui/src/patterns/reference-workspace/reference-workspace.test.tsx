@@ -62,6 +62,74 @@ it("names both panes and links between them for stacked layouts", () => {
   );
 });
 
+it("shows a header bar on every pane, with the label as the work pane's title when none is given", () => {
+  render(
+    <ReferenceWorkspace>
+      <ReferencePane label="Reference" toolbar={<span>Switcher</span>}>
+        <p>Reading</p>
+      </ReferencePane>
+      <WorkPane label="Your assessment" footer={<button>Save</button>}>
+        <p>Working</p>
+      </WorkPane>
+    </ReferenceWorkspace>,
+  );
+  const work = screen.getByRole("complementary", { name: "Your assessment" });
+  const bar = work.querySelector("[data-dialog-header]");
+
+  expect(bar).toContainElement(screen.getByRole("heading", { name: "Your assessment", level: 2 }));
+  expect(screen.getByText("Switcher").closest("[data-dialog-header]")).not.toBeNull();
+  // The footer is the frame's, below the one scrolling body.
+  expect(work.querySelectorAll("[data-frame-body]")).toHaveLength(1);
+  expect(
+    screen.getByRole("button", { name: "Save" }).closest("[data-frame-footer]"),
+  ).not.toBeNull();
+});
+
+it("shows title actions only while the work pane has a title", () => {
+  const { rerender } = render(
+    <ReferenceWorkspace>
+      <WorkPane label="Review task" titleActions={<button>Close review task</button>}>
+        <p>Overview</p>
+      </WorkPane>
+    </ReferenceWorkspace>,
+  );
+
+  expect(screen.queryByRole("button", { name: "Close review task" })).not.toBeInTheDocument();
+
+  rerender(
+    <ReferenceWorkspace>
+      <WorkPane
+        label="Review task"
+        title="Record assessment"
+        titleActions={<button>Close review task</button>}
+      >
+        <p>Editor</p>
+      </WorkPane>
+    </ReferenceWorkspace>,
+  );
+
+  expect(screen.getByRole("button", { name: "Close review task" })).toBeVisible();
+});
+
+it.each([
+  ["without a toolbar", undefined],
+  ["whose conditional toolbar is false", false],
+])("titles a reference pane %s with its label", (_case, toolbar) => {
+  render(
+    <ReferenceWorkspace>
+      <ReferencePane label="Reviewer list" toolbar={toolbar}>
+        <p>Reading</p>
+      </ReferencePane>
+    </ReferenceWorkspace>,
+  );
+
+  expect(
+    screen
+      .getByRole("heading", { name: "Reviewer list", level: 2 })
+      .closest("[data-dialog-header]"),
+  ).not.toBeNull();
+});
+
 it("restores each reference's scroll position and focuses the viewport only when asked", async () => {
   render(<Example />);
   const viewport = screen.getByRole("group", { name: "Reference" });

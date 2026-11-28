@@ -83,9 +83,10 @@ Organization invitation emails follow the same path. After the invitation commit
 starts the `organization-invitation:<invitationId>` workflow, which Organizations owns, and the
 request waits about five seconds for the first outcome. Its activity rereads the invitation before
 every attempt and stops once it is revoked, accepted, or expired. The raw invitation token is the one
-sensitive field in the workflow input; the payload codec encrypts it, and only its hash is stored in
-Postgres. Reconciliation therefore cannot recover a lost start: the invitation stays unconfirmed and
-the administrator resends it. Resend creates a new invitation with its own workflow. The workflow
+sensitive field in the workflow input, which the payload codec encrypts.
+Postgres commits the token hash and a separately encrypted token together. Worker startup and the
+periodic reconciliation schedule use the latter to recover a lost handoff. Temporal's confirmation
+clears the encrypted token from the invitation. Resend creates a new invitation with its own workflow. The workflow
 reads and records under the invitation's token-hash scope, as invitation delivery always has, so
 the inviter's own access can change while it runs; a late failure never overwrites a recorded send.
 Temporal keeps workflow history, including that encrypted token, for the namespace's retention period.

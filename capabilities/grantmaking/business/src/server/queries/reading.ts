@@ -2,11 +2,12 @@ import { type z } from "zod";
 
 import type { Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
-import { decodeMoney, encodeMoney, fromMinorUnits, subtract } from "@merit/money";
+import { decodeMoney, encodeMoney, fromMinorUnits } from "@merit/money";
 import { readWorkspace } from "@merit/organizations/transactions";
 import { compareReviewBasis, reviewCriteriaSchema, reviewFreshness } from "@merit/reviews/domain";
 import { readRoundPreparationHistory } from "@merit/rounds/readers";
 
+import { encodeRoundTotals } from "../../api/queries/application-detail";
 import {
   reviewListInput,
   reviewSummarySchema,
@@ -25,6 +26,7 @@ import {
   roundOverviewSchema,
   applicationContextSchema,
 } from "../../api/queries/reading";
+import { roundBalances } from "../../domain/summaries";
 import * as reads from "../persistence/queries/reading";
 
 export const listFundingRoundSummaries = async (
@@ -71,6 +73,7 @@ export const getFundingRoundOverview = async (
       return { status: "not_found" } as const;
     }
     const proposed = fromMinorUnits(BigInt(row.proposed));
+    const committed = fromMinorUnits(BigInt(row.committed));
     const budget = row.budget === null ? null : decodeMoney(row.budget);
     return {
       status: "ok",
@@ -79,9 +82,10 @@ export const getFundingRoundOverview = async (
         totals: {
           requested: encodeMoney(fromMinorUnits(BigInt(row.requested))),
           unknownRequests: row.unknownRequests,
-          withdrawnApplications: row.withdrawnApplications,
-          proposed: encodeMoney(proposed),
-          remaining: budget === null ? null : encodeMoney(subtract(budget, proposed)),
+          ...encodeRoundTotals({
+            ...roundBalances(budget, proposed, committed),
+            withdrawnApplications: row.withdrawnApplications,
+          }),
         },
       }),
     } as const;
@@ -204,7 +208,9 @@ export const getFundingApplicationContent = async (
       return { status: "invalid_range" } as const;
     }
     if (
-      (request.section === "intake_change" || request.section === "recommendation_change") &&
+      (request.section === "intake_change" ||
+        request.section === "recommendation_change" ||
+        request.section === "decision_change") &&
       request.revision === undefined
     ) {
       return { status: "invalid_range" } as const;

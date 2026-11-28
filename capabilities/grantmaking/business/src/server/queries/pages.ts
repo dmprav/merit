@@ -2,7 +2,8 @@ import type { IntakeState } from "@merit/applications/api";
 import { workingRevisionSchema, materialVersionSchema } from "@merit/applications/domain";
 import type { Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
-import { fromMinorUnits, subtract } from "@merit/money";
+import { decisionUsage } from "@merit/decisions/domain";
+import { fromMinorUnits } from "@merit/money";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 import { readWorkspace } from "@merit/organizations/transactions";
 import {
@@ -25,6 +26,7 @@ import {
 import { decodeApplicationContext } from "../../api/queries/application-detail";
 import { applicationView } from "../../api/queries/round-view";
 import { decodeApplication } from "../../domain/encoding";
+import { roundBalances } from "../../domain/summaries";
 import {
   readApplicationDetail,
   readPublicRound,
@@ -72,14 +74,14 @@ export const getFundingRoundPage = async (
     const properties = decodeRound(row.snapshot);
     const totals = await readRoundPageTotals(tx, row.organizationId, properties);
     const proposed = fromMinorUnits(BigInt(totals.proposed));
+    const committed = fromMinorUnits(BigInt(totals.committed));
     const round = {
       ...properties,
       applicationCount: totals.applicationCount,
       criteriaImpact: totals.criteriaImpact,
       totals: {
         requested: fromMinorUnits(BigInt(totals.requested)),
-        proposed,
-        remaining: properties.budget === null ? null : subtract(properties.budget, proposed),
+        ...roundBalances(properties.budget, proposed, committed),
         unknownRequests: totals.unknownRequests,
         withdrawnApplications: totals.withdrawnApplications,
         reviews: { ...totals.reviews, ...reviewProgress(totals.reviews) },
@@ -120,7 +122,12 @@ export const getFundingApplicationPage = async (
     }
 
     const history = await readApplicationHistory(tx, row.organizationId, row.publicId);
-    const round = decodeApplicationContext(row.round, row.allocations, row.withdrawnApplications);
+    const round = decodeApplicationContext(
+      row.round,
+      row.allocations,
+      row.commitments,
+      row.withdrawnApplications,
+    );
     const application = applicationView(
       decodeApplication(row.application),
       round.criteria,
@@ -136,6 +143,7 @@ export const getFundingApplicationPage = async (
         workingRevision:
           row.workingRevision === null ? null : workingRevisionSchema.parse(row.workingRevision),
         history: history.entries,
+        decisions: decisionUsage(row.decision.versions[0]?.decision.outcome),
       } satisfies IntakeState,
       application,
       round,
@@ -158,6 +166,7 @@ export const getFundingApplicationPage = async (
         provider: aiReviewProvider.provider,
         model: aiReviewProvider.model,
       },
+      decision: row.decision,
     };
   });
 };

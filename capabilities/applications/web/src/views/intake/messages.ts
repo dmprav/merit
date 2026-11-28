@@ -35,6 +35,7 @@ export const intakeError = (
         invalid_application: "intake.saveError",
         application_withdrawn: "intake.applicationWithdrawn",
         application_not_withdrawn: "intake.notWithdrawn",
+        application_has_commitment: "intake.hasCommitment",
         withdrawal_date_in_future: "intake.withdrawalDateFuture",
       } as const satisfies Record<IntakeSaveError, string>;
       return t(errors[failure.error]);

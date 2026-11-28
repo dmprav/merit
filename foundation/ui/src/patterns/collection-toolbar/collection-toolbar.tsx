@@ -9,6 +9,7 @@ import { Select, type SelectProps } from "../../components/fields/select/select"
 import { IconBase } from "../../components/icon/icon-base";
 import { Tooltip } from "../../components/tooltip/tooltip";
 import rowStyles from "../../foundations/list-row.module.css";
+import { popoverScroller } from "../../foundations/popover";
 import styles from "./collection-toolbar.module.css";
 
 type CollectionToolbarProps = {
@@ -110,7 +111,7 @@ const FilterPanel = ({
   return (
     <div className={styles.filters} ref={filterPanel} data-list-content>
       {search && <SearchField {...search} appearance="header" autoFocus />}
-      <div className={styles.criteria}>{filters}</div>
+      <div className={`${popoverScroller} ${styles.criteria}`}>{filters}</div>
       {reset && !reset.isDisabled && (
         <div className={styles.reset}>
           <RowButton

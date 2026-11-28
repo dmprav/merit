@@ -16,7 +16,11 @@ For a save conditional on an assessment, assembly supplies the Reviews freshness
 check. The command runs it under the same round and application locks before
 writing the proposal.
 
-`/api` contains browser-safe inputs, outcomes, and public JSON encoding. `/server`
+`/api` contains browser-safe inputs, outcomes, and public JSON encoding. The
+[budget totals codec](src/api/budget-totals.ts) carries proposed funding, the
+remaining budget, and the count of withdrawn applications to the product and AI.
+Grantmaking combines these values with the committed funding owned by Decisions.
+`/server`
 exposes the service factory and authorized save. `/server/integrations` implements
 Recommendations' part of the [application work](../../applications/business/src/server/grant-work.ts)
 contract: whether a recommendation blocks deletion, and whether reinstating a case

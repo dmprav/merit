@@ -1,7 +1,7 @@
 /* Centered over the page content, between the application shell's sidebar and companion panel. */
 .region {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-toast);
   bottom: var(--space-4);
   left: calc(50% + (var(--sidebar-width, 0px) - var(--companion-width, 0px)) / 2);
   transform: translateX(-50%);
@@ -34,6 +34,7 @@
   border: 1px solid var(--border-raised);
   border-radius: var(--panel-radius);
   background: var(--surface);
+  /* stylelint-disable-next-line declaration-property-value-disallowed-list -- a toast is not a popover but floats at the same elevation */
   box-shadow: var(--popover-shadow);
   color: var(--foreground);
   font-size: var(--text-detail);

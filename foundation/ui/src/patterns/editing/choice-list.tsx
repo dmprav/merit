@@ -6,7 +6,9 @@ import { Input, TextField } from "react-aria-components/TextField";
 import { Icon } from "../../components/icon/icon";
 import type { IconName } from "../../components/icon/icon-base";
 import rowStyles from "../../foundations/list-row.module.css";
+import { popoverScroller } from "../../foundations/popover";
 import searchStyles from "../../foundations/popover-search.module.css";
+import scrollStyles from "../../foundations/scroll-area.module.css";
 import styles from "./choice-list.module.css";
 
 /**
@@ -73,7 +75,7 @@ export const ChoiceList = ({
           }
         }}
         disabledKeys={items.filter((item) => isDisabled || item.isDisabled).map((item) => item.id)}
-        className={styles.list}
+        className={popoverScroller}
         items={shown}
         renderEmptyState={() => <span className={styles.empty}>{emptyLabel}</span>}
       >
@@ -92,7 +94,7 @@ export const ChoiceList = ({
         )}
       </ListBox>
       {actions && actions.length > 0 && (
-        <div className={rowStyles.actionGroup}>
+        <div className={`${rowStyles.actionGroup} ${scrollStyles.dividerUntilEnd}`}>
           {actions.map((action) => (
             <RowButton
               key={action.id}

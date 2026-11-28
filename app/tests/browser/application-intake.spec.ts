@@ -275,7 +275,7 @@ test("record, complete, recommend, and revise an application without a budget", 
     .getByRole("button", { name: "Recommendation uses an earlier version", exact: true })
     .click();
   await expect(
-    page.getByRole("dialog", { name: "Recommendation uses an earlier version" }),
+    page.getByRole("group", { name: "Recommendation uses an earlier version" }),
   ).toContainText("This recommendation was recorded for an earlier application version.");
   await page.keyboard.press("Escape");
   await expect(

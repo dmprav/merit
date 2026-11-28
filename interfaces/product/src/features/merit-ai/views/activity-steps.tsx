@@ -24,7 +24,7 @@ const StepIcon = ({ state }: { state: ReturnType<typeof stateOf> }) => {
   if (state === "done") {
     return <Icon name="check" />;
   }
-  return state === "running" ? <LoadingIcon /> : <Icon name="warning" />;
+  return state === "running" ? <LoadingIcon /> : <Icon name="attention" />;
 };
 
 /**

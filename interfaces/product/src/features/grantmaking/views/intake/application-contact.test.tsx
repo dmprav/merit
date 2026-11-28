@@ -79,7 +79,15 @@ const setup = (
   render(
     <ApplicationIntake
       application={application}
-      session={readOnly ? undefined : { data, onDeleted: async () => {} }}
+      session={
+        readOnly
+          ? undefined
+          : {
+              activity: { hasReviews: false, hasRecommendation: false, outstandingReviews: 0 },
+              data,
+              onDeleted: async () => {},
+            }
+      }
       onReveal={() => {}}
     >
       {({ overview }) => overview}

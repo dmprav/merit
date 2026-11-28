@@ -1,7 +1,8 @@
 import { type Actor } from "@merit/auth";
 import { allocatePublicId, type Database } from "@merit/db";
+import { encodeMoney } from "@merit/money";
 import type { WorkspaceChangeObserver } from "@merit/organizations/domain";
-import { lockGrantWorkspace } from "@merit/organizations/locks";
+import { lockWorkspaceRow, lockGrantActor } from "@merit/organizations/locks";
 import { writeObservedWorkspace, writeWorkspace } from "@merit/organizations/transactions";
 
 import {
@@ -13,16 +14,19 @@ import {
   type EditRoundRequest,
   type DeleteRoundRequest,
 } from "../../api/commands/preparation";
-import { newPreparedRound, prepareRoundChange, withRoundManager } from "../../domain/preparation";
-import type { RoundApplications } from "../grant-work";
 import {
-  lockPreparationRound,
-  lockPreparationRoundAccess,
+  budgetBelowCommitments,
+  newPreparedRound,
+  prepareRoundChange,
+  withRoundManager,
+} from "../../domain/preparation";
+import type { RoundApplications, RoundCommitments } from "../grant-work";
+import { lockFundingRound, lockPreparationRoundAccess } from "../persistence/commands/locks";
+import {
   readCreationReceipt,
   recordPreparationCreation,
   recordPreparationChange,
   recordPreparationDeletion,
-  lockManagerCandidate,
 } from "../persistence/commands/preparation";
 
 export const createFundingRound = async (
@@ -38,39 +42,51 @@ export const createFundingRound = async (
 
   const request = parsed.data;
   return writeObservedWorkspace(db, actor, request, onCommitted, async (tx, changed) => {
-    const access = await lockGrantWorkspace(tx, actor.userId, request.workspaceSlug, "update");
-    if (!access) {
+    const workspace = await lockWorkspaceRow(
+      tx,
+      { slug: request.workspaceSlug, userId: actor.userId },
+      "update",
+    );
+    if (!workspace) {
       return { status: "not_found" } as const;
     }
 
-    const receipt = await readCreationReceipt(tx, access.organization.id, request.requestId);
+    const receipt = await readCreationReceipt(workspace, request.requestId);
+    const existing = receipt && (await lockFundingRound(workspace, receipt.publicId, "update"));
+    const access = await lockGrantActor(workspace, actor.userId);
+    if (!access) {
+      return { status: "not_found" } as const;
+    }
     if (receipt) {
-      const existing = await lockPreparationRound(tx, access.organization.id, receipt.publicId);
       return existing
-        ? ({ status: "ok", publicId: existing.id } as const)
+        ? ({ status: "ok", publicId: existing.roundId } as const)
         : ({ status: "invalid", error: "round_deleted" } as const);
     }
 
     const round = newPreparedRound(request, {
       id: await allocatePublicId(tx),
-      foundation: access.organization.name,
+      foundation: workspace.organization.name,
       manager: access.actor,
       snapshotDate: new Date().toISOString().slice(0, 10),
     });
     const publicId = await recordPreparationCreation(
-      tx,
-      access.organization.id,
+      access,
       round,
       actor,
       request.requestId,
       request.budgetReason,
     );
-    changed(access.organization.id, access.organization.kind);
+    changed(workspace.organization.id, workspace.organization.kind);
     return { status: "ok", publicId } as const;
   });
 };
 
-export const editFundingRound = async (db: Database, actor: Actor, input: EditRoundRequest) => {
+export const editFundingRound = async (
+  db: Database,
+  actor: Actor,
+  input: EditRoundRequest,
+  roundCommitments: RoundCommitments,
+) => {
   const parsed = editRoundRequestSchema.safeParse(input);
   if (!parsed.success) {
     return { status: "invalid", error: "invalid_round" } as const;
@@ -93,16 +109,28 @@ export const editFundingRound = async (db: Database, actor: Actor, input: EditRo
       return { status: "invalid", error: result.error } as const;
     }
 
+    // Decisions commit under this round lock, so the total cannot grow before this change commits.
+    if (request.change.section === "budget" && result.changed) {
+      const committed = await roundCommitments(row);
+      if (budgetBelowCommitments(result.round.budget, committed)) {
+        return {
+          status: "invalid",
+          error: "budget_below_commitments",
+          committed: encodeMoney(committed),
+        } as const;
+      }
+    }
+
     let updated = result.round;
     if (request.change.section === "manager") {
-      const manager = await lockManagerCandidate(tx, row.organizationId, request.change.userId);
+      const manager = await lockGrantActor(row, request.change.userId);
       if (!manager) {
         return { status: "invalid", error: "manager_unavailable" } as const;
       }
-      updated = withRoundManager(updated, manager);
+      updated = withRoundManager(updated, manager.actor);
     }
 
-    const revision = await recordPreparationChange(tx, row, { ...result, round: updated }, actor);
+    const revision = await recordPreparationChange(row, { ...result, round: updated }, actor);
     return { status: "ok", revision } as const;
   });
 };
@@ -128,11 +156,11 @@ export const deleteFundingRound = async (
       return { status: "conflict" } as const;
     }
 
-    if (await roundHasApplications(tx, row.organizationId, row.id)) {
+    if (await roundHasApplications(row)) {
       return { status: "invalid", error: "round_not_empty" } as const;
     }
 
-    await recordPreparationDeletion(tx, row, actor);
+    await recordPreparationDeletion(row, actor);
     return { status: "ok" } as const;
   });
 };

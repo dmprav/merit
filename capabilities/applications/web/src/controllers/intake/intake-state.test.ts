@@ -211,22 +211,49 @@ it("saves staff details independently of both stale section and explanation revi
   });
 });
 
+const noUsage = {
+  hasReviews: false,
+  hasRecommendation: false,
+  hasDecision: false,
+  hasCommitment: false,
+};
+
 it("offers revision actions according to the submission lifecycle", () => {
   const preparing = makeApplication();
   const submitted = makeApplication({ intakeStatus: "ready" });
   const working = { kind: "correction" as const, reason: "", content: baseline.content };
 
-  expect(intakeMenuActions(preparing, null, false)).toEqual(["withdraw", "delete"]);
-  expect(intakeMenuActions(submitted, null, false)).toEqual([
+  expect(intakeMenuActions(preparing, null, false, noUsage)).toEqual(["withdraw", "delete"]);
+  expect(intakeMenuActions(submitted, null, false, noUsage)).toEqual([
     "start_revision",
     "correct",
     "withdraw",
   ]);
-  expect(intakeMenuActions(submitted, working, true)).toEqual([
+  expect(intakeMenuActions(submitted, working, true, noUsage)).toEqual([
     "title",
     "discard_revision",
     "withdraw",
   ]);
+});
+
+it("hides deletion once the application has a committee decision", () => {
+  const preparing = makeApplication();
+
+  expect(intakeMenuActions(preparing, null, false, noUsage)).toEqual(["withdraw", "delete"]);
+  // A deferral or decline still allows withdrawal; the server checks commitments when it runs.
+  expect(
+    intakeMenuActions(preparing, null, false, {
+      ...noUsage,
+      hasDecision: true,
+    }),
+  ).toEqual(["withdraw"]);
+  expect(
+    intakeMenuActions(preparing, null, false, {
+      ...noUsage,
+      hasDecision: true,
+      hasCommitment: true,
+    }),
+  ).toEqual(["withdraw"]);
 });
 
 it("offers no actions and no edits while withdrawn", () => {
@@ -240,8 +267,8 @@ it("offers no actions and no edits while withdrawn", () => {
   });
   const working = { kind: "correction" as const, reason: "", content: baseline.content };
 
-  expect(intakeMenuActions(withdrawn, null, false)).toEqual([]);
-  expect(intakeMenuActions(withdrawn, working, true)).toEqual([]);
+  expect(intakeMenuActions(withdrawn, null, false, noUsage)).toEqual([]);
+  expect(intakeMenuActions(withdrawn, working, true, noUsage)).toEqual([]);
   expect(intakeRenameCommand(withdrawn, null, "New title")).toBeNull();
   expect(
     intakeDraftCommand(

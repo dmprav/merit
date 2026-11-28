@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { decodeMoney, encodeMoney, moneyDataSchema } from "@merit/money";
+import { decodeBudgetTotals } from "@merit/recommendations/api";
 import {
   decodeRound,
   encodeRound,
@@ -9,13 +10,13 @@ import {
 } from "@merit/rounds/domain";
 
 import type { summarizeRound } from "../../domain/summaries";
-import { totalsDataSchema, encodeBudgetTotals } from "./application-detail";
+import { roundTotalsDataSchema, encodeRoundTotals } from "./application-detail";
 
 const count = z.number().int().nonnegative();
 const roundPageDataSchema = fundingRoundDataSchema.extend({
   applicationCount: count,
   criteriaImpact: z.object({ assessments: count, requests: count }),
-  totals: totalsDataSchema.extend({
+  totals: roundTotalsDataSchema.extend({
     requested: moneyDataSchema,
     unknownRequests: count,
     reviews: z.object({
@@ -42,7 +43,7 @@ export const encodeRoundPage = (round: RoundPage) =>
     applicationCount: round.applicationCount,
     criteriaImpact: round.criteriaImpact,
     totals: {
-      ...encodeBudgetTotals(round.totals),
+      ...encodeRoundTotals(round.totals),
       requested: encodeMoney(round.totals.requested),
       unknownRequests: round.totals.unknownRequests,
       reviews: round.totals.reviews,
@@ -58,8 +59,9 @@ export const decodeRoundPage = (input: unknown): RoundPage => {
     totals: {
       ...data.totals,
       requested: decodeMoney(data.totals.requested),
-      proposed: decodeMoney(data.totals.proposed),
-      remaining: data.totals.remaining === null ? null : decodeMoney(data.totals.remaining),
+      ...decodeBudgetTotals(data.totals),
+      committed: decodeMoney(data.totals.committed),
+      available: data.totals.available === null ? null : decodeMoney(data.totals.available),
     },
   };
 };

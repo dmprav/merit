@@ -1,3 +1,10 @@
+/* Only a Stack's direct children see its gap; a wrapper's descendants fall back to none. */
+@property --parent-stack-gap {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 .stack,
 .inline {
   gap: var(--layout-gap);
@@ -75,6 +82,14 @@
   --parent-stack-gap: var(--space-8);
 }
 
+.stack[data-gap="section"] {
+  --layout-gap: var(--space-section);
+}
+
+.stack[data-gap="section"] > * {
+  --parent-stack-gap: var(--space-section);
+}
+
 .stack {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -128,18 +143,5 @@
 }
 
 .stack[data-divided="between"] > * + * {
-  border-top: 1px solid var(--border);
-}
-
-:where(.stack:is([data-divided="after"], [data-divided="around"])) > * {
-  padding-bottom: var(--parent-stack-gap);
-}
-
-.stack:is([data-divided="after"], [data-divided="around"]) > * {
-  border-bottom: 1px solid var(--border);
-}
-
-.stack[data-divided="around"] {
-  padding-top: var(--layout-gap);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-subtle);
 }

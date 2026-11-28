@@ -49,6 +49,7 @@ export const configureContacts = (initial: Contact[]) => {
         intakeRevision: 0,
         reviewRevision: reviewRevisionSchema.parse(0),
         recommendationRevision: 0,
+        decisionRevision: 0,
         intakeStatus: "in_preparation",
         withdrawn: false,
         requested: null,

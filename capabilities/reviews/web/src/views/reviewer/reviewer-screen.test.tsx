@@ -20,6 +20,7 @@ const invitation = () => {
   page.material = null;
   page.criteria = null;
   page.draft = null;
+  page.work = { available: false, reason: "action_unavailable" };
   return page;
 };
 
@@ -48,18 +49,35 @@ it("shows the private draft while a reviewer is writing", async () => {
   );
   expect(screen.getByText("Draft saved, private until you submit")).toBeVisible();
   const assessment = within(screen.getByRole("region", { name: "Your assessment" }));
-  expect(assessment.getByText(/^Due /)).toBeVisible();
+  const due = assessment.getByText("10 February 2027");
+  expect(due.tagName).toBe("TIME");
+  expect(due).toHaveAttribute("datetime", "2027-02-10");
+  expect(due).toBeVisible();
 
   await user.click(assessment.getByRole("button", { name: "About this request" }));
-  const details = within(dialog("About this request"));
+  const details = within(screen.getByRole("group", { name: "About this request" }));
   expect(details.getByText("Requested by Dana Reed")).toBeVisible();
-  expect(details.getByText(/Response requested by/)).toBeVisible();
+  expect(details.queryByText(/10 February 2027/)).not.toBeInTheDocument();
   expect(
     details.getByText(
       "Your draft is private. The manager can read your assessment after you submit it.",
     ),
   ).toBeVisible();
   expect(screen.queryByRole("link", { name: "Ask a question by email" })).not.toBeInTheDocument();
+});
+
+it("shows no date or placeholder in the Writing header when no response is due", () => {
+  const page = reviewerPage();
+  page.assignment = { ...page.assignment, dueDate: null };
+  renderReviewer(page);
+  const header = screen
+    .getByRole("region", { name: "Your assessment" })
+    .querySelector("[data-dialog-header]")!;
+  expect(header.querySelector("time")).toBeNull();
+  expect(within(header as HTMLElement).queryByText(/due|no date|not set/i)).not.toBeInTheDocument();
+  expect(
+    within(header as HTMLElement).getByRole("button", { name: "About this request" }),
+  ).toBeVisible();
 });
 
 it("offers acceptance without the application until the reviewer accepts", () => {
@@ -268,11 +286,45 @@ it("keeps unsaved writing visible after access ends", async () => {
   expect(screen.getByRole("button", { name: "Copy draft" })).toBeVisible();
 });
 
+const withdrawnApplication = () => {
+  const page = submittedPage();
+  page.work = { available: false, reason: "application_withdrawn" };
+  return page;
+};
+
+it("keeps a submitted assessment readable but offers no change after withdrawal", () => {
+  renderReviewer(withdrawnApplication(), "ordinary", { amending: true });
+
+  const assessment = within(screen.getByRole("region", { name: "Your assessment" }));
+  expect(assessment.getByText(/^This application was withdrawn/)).toBeVisible();
+  expect(assessment.getByRole("link", { name: "Contact Dana Reed" })).toHaveAttribute(
+    "href",
+    "mailto:dana@example.test",
+  );
+  expect(assessment.getByText(/^The free venue/)).toBeVisible();
+  expect(screen.getByRole("region", { name: "Application material" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Amend assessment" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Resume amendment" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("textbox", { name: "Overall reasoning" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
+});
+
+it("retains an unsaved amendment for copying once withdrawal closes the editor", () => {
+  const page = withdrawnApplication();
+  const draft = { ...page.draft!.content, reasoning: "Typed before the refusal." };
+  renderReviewer(page, "ordinary", { amending: true, draft });
+
+  const retained = within(screen.getByRole("region", { name: "Unsaved assessment" }));
+  expect(retained.getByText("Typed before the refusal.")).toBeVisible();
+  expect(retained.getByRole("button", { name: "Copy draft" })).toBeEnabled();
+});
+
 const retainedDraft = () => {
   const initial = reviewerPage();
   initial.assignment.status = "cancelled";
   initial.material = null;
   initial.criteria = null;
+  initial.work = { available: false, reason: "action_unavailable" };
   const draft = {
     ...initial.draft!.content,
     amount: "123.456",

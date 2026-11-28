@@ -5,6 +5,8 @@
   "license": "UNLICENSED",
   "type": "module",
   "exports": {
+    "./access-request": "./src/views/access-request.tsx",
+    "./access-request-messages": "./src/access-request-messages.ts",
     "./team": "./src/team.tsx",
     "./contracts/team": "./src/contracts/team.ts",
     "./data/team": "./src/data/queries.ts",
@@ -13,6 +15,7 @@
   },
   "dependencies": {
     "@merit/access": "workspace:*",
+    "@merit/analytics": "workspace:*",
     "@merit/drafts": "workspace:*",
     "@merit/forms": "workspace:*",
     "@merit/i18n": "workspace:*",

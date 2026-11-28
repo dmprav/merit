@@ -36,13 +36,13 @@ monetary formats. Text and structured results carry the same validated data.
 
 ## Choose client access
 
-| OAuth grant        | Allows, subject to current Merit permissions                                                                                  |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `workspace:read`   | Workspace discovery, rounds, applications, manager assignment views, contacts, and workspace members                          |
-| `grants:write`     | Round preparation, intake, reviews, AI reviews, reviewer invitations and assignment management, recommendations, and contacts |
-| `reviews:read`     | Your reviewer assignments, assigned evidence, private drafts, and submissions                                                 |
-| `reviews:write`    | Accept/decline assignments, report conflicts, save private drafts, submit and amend your assessments                          |
-| `onboarding:write` | Start or resume the signed-in account's demo                                                                                  |
+| OAuth grant        | Allows, subject to current Merit permissions                                                                                                       |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workspace:read`   | Workspace discovery, rounds, applications, manager assignment views, contacts, and workspace members                                               |
+| `grants:write`     | Round preparation, intake, reviews, AI reviews, reviewer invitations and assignment management, recommendations, committee decisions, and contacts |
+| `reviews:read`     | Your reviewer assignments, assigned evidence, private drafts, and submissions                                                                      |
+| `reviews:write`    | Accept/decline assignments, report conflicts, save private drafts, submit and amend your assessments                                               |
+| `onboarding:write` | Start or resume the signed-in account's demo                                                                                                       |
 
 Grant the scopes needed for the task. For example, trying a sample round requires
 `onboarding:write` to start the demo and `workspace:read` to read the round.
@@ -95,7 +95,7 @@ To catch up on recent changes across a workspace, call `list_workspace_activity`
 It returns who changed shared grant work, newest first, in pages of up to 50
 entries. Optional `roundId` (the round and
 its applications, including their review requests, reviewer responses, assessments,
-and recommendations) and `personId` filters
+recommendations, and committee decisions) and `personId` filters
 narrow the list, as on the web. Take person IDs from the returned `people`. Each entry carries the
 recorded person's name, web or MCP-client provenance, a stored action name, and the
 record's current title and browser link, or a null record that no longer exists.
@@ -197,8 +197,11 @@ Requested edits save directly. The first budget amount saves without a reason; a
 is required only for a later change, a clear, or an amount set after a clear. There is no
 additional web-confirmation step. Ask for suggestions when no save is
 intended; client conversations are outside Merit's verification boundary. Saving a
-recommendation does not commit funding. Publishing a working intake revision makes that correction or revision current;
-public publication and funding decision recording are not implemented in either interface.
+recommendation does not commit funding. To record what a committee decided, use
+`record_committee_decision`; a Fund or Fund with conditions decision commits its amount
+against the round budget, while Defer and Decline commit nothing. See
+[recording committee decisions](../workflows/record-decisions.md#in-mcp). Publishing a working intake revision makes that correction or revision current;
+public publication is not implemented in either interface.
 
 ## Ask for and read AI reviews
 
@@ -244,6 +247,12 @@ returns the complete authorized page: invitation context, assigned material and
 criteria, private draft, and submitted versions. Before acceptance or while access
 is paused, protected content is null; a visible invitation does not grant access
 to evidence. Other people's drafts are never available to managers.
+
+The read's `work` says whether a save, submission, or amendment can succeed now. When
+`work.available` is false, `work.reason` is `action_unavailable` before acceptance or
+while access is paused or ended, and `application_withdrawn` while the application is
+withdrawn, which also refuses every `respond_to_review` action. Writes check again when
+they commit.
 
 Use `respond_to_review` with `accept`, `decline`, or `report_conflict`. Declining an
 accepted assignment withdraws before submission. Acceptance verifies the invited

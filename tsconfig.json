@@ -32,6 +32,15 @@
       "path": "foundation/storage"
     },
     {
+      "path": "capabilities/decisions/ai"
+    },
+    {
+      "path": "capabilities/decisions/business"
+    },
+    {
+      "path": "capabilities/decisions/web"
+    },
+    {
       "path": "capabilities/grantmaking/ai"
     },
     {

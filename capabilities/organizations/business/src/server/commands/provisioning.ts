@@ -3,6 +3,7 @@ import { type Actor } from "@merit/auth";
 import type { Database, Transaction } from "@merit/db";
 
 import { invitationProblem } from "../../domain/index";
+import type { Dependencies } from "../dependencies";
 import { recordOrganizationEvent } from "../persistence/commands/events";
 import { lockOrganization } from "../persistence/commands/invitations";
 import * as persistence from "../persistence/commands/provisioning";
@@ -24,6 +25,7 @@ export const createOrganization = (
   db: Database,
   input: { requestId: string; name: string; slug: string; email: string },
   actor: Actor,
+  invitationKey: Dependencies["invitationKey"],
 ) =>
   writeScoped(db, { kind: "provision", organizationId: input.requestId }, async (tx) => {
     // Serialize an identical retried request without resending or rotating its invitation.
@@ -55,6 +57,7 @@ export const createOrganization = (
         email: input.email,
       },
       actor,
+      invitationKey,
     );
     await recordOrganizationEvent(tx, {
       organizationId: input.requestId,
@@ -87,7 +90,13 @@ export const renameOrganization = (db: Database, id: string, name: string, actor
     });
   });
 
-export const replaceInvitation = (db: Database, id: string, actor: Actor, email: string) =>
+export const replaceInvitation = (
+  db: Database,
+  id: string,
+  actor: Actor,
+  email: string,
+  invitationKey: Dependencies["invitationKey"],
+) =>
   writeScoped(db, { kind: "provision", organizationId: id }, async (tx) => {
     const organization = (await lockOrganization(tx, id)) ?? fail("not_found");
     const previous = await notJoined(tx, id);
@@ -96,6 +105,7 @@ export const replaceInvitation = (db: Database, id: string, actor: Actor, email:
       tx,
       { purpose: "provisioning", organizationId: id, email },
       actor,
+      invitationKey,
     );
     await recordOrganizationEvent(tx, {
       organizationId: id,

@@ -21,12 +21,17 @@ type LayoutProps = FlowProps & {
   gap?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 };
 
-type StackProps = LayoutProps & {
+type StackProps = Omit<LayoutProps, "gap"> & {
   /**
-   * Rule off direct children, such as entries in a record list: between puts a rule centered in
-   * each gap, after also ends the last entry with one, and around also opens the list with one.
+   * A step in the shared spacing scale, or "section" for the space between consecutive sections
+   * of a page or pane.
    */
-  divided?: "between" | "after" | "around";
+  gap?: LayoutProps["gap"] | "section";
+  /**
+   * Rule off direct children, such as entries in a record list: between puts a subtle rule
+   * centered in each gap.
+   */
+  divided?: "between";
 };
 
 type InlineProps = LayoutProps & {

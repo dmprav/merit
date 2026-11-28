@@ -300,6 +300,36 @@ const dispatchCases: DispatchCase[] = [
     result: { status: "conflict" },
   },
   {
+    name: "record_committee_decision",
+    args: {
+      ...address,
+      outcome: "Fund with conditions",
+      amount: { minorUnits: "2400000", currency: "EUR" },
+      conditions: "Confirm the venue.",
+      reason: "Strong plan.",
+      decidedBy: "Funding committee",
+      decisionDate: "2027-01-19",
+      changeExplanation: "Corrected the amount.",
+      expectedDecisionRevision: 2,
+    },
+    fn: (o) => o.decisions.recordDecision,
+    input: {
+      workspaceSlug: "alder",
+      publicId: applicationId,
+      expectedRevision: 2,
+      decision: {
+        outcome: "Fund with conditions",
+        amount: { minorUnits: "2400000", currency: "EUR" },
+        conditions: "Confirm the venue.",
+        reason: "Strong plan.",
+        decidedBy: "Funding committee",
+        decisionDate: "2027-01-19",
+        changeExplanation: "Corrected the amount.",
+      },
+    },
+    result: { status: "conflict" },
+  },
+  {
     name: "list_reviewer_history",
     args: { ...address, assignmentId },
     fn: (o) => o.reviewer.history,
@@ -480,6 +510,7 @@ it("returns the reviewer's complete validated page and strips uncontracted field
     criteria: null,
     draft: { revision: 7, content: draft },
     assessment: null,
+    work: { available: false, reason: "application_withdrawn" } as const,
     privateInternalField: "hidden",
   };
   vi.mocked(operations.reviewer.read).mockResolvedValue({ status: "ok", value: page });
@@ -489,6 +520,7 @@ it("returns the reviewer's complete validated page and strips uncontracted field
     expect(result.structuredContent).toMatchObject({
       status: "ok",
       draft: { revision: 7, content: draft },
+      work: { available: false, reason: "application_withdrawn" },
     });
     expect(JSON.stringify(result)).not.toContain("hidden");
     expect(result.content).toEqual([

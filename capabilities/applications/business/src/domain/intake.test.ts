@@ -31,6 +31,8 @@ const usage = (application: IntakeWithUsage) => ({
     application.reviews?.requests.length || application.reviews?.assessments.length,
   ),
   hasRecommendation: application.managerRecommendation != null,
+  hasDecision: false,
+  hasCommitment: false,
 });
 
 const prepareIntakeChange = (
@@ -538,14 +540,50 @@ describe("application intake", () => {
   });
 
   it.each([
-    { intakeStatus: "in_preparation", hasReviews: false, hasRecommendation: false, allowed: true },
-    { intakeStatus: "in_preparation", hasReviews: true, hasRecommendation: false, allowed: false },
-    { intakeStatus: "in_preparation", hasReviews: false, hasRecommendation: true, allowed: false },
-    { intakeStatus: "ready", hasReviews: false, hasRecommendation: false, allowed: false },
+    {
+      intakeStatus: "in_preparation",
+      hasReviews: false,
+      hasRecommendation: false,
+      hasDecision: false,
+      allowed: true,
+    },
+    {
+      intakeStatus: "in_preparation",
+      hasReviews: true,
+      hasRecommendation: false,
+      hasDecision: false,
+      allowed: false,
+    },
+    {
+      intakeStatus: "in_preparation",
+      hasReviews: false,
+      hasRecommendation: true,
+      hasDecision: false,
+      allowed: false,
+    },
+    {
+      intakeStatus: "in_preparation",
+      hasReviews: false,
+      hasRecommendation: false,
+      hasDecision: true,
+      allowed: false,
+    },
+    {
+      intakeStatus: "ready",
+      hasReviews: false,
+      hasRecommendation: false,
+      hasDecision: false,
+      allowed: false,
+    },
   ] as const)(
-    "allows deletion of a $intakeStatus application with reviews=$hasReviews and recommendation=$hasRecommendation: $allowed",
-    ({ intakeStatus, hasReviews, hasRecommendation, allowed }) => {
-      expect(canDeleteCase({ intakeStatus }, { hasReviews, hasRecommendation })).toBe(allowed);
+    "allows deletion of a $intakeStatus application with reviews=$hasReviews, recommendation=$hasRecommendation and decision=$hasDecision: $allowed",
+    ({ intakeStatus, hasReviews, hasRecommendation, hasDecision, allowed }) => {
+      expect(
+        canDeleteCase(
+          { intakeStatus },
+          { hasReviews, hasRecommendation, hasDecision, hasCommitment: false },
+        ),
+      ).toBe(allowed);
     },
   );
 
@@ -637,6 +675,17 @@ describe("withdrawal", () => {
     });
     expect(result.application.version).toBe(application.version);
     expect(isWithdrawn(result.application)).toBe(true);
+  });
+
+  it("rejects withdrawing an application whose current decision commits funding", () => {
+    const funded = { hasReviews: false, hasRecommendation: false, hasDecision: true };
+    expect(
+      prepareIntakeCommand(ready(), null, withdraw, author, { ...funded, hasCommitment: true }),
+    ).toEqual({ ok: false, error: "application_has_commitment" });
+    // A deferral or decline reserves nothing, so the decision stays readable beside the withdrawal.
+    expect(
+      prepareIntakeCommand(ready(), null, withdraw, author, { ...funded, hasCommitment: false }).ok,
+    ).toBe(true);
   });
 
   it("accepts today and earlier dates but rejects a date not yet reached in any time zone", () => {

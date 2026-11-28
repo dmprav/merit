@@ -1,15 +1,5 @@
 .popover {
-  z-index: 40;
   width: min(22.5rem, calc(100vw - 32px));
-  overflow-y: auto;
-  border: 1px solid var(--border-raised);
-  border-radius: var(--panel-radius);
-  background: var(--surface);
-  color: var(--foreground);
-  /* Popovers render outside the application shell, so they set the body text size themselves. */
-  font-size: var(--text-body);
-  --motion-duration: var(--motion-fast);
-  box-shadow: var(--popover-shadow);
 }
 
 .dialog {
@@ -18,104 +8,58 @@
 
 .popover[data-appearance="picker"] {
   width: min(20rem, calc(100vw - 32px));
+  overflow-y: auto;
   scroll-padding-block: var(--space-3);
 }
 
+/*
+ * Dividers inside the picker bleed through this padding to run edge to edge. The dialog keeps its
+ * full height, so its padding stays in the scroll range of a picker that is taller than the screen.
+ */
 .popover[data-appearance="picker"] .dialog {
-  --popover-inset: var(--space-3);
-  padding: var(--popover-inset);
+  --popover-gutter: var(--space-3);
+  --popover-inset: 0px;
+  flex-shrink: 0;
+  padding: var(--popover-gutter);
 }
 
-/* List content, such as a choice list, runs to the picker's edges like a menu. */
+/* A list with notes or feedback around it keeps a narrow gutter that the notes line up with. */
 .popover[data-appearance="picker"] .dialog:has([data-list-content]) {
-  --popover-inset: var(--space-1);
+  --popover-gutter: var(--space-1);
 }
 
-.popover[data-appearance="reference"] {
+/*
+ * A list that is the dialog's whole content has no padding of its own: its scroller carries the
+ * inset, so the scrollbar sits at the picker's edge and the list is the only scroll container.
+ */
+.popover[data-appearance="picker"]:has(.dialog > [data-list-content]:only-child) {
+  overflow-y: hidden;
+}
+
+.popover[data-appearance="picker"] .dialog:has(> [data-list-content]:only-child) {
+  --popover-gutter: 0px;
+  --popover-inset: var(--space-1);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  flex-shrink: 1;
+  min-height: 0;
+  padding: 0;
+}
+
+/* With notes around it the picker is the one scroller, so the list inside runs its full height. */
+.popover[data-appearance="picker"]
+  .dialog:has([data-list-content]):not(:has(> [data-list-content]:only-child))
+  [role="listbox"] {
+  max-height: none;
+  overflow-y: visible;
 }
 
 .popover[data-appearance="reference"] .dialog {
-  --dialog-gutter: var(--space-4);
-  --dialog-body-gap: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  timeline-scope: --dialog-body;
-  --edge-timeline: --dialog-body;
-}
-
-.header {
-  display: flex;
-  flex-shrink: 0;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-1) var(--space-2) var(--space-1) var(--dialog-gutter);
-}
-
-.title {
-  min-width: 0;
-  /* Center the first line on the small close control; longer titles wrap below it. */
-  padding-block: calc((var(--control-height-small) - 1lh) / 2);
-  font-size: var(--text-body);
-  line-height: 1.4;
-  font-weight: var(--weight-heading);
-  overflow-wrap: anywhere;
-}
-
-.headerActions {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.footer {
-  flex-shrink: 0;
-  padding: var(--space-3) var(--dialog-gutter);
-  border-top: 1px solid var(--border);
-}
-
-/* Let utility content scroll with the guide when space is too small for both. */
-.popover[data-appearance="reference"][data-has-footer] {
-  overflow-y: auto;
-}
-
-.popover[data-has-footer] .dialog {
-  flex-shrink: 0;
-}
-
-/* The whole popover scrolls under its sticky header, so the divider stays. */
-.popover[data-has-footer] .header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  border-bottom: 1px solid var(--border);
+  flex: 1;
 }
 
 @media (pointer: coarse) {
   .popover[data-appearance="picker"] {
     width: min(22rem, calc(100vw - 32px));
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .popover[data-appearance="reference"][data-entering]:not([data-exiting]) {
-    animation: popover-in var(--motion-fast) ease-out;
-  }
-}
-
-@keyframes popover-in {
-  from {
-    opacity: 0;
-    transform: translateY(3px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }

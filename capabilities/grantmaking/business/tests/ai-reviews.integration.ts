@@ -22,7 +22,7 @@ import {
 } from "@merit/reviews/server";
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
-import { applicationWork } from "./application-work";
+import { applicationWork, roundCommitments } from "./application-work";
 import { recordedEvents } from "./audit-events";
 
 const questionId = "9841b190-2a06-5fe1-a7af-5e5b534662c5";
@@ -88,12 +88,17 @@ const setup = async (
   });
   assert(round.status === "ok");
   if (withCriteria) {
-    const edited = await editFundingRound(db, actor, {
-      workspaceSlug,
-      publicId: round.publicId,
-      expectedRevision: 0,
-      change: { section: "criteria", criteria },
-    });
+    const edited = await editFundingRound(
+      db,
+      actor,
+      {
+        workspaceSlug,
+        publicId: round.publicId,
+        expectedRevision: 0,
+        change: { section: "criteria", criteria },
+      },
+      roundCommitments,
+    );
     assert(edited.status === "ok");
   }
   const application = await createFundingApplication(db, actor, {

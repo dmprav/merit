@@ -22,8 +22,8 @@ const meta = {
   subcomponents: { DescriptionListItem },
   args: { children: null },
   argTypes: { children: { control: false } },
-  render: ({ layout }) => (
-    <DescriptionList layout={layout}>
+  render: ({ layout, divided }) => (
+    <DescriptionList layout={layout} divided={divided}>
       <DescriptionListItem label="Status">
         <Badge>Open</Badge>
       </DescriptionListItem>
@@ -51,6 +51,11 @@ export const Rows: Story = {
     await expect(label.top).toBeLessThan(value.bottom);
     await expect(label.bottom).toBeGreaterThan(value.top);
   },
+};
+
+export const Divided: Story = {
+  args: { layout: "rows", divided: true },
+  decorators: within(styles.sidebar),
 };
 
 export const LongContent: Story = {

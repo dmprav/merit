@@ -76,11 +76,7 @@ export const createBackgroundWork = ({
     });
 
   return {
-    /**
-     * A request delivers a committed organization invitation. Nothing reconciles these: only the
-     * token's hash is stored, so a start that failed leaves the invitation pending and the
-     * administrator resends it.
-     */
+    /** Requests and reconciliation hand the same invitation to its delivery workflow. */
     startOrganizationInvitation: async (work: InvitationWork): Promise<boolean> =>
       (await starter.start({
         workflowType: "organizationInvitation",

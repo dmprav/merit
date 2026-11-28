@@ -124,11 +124,11 @@ const ShellExample = ({ name, loading, signedIn, companion }: ShellExampleProps)
             Funding rounds
           </a>
           <a href="#main" className={styles.navigationGroupStart}>
-            <Icon name="contacts" />
+            <Icon name="addressBook" />
             Contacts
           </a>
           <a href="#main">
-            <Icon name="team" />
+            <Icon name="people" />
             Team
           </a>
           {companion && <AssistantOpener onOpen={() => setOpen(true)} />}
@@ -258,7 +258,7 @@ const companionDescription = (story: string) => ({
 export const AssistantPanel: Story = {
   args: { companion: { open: true } },
   parameters: companionDescription(
-    "The companion panel at its starting 416 pixels. From 1400 pixels wide it pushes the page content aside; below that it opens as a modal sheet.",
+    "The companion panel at its starting 448 pixels. From 1400 pixels wide it pushes the page content aside; below that it opens as a modal sheet.",
   ),
   play: companionPlay,
 };
@@ -282,7 +282,7 @@ export const AssistantPanelWithToast: Story = {
 export const AssistantPanelWidest: Story = {
   args: { companion: { open: true, width: 560 } },
   parameters: companionDescription(
-    "The widest the panel resizes to. In the modal sheet the width is fixed at 400 pixels.",
+    "The widest the panel resizes to. In the modal sheet the width is that of a side panel.",
   ),
   play: companionPlay,
 };

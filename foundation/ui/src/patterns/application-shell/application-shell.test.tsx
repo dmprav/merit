@@ -347,7 +347,7 @@ it("pushes the page aside with a labelled region on wide screens", async () => {
   expect(within(panel).getByRole("button", { name: "Ask" })).toBeVisible();
   expect(screen.getByRole("main")).toBeVisible();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  expect(document.documentElement.style.getPropertyValue("--companion-width")).toBe("416px");
+  expect(document.documentElement.style.getPropertyValue("--companion-width")).toBe("448px");
 
   await user.click(within(panel).getByRole("button", { name: "Close assistant" }));
 
@@ -523,24 +523,24 @@ it("resizes from the separator with the keyboard between 400 and 560 pixels", as
   await user.click(screen.getByRole("button", { name: "Open assistant" }));
   const separator = screen.getByRole("separator", { name: "Resize assistant" });
 
-  expect(separator).toHaveAttribute("aria-valuenow", "416");
+  expect(separator).toHaveAttribute("aria-valuenow", "448");
   expect(separator).toHaveAttribute("aria-valuemin", "400");
   expect(separator).toHaveAttribute("aria-valuemax", "560");
 
   separator.focus();
   await user.keyboard("{ArrowLeft}");
 
-  expect(separator).toHaveAttribute("aria-valuenow", "432");
-  expect(onWidthChange).toHaveBeenLastCalledWith(432);
-  expect(document.documentElement.style.getPropertyValue("--companion-width")).toBe("432px");
+  expect(separator).toHaveAttribute("aria-valuenow", "464");
+  expect(onWidthChange).toHaveBeenLastCalledWith(464);
+  expect(document.documentElement.style.getPropertyValue("--companion-width")).toBe("464px");
 
-  await user.keyboard("{ArrowRight}{ArrowRight}");
+  await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}");
 
   expect(separator).toHaveAttribute("aria-valuenow", "400");
 
   await user.keyboard("{ArrowRight}");
 
-  expect(onWidthChange).toHaveBeenCalledTimes(3);
+  expect(onWidthChange).toHaveBeenCalledTimes(5);
 
   await user.keyboard("{End}");
 
@@ -548,7 +548,7 @@ it("resizes from the separator with the keyboard between 400 and 560 pixels", as
 
   await user.keyboard("{ArrowLeft}");
 
-  expect(onWidthChange).toHaveBeenCalledTimes(4);
+  expect(onWidthChange).toHaveBeenCalledTimes(6);
   expect(onWidthChange).toHaveBeenLastCalledWith(560);
 
   await user.keyboard("{Home}");
@@ -580,7 +580,7 @@ it("resizes by dragging the separator and reports the width when the pointer is 
     { coords: { clientX: 940 } },
   ]);
 
-  expect(separator).toHaveAttribute("aria-valuenow", "476");
+  expect(separator).toHaveAttribute("aria-valuenow", "508");
   expect(onWidthChange).not.toHaveBeenCalled();
 
   await user.pointer([{ coords: { clientX: 500 } }]);
@@ -607,11 +607,11 @@ it("commits the width a key set during a drag when the pointer is released", asy
   ]);
   await user.keyboard("{ArrowLeft}");
 
-  expect(separator).toHaveAttribute("aria-valuenow", "492");
+  expect(separator).toHaveAttribute("aria-valuenow", "524");
 
   await user.pointer([{ keys: "[/MouseLeft]" }]);
 
-  expect(onWidthChange).toHaveBeenLastCalledWith(492);
+  expect(onWidthChange).toHaveBeenLastCalledWith(524);
 });
 
 it("toggles between the default and widest width when the separator is pressed without dragging", async () => {
@@ -630,8 +630,8 @@ it("toggles between the default and widest width when the separator is pressed w
 
   await user.click(separator);
 
-  expect(separator).toHaveAttribute("aria-valuenow", "416");
-  expect(onWidthChange).toHaveBeenLastCalledWith(416);
+  expect(separator).toHaveAttribute("aria-valuenow", "448");
+  expect(onWidthChange).toHaveBeenLastCalledWith(448);
   expect(onWidthChange).toHaveBeenCalledTimes(2);
 });
 

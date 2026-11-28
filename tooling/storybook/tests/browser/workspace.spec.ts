@@ -121,18 +121,24 @@ test(
       await expect(close).toBeInViewport({ ratio: 1 });
     }
 
-    // With enlarged text, narrow layouts scroll the whole task instead of only its fields.
-    for (const [width, scrollsTask] of [
-      [900, false],
-      [320, true],
+    // With enlarged text the task scrolls as a whole: a short viewport lets the body flow with the
+    // heading and actions, and a taller one keeps the body room while the long feedback and stacked
+    // actions push the frame to scroll.
+    const body = dialog.locator("[data-frame-body]");
+    for (const [height, shortViewport] of [
+      [1000, false],
+      [440, true],
     ] as const) {
-      await page.setViewportSize({ width, height: 1000 });
-      // The dialog changes its scrolling in a later frame; focusing before then reveals the
-      // field in the outgoing layout.
-      if (scrollsTask) {
-        await expect(dialog).toHaveAttribute("data-scroll-content");
+      await page.setViewportSize({ width: 320, height });
+      if (shortViewport) {
+        await expect(body).toHaveCSS("overflow-y", "visible");
       } else {
-        await expect(dialog).not.toHaveAttribute("data-scroll-content");
+        const rootSize = await page.evaluate(() =>
+          Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+        );
+        await expect
+          .poll(() => body.evaluate((node) => node.getBoundingClientRect().height))
+          .toBeGreaterThanOrEqual(4 * rootSize - 1);
       }
       await input.focus();
       await expect(input).toBeInViewport({ ratio: 1 });
@@ -267,8 +273,11 @@ test(
     await page.getByRole("option", { name: "Archived", exact: true }).click();
     // Escape would close the still-closing list instead of the filter popover.
     await expect(page.getByRole("listbox")).toHaveCount(0);
+    // Escape pressed before focus returns from the list to the popover would be lost, so one
+    // Escape is pressed once focus is back inside the popover. The popover blocks the page until
+    // its exit motion ends.
+    await expect(page.getByRole("dialog").locator(":focus")).toHaveCount(1);
     await page.keyboard.press("Escape");
-    // The filter popover blocks the page until its exit motion ends.
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await actions.click();
     await page.getByRole("menuitem", { name: "Restore", exact: true }).click();
@@ -328,7 +337,8 @@ test(
   "contact application side panel bounds a long list and keeps the close action reachable",
   { tag: "@cross-browser" },
   async ({ page }) => {
-    await page.setViewportSize({ width: page.viewportSize()!.width, height: 360 });
+    // Above 30rem of height only the list scrolls; shorter viewports scroll the whole panel.
+    await page.setViewportSize({ width: page.viewportSize()!.width, height: 520 });
     await page.goto(
       "/iframe.html?id=features-contacts-directory--many-applications&viewMode=story",
     );

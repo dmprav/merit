@@ -135,7 +135,7 @@ const useSearchPages = (workspace: ShellWorkspace) => {
       to: "/app/$workspaceSlug/rounds",
       params,
     }),
-    page("applications", t("navigation.applications"), t("search.applications"), "application", {
+    page("applications", t("navigation.applications"), t("search.applications"), "document", {
       to: "/app/$workspaceSlug/applications",
       params,
     }),
@@ -151,7 +151,7 @@ const useSearchPages = (workspace: ShellWorkspace) => {
           }),
         ]
       : []),
-    page("contacts", t("navigation.contacts"), t("search.contacts"), "contacts", {
+    page("contacts", t("navigation.contacts"), t("search.contacts"), "addressBook", {
       to: "/app/$workspaceSlug/contacts",
       params,
     }),

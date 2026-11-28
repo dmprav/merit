@@ -39,6 +39,8 @@ export const roundsMessages = {
     total: "Round budget",
     requested: "Total requested",
     proposed: "Proposed allocation",
+    committed: "Committed",
+    available: "Available",
     over: "Over budget",
     remaining: "Remaining if approved",
     exceeded:
@@ -109,6 +111,8 @@ export const roundsMessages = {
     requested: "Requested",
     recommendation: "Manager recommendation",
     notRecommended: "Not yet recommended",
+    decision: "Decision",
+    noDecision: "No decision",
     noAllocation: "No funding proposed",
     proposedAmount: "{{amount}} proposed",
     recommendationAuthor: "Program manager",

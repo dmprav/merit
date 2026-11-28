@@ -2,6 +2,7 @@ import type { z } from "zod";
 
 import type { IntakeState } from "@merit/applications/api";
 import type { Actor } from "@merit/auth";
+import type { DecisionStateData } from "@merit/decisions/api";
 import type { AiReviewAvailability, AiReviewEntry } from "@merit/reviews/domain";
 import type { PreparationState } from "@merit/rounds/api";
 
@@ -94,6 +95,7 @@ export interface GrantmakingQueries {
     aiReviewAvailability: AiReviewAvailability;
     /** The provider and model a new run would use; null when the server has none. */
     aiReviewProvider: { provider: string; model: string } | null;
+    decision: DecisionStateData;
   } | null>;
   readRoundPage: (
     actor: Actor,

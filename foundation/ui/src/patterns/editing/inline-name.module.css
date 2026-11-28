@@ -1,59 +1,108 @@
+/* The trigger and the editor share one grid: the text, then a slot the size of an icon. */
+.trigger[data-variant],
+.editor {
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr) var(--inline-name-slot);
+  align-items: start;
+  column-gap: var(--space-2);
+  max-width: 100%;
+  --inline-name-slot: var(--icon-size);
+}
+
 .trigger[data-variant] {
-  display: inline;
-  padding: 0;
+  min-height: 0;
   margin: 0;
+  border: 0;
+  padding: 0;
   font: inherit;
   letter-spacing: inherit;
   line-height: inherit;
-  white-space: normal;
-  text-align: left;
+  text-align: start;
 }
 
-.trigger svg {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  margin-left: var(--space-2);
+/* A long name wraps; it is never cut off. The mirror and the textarea wrap the same way. */
+.text,
+.mirror,
+.input {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.slot {
+  display: inline-flex;
+  align-items: center;
+  /* Centred on the first line of the name, however many lines it wraps to. */
+  height: 1lh;
+  width: var(--inline-name-slot);
   color: var(--muted);
-  vertical-align: middle;
+}
+
+.slot[data-state="error"] {
+  color: var(--danger);
 }
 
 .editor {
-  display: inline-grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  max-width: 100%;
-  gap: var(--space-1);
+  position: relative;
 }
 
+.mirror,
 .input {
+  grid-area: 1 / 1;
+  align-self: stretch;
   min-width: 0;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  border-bottom: 1px solid var(--focus);
-  background: transparent;
-  color: inherit;
   font: inherit;
   letter-spacing: inherit;
   line-height: inherit;
+}
+
+/* Holds the text's width and height in the cell the input shares. */
+.mirror {
+  visibility: hidden;
+}
+
+/* Zero intrinsic width: the mirror, not the input's default size, sets the cell's width. */
+.input {
+  width: 0;
+  min-width: 100%;
+  resize: none;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
   outline: none;
 }
 
+/* Outside the box, so showing focus never moves the text. */
 .input:focus-visible {
   box-shadow: 0 1px 0 var(--focus);
 }
 
-.actions {
-  display: inline-flex;
-  margin-inline-start: auto;
-}
-
+/* The error floats over what follows instead of pushing it down; its background keeps it legible. */
 .error {
-  grid-column: 1 / -1;
-  width: 100%;
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-start: 0;
+  z-index: 1;
+  width: max-content;
+  /* The page header is the size container; the editor starts at its edge, so this fits the row. */
+  max-width: min(24rem, 100cqw);
+  padding-block: var(--space-1);
+  background: var(--background);
+  pointer-events: none;
   font-size: var(--text-detail);
   font-weight: var(--weight-regular);
+  letter-spacing: normal;
+  line-height: 1.4;
   color: var(--danger);
+}
+
+@media (forced-colors: active) {
+  .input:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 0;
+  }
 }

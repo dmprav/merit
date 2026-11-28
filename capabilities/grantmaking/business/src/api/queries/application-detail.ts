@@ -1,6 +1,12 @@
 import { z } from "zod";
 
+import { commitmentTotals, decodeCommitments } from "@merit/decisions/domain";
 import { decodeMoney, encodeMoney, moneyDataSchema } from "@merit/money";
+import {
+  decodeBudgetTotals,
+  encodeBudgetTotals,
+  totalsDataSchema,
+} from "@merit/recommendations/api";
 import { decodeBudgetContext } from "@merit/recommendations/domain";
 import { fundingRoundSchema } from "@merit/rounds/domain";
 
@@ -18,25 +24,35 @@ const contextSchema = fundingRoundSchema.pick({
   criteriaHistory: true,
 });
 const contextDataSchema = contextSchema.extend({ budget: moneyDataSchema.nullable() });
-export const totalsDataSchema = z.object({
-  proposed: moneyDataSchema,
-  remaining: moneyDataSchema.nullable(),
-  withdrawnApplications: z.number().int().nonnegative(),
+
+/** Proposed totals come from recommendations; committed totals come from decisions. */
+export const roundTotalsDataSchema = totalsDataSchema.extend({
+  committed: moneyDataSchema,
+  available: moneyDataSchema.nullable(),
 });
 
 export const decodeApplicationContext = (
   input: unknown,
   allocations: unknown,
+  commitments: unknown,
   withdrawnApplications: number,
 ): ApplicationRoundContext => {
   const context = contextDataSchema.parse(input);
-  return { ...context, ...decodeBudgetContext(context.budget, allocations, withdrawnApplications) };
+  const budgeted = decodeBudgetContext(context.budget, allocations, withdrawnApplications);
+  return {
+    ...context,
+    budget: budgeted.budget,
+    totals: {
+      ...budgeted.totals,
+      ...commitmentTotals(budgeted.budget, decodeCommitments(commitments)),
+    },
+  };
 };
 
-export const encodeBudgetTotals = (totals: ApplicationRoundContext["totals"]) => ({
-  proposed: encodeMoney(totals.proposed),
-  remaining: totals.remaining === null ? null : encodeMoney(totals.remaining),
-  withdrawnApplications: totals.withdrawnApplications,
+export const encodeRoundTotals = (totals: ApplicationRoundContext["totals"]) => ({
+  ...encodeBudgetTotals(totals),
+  committed: encodeMoney(totals.committed),
+  available: totals.available === null ? null : encodeMoney(totals.available),
 });
 
 export const encodeApplicationDetail = (detail: {
@@ -46,13 +62,13 @@ export const encodeApplicationDetail = (detail: {
   round: {
     ...contextSchema.parse(detail.round),
     budget: detail.round.budget === null ? null : encodeMoney(detail.round.budget),
-    totals: encodeBudgetTotals(detail.round.totals),
+    totals: encodeRoundTotals(detail.round.totals),
   },
   application: encodeApplication(detail.application),
 });
 
 const applicationDetailDataSchema = z.object({
-  round: contextDataSchema.extend({ totals: totalsDataSchema }),
+  round: contextDataSchema.extend({ totals: roundTotalsDataSchema }),
   application: z.unknown(),
 });
 
@@ -65,9 +81,9 @@ export const decodeApplicationDetail = (input: unknown) => {
       ...round,
       budget: round.budget === null ? null : decodeMoney(round.budget),
       totals: {
-        proposed: decodeMoney(totals.proposed),
-        remaining: totals.remaining === null ? null : decodeMoney(totals.remaining),
-        withdrawnApplications: totals.withdrawnApplications,
+        ...decodeBudgetTotals(totals),
+        committed: decodeMoney(totals.committed),
+        available: totals.available === null ? null : decodeMoney(totals.available),
       },
     },
     application: applicationView(

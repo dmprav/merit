@@ -7,6 +7,7 @@ import {
   roundWithdrawnCount,
 } from "@merit/applications/scope";
 import type { Database } from "@merit/db";
+import { readDecisionStatesMap, readRoundCommitments } from "@merit/decisions/scope";
 import { authorizedWorkspaces, readAssistantConsent } from "@merit/organizations/scope";
 import { readCurrentRecommendationsMap, readRoundAllocations } from "@merit/recommendations/scope";
 import { readAiReviewRecords, readReviewsByCasesMap } from "@merit/reviews/scope";
@@ -57,6 +58,15 @@ export const readPublicRound = async (
   };
 };
 
+/** The saved AI reviews of a case and whether the workspace consents to sending material out. */
+const readAiReviewState = async (db: Database, organizationId: string, caseId: string) => {
+  const [aiReviews, aiConsent] = await Promise.all([
+    readAiReviewRecords(db, organizationId, caseId),
+    readAssistantConsent(db, organizationId),
+  ]);
+  return { aiReviews, aiConsent };
+};
+
 // Only the selected case's content and sibling allocations cross the database seam.
 export const readApplicationDetail = async (
   db: Database,
@@ -95,8 +105,9 @@ export const readApplicationDetail = async (
     allocations,
     workingRevisionsMap,
     versionRows,
-    aiReviews,
-    aiConsent,
+    aiReview,
+    decisionsMap,
+    commitments,
   ] = await Promise.all([
     readCriteriaVersionsMap(db, [row.roundRow.id]),
     readIntakeApplicationsMap(db, row.caseRow.organizationId, [row.caseRow]),
@@ -109,8 +120,9 @@ export const readApplicationDetail = async (
       .from(materialVersions)
       .where(eq(materialVersions.caseId, row.caseRow.id))
       .orderBy(asc(materialVersions.version)),
-    readAiReviewRecords(db, row.caseRow.organizationId, row.caseRow.id),
-    readAssistantConsent(db, row.caseRow.organizationId),
+    readAiReviewState(db, row.caseRow.organizationId, row.caseRow.id),
+    readDecisionStatesMap(db, [row.caseRow.id]),
+    readRoundCommitments(db, row.caseRow.organizationId, row.roundRow.id),
   ]);
 
   const intake = intakeMap.get(row.caseRow.id);
@@ -124,11 +136,12 @@ export const readApplicationDetail = async (
     organizationId: row.caseRow.organizationId,
     round: assembleRoundRecord(row.roundRow, row.foundation, historyMap.get(row.roundRow.id) ?? []),
     allocations,
+    commitments,
+    decision: decisionsMap.get(row.caseRow.id) ?? { revision: 0, versions: [] },
     withdrawnApplications: row.withdrawnApplications,
     workspaceSlug: row.workspaceSlug,
     workspaceKind: row.workspaceKind,
-    aiReviews,
-    aiConsent,
+    ...aiReview,
     publicId: row.caseRow.id,
     recommendationVersion: recommendation?.revision ?? 0,
     intakeRevision: row.caseRow.revision,

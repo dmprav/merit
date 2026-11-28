@@ -70,6 +70,23 @@ it("advertises every workspace tool with the provider's input schema and filters
   expect(ops.grantmaking.readApplication).not.toHaveBeenCalled();
 });
 
+it("records team access for a member's team read and rechecks it after a role change", async () => {
+  const { ops, catalog } = setup();
+  const member = { ...workspace, role: "member", canWorkOnGrants: false } as const;
+  ops.readWorkspace.mockResolvedValue(member);
+  vi.mocked(ops.organizations.membersPage).mockResolvedValue({
+    status: "ok",
+    value: { members: [], nextCursor: null },
+  });
+  expect((await catalog.list()).map((tool) => tool.name)).toContain("list_team_members");
+  const receipt = await catalog.read("list_team_members", {});
+  expect(receipt.result.status).toBe("ok");
+  expect(receipt.dependencies).toEqual([{ kind: "team" }]);
+  expect(await catalog.permits(receipt.dependencies)).toBe(true);
+  ops.readWorkspace.mockResolvedValue({ ...member, role: "reviewer", canViewTeam: false });
+  expect(await catalog.permits(receipt.dependencies)).toBe(false);
+});
+
 it("keeps discovery, continuations and assignment reads inside the chat workspace", async () => {
   const { ops, catalog } = setup();
   expect((await catalog.read("list_workspaces", {})).result).toMatchObject({

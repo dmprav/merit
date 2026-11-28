@@ -1,8 +1,8 @@
-import type { Transaction } from "@merit/db";
+import type { Money } from "@merit/money";
 
-/** Read application existence in the supplied transaction while the caller holds the round lock. */
-export type RoundApplications = (
-  tx: Transaction,
-  organizationId: string,
-  roundId: string,
-) => Promise<boolean>;
+import type { LockedFundingRound } from "./persistence/commands/locks";
+
+export type RoundApplications = (locked: LockedFundingRound) => Promise<boolean>;
+
+/** Funding committed to the round's non-withdrawn applications. */
+export type RoundCommitments = (locked: LockedFundingRound) => Promise<Money>;

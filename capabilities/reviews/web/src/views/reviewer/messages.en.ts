@@ -27,7 +27,6 @@ export const en = {
   requested: "{{amount}} requested",
   dueOn: "Response requested by {{date}}",
   requestedBy: "Requested by {{name}}",
-  dueBadge: "Due {{date}}",
   requestDetails: "About this request",
   moreActions: "More actions",
   reviewerActions: "More actions for {{name}}",
@@ -118,6 +117,7 @@ export const en = {
   unavailable: "The request could not be confirmed. Your text is still here; try again.",
   applicationWithdrawn:
     "This application was withdrawn, so reviews can no longer be changed. Your text is still here.",
+  withdrawnReadOnly: "This application was withdrawn, so your assessment can no longer be amended.",
   accessLost: "Your access has changed. Refresh to see the current assignment status.",
   stale: "The assignment changed. Refresh and review its current status before trying again.",
   reviewerAccess: "Reviewer participation",

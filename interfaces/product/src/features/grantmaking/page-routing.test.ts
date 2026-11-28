@@ -37,6 +37,7 @@ const page = {
   aiReviews: [],
   aiReviewAvailability: "available" as const,
   aiReviewProvider: null,
+  decision: { revision: 0, versions: [] },
   intake: { revision: 0, workingRevision: null, history: [] },
   workspaceSlug: "alder",
 };

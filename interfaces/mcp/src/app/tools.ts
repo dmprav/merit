@@ -4,6 +4,7 @@ import type { defineActorTool } from "@merit/ai";
 import { createApplicationTools } from "@merit/applications-ai";
 import type { Actor } from "@merit/auth";
 import { createContactTools } from "@merit/contacts-ai";
+import { createDecisionTools } from "@merit/decisions-ai";
 import { createGrantmakingTools } from "@merit/grantmaking-ai";
 import { createWorkspaceTools } from "@merit/organizations-ai";
 import { createDemoTools } from "@merit/organizations-ai/demo";
@@ -28,10 +29,13 @@ export const workspaceCatalog = (
   ...createManagerTools(actor, ops.reviews, ops.reviewer),
   ...createReviewerTools(actor, ops.reviewer),
   ...createRecommendationTools(actor, ops.recommendations),
+  ...createDecisionTools(actor, ops.decisions),
   ...createContactTools(actor, ops.contacts),
 ];
 
-export type WorkspaceToolName = ReturnType<typeof workspaceCatalog>[number]["name"] | "start_demo";
+export type AssistantToolName = ReturnType<typeof workspaceCatalog>[number]["name"];
+
+export type WorkspaceToolName = AssistantToolName | "start_demo";
 
 type WorkspaceListing = Extract<
   ReturnType<typeof workspaceCatalog>[number],

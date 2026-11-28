@@ -1,14 +1,13 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vite-plus/test";
 
+import { REPO_ROOT } from "../paths.ts";
 import { classifyChangedFiles, loadWorkspacePackages } from "./ci-changes.ts";
 
-const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
-const workspacePackages = loadWorkspacePackages(repoRoot);
+const workspacePackages = loadWorkspacePackages(REPO_ROOT);
 
 describe("ci-changes", () => {
   test.each(["other", "@merit/*", "@merit/a b", "@merit/trailing\n"])(

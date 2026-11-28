@@ -38,7 +38,7 @@ One family: Instrument Sans (the variable font, weights 400–700, files in `fon
 
 ## Space, shape and depth
 
-- Spacing runs in 4px steps from `space-1` to `space-8`. Small gaps connect (`space-2` joins a source to its passage); larger gaps separate (`space-6` before a budget).
+- Spacing runs in 4px steps from `space-1` to `space-8`, with half steps (`space-1-5`) where a dense control needs one. Small gaps connect (`space-2` joins a source to its passage); larger gaps separate (`space-6` before a budget).
 - Corners: `badge-radius` for badges, `control-radius` for controls and notices, `panel-radius` for panels and dialogs. Nothing is pill-shaped.
 - Depth comes from borders, not shadows. Only floating layers cast one: `popover-shadow` for menus and popovers, `dialog-shadow` for dialogs.
 - Controls are `control-height-small` (32px) tall by default and grow to `target-touch` (44px) on coarse pointers.

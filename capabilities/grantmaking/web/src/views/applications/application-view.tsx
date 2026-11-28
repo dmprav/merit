@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import type { IntakeState } from "@merit/applications-web/contracts";
 import { ApplicationIntake, type IntakeSession } from "@merit/applications-web/work";
 import { isWithdrawn } from "@merit/applications/domain";
+import { ApplicationDecisionSummary } from "@merit/decisions-web/decisions";
+import type { DecisionVersion } from "@merit/decisions/domain";
 import type {
   ApplicationRoundContext,
   ApplicationView as Application,
@@ -51,6 +53,13 @@ type ApplicationViewProps = {
   aiReviewData?: AiReviewData | null;
   intakeState?: IntakeState;
   recommendationAction?: ReactNode;
+  /** The committee's decision versions, newest first, shown above the recommendation. */
+  decisionVersions?: readonly DecisionVersion[];
+  decisionAction?: ReactNode;
+  /** Names the open editor in the work pane; the recommendation unless another is open. */
+  editorTitle?: string;
+  /** Labels the jump to the open editor; the recommendation's unless another is open. */
+  editorJumpLabel?: string;
   tab?: "evidence" | "reviews";
   onTabChange?: (tab: "evidence" | "reviews") => void;
 };
@@ -119,7 +128,24 @@ const ApplicationWorkspace = (
     editorOpen: Boolean(editor) || review.active,
   });
   return (
-    <ApplicationIntake application={application} session={intake} onReveal={state.revealIntake}>
+    <ApplicationIntake
+      application={application}
+      session={
+        intake && {
+          ...intake,
+          activity: {
+            hasReviews: Boolean(
+              application.reviews.requests.length || application.reviews.assessments.length,
+            ),
+            hasRecommendation: application.managerRecommendation !== null,
+            outstandingReviews: application.reviews.requests.filter(
+              (request) => request.status === "outstanding",
+            ).length,
+          },
+        }
+      }
+      onReveal={state.revealIntake}
+    >
       {(content) => <ApplicationLayout {...props} content={content} state={state} />}
     </ApplicationIntake>
   );
@@ -148,13 +174,11 @@ const ApplicationLayout = (props: ApplicationLayoutProps) => {
   return (
     <ReferenceWorkspace
       header={<ApplicationHeader {...props} />}
-      toWorkLabel={t(
+      toWorkLabel={
         editor
-          ? "workspace.toEditor"
-          : review.active
-            ? "workspace.toReviewTask"
-            : "workspace.toOverview",
-      )}
+          ? (props.editorJumpLabel ?? t("workspace.toEditor"))
+          : t(review.active ? "workspace.toReviewTask" : "workspace.toOverview")
+      }
       toReferenceLabel={t("workspace.browseReference")}
       after={
         <>
@@ -288,6 +312,13 @@ const ApplicationReferencePane = ({
   );
 };
 
+const workTitle = (
+  active: boolean,
+  editing: boolean,
+  editorTitle: string,
+  review: ReviewWorkspace,
+) => active && (editing ? editorTitle : review.editorTitle);
+
 const ApplicationWorkPane = ({
   editor,
   editorCloseAction,
@@ -296,6 +327,9 @@ const ApplicationWorkPane = ({
   content,
   locked,
   recommendationAction,
+  decisionVersions,
+  decisionAction,
+  editorTitle,
   review,
   aiReview,
   state,
@@ -303,11 +337,17 @@ const ApplicationWorkPane = ({
   const { t } = useTranslation(["fundingRounds", "reviews"]);
   const { changeReference } = state;
   const active = Boolean(editor) || review.active;
+  const title = workTitle(
+    active,
+    Boolean(editor),
+    editorTitle ?? t("applications.recommendation"),
+    review,
+  );
   return (
     <WorkPane
       label={t("workspace.title")}
       fill={Boolean(editor) || review.fill}
-      title={active && (editor ? t("applications.recommendation") : review.editorTitle)}
+      title={title}
       titleActions={editor ? editorCloseAction : review.editorCloseAction}
     >
       <ApplicationTaskContent editor={editor} review={review} />
@@ -319,6 +359,8 @@ const ApplicationWorkPane = ({
           overview={content.overview}
           readOnly={locked}
           recommendationAction={recommendationAction}
+          decisionVersions={decisionVersions}
+          decisionAction={decisionAction}
           actions={review.actions}
           aiReview={aiReview}
           onShowAll={() => {
@@ -366,6 +408,8 @@ const ApplicationWorkOverview = ({
   overview,
   readOnly,
   recommendationAction,
+  decisionVersions,
+  decisionAction,
   onShowAll,
   onSelect,
   triggerRef,
@@ -373,17 +417,26 @@ const ApplicationWorkOverview = ({
   aiReview,
   onSelectAiReview,
   onInspectVersion,
-}: ComponentProps<typeof ReviewOverview> & {
+}: Omit<ComponentProps<typeof ReviewOverview>, "application"> & {
+  application: Application;
   aiReview: AiReviewWork | null;
   onSelectAiReview: (id: string) => void;
   manager: ApplicationRoundContext["manager"];
   overview: ReactNode;
   readOnly: boolean;
   recommendationAction?: ReactNode;
+  decisionVersions?: readonly DecisionVersion[];
+  decisionAction?: ReactNode;
   onInspectVersion: (version: number) => void;
 }) => (
   <PanelSections>
     {overview}
+    {decisionVersions && (
+      <ApplicationDecisionSummary
+        versions={decisionVersions}
+        action={!readOnly && decisionAction}
+      />
+    )}
     {application.intakeStatus !== "in_preparation" || application.managerRecommendation ? (
       <ApplicationRecommendationSummary
         application={application}

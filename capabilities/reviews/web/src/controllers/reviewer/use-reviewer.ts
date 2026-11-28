@@ -139,7 +139,8 @@ export const useReviewer = (
   const submissionConfirmed = useRef(false);
   const pendingResponse = useRef<Parameters<ReviewerService["respond"]>[1] | null>(null);
   const [submissionPending, setSubmissionPending] = useState(false);
-  const canWrite = page.assignment.status === "accepted" || page.assignment.status === "submitted";
+  // Reviews decides whether writes can succeed; each save and submission is checked again.
+  const canWrite = page.work.available;
 
   const [draft, setDraft] = useState(start.draft);
   const latestDraft = useRef(start.draft);

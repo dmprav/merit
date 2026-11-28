@@ -155,7 +155,7 @@ export const saveApplicationReview = async (
       return { status: "invalid", error: result.error } as const;
     }
 
-    await recordReviewChange(tx, row, result.state);
+    await recordReviewChange(access, row.reviews, result.state);
     await recordReviewEvents(tx, { access, actor, row }, change, [state, result.state]);
     await syncAssignmentCancellation(
       tx,

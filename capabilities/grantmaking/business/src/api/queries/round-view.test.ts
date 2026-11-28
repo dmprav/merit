@@ -5,7 +5,6 @@ import { fromMinorUnits, encodeMoney } from "@merit/money";
 import {
   makeApplication,
   makeAssessment,
-  makeReviewRequest,
   makeRound,
   makeReviewedApplication,
 } from "../../../tests/fixtures";
@@ -86,80 +85,6 @@ it("preserves criteria when reconstructing and re-encoding a round view", () => 
 
   expect(restored.criteria).toEqual(criteria);
   expect(encodeRoundOverview(restored)).toEqual(data);
-});
-
-it("shows an outstanding follow-up beside a judgment on an earlier material version", () => {
-  const application = makeApplication({
-    version: 2,
-    reviews: {
-      revision: 2,
-      assessments: [makeAssessment()],
-      requests: [makeReviewRequest({ applicationVersion: 2 })],
-    },
-  });
-
-  expect(applicationView(application, []).assessments).toMatchObject([
-    { id: application.reviews.assessments[0]!.id, status: "outdated" },
-    { id: application.reviews.requests[0]!.id, status: "outstanding" },
-  ]);
-});
-
-it("shows the latest follow-up judgment in place of the superseded assessment", () => {
-  const earlier = makeAssessment();
-  const version = earlier.versions[0];
-  assert.isDefined(version);
-  const later = makeAssessment({
-    id: crypto.randomUUID(),
-    previousId: earlier.id,
-    versions: [{ ...version, content: { ...version.content, applicationVersion: 2 } }],
-  });
-  const application = makeApplication({
-    version: 2,
-    reviews: { revision: 2, requests: [], assessments: [earlier, later] },
-  });
-
-  expect(applicationView(application, []).assessments).toMatchObject([
-    { id: later.id, status: "current" },
-  ]);
-});
-
-it("marks a received assessment with unknown material and criteria as unknown", () => {
-  const assessment = makeAssessment();
-  const version = assessment.versions[0];
-  assert.isDefined(version);
-  assessment.versions = [
-    {
-      ...version,
-      criteria: null,
-      content: { ...version.content, applicationVersion: null, criteriaVersion: null },
-    },
-  ];
-  const application = makeApplication({
-    reviews: { revision: 1, requests: [], assessments: [assessment] },
-  });
-
-  expect(applicationView(application).assessments).toMatchObject([
-    { status: "unknown", criteriaUnknown: true },
-  ]);
-});
-
-it("marks an assessment outdated when the current criteria differ from its recorded criteria", () => {
-  const assessment = makeAssessment();
-  const version = assessment.versions[0];
-  assert.isDefined(version);
-  assessment.versions = [
-    { ...version, criteria: [{ id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit" }] },
-  ];
-  const application = makeApplication({
-    reviews: { revision: 1, requests: [], assessments: [assessment] },
-  });
-
-  expect(
-    applicationView(application, [
-      { id: "0630f26c-0567-518f-a61b-cbb1752ff2df", title: "New criterion" },
-    ]).assessments,
-  ).toMatchObject([{ criteriaChanged: true, status: "outdated" }]);
-  expect(application.reviews.requests).toEqual([]);
 });
 
 it("counts judgments on earlier material as outdated while retaining the manager allocation", () => {

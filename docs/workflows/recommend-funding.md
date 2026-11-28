@@ -1,8 +1,9 @@
 # Recommend funding
 
 Program managers propose an application's treatment and allocation through web and
-MCP, including in the demo. Saving a recommendation does not commit funding;
-[committee decisions](committee-decisions.md) are not implemented.
+MCP, including in the demo. Saving a recommendation does not commit funding; a manager
+records the committee's [decision](record-decisions.md) separately, and only that
+decision commits funds.
 
 Managers can compare their recommendation with reviewer judgments, including
 authors, roles, proposed amounts, and reasoning. Assessment details retain
@@ -27,7 +28,9 @@ an explained deferral is possible during preparation.
 
 The budget summary shows the proposed total and what would remain if approved,
 or how far proposals exceed the budget. These amounts describe recommendations,
-not funding commitments, and proposals may exceed the budget. Conditional
+not funding commitments, and proposals may exceed the budget. A recorded
+[committee decision](record-decisions.md) adds Committed and Available figures
+beside them and never changes a recommendation. Conditional
 recommendations count in full; deferrals reserve nothing. While editing, the
 preview uses the current draft alongside other saved manager recommendations.
 The effect of saving must be clear before commitment.

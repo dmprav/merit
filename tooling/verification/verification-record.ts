@@ -21,33 +21,69 @@ const GUIDE = "docs/guides/verification.md#record-verification";
 
 export type ChangedFile = { status: "added" | "modified" | "deleted"; path: string };
 
-export type RecordCheck = { exempt: string } | { exempt: null; errors: string[] };
+/** Outcome of a pull request check: an exemption reason, or the problems found. */
+export type CheckResult = { exempt: string } | { exempt: null; errors: string[] };
 
 export const recordPath = (prNumber: number) => `${RECORD_DIRECTORY}/${prNumber}.md`;
 
 const isRecordPath = (path: string) => path.startsWith(`${RECORD_DIRECTORY}/`);
 
-/** Parses `git diff --name-status` output; a rename removes the old path and adds the new one. */
-export const parseNameStatus = (raw: string): ChangedFile[] =>
-  raw
-    .split(/\r?\n/)
-    .filter(Boolean)
-    .flatMap((line): ChangedFile[] => {
-      const [status = "", first = "", second] = line.split("\t");
-      if (status.startsWith("R") && second) {
-        return [
-          { status: "deleted", path: first },
-          { status: "added", path: second },
-        ];
-      }
-      if (status.startsWith("D")) {
-        return [{ status: "deleted", path: first }];
-      }
-      if (status.startsWith("A") || (status.startsWith("C") && second)) {
-        return [{ status: "added", path: second ?? first }];
-      }
-      return [{ status: "modified", path: first }];
-    });
+/** Renames and copies name a source and a destination path; every other status names one path. */
+const pathCountFor = (status: string) => (status.startsWith("R") || status.startsWith("C") ? 2 : 1);
+
+/** A rename removes its source and adds its destination; a copy only adds its destination. */
+const changedFilesFor = (status: string, [first = "", second = ""]: string[]): ChangedFile[] => {
+  if (status.startsWith("R") && first && second) {
+    return [
+      { status: "deleted", path: first },
+      { status: "added", path: second },
+    ];
+  }
+  if (pathCountFor(status) === 2) {
+    return second ? [{ status: "added", path: second }] : [];
+  }
+  if (!first) {
+    return [];
+  }
+  if (status.startsWith("D")) {
+    return [{ status: "deleted", path: first }];
+  }
+  return [{ status: status.startsWith("A") ? "added" : "modified", path: first }];
+};
+
+/**
+ * Parses NUL-delimited `git diff -z --name-status` output, whose paths are never
+ * quoted; a rename removes the old path and adds the new one.
+ */
+export const parseNameStatusZ = (raw: string): ChangedFile[] => {
+  const tokens = raw.split("\0");
+  const files: ChangedFile[] = [];
+  for (let index = 0; index < tokens.length;) {
+    const status = tokens[index] ?? "";
+    index += 1;
+    if (status) {
+      const pathCount = pathCountFor(status);
+      files.push(...changedFilesFor(status, tokens.slice(index, index + pathCount)));
+      index += pathCount;
+    }
+  }
+  return files;
+};
+
+/** Lists the files changed in a diff range; `-z` stops git quoting unusual paths. */
+export const readChangedFiles = (repoRoot: string, diffRange: string): ChangedFile[] =>
+  parseNameStatusZ(
+    execFileSync("git", ["diff", "-z", "--name-status", "-M", diffRange], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    }),
+  );
+
+/** Returns the pattern for the line that closes a code fence opened by `line`, or null. */
+export const codeFenceCloser = (line: string): RegExp | null => {
+  const opening = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+  return opening ? new RegExp(`^ {0,3}${opening[0]}{${opening.length},}\\s*$`) : null;
+};
 
 type Section = { heading: string; lines: string[]; hasContent: boolean };
 
@@ -68,42 +104,52 @@ const visibleText = (line: string, inComment: boolean) => {
   return { visible, inComment: commented };
 };
 
+type RecordLine =
+  | { kind: "heading"; heading: string }
+  | { kind: "content"; text: string; hasText: boolean };
+
 /**
- * Collects level-two sections, treating fenced code as section content rather
- * than headings and ignoring HTML comments.
+ * Classifies each line as a level-two heading or section content, treating fenced
+ * code as content rather than headings and ignoring HTML comments.
+ */
+const readRecordLines = (content: string): RecordLine[] => {
+  const lines: RecordLine[] = [];
+  let fence: RegExp | null = null;
+  let inComment = false;
+  for (const line of content.split(/\r?\n/)) {
+    if (fence) {
+      fence = fence.test(line) ? null : fence;
+      lines.push({ kind: "content", text: line, hasText: true });
+      continue;
+    }
+    const text = visibleText(line, inComment);
+    inComment = text.inComment;
+    fence = codeFenceCloser(text.visible);
+    const heading = fence ? undefined : /^## +(.+?)\s*$/.exec(text.visible)?.[1];
+    lines.push(
+      heading
+        ? { kind: "heading", heading }
+        : { kind: "content", text: text.visible, hasText: text.visible.trim().length > 0 },
+    );
+  }
+  return lines;
+};
+
+/**
+ * Collects level-two sections with their visible body lines, keeping blank lines
+ * only between content so a body can be trimmed and compared.
  */
 const recordSections = (content: string): Section[] => {
   const sections: Section[] = [];
-  let fence: RegExp | null = null;
-  let inComment = false;
-
-  for (const line of content.split(/\r?\n/)) {
+  for (const line of readRecordLines(content)) {
     const current = sections.at(-1);
-    if (fence) {
-      fence = fence.test(line) ? null : fence;
-      if (current) {
-        current.lines.push(line);
-        current.hasContent = true;
-      }
-      continue;
-    }
-
-    const text = visibleText(line, inComment);
-    inComment = text.inComment;
-    const opening = /^ {0,3}(`{3,}|~{3,})/.exec(text.visible)?.[1];
-    const heading = /^## +(.+?)\s*$/.exec(text.visible)?.[1];
-    if (opening) {
-      fence = new RegExp(`^ {0,3}${opening[0]}{${opening.length},}\\s*$`);
-    }
-    if (heading && !opening) {
-      sections.push({ heading, lines: [], hasContent: false });
-    } else if (current) {
-      if (text.visible.trim()) {
-        current.lines.push(text.visible);
-        current.hasContent = true;
-      } else if (current.lines.length > 0) {
-        current.lines.push("");
-      }
+    if (line.kind === "heading") {
+      sections.push({ heading: line.heading, lines: [], hasContent: false });
+    } else if (current && line.hasText) {
+      current.lines.push(line.text);
+      current.hasContent = true;
+    } else if (current && current.lines.length > 0) {
+      current.lines.push("");
     }
   }
   return sections;
@@ -153,7 +199,7 @@ export const checkVerificationRecord = ({
   author: string;
   changedFiles: ChangedFile[];
   readRecord: (path: string) => string | undefined;
-}): RecordCheck => {
+}): CheckResult => {
   if (EXEMPT_AUTHORS.has(author)) {
     return { exempt: `${author} pull requests do not need a verification record.` };
   }
@@ -194,19 +240,23 @@ const requireEnv = (name: string) => {
   return value;
 };
 
+/** Reads a pull request number, rejecting values that would name a record like `NaN.md`. */
+export const parsePrNumber = (value: string): number => {
+  if (!/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(Number(value))) {
+    throw new Error(`PR_NUMBER must be a positive integer; received "${value}".`);
+  }
+  return Number(value);
+};
+
 const runCli = () => {
   const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
-  const prNumber = Number(requireEnv("PR_NUMBER"));
+  const prNumber = parsePrNumber(requireEnv("PR_NUMBER"));
   const diffRange = `${requireEnv("PR_BASE_SHA")}...${requireEnv("PR_HEAD_SHA")}`;
-  const raw = execFileSync("git", ["diff", "--name-status", "-M", diffRange], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
 
   const result = checkVerificationRecord({
     prNumber,
     author: requireEnv("PR_AUTHOR"),
-    changedFiles: parseNameStatus(raw),
+    changedFiles: readChangedFiles(repoRoot, diffRange),
     readRecord: (path) => {
       const file = join(repoRoot, path);
       return existsSync(file) ? readFileSync(file, "utf8") : undefined;

@@ -1,51 +1,5 @@
-.content {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-}
-
-.body {
-  min-height: 0;
-  overflow-y: auto;
-  scroll-padding-block: var(--space-2);
-  overscroll-behavior-y: contain;
-  /* The frame's header and footer dividers follow how far this body has scrolled. */
-  scroll-timeline: --dialog-body block;
-  /* Leave room for system focus indicators in forced-colors mode. */
-  margin-inline: calc(-1 * var(--control-focus-width));
-  padding: var(--control-focus-width) var(--control-focus-width) var(--space-4);
-}
-
-.body:focus-visible {
-  outline: none;
-  box-shadow: inset 2px 0 var(--focus);
-}
-
-.body:only-child {
-  padding-bottom: var(--control-focus-width);
-}
-
-.body[data-reading] {
-  font-size: var(--text-reading);
-  line-height: var(--leading-reading);
-}
-
-/* Line length belongs to the prose, so the scrollbar stays at the frame's edge. */
-.body[data-reading] > * {
-  max-width: var(--measure-reading);
-}
-
-/* A state that replaces the whole body, such as preparing an editor, sits in a stable space. */
-.body:has(> [data-body-state]:only-child) {
-  display: grid;
-  place-items: center;
-  min-height: 10rem;
-}
-
 * + .section {
-  margin-top: var(--space-6);
+  margin-top: var(--space-section);
 }
 
 .sectionTitle {
@@ -54,39 +8,4 @@
   line-height: 1.4;
   font-weight: var(--weight-heading);
   overflow-wrap: anywhere;
-}
-
-.feedback {
-  min-width: 0;
-  flex-shrink: 0;
-  padding-bottom: var(--space-5);
-}
-
-.footer {
-  min-width: 0;
-  margin-top: auto;
-  padding-top: var(--space-4);
-  flex-shrink: 0;
-}
-
-/* Framed footers take the scroll-linked divider instead. */
-.content:not([data-framed]) > .footer {
-  border-top: 1px solid var(--border);
-}
-
-/*
- * Framed dialogs set `--dialog-gutter` so content aligns with their header. The space below
- * the header belongs to the scrolling body, so content slides under the header's edge.
- */
-.content[data-framed] > .body {
-  margin: 0;
-  padding: var(--dialog-body-gap, var(--space-5)) var(--dialog-gutter);
-}
-
-.content[data-framed] > .feedback {
-  padding-inline: var(--dialog-gutter);
-}
-
-.content[data-framed] > .footer {
-  padding: var(--space-2) var(--dialog-gutter) var(--space-5);
 }

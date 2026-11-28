@@ -2,15 +2,18 @@ import { createHash } from "node:crypto";
 
 import { z } from "zod";
 
-import type { WorkspaceToolName } from "../app/tools";
-import { activeAssignment, requiredAccess } from "./authority";
-import type { AssistantCitation, AssistantDependency, AssistantReceipt } from "./contracts";
+import type { AssistantToolName } from "../app/tools";
+import { activeAssignment } from "./authority";
+import {
+  fields,
+  recordSchema,
+  type AssistantCitation,
+  type AssistantDependency,
+  type AssistantReceipt,
+} from "./contracts";
+import { assistantPolicy } from "./policy";
 
-const object = z.record(z.string(), z.unknown());
-
-export const fields = (value: unknown) => object.safeParse(value).data ?? {};
-
-const objects = (value: unknown) => z.array(object).safeParse(value).data ?? [];
+const objects = (value: unknown) => z.array(recordSchema).safeParse(value).data ?? [];
 
 const itemOrList = (one: unknown, many: unknown) => (one == null ? objects(many) : [fields(one)]);
 
@@ -119,7 +122,8 @@ const contentEvidence = (input: Record<string, unknown>, result: Result, cite: C
   if (
     section === "intake_change" ||
     section === "preparation_change" ||
-    section === "recommendation_change"
+    section === "recommendation_change" ||
+    section === "decision_change"
   ) {
     version = input.revision;
   }
@@ -127,11 +131,11 @@ const contentEvidence = (input: Record<string, unknown>, result: Result, cite: C
 };
 
 export const describeResult = (
-  name: WorkspaceToolName,
+  name: AssistantToolName,
   input: Record<string, unknown>,
   result: Result,
 ): AssistantReceipt => {
-  const access = requiredAccess(name);
+  const access = assistantPolicy[name].access;
   const dependencies: AssistantDependency[] = [{ kind: access }];
   const citations: AssistantCitation[] = [];
   const receipt = { result, dependencies, citations };

@@ -1,5 +1,7 @@
 import { defineConfig } from "vite-plus";
 
+import { typecheckTask } from "../../tooling/verification/typecheck";
+
 export default defineConfig({
   run: {
     tasks: {
@@ -7,7 +9,7 @@ export default defineConfig({
         command: "email dev --dir ./src/features/organizations/previews --port 3003",
         cache: false,
       },
-      build: "tsc --noEmit",
+      build: typecheckTask,
       test: "vp test",
     },
   },

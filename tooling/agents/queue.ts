@@ -1,30 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
-import { readFlagValue, readIntegerFlag } from "../cli.ts";
+import { parseCliArgs, parseWholeNumber, stripLeadingSeparator } from "../cli.ts";
+import { REPO_ROOT } from "../paths.ts";
 import {
+  AGENT_LABELS,
   extractLinkedIssueNumbers,
   TRUSTED_AUTHOR_ASSOCIATIONS,
   type IssueCommentRecord,
 } from "../verification/agent-policy.ts";
 import {
-  fetchRestIssueComments,
-  getRepoIdentity,
-  ghApiJson,
-  ghApiPaginatedArray,
-  listRestIssues,
-  parseGitHubRemote,
-  restIssueItemSchema,
-  restLabelSchema,
-  type RepoIdentity,
-} from "./github-rest.ts";
-import { DESIGN_PROPOSAL_LABEL } from "./proposal.ts";
-
-export { parseGitHubRemote };
+  createGitHubRestClient,
+  type GitHubRestClient,
+  type RestCheckRun,
+  type RestCommitStatus,
+  type RestPullReviewComment,
+} from "./github.ts";
 
 export const MAX_OPEN_AGENT_PRS = 2;
 export const MAX_SHEPHERD_ROUNDS = 2;
@@ -65,29 +58,6 @@ export type RawStatusCheckEntry = {
   conclusion?: string | null;
 };
 
-export type RestCheckRun = {
-  id: number;
-  name: string;
-  status: string;
-  conclusion: string | null;
-};
-
-export type RestCommitStatus = {
-  context: string;
-  state: string;
-};
-
-export type RestPullReviewComment = {
-  id: number;
-  in_reply_to_id?: number | null;
-  path: string;
-  line?: number | null;
-  original_line?: number | null;
-  author_association: string;
-  user: { login: string } | null;
-  body: string;
-};
-
 export type ReviewThreadSummary = {
   id: string;
   path: string;
@@ -108,7 +78,8 @@ export type OpenAgentPr = {
   headRefName: string;
   headSha: string;
   isDraft: boolean;
-  stateInitialized?: boolean;
+  /** Whether a trusted `merit-agent` state comment has been recorded on the PR. */
+  stateInitialized: boolean;
   createdAt?: string;
   updatedAt?: string;
   labels: string[];
@@ -165,15 +136,33 @@ export type QueueWorkOrder =
       openAgentPrCount: number;
     };
 
-export const parseClaimMarker = (commentBody: string): ClaimMarker | null => {
-  const match = CLAIM_MARKER_PATTERN.exec(commentBody);
-  if (!match?.[1]) {
-    return null;
-  }
-  try {
-    return claimMarkerSchema.parse(JSON.parse(match[1]));
-  } catch {
-    return null;
+/**
+ * Yields each valid `pattern` marker, in comment order, from comments written by trusted repository
+ * authors. Markers from other commenters, or whose JSON does not satisfy `schema`, are skipped.
+ */
+const trustedMarkers = function* <T extends z.ZodType>(
+  comments: readonly IssueCommentRecord[],
+  pattern: RegExp,
+  schema: T,
+): Generator<z.output<T>> {
+  for (const comment of comments) {
+    if (!TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation)) {
+      continue;
+    }
+    const raw = pattern.exec(comment.body)?.[1];
+    if (!raw) {
+      continue;
+    }
+    let json: unknown;
+    try {
+      json = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    const parsed = schema.safeParse(json);
+    if (parsed.success) {
+      yield parsed.data;
+    }
   }
 };
 
@@ -194,14 +183,7 @@ export const findEarliestActiveClaimRunId = (
   nowMs: number,
 ): string | null => {
   const latestExpiryByRunId = new Map<string, number>();
-  for (const comment of comments) {
-    if (!TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation)) {
-      continue;
-    }
-    const marker = parseClaimMarker(comment.body);
-    if (!marker) {
-      continue;
-    }
+  for (const marker of trustedMarkers(comments, CLAIM_MARKER_PATTERN, claimMarkerSchema)) {
     const claimedMs = Date.parse(marker.claimedAt);
     const expiresMs = Date.parse(marker.expiresAt);
     if (Number.isNaN(claimedMs) || Number.isNaN(expiresMs)) {
@@ -227,8 +209,8 @@ export const hasActiveClaim = (comments: readonly IssueCommentRecord[], nowMs: n
 
 /** Returns true when a draft or uninitialized `agent:pr` has been stranded longer than `CLAIM_TTL_MS`. */
 export const isStaleDraftPr = (pr: OpenAgentPr, nowMs: number): boolean => {
-  const pendingInit = pr.isDraft || pr.stateInitialized === false;
-  if (!pendingInit || pr.labels.includes("agent:needs-human")) {
+  const pendingInit = pr.isDraft || !pr.stateInitialized;
+  if (!pendingInit || pr.labels.includes(AGENT_LABELS.needsHuman)) {
     return false;
   }
   const referenceTimestamp = pr.isDraft ? pr.updatedAt : (pr.createdAt ?? pr.updatedAt);
@@ -240,44 +222,15 @@ export const isStaleDraftPr = (pr: OpenAgentPr, nowMs: number): boolean => {
 };
 
 /** Returns true when a PR has at least one valid `merit-agent` state comment from a trusted writer. */
-export const hasAgentPrState = (comments: readonly IssueCommentRecord[]): boolean => {
-  for (const comment of comments) {
-    if (!TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation)) {
-      continue;
-    }
-    const match = AGENT_PR_MARKER_PATTERN.exec(comment.body);
-    if (!match?.[1]) {
-      continue;
-    }
-    try {
-      agentPrStateSchema.parse(JSON.parse(match[1]));
-      return true;
-    } catch {
-      continue;
-    }
-  }
-  return false;
-};
+export const hasAgentPrState = (comments: readonly IssueCommentRecord[]): boolean =>
+  !trustedMarkers(comments, AGENT_PR_MARKER_PATTERN, agentPrStateSchema).next().done;
 
 /** Parses the latest agent state comment authored by a trusted repository writer. */
-export const parseAgentPrState = (comments: readonly IssueCommentRecord[]): AgentPrState => {
-  let latest: AgentPrState = { shepherdRounds: 0, flakeReruns: 0 };
-  for (const comment of comments) {
-    if (!TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation)) {
-      continue;
-    }
-    const match = AGENT_PR_MARKER_PATTERN.exec(comment.body);
-    if (!match?.[1]) {
-      continue;
-    }
-    try {
-      latest = agentPrStateSchema.parse(JSON.parse(match[1]));
-    } catch {
-      continue;
-    }
-  }
-  return latest;
-};
+export const parseAgentPrState = (comments: readonly IssueCommentRecord[]): AgentPrState =>
+  [...trustedMarkers(comments, AGENT_PR_MARKER_PATTERN, agentPrStateSchema)].at(-1) ?? {
+    shepherdRounds: 0,
+    flakeReruns: 0,
+  };
 
 export const mergeAgentPrState = (
   previous: AgentPrState,
@@ -347,65 +300,86 @@ export const normalizeRestChecks = ({
   return normalizeStatusCheckRollup(entries);
 };
 
-/** Extracts PR inline review threads whose latest comment is not a trusted `<!-- merit-addressed -->` reply. */
-export const extractUnaddressedReviewThreads = (
+/** Groups PR review comments into threads keyed by their root comment, each in comment order. */
+const groupReviewThreads = (
   comments: readonly RestPullReviewComment[],
-): ReviewThreadSummary[] => {
+): RestPullReviewComment[][] => {
   const threadsByRootId = new Map<number, RestPullReviewComment[]>();
-  const sorted = [...comments].sort((a, b) => a.id - b.id);
-  for (const comment of sorted) {
+  for (const comment of [...comments].sort((a, b) => a.id - b.id)) {
     const rootId = comment.in_reply_to_id ?? comment.id;
     const thread = threadsByRootId.get(rootId) ?? [];
     thread.push(comment);
     threadsByRootId.set(rootId, thread);
   }
-
-  const unaddressed: ReviewThreadSummary[] = [];
-  for (const thread of threadsByRootId.values()) {
-    const root = thread[0];
-    if (!root) {
-      continue;
-    }
-    let lastAddressedIndex = -1;
-    for (let index = 0; index < thread.length; index += 1) {
-      const comment = thread[index];
-      if (
-        comment &&
-        TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.author_association) &&
-        comment.body.includes(ADDRESSED_THREAD_MARKER)
-      ) {
-        lastAddressedIndex = index;
-      }
-    }
-    if (lastAddressedIndex === thread.length - 1) {
-      continue;
-    }
-    const followUps = lastAddressedIndex >= 0 ? thread.slice(lastAddressedIndex + 1) : [];
-    const body =
-      followUps.length > 0
-        ? [
-            root.body,
-            ...followUps.map(
-              (comment) => `Follow-up (${comment.user?.login ?? "unknown"}): ${comment.body}`,
-            ),
-          ].join("\n\n---\n\n")
-        : root.body;
-    unaddressed.push({
-      id: String(root.id),
-      path: root.path,
-      line: root.line ?? root.original_line ?? null,
-      author: root.user?.login ?? "unknown",
-      body,
-    });
-  }
-  return unaddressed;
+  return [...threadsByRootId.values()];
 };
+
+const isTrustedAddressedReply = (comment: RestPullReviewComment) =>
+  TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.author_association) &&
+  comment.body.includes(ADDRESSED_THREAD_MARKER);
+
+const reviewAuthor = (comment: RestPullReviewComment) => comment.user?.login ?? "unknown";
+
+/**
+ * Summarizes a thread whose latest comment is not a trusted addressed reply, or returns null.
+ * Comments after the last addressed reply are appended to the root as follow-ups.
+ */
+const summarizeUnaddressedThread = (
+  thread: readonly RestPullReviewComment[],
+): ReviewThreadSummary | null => {
+  const root = thread[0];
+  if (!root) {
+    return null;
+  }
+  const lastAddressedIndex = thread.findLastIndex(isTrustedAddressedReply);
+  if (lastAddressedIndex === thread.length - 1) {
+    return null;
+  }
+  const followUps = lastAddressedIndex >= 0 ? thread.slice(lastAddressedIndex + 1) : [];
+  return {
+    id: String(root.id),
+    path: root.path,
+    line: root.line ?? root.original_line ?? null,
+    author: reviewAuthor(root),
+    body: [
+      root.body,
+      ...followUps.map((comment) => `Follow-up (${reviewAuthor(comment)}): ${comment.body}`),
+    ].join("\n\n---\n\n"),
+  };
+};
+
+/** Extracts PR inline review threads whose latest comment is not a trusted `<!-- merit-addressed -->` reply. */
+export const extractUnaddressedReviewThreads = (
+  comments: readonly RestPullReviewComment[],
+): ReviewThreadSummary[] =>
+  groupReviewThreads(comments)
+    .map(summarizeUnaddressedThread)
+    .filter((summary) => summary !== null);
+
+/** The aggregate CI check that must complete before the queue acts on a pull request. */
+const VERIFY_CHECK_NAME = "verify";
+/** Browser test jobs, whose failures alone may be flakes worth one automatic rerun. */
+const BROWSER_CHECK_PREFIX = "browser-";
+const ISSUE_BRANCH_PREFIX = "claude/issue-";
+/** Automatic flake reruns the queue records for one pull request before it shepherds instead. */
+const MAX_FLAKE_RERUNS = 1;
+/** A verify run GitHub has already re-attempted is not rerun again as a flake. */
+const MAX_RERUNNABLE_RUN_ATTEMPT = 1;
+const CLAIM_TTL_HOURS = CLAIM_TTL_MS / (60 * 60 * 1000);
 
 const isPassingConclusion = (conclusion: string | null) =>
   conclusion === "SUCCESS" || conclusion === "SKIPPED" || conclusion === "NEUTRAL";
 
-export const inspectPrChecks = (checks: readonly PrCheckStatus[]) => {
-  const verifyCheck = checks.find((check) => check.name === "verify");
+export type PrCheckInspection = {
+  /** No checks reported yet, verify is missing, or any check has not completed. */
+  hasPending: boolean;
+  failedChecks: string[];
+  /** Every failure other than the verify aggregate is a browser job, and there is at least one. */
+  onlyBrowserFailures: boolean;
+};
+
+export const inspectPrChecks = (checks: readonly PrCheckStatus[]): PrCheckInspection => {
+  const verifyCheck = checks.find((check) => check.name === VERIFY_CHECK_NAME);
   const hasPending =
     checks.length === 0 ||
     !verifyCheck ||
@@ -414,14 +388,123 @@ export const inspectPrChecks = (checks: readonly PrCheckStatus[]) => {
   const failedChecks = checks
     .filter((check) => check.status === "COMPLETED" && !isPassingConclusion(check.conclusion))
     .map((check) => check.name);
-  const nonAggregatorFailures = failedChecks.filter((name) => name !== "verify");
+  const nonAggregatorFailures = failedChecks.filter((name) => name !== VERIFY_CHECK_NAME);
   const onlyBrowserFailures =
     nonAggregatorFailures.length > 0 &&
-    nonAggregatorFailures.every((name) => name.startsWith("browser-"));
+    nonAggregatorFailures.every((name) => name.startsWith(BROWSER_CHECK_PREFIX));
 
   return { hasPending, failedChecks, onlyBrowserFailures };
 };
 
+/** What one open agent PR needs: a work order, a wait for running checks, or nothing from the queue. */
+export type PrTriage = QueueWorkOrder | "waiting" | "skip";
+
+const escalateStrandedPr = (pr: OpenAgentPr): QueueWorkOrder => ({
+  kind: "escalate",
+  prNumber: pr.number,
+  headRefName: pr.headRefName,
+  reason: pr.isDraft
+    ? `Draft agent PR was not marked ready within ${CLAIM_TTL_HOURS} hours; needs human check or cleanup.`
+    : `Agent PR was not initialized with initial state within ${CLAIM_TTL_HOURS} hours; needs human check or cleanup.`,
+  failedChecks: [],
+  unresolvedThreadCount: 0,
+});
+
+/** Returns the failed verify run to rerun when browser-only failures may be a first-attempt flake. */
+const rerunnableFlakeRun = (pr: OpenAgentPr): FailedVerifyRun | null => {
+  const run = pr.failedVerifyRun;
+  const rerunnable =
+    run != null &&
+    run.attempt <= MAX_RERUNNABLE_RUN_ATTEMPT &&
+    pr.state.flakeReruns < MAX_FLAKE_RERUNS &&
+    pr.unresolvedThreads.length === 0;
+  return rerunnable ? run : null;
+};
+
+const shepherdOrder = (pr: OpenAgentPr, failedChecks: string[]): QueueWorkOrder => {
+  if (pr.state.shepherdRounds >= MAX_SHEPHERD_ROUNDS) {
+    return {
+      kind: "escalate",
+      prNumber: pr.number,
+      headRefName: pr.headRefName,
+      reason: `Reached max ${MAX_SHEPHERD_ROUNDS} shepherd rounds.`,
+      failedChecks,
+      unresolvedThreadCount: pr.unresolvedThreads.length,
+    };
+  }
+  return {
+    kind: "shepherd",
+    prNumber: pr.number,
+    headRefName: pr.headRefName,
+    headSha: pr.headSha,
+    issueNumber: pr.state.issueNumber ?? extractLinkedIssueNumbers(pr.body)[0] ?? null,
+    nextRound: pr.state.shepherdRounds + 1,
+    failedChecks,
+    unresolvedThreads: pr.unresolvedThreads,
+  };
+};
+
+/**
+ * Decides what one open agent PR needs. PRs handed to a human, fresh drafts or uninitialized PRs,
+ * and green PRs without open threads need nothing; stranded ones escalate. Browser-only failures
+ * get one flake rerun before other failures or open threads are shepherded.
+ */
+export const triagePr = (pr: OpenAgentPr, nowMs: number): PrTriage => {
+  if (pr.labels.includes(AGENT_LABELS.needsHuman)) {
+    return "skip";
+  }
+  if (pr.isDraft || !pr.stateInitialized) {
+    return isStaleDraftPr(pr, nowMs) ? escalateStrandedPr(pr) : "skip";
+  }
+  const { hasPending, failedChecks, onlyBrowserFailures } = inspectPrChecks(pr.checks);
+  if (hasPending) {
+    return "waiting";
+  }
+  const flakeRun = onlyBrowserFailures ? rerunnableFlakeRun(pr) : null;
+  if (flakeRun) {
+    return {
+      kind: "rerun_flake",
+      prNumber: pr.number,
+      runId: flakeRun.databaseId,
+      headRefName: pr.headRefName,
+      headSha: pr.headSha,
+      failedChecks,
+      state: pr.state,
+    };
+  }
+  if (failedChecks.length === 0 && pr.unresolvedThreads.length === 0) {
+    return "skip";
+  }
+  return shepherdOrder(pr, failedChecks);
+};
+
+const linkedIssueNumbers = (prs: readonly OpenAgentPr[]): Set<number> =>
+  new Set(
+    prs.flatMap((pr) => [
+      ...(pr.state.issueNumber ? [pr.state.issueNumber] : []),
+      ...extractLinkedIssueNumbers(pr.body),
+    ]),
+  );
+
+/** Picks the lowest-numbered ready issue that no open agent PR covers and no active claim holds. */
+export const pickNextIssue = (
+  readyIssues: readonly ReadyIssueCandidate[],
+  openAgentPrs: readonly OpenAgentPr[],
+  nowMs: number,
+): ReadyIssueCandidate | undefined => {
+  const covered = linkedIssueNumbers(openAgentPrs);
+  return readyIssues
+    .toSorted((a, b) => a.number - b.number)
+    .find(
+      (issue) =>
+        !issue.labels.includes(AGENT_LABELS.needsHuman) &&
+        !issue.labels.includes(AGENT_LABELS.design) &&
+        !covered.has(issue.number) &&
+        !hasActiveClaim(issue.comments, nowMs),
+    );
+};
+
+/** Chooses the queue's next action: the first PR needing work, else a new issue within the WIP cap. */
 export const selectNextWork = ({
   openAgentPrs,
   readyIssues,
@@ -431,312 +514,93 @@ export const selectNextWork = ({
   readyIssues: readonly ReadyIssueCandidate[];
   nowMs?: number;
 }): QueueWorkOrder => {
-  const sortedPrs = [...openAgentPrs].sort((a, b) => a.number - b.number);
-  let waitingForChecks = false;
-
-  for (const pr of sortedPrs) {
-    if (pr.labels.includes("agent:needs-human")) {
-      continue;
-    }
-    if (pr.isDraft || pr.stateInitialized === false) {
-      if (isStaleDraftPr(pr, nowMs)) {
-        return {
-          kind: "escalate",
-          prNumber: pr.number,
-          headRefName: pr.headRefName,
-          reason: pr.isDraft
-            ? "Draft agent PR was not marked ready within 2 hours; needs human check or cleanup."
-            : "Agent PR was not initialized with initial state within 2 hours; needs human check or cleanup.",
-          failedChecks: [],
-          unresolvedThreadCount: 0,
-        };
-      }
-      continue;
-    }
-    const { hasPending, failedChecks, onlyBrowserFailures } = inspectPrChecks(pr.checks);
-    if (hasPending) {
-      waitingForChecks = true;
-      continue;
-    }
-
-    const canRerunFlake =
-      onlyBrowserFailures &&
-      pr.unresolvedThreads.length === 0 &&
-      pr.state.flakeReruns < 1 &&
-      pr.failedVerifyRun != null &&
-      pr.failedVerifyRun.attempt <= 1;
-
-    if (canRerunFlake && pr.failedVerifyRun) {
-      return {
-        kind: "rerun_flake",
-        prNumber: pr.number,
-        runId: pr.failedVerifyRun.databaseId,
-        headRefName: pr.headRefName,
-        headSha: pr.headSha,
-        failedChecks,
-        state: pr.state,
-      };
-    }
-
-    if (failedChecks.length === 0 && pr.unresolvedThreads.length === 0) {
-      continue;
-    }
-
-    if (pr.state.shepherdRounds >= MAX_SHEPHERD_ROUNDS) {
-      return {
-        kind: "escalate",
-        prNumber: pr.number,
-        headRefName: pr.headRefName,
-        reason: `Reached max ${MAX_SHEPHERD_ROUNDS} shepherd rounds.`,
-        failedChecks,
-        unresolvedThreadCount: pr.unresolvedThreads.length,
-      };
-    }
-
-    const linkedIssues = extractLinkedIssueNumbers(pr.body);
-    return {
-      kind: "shepherd",
-      prNumber: pr.number,
-      headRefName: pr.headRefName,
-      headSha: pr.headSha,
-      issueNumber: pr.state.issueNumber ?? linkedIssues[0] ?? null,
-      nextRound: pr.state.shepherdRounds + 1,
-      failedChecks,
-      unresolvedThreads: pr.unresolvedThreads,
-    };
+  const triages = openAgentPrs
+    .toSorted((a, b) => a.number - b.number)
+    .map((pr) => triagePr(pr, nowMs));
+  const prOrder = triages.find((triage) => typeof triage === "object");
+  if (prOrder) {
+    return prOrder;
   }
-
-  if (sortedPrs.length >= MAX_OPEN_AGENT_PRS) {
+  const openAgentPrCount = openAgentPrs.length;
+  const waitingForChecks = triages.includes("waiting");
+  if (openAgentPrCount >= MAX_OPEN_AGENT_PRS) {
     return {
       kind: "idle",
       reason: waitingForChecks ? "waiting_for_checks" : "wip_limit_reached",
-      openAgentPrCount: sortedPrs.length,
+      openAgentPrCount,
     };
   }
-
-  const linkedIssueNumbers = new Set<number>();
-  for (const pr of sortedPrs) {
-    if (pr.state.issueNumber) {
-      linkedIssueNumbers.add(pr.state.issueNumber);
-    }
-    for (const num of extractLinkedIssueNumbers(pr.body)) {
-      linkedIssueNumbers.add(num);
-    }
-  }
-
-  const eligibleIssues = [...readyIssues]
-    .sort((a, b) => a.number - b.number)
-    .filter(
-      (issue) =>
-        !issue.labels.includes("agent:needs-human") &&
-        !issue.labels.includes(DESIGN_PROPOSAL_LABEL) &&
-        !linkedIssueNumbers.has(issue.number) &&
-        !hasActiveClaim(issue.comments, nowMs),
-    );
-
-  const nextIssue = eligibleIssues[0];
+  const nextIssue = pickNextIssue(readyIssues, openAgentPrs, nowMs);
   if (nextIssue) {
     return {
       kind: "implement",
       issueNumber: nextIssue.number,
       title: nextIssue.title,
-      branchSuggestion: `claude/issue-${nextIssue.number}`,
+      branchSuggestion: `${ISSUE_BRANCH_PREFIX}${nextIssue.number}`,
     };
   }
-
   return {
     kind: "idle",
     reason: waitingForChecks ? "waiting_for_checks" : "no_work",
-    openAgentPrCount: sortedPrs.length,
+    openAgentPrCount,
   };
 };
 
-const restPullDetailSchema = z.object({
-  number: z.number(),
-  title: z.string(),
-  body: z.string().nullable().default(""),
-  draft: z.boolean().default(false),
-  created_at: z.string(),
-  updated_at: z.string(),
-  labels: z.array(restLabelSchema),
-  head: z.object({
-    ref: z.string(),
-    sha: z.string(),
-  }),
-});
+const fetchUnaddressedThreads = (client: GitHubRestClient, prNumber: number) =>
+  extractUnaddressedReviewThreads(client.listReviewComments(prNumber));
 
-const restCheckRunsPageSchema = z.object({
-  check_runs: z.array(
-    z.object({
-      id: z.number(),
-      name: z.string(),
-      status: z.string(),
-      conclusion: z.string().nullable(),
-    }),
-  ),
-});
-
-const restCommitStatusSchema = z.object({
-  statuses: z.array(
-    z.object({
-      context: z.string(),
-      state: z.string(),
-    }),
-  ),
-});
-
-const restPullReviewCommentSchema = z.object({
-  id: z.number(),
-  in_reply_to_id: z.number().nullable().optional(),
-  path: z.string(),
-  line: z.number().nullable().optional(),
-  original_line: z.number().nullable().optional(),
-  author_association: z.string().default(""),
-  user: z.object({ login: z.string() }).nullable(),
-  body: z.string(),
-});
-
-const restWorkflowRunsSchema = z.object({
-  workflow_runs: z.array(
-    z.object({
-      id: z.number(),
-      run_attempt: z.number().int().positive(),
-      conclusion: z.string().nullable(),
-    }),
-  ),
-});
-
-const restCreatedPrSchema = z.object({
-  number: z.number(),
-  html_url: z.string(),
-  head: z.object({ ref: z.string() }),
-});
-
-const fetchUnaddressedThreads = (
-  repoRoot: string,
-  repo: RepoIdentity,
-  prNumber: number,
-): ReviewThreadSummary[] => {
-  const comments = ghApiPaginatedArray(
-    repoRoot,
-    `repos/${repo.owner}/${repo.name}/pulls/${prNumber}/comments?per_page=100`,
-    restPullReviewCommentSchema,
-  );
-  return extractUnaddressedReviewThreads(comments);
-};
-
-const fetchCommitChecks = (
-  repoRoot: string,
-  repo: RepoIdentity,
-  headSha: string,
-): PrCheckStatus[] => {
-  const checkPages = z
-    .array(restCheckRunsPageSchema)
-    .parse(
-      ghApiJson(repoRoot, [
-        "--paginate",
-        "--slurp",
-        `repos/${repo.owner}/${repo.name}/commits/${headSha}/check-runs?per_page=100`,
-      ]),
-    );
-  const checkRuns = checkPages.flatMap((page) => page.check_runs);
-  const statusPages = z
-    .array(restCommitStatusSchema)
-    .parse(
-      ghApiJson(repoRoot, [
-        "--paginate",
-        "--slurp",
-        `repos/${repo.owner}/${repo.name}/commits/${headSha}/status?per_page=100`,
-      ]),
-    );
-  const statuses = statusPages.flatMap((page) => page.statuses);
-  return normalizeRestChecks({ checkRuns, statuses });
-};
+const fetchCommitChecks = (client: GitHubRestClient, headSha: string): PrCheckStatus[] =>
+  normalizeRestChecks(client.listCommitChecks(headSha));
 
 const fetchLatestFailedVerifyRun = (
-  repoRoot: string,
-  repo: RepoIdentity,
+  client: GitHubRestClient,
   headSha: string,
 ): FailedVerifyRun | null => {
-  const parsed = restWorkflowRunsSchema.parse(
-    ghApiJson(repoRoot, [
-      `repos/${repo.owner}/${repo.name}/actions/workflows/verify.yml/runs?head_sha=${encodeURIComponent(headSha)}&per_page=10`,
-    ]),
-  );
-  const failedRun = parsed.workflow_runs.find((run) => run.conclusion === "failure");
-  return failedRun ? { databaseId: failedRun.id, attempt: failedRun.run_attempt } : null;
+  const failedRun = client
+    .listWorkflowRuns("verify.yml", headSha)
+    .find((run) => run.conclusion === "failure");
+  return failedRun ? { databaseId: failedRun.id, attempt: failedRun.attempt } : null;
 };
 
-const fetchOpenAgentPrs = (repoRoot: string, repo: RepoIdentity): OpenAgentPr[] => {
-  const labeledItems = ghApiPaginatedArray(
-    repoRoot,
-    `repos/${repo.owner}/${repo.name}/issues?state=open&labels=agent:pr&per_page=100`,
-    restIssueItemSchema,
-  );
-  const prItems = labeledItems.filter((item) => item.pull_request !== undefined);
+const fetchOpenAgentPrs = (client: GitHubRestClient): OpenAgentPr[] =>
+  client
+    .listOpenIssues(AGENT_LABELS.pr)
+    .filter((item) => item.isPullRequest)
+    .map((item) => {
+      const pr = client.getPull(item.number);
+      const comments = client.listIssueComments(pr.number);
+      const checks = fetchCommitChecks(client, pr.headSha);
+      const { hasPending, onlyBrowserFailures } = inspectPrChecks(checks);
+      const failedVerifyRun =
+        !hasPending && onlyBrowserFailures ? fetchLatestFailedVerifyRun(client, pr.headSha) : null;
+      return {
+        number: pr.number,
+        title: pr.title,
+        body: pr.body,
+        headRefName: pr.headRefName,
+        headSha: pr.headSha,
+        isDraft: pr.draft,
+        stateInitialized: hasAgentPrState(comments),
+        createdAt: pr.createdAt,
+        updatedAt: pr.updatedAt,
+        labels: pr.labels,
+        checks,
+        unresolvedThreads: fetchUnaddressedThreads(client, pr.number),
+        state: parseAgentPrState(comments),
+        failedVerifyRun,
+      };
+    });
 
-  return prItems.map((item) => {
-    const pr = restPullDetailSchema.parse(
-      ghApiJson(repoRoot, [`repos/${repo.owner}/${repo.name}/pulls/${item.number}`]),
-    );
-    const comments = fetchRestIssueComments(repoRoot, repo, pr.number);
-    const checks = fetchCommitChecks(repoRoot, repo, pr.head.sha);
-    const { hasPending, onlyBrowserFailures } = inspectPrChecks(checks);
-    const failedVerifyRun =
-      !hasPending && onlyBrowserFailures
-        ? fetchLatestFailedVerifyRun(repoRoot, repo, pr.head.sha)
-        : null;
-    return {
-      number: pr.number,
-      title: pr.title,
-      body: pr.body ?? "",
-      headRefName: pr.head.ref,
-      headSha: pr.head.sha,
-      isDraft: pr.draft,
-      stateInitialized: hasAgentPrState(comments),
-      createdAt: pr.created_at,
-      updatedAt: pr.updated_at,
-      labels: pr.labels.map((label) => label.name),
-      checks,
-      unresolvedThreads: fetchUnaddressedThreads(repoRoot, repo, pr.number),
-      state: parseAgentPrState(comments),
-      failedVerifyRun,
-    };
-  });
-};
-
-const fetchReadyIssues = (repoRoot: string, repo: RepoIdentity): ReadyIssueCandidate[] =>
-  listRestIssues({ repoRoot, repo, state: "open", labels: ["agent:ready"] }).map((item) => ({
-    number: item.number,
-    title: item.title,
-    labels: item.labels.map((label) => label.name),
-    comments: item.comments > 0 ? fetchRestIssueComments(repoRoot, repo, item.number) : [],
-  }));
-
-const postIssueComment = (repoRoot: string, repo: RepoIdentity, number: number, body: string) => {
-  ghApiJson(repoRoot, [
-    `repos/${repo.owner}/${repo.name}/issues/${number}/comments`,
-    "-X",
-    "POST",
-    "-f",
-    `body=${body}`,
-  ]);
-};
-
-const addIssueLabels = (
-  repoRoot: string,
-  repo: RepoIdentity,
-  number: number,
-  labels: readonly string[],
-) => {
-  const labelArgs = labels.flatMap((label) => ["-f", `labels[]=${label}`]);
-  ghApiJson(repoRoot, [
-    `repos/${repo.owner}/${repo.name}/issues/${number}/labels`,
-    "-X",
-    "POST",
-    ...labelArgs,
-  ]);
-};
+const fetchReadyIssues = (client: GitHubRestClient): ReadyIssueCandidate[] =>
+  client
+    .listOpenIssues(AGENT_LABELS.ready)
+    .filter((item) => !item.isPullRequest)
+    .map((item) => ({
+      number: item.number,
+      title: item.title,
+      labels: item.labels,
+      comments: item.commentCount > 0 ? client.listIssueComments(item.number) : [],
+    }));
 
 const RECORD_SHEPHERD_USAGE =
   "Usage: queue.ts record-shepherd <pr-number> --round <n> [--sha <sha>] [--issue <n>] [--flake-reruns <n>] [--if-uninitialized]";
@@ -750,273 +614,413 @@ export type RecordShepherdOptions = {
   ifUninitialized: boolean;
 };
 
+/** Reads the command's single positional as a whole number, so "12abc" is an error rather than #12. */
+const readNumberPositional = (positionals: readonly string[], name: string, usage: string) => {
+  const [raw, ...extra] = positionals;
+  if (raw === undefined || extra.length > 0) {
+    throw new Error(usage);
+  }
+  return parseWholeNumber(raw, `<${name}>`);
+};
+
 /** Validates `record-shepherd` arguments before any GitHub call, so bad input records nothing. */
 export const parseRecordShepherdArgs = (args: readonly string[]): RecordShepherdOptions => {
-  const prNumber = Number(args[0]);
-  const round = readIntegerFlag(args, "--round", 0);
-  if (!/^[1-9]\d*$/.test(args[0] ?? "") || round === null) {
+  const { values, positionals } = parseCliArgs(args, {
+    options: {
+      round: { type: "string" },
+      sha: { type: "string" },
+      issue: { type: "string" },
+      "flake-reruns": { type: "string" },
+      "if-uninitialized": { type: "boolean" },
+    },
+    usage: RECORD_SHEPHERD_USAGE,
+    allowPositionals: true,
+  });
+  const prNumber = readNumberPositional(positionals, "pr-number", RECORD_SHEPHERD_USAGE);
+  if (values.round === undefined) {
     throw new Error(RECORD_SHEPHERD_USAGE);
   }
-  const sha = readFlagValue(args, "--sha");
-  const issueNumber = readIntegerFlag(args, "--issue", 1);
-  const flakeReruns = readIntegerFlag(args, "--flake-reruns", 0);
   return {
     prNumber,
-    round,
-    ...(sha !== null ? { sha } : {}),
-    ...(issueNumber !== null ? { issueNumber } : {}),
-    ...(flakeReruns !== null ? { flakeReruns } : {}),
-    ifUninitialized: args.includes("--if-uninitialized"),
+    round: parseWholeNumber(values.round, "--round", 0),
+    ...(values.sha !== undefined ? { sha: values.sha } : {}),
+    ...(values.issue !== undefined
+      ? { issueNumber: parseWholeNumber(values.issue, "--issue") }
+      : {}),
+    ...(values["flake-reruns"] !== undefined
+      ? { flakeReruns: parseWholeNumber(values["flake-reruns"], "--flake-reruns", 0) }
+      : {}),
+    ifUninitialized: values["if-uninitialized"] ?? false,
   };
 };
 
-const applyQueueOrder = (repoRoot: string, repo: RepoIdentity, order: QueueWorkOrder) => {
+type QueueCommandOptions = {
+  next: { apply: boolean };
+  issue: { issueNumber: number };
+  claim: { issueNumber: number; renewRunId?: string };
+  "open-pr": { title: string; head: string; base: string; bodyFile?: string; body: string };
+  escalate: { targetNumber: number; reason: string };
+  "record-shepherd": RecordShepherdOptions;
+  threads: { prNumber: number };
+  "reply-thread": { prNumber: number; commentId: number; body: string };
+};
+
+export type QueueCommandName = keyof QueueCommandOptions;
+
+type QueueCommandOf<C extends QueueCommandName> = { command: C } & QueueCommandOptions[C];
+
+export type QueueCommand = { [C in QueueCommandName]: QueueCommandOf<C> }[QueueCommandName];
+
+const ISSUE_USAGE = "Usage: queue.ts issue <issue-number>";
+const CLAIM_USAGE = "Usage: queue.ts claim <issue-number> [--renew <runId>]";
+const OPEN_PR_USAGE =
+  "Usage: queue.ts open-pr --title <title> --head <branch> [--base main] (--body-file <path> | --body <text>)";
+const ESCALATE_USAGE = "Usage: queue.ts escalate <issue-or-pr-number> --reason <text>";
+const THREADS_USAGE = "Usage: queue.ts threads <pr-number>";
+const REPLY_THREAD_USAGE = "Usage: queue.ts reply-thread <pr-number> <comment-id> --body <summary>";
+
+const parseClaimArgs = (args: readonly string[]): QueueCommand => {
+  const { values, positionals } = parseCliArgs(args, {
+    options: { renew: { type: "string" } },
+    usage: CLAIM_USAGE,
+    allowPositionals: true,
+  });
+  const issueNumber = readNumberPositional(positionals, "issue-number", CLAIM_USAGE);
+  if (values.renew !== undefined && !values.renew.trim()) {
+    throw new Error("--renew requires a non-empty runId.");
+  }
+  return {
+    command: "claim",
+    issueNumber,
+    ...(values.renew !== undefined ? { renewRunId: values.renew } : {}),
+  };
+};
+
+const parseOpenPrArgs = (args: readonly string[]): QueueCommand => {
+  const { values } = parseCliArgs(args, {
+    options: {
+      title: { type: "string" },
+      head: { type: "string" },
+      base: { type: "string" },
+      "body-file": { type: "string" },
+      body: { type: "string" },
+    },
+    usage: OPEN_PR_USAGE,
+  });
+  const bodyFile = values["body-file"];
+  // Exactly one body source: an explicit `--body=` may be empty, but a missing body may not.
+  const hasOneBodySource = (bodyFile === undefined) !== (values.body === undefined);
+  if (!values.title || !values.head || !hasOneBodySource || bodyFile === "") {
+    throw new Error(OPEN_PR_USAGE);
+  }
+  return {
+    command: "open-pr",
+    title: values.title,
+    head: values.head,
+    base: values.base ?? "main",
+    ...(bodyFile === undefined ? {} : { bodyFile }),
+    body: values.body ?? "",
+  };
+};
+
+const parseEscalateArgs = (args: readonly string[]): QueueCommand => {
+  const { values, positionals } = parseCliArgs(args, {
+    options: { reason: { type: "string" } },
+    usage: ESCALATE_USAGE,
+    allowPositionals: true,
+  });
+  const targetNumber = readNumberPositional(positionals, "issue-or-pr-number", ESCALATE_USAGE);
+  const reason = values.reason?.trim();
+  if (!reason) {
+    throw new Error(ESCALATE_USAGE);
+  }
+  return { command: "escalate", targetNumber, reason };
+};
+
+const parseReplyThreadArgs = (args: readonly string[]): QueueCommand => {
+  const { values, positionals } = parseCliArgs(args, {
+    options: { body: { type: "string" } },
+    usage: REPLY_THREAD_USAGE,
+    allowPositionals: true,
+  });
+  const [prRaw, commentRaw, ...extra] = positionals;
+  if (prRaw === undefined || commentRaw === undefined || extra.length > 0 || !values.body?.trim()) {
+    throw new Error(REPLY_THREAD_USAGE);
+  }
+  return {
+    command: "reply-thread",
+    prNumber: parseWholeNumber(prRaw, "<pr-number>"),
+    commentId: parseWholeNumber(commentRaw, "<comment-id>"),
+    body: values.body,
+  };
+};
+
+/** Validates a queue command line before any GitHub call, so a typo acts on nothing. */
+export const parseQueueArgs = (args: readonly string[]): QueueCommand => {
+  const [command, ...rest] = stripLeadingSeparator(args);
+  switch (command) {
+    case "next": {
+      const { values } = parseCliArgs(rest, {
+        options: { apply: { type: "boolean" } },
+        usage: "Usage: queue.ts next [--apply]",
+      });
+      return { command, apply: values.apply ?? false };
+    }
+    case "issue": {
+      const { positionals } = parseCliArgs(rest, {
+        options: {},
+        usage: ISSUE_USAGE,
+        allowPositionals: true,
+      });
+      return {
+        command,
+        issueNumber: readNumberPositional(positionals, "issue-number", ISSUE_USAGE),
+      };
+    }
+    case "claim":
+      return parseClaimArgs(rest);
+    case "open-pr":
+      return parseOpenPrArgs(rest);
+    case "escalate":
+      return parseEscalateArgs(rest);
+    case "record-shepherd":
+      return { command, ...parseRecordShepherdArgs(rest) };
+    case "threads": {
+      const { positionals } = parseCliArgs(rest, {
+        options: {},
+        usage: THREADS_USAGE,
+        allowPositionals: true,
+      });
+      return { command, prNumber: readNumberPositional(positionals, "pr-number", THREADS_USAGE) };
+    }
+    case "reply-thread":
+      return parseReplyThreadArgs(rest);
+    default:
+      throw new Error(
+        `Unknown queue command "${command ?? ""}". Expected "next", "issue", "claim", "open-pr", "escalate", "record-shepherd", "threads", or "reply-thread".`,
+      );
+  }
+};
+
+/** The GitHub operations and side effects a queue command may use. */
+export type QueueDeps = {
+  client: GitHubRestClient;
+  now: () => number;
+  newRunId: () => string;
+  readFile: (path: string) => string;
+  /** Writes a diagnostic line to standard error. */
+  warn: (line: string) => void;
+};
+
+export type ClaimOutcome =
+  | { status: "claimed" | "renewed"; issueNumber: number; claim: ClaimMarker }
+  | { status: "already_claimed"; issueNumber: number; winningRunId: string }
+  | { status: "lost_race"; issueNumber: number; winningRunId: string }
+  | { status: "lost_race"; issueNumber: number; claim: ClaimMarker; winningRunId: string | null };
+
+/**
+ * Claims an issue for this run, or renews `renewRunId`'s claim. GitHub cannot write a comment
+ * conditionally, so the claim is posted and the comments re-read: when another run's earlier claim
+ * is active after the write, this run lost the race and must not implement the issue.
+ */
+export const claimIssue = (
+  client: Pick<GitHubRestClient, "listIssueComments" | "postIssueComment">,
+  issueNumber: number,
+  { renewRunId, now, newRunId }: { renewRunId?: string; now: () => number; newRunId: () => string },
+): ClaimOutcome => {
+  const claimedAt = now();
+  const existingOwner = findEarliestActiveClaimRunId(
+    client.listIssueComments(issueNumber),
+    claimedAt,
+  );
+  if (existingOwner !== null && renewRunId === undefined) {
+    return { status: "already_claimed", issueNumber, winningRunId: existingOwner };
+  }
+  if (existingOwner !== null && existingOwner !== renewRunId) {
+    return { status: "lost_race", issueNumber, winningRunId: existingOwner };
+  }
+
+  const claim = claimMarkerSchema.parse({
+    runId: renewRunId ?? newRunId(),
+    claimedAt: new Date(claimedAt).toISOString(),
+    expiresAt: new Date(claimedAt + CLAIM_TTL_MS).toISOString(),
+  });
+  client.postIssueComment(issueNumber, formatClaimComment(claim));
+
+  const winnerAfterWrite = findEarliestActiveClaimRunId(
+    client.listIssueComments(issueNumber),
+    now(),
+  );
+  if (winnerAfterWrite !== claim.runId) {
+    return { status: "lost_race", issueNumber, claim, winningRunId: winnerAfterWrite };
+  }
+  return { status: renewRunId !== undefined ? "renewed" : "claimed", issueNumber, claim };
+};
+
+export type OpenPrOutcome = {
+  status: "reused" | "created";
+  number: number;
+  url: string;
+  headRefName: string;
+};
+
+/**
+ * Reuses the open pull request from `head` into `base`, or creates one, then labels it `agent:pr`.
+ * A pull request left unlabeled is reported through `warn` before the labeling error is rethrown,
+ * because the queue would otherwise never see it.
+ */
+export const openAgentPr = (
+  client: Pick<GitHubRestClient, "findOpenPull" | "createPull" | "addLabels">,
+  pull: { title: string; head: string; base: string; body: string },
+  warn: (line: string) => void,
+): OpenPrOutcome => {
+  const existingPr = client.findOpenPull(pull);
+  const pr = existingPr ?? client.createPull(pull);
+  try {
+    client.addLabels(pr.number, [AGENT_LABELS.pr]);
+  } catch (error) {
+    warn(
+      JSON.stringify({
+        status: "created_unlabeled",
+        number: pr.number,
+        url: pr.url,
+        headRefName: pr.headRefName,
+      }),
+    );
+    throw error;
+  }
+  return {
+    status: existingPr ? "reused" : "created",
+    number: pr.number,
+    url: pr.url,
+    headRefName: pr.headRefName,
+  };
+};
+
+const escalate = (client: GitHubRestClient, number: number, reason: string) => {
+  client.addLabels(number, [AGENT_LABELS.needsHuman]);
+  client.postIssueComment(number, `Escalating to human: ${reason}`);
+};
+
+const applyQueueOrder = (client: GitHubRestClient, order: QueueWorkOrder) => {
   if (order.kind === "escalate") {
-    addIssueLabels(repoRoot, repo, order.prNumber, ["agent:needs-human"]);
-    postIssueComment(repoRoot, repo, order.prNumber, `Escalating to human: ${order.reason}`);
+    escalate(client, order.prNumber, order.reason);
     return;
   }
   if (order.kind === "rerun_flake") {
-    ghApiJson(repoRoot, [
-      `repos/${repo.owner}/${repo.name}/actions/runs/${order.runId}/rerun-failed-jobs`,
-      "-X",
-      "POST",
-    ]);
+    client.rerunFailedJobs(order.runId);
     const nextState = mergeAgentPrState(order.state, {
       lastHeadSha: order.headSha,
       flakeReruns: order.state.flakeReruns + 1,
     });
-    postIssueComment(repoRoot, repo, order.prNumber, formatAgentPrStateComment(nextState));
+    client.postIssueComment(order.prNumber, formatAgentPrStateComment(nextState));
   }
 };
 
+const readIssue = (client: GitHubRestClient, issueNumber: number) => {
+  const issue = client.getIssue(issueNumber);
+  return {
+    number: issue.number,
+    state: issue.state.toUpperCase(),
+    title: issue.title,
+    body: issue.body,
+    labels: issue.labels,
+    comments: issue.commentCount > 0 ? client.listIssueComments(issueNumber) : [],
+  };
+};
+
+const recordShepherd = (
+  client: GitHubRestClient,
+  { prNumber, ifUninitialized, round, sha, issueNumber, flakeReruns }: RecordShepherdOptions,
+) => {
+  const comments = client.listIssueComments(prNumber);
+  const previous = parseAgentPrState(comments);
+  if (ifUninitialized && hasAgentPrState(comments)) {
+    return { status: "already_initialized", prNumber, state: previous };
+  }
+  const state = mergeAgentPrState(previous, {
+    shepherdRounds: round,
+    ...(flakeReruns !== undefined ? { flakeReruns } : {}),
+    ...(sha ? { lastHeadSha: sha } : {}),
+    ...(issueNumber !== undefined ? { issueNumber } : {}),
+  });
+  client.postIssueComment(prNumber, formatAgentPrStateComment(state));
+  return { status: "recorded", prNumber, state };
+};
+
+type QueueCommandHandler<C extends QueueCommandName> = {
+  /** Prints the result as indented JSON for agents to read, rather than one line for logs. */
+  pretty?: true;
+  run: (command: QueueCommandOf<C>, deps: QueueDeps) => unknown;
+};
+
+const QUEUE_COMMANDS: { [C in QueueCommandName]: QueueCommandHandler<C> } = {
+  next: {
+    pretty: true,
+    run: ({ apply }, { client, now }) => {
+      const order = selectNextWork({
+        openAgentPrs: fetchOpenAgentPrs(client),
+        readyIssues: fetchReadyIssues(client),
+        nowMs: now(),
+      });
+      if (apply) {
+        applyQueueOrder(client, order);
+      }
+      return order;
+    },
+  },
+  issue: { pretty: true, run: ({ issueNumber }, { client }) => readIssue(client, issueNumber) },
+  claim: {
+    run: ({ issueNumber, renewRunId }, { client, now, newRunId }) =>
+      claimIssue(client, issueNumber, {
+        ...(renewRunId !== undefined ? { renewRunId } : {}),
+        now,
+        newRunId,
+      }),
+  },
+  "open-pr": {
+    run: ({ title, head, base, bodyFile, body }, { client, readFile, warn }) =>
+      openAgentPr(client, { title, head, base, body: bodyFile ? readFile(bodyFile) : body }, warn),
+  },
+  escalate: {
+    run: ({ targetNumber, reason }, { client }) => {
+      escalate(client, targetNumber, reason);
+      return { status: "escalated", number: targetNumber };
+    },
+  },
+  "record-shepherd": { run: (options, { client }) => recordShepherd(client, options) },
+  threads: {
+    pretty: true,
+    run: ({ prNumber }, { client }) => fetchUnaddressedThreads(client, prNumber),
+  },
+  "reply-thread": {
+    run: ({ prNumber, commentId, body }, { client }) => {
+      client.replyToReviewComment(prNumber, commentId, formatAddressedReplyBody(body));
+      return { status: "replied", prNumber, commentId };
+    },
+  },
+};
+
+/** Runs a parsed queue command and returns the JSON line or document it prints. */
+export const runQueueCommand = <C extends QueueCommandName>(
+  command: QueueCommandOf<C>,
+  deps: QueueDeps,
+): string => {
+  const handler: QueueCommandHandler<C> = QUEUE_COMMANDS[command.command];
+  const result = handler.run(command, deps);
+  return handler.pretty ? JSON.stringify(result, null, 2) : JSON.stringify(result);
+};
+
 const runCli = () => {
-  const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
-  const [command, ...rest] = process.argv.slice(2);
-  const repo = getRepoIdentity(repoRoot);
-
-  if (command === "next") {
-    const apply = rest.includes("--apply");
-    const order = selectNextWork({
-      openAgentPrs: fetchOpenAgentPrs(repoRoot, repo),
-      readyIssues: fetchReadyIssues(repoRoot, repo),
-    });
-    if (apply) {
-      applyQueueOrder(repoRoot, repo, order);
-    }
-    console.log(JSON.stringify(order, null, 2));
-    return;
-  }
-
-  if (command === "issue") {
-    const issueNumber = Number.parseInt(rest[0] ?? "", 10);
-    if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
-      throw new Error("Usage: queue.ts issue <issue-number>");
-    }
-    const issue = restIssueItemSchema.parse(
-      ghApiJson(repoRoot, [`repos/${repo.owner}/${repo.name}/issues/${issueNumber}`]),
-    );
-    const comments = issue.comments > 0 ? fetchRestIssueComments(repoRoot, repo, issueNumber) : [];
-    console.log(
-      JSON.stringify(
-        {
-          number: issue.number,
-          state: issue.state.toUpperCase(),
-          title: issue.title,
-          body: issue.body ?? "",
-          labels: issue.labels.map((label) => label.name),
-          comments,
-        },
-        null,
-        2,
-      ),
-    );
-    return;
-  }
-
-  if (command === "claim") {
-    const issueNumber = Number.parseInt(rest[0] ?? "", 10);
-    const renewRunId = readFlagValue(rest, "--renew");
-    if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
-      throw new Error("Usage: queue.ts claim <issue-number> [--renew <runId>]");
-    }
-    const now = Date.now();
-    const existingOwner = findEarliestActiveClaimRunId(
-      fetchRestIssueComments(repoRoot, repo, issueNumber),
-      now,
-    );
-    if (renewRunId !== null) {
-      if (!renewRunId.trim()) {
-        throw new Error("--renew requires a non-empty runId.");
-      }
-      if (existingOwner !== null && existingOwner !== renewRunId) {
-        console.log(
-          JSON.stringify({ status: "lost_race", issueNumber, winningRunId: existingOwner }),
-        );
-        return;
-      }
-    } else if (existingOwner !== null) {
-      console.log(
-        JSON.stringify({ status: "already_claimed", issueNumber, winningRunId: existingOwner }),
-      );
-      return;
-    }
-
-    const claim = claimMarkerSchema.parse({
-      runId: renewRunId ?? randomUUID(),
-      claimedAt: new Date(now).toISOString(),
-      expiresAt: new Date(now + CLAIM_TTL_MS).toISOString(),
-    });
-    postIssueComment(repoRoot, repo, issueNumber, formatClaimComment(claim));
-
-    const winnerAfterWrite = findEarliestActiveClaimRunId(
-      fetchRestIssueComments(repoRoot, repo, issueNumber),
-      Date.now(),
-    );
-    if (winnerAfterWrite !== claim.runId) {
-      console.log(
-        JSON.stringify({ status: "lost_race", issueNumber, claim, winningRunId: winnerAfterWrite }),
-      );
-      return;
-    }
-    console.log(
-      JSON.stringify({
-        status: renewRunId !== null ? "renewed" : "claimed",
-        issueNumber,
-        claim,
-      }),
-    );
-    return;
-  }
-
-  if (command === "open-pr") {
-    const title = readFlagValue(rest, "--title");
-    const head = readFlagValue(rest, "--head");
-    const base = readFlagValue(rest, "--base") ?? "main";
-    const bodyFile = readFlagValue(rest, "--body-file");
-    const bodyInline = readFlagValue(rest, "--body");
-    const body = bodyFile ? readFileSync(bodyFile, "utf8") : (bodyInline ?? "");
-    if (!title || !head) {
-      throw new Error(
-        "Usage: queue.ts open-pr --title <title> --head <branch> [--base main] (--body-file <path> | --body <text>)",
-      );
-    }
-    const existingPrs = z
-      .array(restCreatedPrSchema)
-      .parse(
-        ghApiJson(repoRoot, [
-          `repos/${repo.owner}/${repo.name}/pulls?state=open&head=${encodeURIComponent(`${repo.owner}:${head}`)}&base=${encodeURIComponent(base)}&per_page=10`,
-        ]),
-      );
-    const pr =
-      existingPrs[0] ??
-      restCreatedPrSchema.parse(
-        ghApiJson(repoRoot, [
-          `repos/${repo.owner}/${repo.name}/pulls`,
-          "-X",
-          "POST",
-          "-f",
-          `title=${title}`,
-          "-f",
-          `head=${head}`,
-          "-f",
-          `base=${base}`,
-          "-f",
-          `body=${body}`,
-        ]),
-      );
-    try {
-      addIssueLabels(repoRoot, repo, pr.number, ["agent:pr"]);
-    } catch (error) {
-      console.error(
-        JSON.stringify({
-          status: "created_unlabeled",
-          number: pr.number,
-          url: pr.html_url,
-          headRefName: pr.head.ref,
-        }),
-      );
-      throw error;
-    }
-    console.log(
-      JSON.stringify({
-        status: existingPrs[0] ? "reused" : "created",
-        number: pr.number,
-        url: pr.html_url,
-        headRefName: pr.head.ref,
-      }),
-    );
-    return;
-  }
-
-  if (command === "escalate") {
-    const targetNumber = Number.parseInt(rest[0] ?? "", 10);
-    const reason = readFlagValue(rest, "--reason");
-    if (!Number.isInteger(targetNumber) || targetNumber <= 0 || !reason?.trim()) {
-      throw new Error("Usage: queue.ts escalate <issue-or-pr-number> --reason <text>");
-    }
-    addIssueLabels(repoRoot, repo, targetNumber, ["agent:needs-human"]);
-    postIssueComment(repoRoot, repo, targetNumber, `Escalating to human: ${reason.trim()}`);
-    console.log(JSON.stringify({ status: "escalated", number: targetNumber }));
-    return;
-  }
-
-  if (command === "record-shepherd") {
-    const { prNumber, ifUninitialized, ...updates } = parseRecordShepherdArgs(rest);
-    const comments = fetchRestIssueComments(repoRoot, repo, prNumber);
-    const previous = parseAgentPrState(comments);
-    if (ifUninitialized && hasAgentPrState(comments)) {
-      console.log(JSON.stringify({ status: "already_initialized", prNumber, state: previous }));
-      return;
-    }
-    const state = mergeAgentPrState(previous, {
-      shepherdRounds: updates.round,
-      ...(updates.flakeReruns !== undefined ? { flakeReruns: updates.flakeReruns } : {}),
-      ...(updates.sha ? { lastHeadSha: updates.sha } : {}),
-      ...(updates.issueNumber !== undefined ? { issueNumber: updates.issueNumber } : {}),
-    });
-    postIssueComment(repoRoot, repo, prNumber, formatAgentPrStateComment(state));
-    console.log(JSON.stringify({ status: "recorded", prNumber, state }));
-    return;
-  }
-
-  if (command === "threads") {
-    const prNumber = Number.parseInt(rest[0] ?? "", 10);
-    if (!Number.isInteger(prNumber) || prNumber <= 0) {
-      throw new Error("Usage: queue.ts threads <pr-number>");
-    }
-    console.log(JSON.stringify(fetchUnaddressedThreads(repoRoot, repo, prNumber), null, 2));
-    return;
-  }
-
-  if (command === "reply-thread") {
-    const prNumber = Number.parseInt(rest[0] ?? "", 10);
-    const commentId = Number.parseInt(rest[1] ?? "", 10);
-    const body = readFlagValue(rest, "--body");
-    if (
-      !Number.isInteger(prNumber) ||
-      prNumber <= 0 ||
-      !Number.isInteger(commentId) ||
-      commentId <= 0 ||
-      !body?.trim()
-    ) {
-      throw new Error("Usage: queue.ts reply-thread <pr-number> <comment-id> --body <summary>");
-    }
-    const replyBody = formatAddressedReplyBody(body);
-    ghApiJson(repoRoot, [
-      `repos/${repo.owner}/${repo.name}/pulls/${prNumber}/comments/${commentId}/replies`,
-      "-X",
-      "POST",
-      "-f",
-      `body=${replyBody}`,
-    ]);
-    console.log(JSON.stringify({ status: "replied", prNumber, commentId }));
-    return;
-  }
-
-  throw new Error(
-    `Unknown queue command "${command ?? ""}". Expected "next", "issue", "claim", "open-pr", "escalate", "record-shepherd", "threads", or "reply-thread".`,
-  );
+  const command = parseQueueArgs(process.argv.slice(2));
+  const output = runQueueCommand(command, {
+    client: createGitHubRestClient({ repoRoot: REPO_ROOT }),
+    now: Date.now,
+    newRunId: randomUUID,
+    readFile: (path) => readFileSync(path, "utf8"),
+    warn: console.error,
+  });
+  console.log(output);
 };
 
 if (import.meta.main) {

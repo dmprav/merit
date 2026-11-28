@@ -49,7 +49,7 @@ export const WorkspaceChoice = ({
           </ApplicationContextLinks>
           {canAdminister && (
             <Stack gap={4}>
-              <Divider />
+              <Divider spacing={4} />
               <div>
                 <RoutedLink variant="standalone" to="/admin/organizations">
                   {t("common:administration")}

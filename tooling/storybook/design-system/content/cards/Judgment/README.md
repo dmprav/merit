@@ -9,7 +9,7 @@ Presents a person's judgment — a recommendation or assessment — with who mad
 - Supply `basis` only when it qualifies the position, such as an earlier submission version, as separate short spans.
 - Put supporting content such as reasoning in `children`; it follows the summary.
 - Put one control at the end of the author line with `action`, usually an icon-only quiet `Button` with an accessible label such as "Edit recommendation".
-- Use `JudgmentChoice` to present the same summary as a quiet control that opens the full judgment; supply `onPress` (and `ref` to restore focus). Its name includes the author and summary, and a trailing chevron signals it opens.
+- Use `JudgmentChoice` to present the same summary as a quiet control that opens the full judgment; supply `onPress` (and `ref` to restore focus). Its name includes the author and summary, and a trailing chevron signals it opens. The choice outdents itself by its padding and border, so its avatar and chevron meet the content edges while its hover fill reaches into the gutter; callers add no margin.
 - Use `OutcomeSummary` instead for a position without an author.
 - Meta and basis use `text-caption`/`text-detail` in `muted`; parts are spaced with `space-1`–`space-3`.
 

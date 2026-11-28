@@ -32,8 +32,14 @@ Shared forms separate their children by `space-2` (8 px); individual fields own
 label and feedback spacing, as described by the [field guidance](?path=/docs/components-fields--docs).
 Nested forms retain their own presentation and submit independently.
 
+In a dialog, the form's body, feedback, and actions are the dialog frame's body and
+footer: a save error appears directly above the actions, inside the fixed footer, and a
+leading Discard starts at the same gutter as the fields. Below 30rem of viewport height
+the whole dialog scrolls instead of only the body.
+
 Outside a dialog, a long form that scrolls with its pane sets `stickyActions` so
-its actions stay at the bottom of the pane and focused fields stay above them. A
+its actions, save status, and any save error sit in the frame footer at the bottom of the pane,
+and focused fields stay above them. A
 form with one field and icon actions, such as renaming in place, uses
 `layout="inline"`. Forms accept no class name; place them with the surrounding
 layout.

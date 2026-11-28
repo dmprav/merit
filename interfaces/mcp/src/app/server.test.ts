@@ -25,6 +25,8 @@ const round = {
     withdrawnApplications: 0,
     proposed: { minorUnits: "0", currency: "EUR" as const },
     remaining: { minorUnits: "9007199254740993", currency: "EUR" as const },
+    committed: { minorUnits: "2", currency: "EUR" as const },
+    available: { minorUnits: "9007199254740991", currency: "EUR" as const },
   },
 };
 

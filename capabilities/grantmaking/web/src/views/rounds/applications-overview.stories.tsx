@@ -53,6 +53,7 @@ const meta = {
         requested: null,
         reviews: { current: 0, outdated: 1, outstanding: 1, unknown: 0 },
         criteriaChanged: true,
+        decision: null,
         recommendation: {
           position: "Defer",
           outdated: true,
@@ -70,6 +71,7 @@ const meta = {
         requested: null,
         reviews: { current: 0, outdated: 0, outstanding: 0, unknown: 0 },
         criteriaChanged: false,
+        decision: null,
         recommendation: null,
       },
     ],

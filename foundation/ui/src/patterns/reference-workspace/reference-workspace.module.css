@@ -22,46 +22,11 @@
   border-left: 0;
 }
 
-.toolbar {
-  min-height: 49px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--pane-inset);
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
-
-.reference > .toolbar {
+/* Stacked panes keep the reference switcher in reach while the document scrolls. */
+.reference > [data-dialog-header] {
   position: sticky;
   top: 0;
   z-index: 2;
-}
-
-.toolbar[data-title] {
-  flex-wrap: wrap;
-  justify-content: space-between;
-}
-
-/* Pane titles stay quieter than the content headings beneath them. */
-.toolbar[data-title] h2 {
-  font-size: var(--text-detail);
-  font-weight: var(--weight-medium);
-  letter-spacing: -0.01em;
-}
-
-.title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-2);
-  min-width: 0;
-}
-
-.toolbar[data-title] h2:focus {
-  outline: none;
-  color: var(--action);
 }
 
 .meta {
@@ -70,11 +35,7 @@
   line-height: 1.6;
 }
 
-.reference > .content {
-  padding: var(--space-7) var(--pane-inset) var(--space-8);
-}
-
-.content > [hidden] {
+[data-reading-viewport] > [hidden] {
   display: none;
 }
 
@@ -88,19 +49,12 @@
   scroll-margin-top: var(--space-4);
 }
 
-.work > .content {
-  padding: var(--space-6) var(--pane-inset);
-}
-
-.footer {
+.footerRow {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-4) var(--pane-inset);
-  background: var(--surface);
-  border-top: 1px solid var(--border);
 }
 
 .jump {
@@ -110,11 +64,6 @@
   align-items: center;
   gap: var(--space-2);
   padding-block: var(--space-3);
-}
-
-/* Positioned descendants, such as visually hidden live regions, stay inside their pane. */
-.content {
-  position: relative;
 }
 
 @media (min-width: 901px) and (min-height: 600px) {
@@ -137,6 +86,8 @@
 
   .reference,
   .work {
+    /* Panes that scroll publish their end padding so a form's actions can reach the pane's edge. */
+    --frame-sticky-inset: var(--frame-body-bottom);
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -148,44 +99,17 @@
     max-height: none;
   }
 
-  .reference > .toolbar {
+  .reference > [data-dialog-header] {
     position: static;
   }
 
-  .toolbar,
-  .footer {
-    flex-shrink: 0;
-  }
-
-  /* Reserve the same gutter as the scrolling content so actions align with fields. */
-  .footer {
-    overflow: hidden;
-    scrollbar-gutter: stable;
-  }
-
-  .content {
-    min-height: 0;
-    flex: 1;
-    overflow-y: auto;
-    scrollbar-gutter: stable;
-    overscroll-behavior: contain;
-  }
-
-  .reference > .content,
-  .work > .content {
-    --pane-padding-block-end: var(--space-6);
-    padding-bottom: var(--pane-padding-block-end);
-  }
-
-  .content[data-fill] {
+  /* The child owns its scrolling body and footer, which take the frame's gutters. */
+  .fill {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
-  }
-
-  /* The child owns its scrolling body; its footer still keeps a gutter from the viewport edge. */
-  .work > .content[data-fill] {
-    --pane-padding-block-end: var(--space-4);
   }
 }
 
@@ -196,6 +120,11 @@
 }
 
 @media (max-width: 900px), (max-height: 599px) {
+  /* The page supplies the gutter once the panes stack. */
+  .view {
+    --pane-inset: 0px;
+  }
+
   .jump {
     display: inline-flex;
   }
@@ -205,11 +134,10 @@
     grid-template-columns: 1fr;
   }
 
-  .reference > .content,
-  .work > .content,
-  .toolbar,
-  .footer {
-    padding-inline: 0;
+  /* The document scrolls, not the panes. */
+  .reference [data-reading-viewport],
+  .work [data-reading-viewport] {
+    overflow: visible;
   }
 
   .work {
@@ -221,20 +149,14 @@
   }
 
   /* Stacked work keeps its commitment actions in reach while the document scrolls. */
-  .footer {
+  .work > [data-frame-footer]:not([data-sticky]) {
     position: sticky;
     bottom: 0;
     z-index: 2;
   }
-}
 
-@media (forced-colors: active) {
-  .toolbar[data-title] h2:focus {
-    outline: 2px solid Highlight;
+  /* Over a scrolling document the footer has no scroll-linked edge, so it keeps a rule. */
+  :is(.work, .reference) [data-frame-footer] {
+    border-top: 1px solid var(--border);
   }
-}
-
-.content:focus-visible {
-  outline: 1px solid var(--action);
-  outline-offset: -1px;
 }

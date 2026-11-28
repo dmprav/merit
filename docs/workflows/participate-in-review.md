@@ -95,6 +95,12 @@ unresolved conflict stays paused. A withdrawn assignment stays declined; create 
 new request if the person later agrees to review. An archived contact must be restored
 before their assignment can resume.
 
+When a manager withdraws the application, a reviewer who has submitted keeps reading
+the material and every submitted version, but the assignment offers no amendment or
+conflict report and says the application was withdrawn. Writing that had not reached
+the server stays on screen to copy. Each save and submission is still checked when it
+commits, so a form left open is refused too.
+
 Disabled accounts cannot access assignments. Removing membership or losing the
 reviewer/program-manager role ends assignments too. After qualifying membership
 is restored, a program manager must explicitly **Reinstate assignment** to resume

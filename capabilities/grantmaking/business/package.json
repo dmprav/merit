@@ -21,6 +21,7 @@
     "@merit/auth": "workspace:*",
     "@merit/contacts": "workspace:*",
     "@merit/db": "workspace:*",
+    "@merit/decisions": "workspace:*",
     "@merit/money": "workspace:*",
     "@merit/organizations": "workspace:*",
     "@merit/recommendations": "workspace:*",

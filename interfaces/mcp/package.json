@@ -14,6 +14,8 @@
     "@merit/applications-ai": "workspace:*",
     "@merit/auth": "workspace:*",
     "@merit/contacts-ai": "workspace:*",
+    "@merit/decisions": "workspace:*",
+    "@merit/decisions-ai": "workspace:*",
     "@merit/grantmaking-ai": "workspace:*",
     "@merit/organizations-ai": "workspace:*",
     "@merit/recommendations": "workspace:*",

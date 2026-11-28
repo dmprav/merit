@@ -354,6 +354,17 @@ test(
   },
 );
 
+test("visitors can submit an invitation request from the landing page", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Request an invitation", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Request an invitation" });
+  await dialog.getByRole("textbox", { name: "Email address" }).fill("visitor@example.test");
+  await dialog.getByRole("button", { name: "Submit request" }).click();
+
+  await expect(page.getByRole("alertdialog", { name: /^Request saved\./ })).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+});
+
 test("marketing remains readable with reduced motion and without JavaScript", async ({
   page,
   newContext,

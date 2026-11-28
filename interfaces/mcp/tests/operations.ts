@@ -33,6 +33,9 @@ export const testOperations = (): McpOperations => ({
   recommendations: {
     saveRecommendation: vi.fn<McpOperations["recommendations"]["saveRecommendation"]>(),
   },
+  decisions: {
+    recordDecision: vi.fn<McpOperations["decisions"]["recordDecision"]>(),
+  },
   grantmaking: {
     listRoundSummaries: vi.fn<McpOperations["grantmaking"]["listRoundSummaries"]>(),
     readRound: vi.fn<McpOperations["grantmaking"]["readRound"]>(),

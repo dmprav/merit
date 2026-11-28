@@ -353,7 +353,7 @@ describe("the panel's width", () => {
     wide(true);
     const first = await show({ open: true });
     const separator = await resize(first.user);
-    expect(separator).toHaveAttribute("aria-valuenow", "432");
+    expect(separator).toHaveAttribute("aria-valuenow", "464");
 
     document.body.innerHTML = "";
     wide(true);
@@ -361,7 +361,7 @@ describe("the panel's width", () => {
 
     expect(await screen.findByRole("separator", { name: "Resize Merit AI" })).toHaveAttribute(
       "aria-valuenow",
-      "432",
+      "464",
     );
   });
 
@@ -377,7 +377,7 @@ describe("the panel's width", () => {
 
     const separator = await resize(user);
 
-    expect(separator).toHaveAttribute("aria-valuenow", "432");
+    expect(separator).toHaveAttribute("aria-valuenow", "464");
   });
 });
 

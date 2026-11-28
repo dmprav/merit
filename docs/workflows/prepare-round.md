@@ -49,7 +49,10 @@ Keep that history available while considering another change. A round’s budget
 “Not set,” with a reason once an amount has been established. Setting a replacement
 amount after clearing the budget also requires a reason. Applications can be
 prepared and marked ready while the round budget is undecided. Amounts accept at most two decimal places;
-invalid precision is rejected without changing the entered amount.
+invalid precision is rejected without changing the entered amount. Once
+[committee decisions](record-decisions.md) commit funding, the budget cannot be lowered below the
+committed total or cleared while anything is committed; the server rejects such a change with
+`budget_below_commitments` and shows the committed total. The reason requirement is unchanged.
 
 Each criterion retains its identity through wording changes and reordering. A new
 or duplicated criterion has a new identity, including when its title matches an

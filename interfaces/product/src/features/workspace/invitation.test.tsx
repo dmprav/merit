@@ -110,6 +110,7 @@ it("offers retry again after a retried read fails", async () => {
   const fail = pendingRead();
   await user.click(screen.getByRole("button", { name: "Try again" }));
 
+  await waitFor(() => expect(readInvitation).toHaveBeenCalledTimes(2));
   await act(async () => fail({ status: "unavailable" }));
 
   await waitFor(() =>

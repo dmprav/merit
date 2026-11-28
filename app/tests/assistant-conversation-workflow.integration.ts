@@ -92,6 +92,7 @@ const startWorker = () =>
         running: (limit, after) => current.running(limit, after),
         wake: (work) => current.background.wakeAssistantConversation(work),
       },
+      invitationDispatch: { invitationKey: () => config.payloadKey, start: async () => false },
       reconcileReviewerMessage: async () => "exists",
     }),
     activityQueues: [
@@ -326,8 +327,9 @@ const it = roundTest
           },
           { timeout: 10_000, interval: 50 },
         );
-        mail.hold = false;
+        // A repeated start joins the held delivery until its outcome is durable.
         await deliverInline(held);
+        mail.hold = false;
       },
       driver,
       background,

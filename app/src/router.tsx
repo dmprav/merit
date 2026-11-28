@@ -5,6 +5,7 @@ import { getGlobalStartContext } from "@tanstack/react-start";
 import { defaultLocale } from "@merit/i18n";
 import { createQueryClient } from "@merit/query";
 
+import { requestAccess } from "./access-request.functions";
 import { routeTree } from "./routeTree.gen";
 
 export const getRouter = () => {
@@ -12,7 +13,11 @@ export const getRouter = () => {
   const router = createRouter({
     routeTree,
     ssr: { nonce: getGlobalStartContext()?.nonce },
-    context: { queryClient, locale: defaultLocale },
+    context: {
+      queryClient,
+      locale: defaultLocale,
+      requestAccess: (data) => requestAccess({ data }),
+    },
     defaultPreloadStaleTime: 0,
     scrollRestoration: true,
     // Restore collection positions through return links as well as browser Back.

@@ -8,10 +8,10 @@ import react from "@vitejs/plugin-react";
 import { build, type Plugin, type PluginOption } from "vite-plus";
 
 import { errorMessage } from "../../cli.ts";
+import { REPO_ROOT } from "../../paths.ts";
 import { reactCompilerOptions } from "../../react-compiler";
 
-const root = path.resolve(import.meta.dirname, "../../..");
-const uiPackage = path.join(root, "foundation/ui");
+const uiPackage = path.join(REPO_ROOT, "foundation/ui");
 
 /** React stays outside the library bundle so previews and consumers share one copy. */
 const globals = new Map<string, string>([
@@ -59,7 +59,7 @@ const entrySource = async () =>
   ].join("\n");
 
 /** Entries live under the package's node_modules so their imports resolve like the package's own. */
-const entryDirectory = path.join(root, "tooling/storybook/node_modules/.cache/design-system");
+const entryDirectory = path.join(REPO_ROOT, "tooling/storybook/node_modules/.cache/design-system");
 
 const buildIife = async ({
   id,
@@ -81,7 +81,7 @@ const buildIife = async ({
   await writeFile(entry, await source());
   await build({
     configFile: false,
-    root: path.join(root, "tooling/storybook"),
+    root: path.join(REPO_ROOT, "tooling/storybook"),
     logLevel: "warn",
     mode: "production",
     define: { "process.env.NODE_ENV": JSON.stringify("production") },
@@ -154,8 +154,8 @@ export const buildLibrary = async (outDir: string, components: string[]) => {
 
 const exportedFiles = async () => [
   ...(await uiEntries()).map(({ file }) => path.join(uiPackage, file)),
-  path.join(root, "foundation/forms/src/index.ts"),
-  path.join(root, "foundation/tables/src/index.ts"),
+  path.join(REPO_ROOT, "foundation/forms/src/index.ts"),
+  path.join(REPO_ROOT, "foundation/tables/src/index.ts"),
 ];
 
 const declarationFiles = async (directory: string): Promise<string[]> => {
@@ -170,7 +170,7 @@ const declarationFiles = async (directory: string): Promise<string[]> => {
 };
 
 const compileDeclarations = (config: string) => {
-  execFileSync(path.join(root, "node_modules/.bin/vp"), ["exec", "tsc", "-p", config], {
+  execFileSync(path.join(REPO_ROOT, "node_modules/.bin/vp"), ["exec", "tsc", "-p", config], {
     cwd: uiPackage,
     stdio: "pipe",
   });
@@ -226,7 +226,7 @@ const writeDeclarations = async (
         noEmit: false,
         noEmitOnError: false,
         outDir: declarations,
-        rootDir: root,
+        rootDir: REPO_ROOT,
         skipLibCheck: true,
         types: ["react", "react-dom", "vite/client"],
         typeRoots: [

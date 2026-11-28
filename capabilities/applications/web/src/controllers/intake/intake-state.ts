@@ -7,10 +7,11 @@ import {
   isWithdrawn,
   intakeContent,
   intakeContentSchema,
+  type IntakeApplication,
+  type ApplicationUsage,
   type IntakeChange,
   type WorkingRevision,
 } from "@merit/applications/domain";
-import type { ApplicationView as Application } from "@merit/grantmaking/api";
 
 import type { IntakeFailure } from "../../contracts/intake";
 import type { intakeStorage } from "./storage";
@@ -31,7 +32,7 @@ export type SectionDraft<S extends keyof IntakeValues> = Omit<IntakeDraft, "sect
 };
 
 export const intakeSnapshot = (
-  application: Application,
+  application: IntakeApplication,
   working: WorkingRevision | null,
 ): IntakeSnapshot => ({
   content: working?.content ?? intakeContent(application),
@@ -165,7 +166,7 @@ export const intakeDraftConflict = (
 
 export const intakeDraftCommand = (
   draft: IntakeDraft,
-  application: Pick<Application, "intakeStatus" | "withdrawal">,
+  application: Pick<IntakeApplication, "intakeStatus" | "withdrawal">,
   working: WorkingRevision | null,
   revision: number,
   reasonDraft: IntakeDraft | undefined,
@@ -184,7 +185,7 @@ export const intakeDraftCommand = (
 };
 
 export const intakeRenameCommand = (
-  application: Pick<Application, "intakeStatus" | "withdrawal">,
+  application: Pick<IntakeApplication, "intakeStatus" | "withdrawal">,
   working: WorkingRevision | null,
   title: string,
 ): IntakeChange | null => {
@@ -195,9 +196,6 @@ export const intakeRenameCommand = (
     ? { action: "start_revision", kind: "correction" }
     : null;
 };
-
-export const outstandingReviewCount = (application: Pick<Application, "reviews">) =>
-  application.reviews.requests.filter((request) => request.status === "outstanding").length;
 
 export type IntakeConfirmation = "delete" | "discard_revision" | "withdraw" | "reinstate";
 
@@ -222,12 +220,10 @@ export const intakeConfirmationChange = (
 };
 
 export const intakeMenuActions = (
-  application: Pick<
-    Application,
-    "intakeStatus" | "withdrawal" | "managerRecommendation" | "reviews"
-  >,
+  application: Pick<IntakeApplication, "intakeStatus" | "withdrawal">,
   working: WorkingRevision | null,
   hasTitleDraft: boolean,
+  usage: ApplicationUsage,
 ) =>
   // A withdrawn case is read-only; reinstating it is offered by its status area.
   isWithdrawn(application)
@@ -244,12 +240,5 @@ export const intakeMenuActions = (
             ? ["correct" as const]
             : []),
         "withdraw" as const,
-        ...(canDeleteApplication(application, {
-          hasReviews: Boolean(
-            application.reviews.requests.length || application.reviews.assessments.length,
-          ),
-          hasRecommendation: application.managerRecommendation !== null,
-        })
-          ? ["delete" as const]
-          : []),
+        ...(canDeleteApplication(application, usage) ? ["delete" as const] : []),
       ];

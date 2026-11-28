@@ -1,5 +1,7 @@
 import { useNavigate, type LinkOptions } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
+import { ApplicationDecision } from "@merit/decisions-web/work";
 import { ApplicationView } from "@merit/grantmaking-web/applications";
 import type { ApplicationData } from "@merit/grantmaking-web/contracts/pages";
 import { ApplicationRecommendation } from "@merit/recommendations-web/recommendations";
@@ -20,32 +22,52 @@ export const ApplicationWork = ({
   onTabChange,
 }: ApplicationWorkProps) => {
   const navigate = useNavigate();
+  const { t } = useTranslation("committeeDecisions");
   return (
-    <ApplicationRecommendation
-      key={`${data.key}/${Boolean(data.intake)}`}
+    <ApplicationDecision
+      key={`${data.key}/${Boolean(data.intake)}/decision`}
       applicationKey={data.key}
       application={data.application}
       round={data.round}
-      data={data.recommendation}
+      data={data.decision}
     >
-      {({ editor, action, closeAction }) => (
-        <ApplicationView
-          round={data.round}
+      {(decision) => (
+        <ApplicationRecommendation
+          key={`${data.key}/${Boolean(data.intake)}`}
+          applicationKey={data.key}
           application={data.application}
-          intake={
-            data.intake
-              ? { data: data.intake, onDeleted: () => navigate(returnLocation ?? roundLocation) }
-              : undefined
-          }
-          reviewData={data.reviews}
-          aiReviewData={data.aiReview}
-          tab={tab}
-          onTabChange={onTabChange}
-          recommendationAction={action}
-          editor={editor}
-          editorCloseAction={closeAction}
-        />
+          round={data.round}
+          data={data.recommendation}
+        >
+          {(recommendation) => (
+            <ApplicationView
+              round={data.round}
+              application={data.application}
+              intake={
+                data.intake
+                  ? {
+                      data: data.intake,
+                      onDeleted: () => navigate(returnLocation ?? roundLocation),
+                    }
+                  : undefined
+              }
+              reviewData={data.reviews}
+              aiReviewData={data.aiReview}
+              tab={tab}
+              onTabChange={onTabChange}
+              recommendationAction={recommendation.action}
+              decisionVersions={data.decision.versions}
+              decisionAction={decision.action}
+              editor={decision.editor ?? recommendation.editor}
+              editorTitle={decision.editor ? t("section.title") : undefined}
+              editorJumpLabel={decision.editor ? t("editor.jumpTo") : undefined}
+              editorCloseAction={
+                decision.editor ? decision.closeAction : recommendation.closeAction
+              }
+            />
+          )}
+        </ApplicationRecommendation>
       )}
-    </ApplicationRecommendation>
+    </ApplicationDecision>
   );
 };

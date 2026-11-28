@@ -5,9 +5,9 @@ import { fileURLToPath } from "node:url";
 import { reportError } from "@merit/telemetry/errors";
 import { describeError, ensureSchedule, runWorker, type WorkerLogger } from "@merit/workflows";
 
+import { listenForWorkerReadiness } from "./readiness.ts";
 import { createWorkerRuntime } from "./runtime.ts";
-
-const reconcileEvery = 60_000;
+import { readReconcileIntervalMs } from "./task-queue.ts";
 
 const logger: WorkerLogger = {
   info: (message) => console.log(`[worker] ${message}`),
@@ -52,6 +52,7 @@ const scheduleRequestDeadlineMs = 10_000;
 
 let exitCode = 0;
 try {
+  const reconcileIntervalMs = readReconcileIntervalMs(env);
   // The development and preview commands set MERIT_LOCAL_WORKER; a deployed worker must not.
   const { config, client, activities, activityQueues, queues } = createWorkerRuntime(env);
   await runWorker(
@@ -69,16 +70,26 @@ try {
       signal: stop.signal,
       // Idempotent: every worker start leaves exactly one reconciliation Schedule.
       // A server that stops answering fails the attempt after a deadline, so it is retried.
-      onConnected: () =>
-        client.connection.withDeadline(Date.now() + scheduleRequestDeadlineMs, () =>
-          ensureSchedule(client, {
-            scheduleId: queues.reconcileScheduleId,
-            workflowType: "reconcile",
-            taskQueue: queues.taskQueue,
-            everyMs: reconcileEvery,
-            workflowId: queues.reconcileScheduleId,
-          }),
-        ),
+      onConnected: async () => {
+        const active = await client.connection.withDeadline(
+          Date.now() + scheduleRequestDeadlineMs,
+          () =>
+            ensureSchedule(client, {
+              scheduleId: queues.reconcileScheduleId,
+              workflowType: "reconcile",
+              taskQueue: queues.taskQueue,
+              everyMs: reconcileIntervalMs,
+              workflowId: queues.reconcileScheduleId,
+            }),
+        );
+        // Worker polling continues independently while startup recovery runs or retries.
+        if (active) {
+          await activities.reconcileOrganizationInvitations();
+        }
+        if (env.MERIT_WORKER_READINESS_PORT && !stop.signal.aborted) {
+          await listenForWorkerReadiness(Number(env.MERIT_WORKER_READINESS_PORT), stop.signal);
+        }
+      },
     },
   );
 } catch (error) {

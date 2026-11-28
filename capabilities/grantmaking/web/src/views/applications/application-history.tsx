@@ -14,6 +14,7 @@ import { Select } from "@merit/ui/select";
 import { Tabs } from "@merit/ui/tabs";
 import { Text } from "@merit/ui/text";
 import { Timeline, TimelineEntry } from "@merit/ui/timeline";
+import { CalendarDate } from "@merit/ui/timestamp";
 import { VisuallyHidden } from "@merit/ui/visually-hidden";
 
 import {
@@ -362,7 +363,6 @@ const ComparisonSection = ({
           heading={afterHeading}
           showHeading={renamed}
           value={afterValue}
-          emphasis
         />
       </div>
     </section>
@@ -374,17 +374,14 @@ const ComparedValue = ({
   heading,
   showHeading,
   value,
-  emphasis = false,
 }: {
   label: string;
   heading?: string;
   showHeading: boolean;
   value: string;
-  /** Marks the recorded side of the comparison. */
-  emphasis?: boolean;
 }) => (
   <Stack gap={3}>
-    <Divider tone={emphasis ? "emphasis" : "default"} />
+    <Divider />
     <div>
       <Text variant="caption">{label}</Text>
       {showHeading && heading && (
@@ -453,7 +450,7 @@ export const HistoricalApplication = ({
   label: string;
 }) => {
   const { t } = useTranslation("fundingRounds");
-  const { money, calendarDate } = useFormat();
+  const { money } = useFormat();
 
   return (
     <section aria-label={label} className={styles.snapshot}>
@@ -475,7 +472,7 @@ export const HistoricalApplication = ({
         </DescriptionListItem>
         {value.submission?.submittedOn && (
           <DescriptionListItem label={t("history.submittedOn")}>
-            {calendarDate(value.submission.submittedOn)}
+            <CalendarDate value={value.submission.submittedOn} />
           </DescriptionListItem>
         )}
         {value.submission?.projectPeriod && (
@@ -510,7 +507,7 @@ const HistoricalSummary = ({ value }: { value: HistorySnapshot }) => {
   const { t } = useTranslation("fundingRounds");
   return value.summaryAuthor || value.summary ? (
     <Stack as="section" gap={4}>
-      <Divider />
+      <Divider spacing={4} />
       <DescriptionList>
         <DescriptionListItem label={t("history.summary")}>
           <Stack gap={2}>

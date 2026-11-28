@@ -137,8 +137,6 @@ export const IntakeTitle = ({
       <InlineName
         value={intake.application.title}
         label={t(intake.preparing ? "intake.rename" : "intake.renameRecorded")}
-        saveLabel={t(intake.preparing ? "preparation.saveName" : "intake.correct")}
-        cancelLabel={t("common:cancel")}
         errorMessage={t("intake.saveError")}
         isPreparing={!intake.ready}
         isDisabled={intake.pending || intake.unsavedContent}
@@ -317,7 +315,7 @@ export const WithdrawalStatus = ({
 
   return (
     <Stack as="section" gap={4} aria-label={t("intake.withdrawn")}>
-      <Divider />
+      <Divider spacing={4} />
       <div>
         <SectionHeader
           level={3}
@@ -329,7 +327,7 @@ export const WithdrawalStatus = ({
           <Reading as="p">{withdrawal.reason}</Reading>
         </Stack>
       </div>
-      <Divider />
+      <Divider spacing={4} />
     </Stack>
   );
 };
@@ -432,6 +430,7 @@ export const IntakeFeedback = ({
     | "confirm"
     | "confirmationKey"
     | "outstandingReviews"
+    | "hasCommitment"
   >;
 }) => {
   const { t } = useTranslation(["applicationIntake", "common"]);
@@ -493,6 +492,7 @@ const IntakeConfirmations = ({
     | "confirm"
     | "confirmationKey"
     | "outstandingReviews"
+    | "hasCommitment"
   >;
   error: string | null;
 }) => {
@@ -513,6 +513,7 @@ const IntakeConfirmations = ({
         {...shared}
         isOpen={confirmation === "withdraw"}
         outstandingReviews={intake.outstandingReviews}
+        hasCommitment={intake.hasCommitment}
       />
       <ReinstateDialog
         key={`reinstate-${intake.confirmationKey}`}
@@ -619,7 +620,54 @@ const useWithdrawalDate = () => {
   };
 };
 
+/** A funded decision blocks withdrawal, so explain the next step instead of offering the form. */
+const WithdrawBlockedDialog = ({
+  application,
+  isOpen,
+  onClose,
+}: Pick<ReasonDialogProps, "application" | "isOpen" | "onClose">) => {
+  const { t } = useTranslation("applicationIntake");
+
+  return (
+    <ModalDialog
+      title={t("intake.withdrawFor", { title: application.title })}
+      isOpen={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+    >
+      {({ close }) => (
+        <DialogContent
+          footer={
+            <Inline justify="end">
+              <Button variant="secondary" autoFocus onPress={close}>
+                {t("intake.close")}
+              </Button>
+            </Inline>
+          }
+        >
+          <p>{t("intake.hasCommitment")}</p>
+        </DialogContent>
+      )}
+    </ModalDialog>
+  );
+};
+
 const WithdrawDialog = ({
+  application,
+  outstandingReviews,
+  hasCommitment,
+  ...props
+}: ReasonDialogProps & { outstandingReviews: number; hasCommitment: boolean }) =>
+  hasCommitment ? (
+    <WithdrawBlockedDialog
+      application={application}
+      isOpen={props.isOpen}
+      onClose={props.onClose}
+    />
+  ) : (
+    <WithdrawForm application={application} outstandingReviews={outstandingReviews} {...props} />
+  );
+
+const WithdrawForm = ({
   application,
   outstandingReviews,
   pending,

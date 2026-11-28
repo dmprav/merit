@@ -4,10 +4,11 @@ import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { expect, it, vi } from "vite-plus/test";
 
+import { formatCalendarDate } from "@merit/dates";
 import { MessagesProvider } from "@merit/i18n";
 import { formatTimestamp } from "@merit/i18n/format";
 
-import { Timestamp } from "./timestamp";
+import { CalendarDate, Timestamp } from "./timestamp";
 
 const value = "2027-01-20T00:30:45Z";
 
@@ -54,4 +55,15 @@ it("hydrates from the same UTC snapshot before adopting the browser's time zone"
   act(() => root.unmount());
   container.remove();
   timeZone.mockRestore();
+});
+
+it("shows a calendar date as machine-readable text in the viewer's format", () => {
+  render(
+    <MessagesProvider messages={{}}>
+      <CalendarDate value="2027-02-14" />
+    </MessagesProvider>,
+  );
+  const time = screen.getByText(formatCalendarDate("2027-02-14", "en-GB"));
+  expect(time.tagName).toBe("TIME");
+  expect(time).toHaveAttribute("datetime", "2027-02-14");
 });

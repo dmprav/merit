@@ -102,7 +102,7 @@ const Layout = () => {
             {t("organizations")}
           </Link>
           <Link to="/admin/access-requests" aria-current={isRequests ? "page" : undefined}>
-            <Icon name="team" />
+            <Icon name="people" />
             {t("requests.title")}
           </Link>
           {workspaces.length === 1 && workspaceLinks}

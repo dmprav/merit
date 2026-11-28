@@ -70,9 +70,9 @@ const InvitationStatus = ({ invitation }: { invitation: Invitation }) => {
   return (
     <Badge
       appearance="plain"
+      icon="clock"
       tone={failed ? "danger" : status === "expired" || uncertain ? "warning" : "neutral"}
     >
-      <Icon name={failed ? "warning" : uncertain ? "info" : "clock"} />
       {t(status)}
     </Badge>
   );

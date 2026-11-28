@@ -27,10 +27,29 @@
   font-weight: var(--weight-heading);
 }
 
+.header[data-level="3"] .title {
+  font-size: var(--text-subsection);
+}
+
+:is(.header[data-level="4"], .header[data-level="5"]) .title {
+  font-size: var(--text-body);
+}
+
+/*
+ * Inside a work pane, dialog or side panel, subsections never outrank the frame's title;
+ * DialogSection does the same. A reference pane keeps the scale of the material it shows.
+ */
+:where([data-frame-body]:not([data-reference-body]))
+  :is(.header[data-level="3"], .header[data-level="4"], .header[data-level="5"])
+  .title {
+  font-size: var(--text-body);
+}
+
+/* A pane's summary headings read as headings, apart from the muted labels beneath them. */
 .header[data-emphasis="quiet"] .title {
-  color: var(--muted);
+  color: var(--foreground);
   font-size: var(--text-detail);
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-heading);
 }
 
 .title:focus:not(:focus-visible) {
@@ -44,22 +63,17 @@
   }
 }
 
-.count {
-  display: inline-block;
-  min-width: 1.25rem;
-  margin-inline-start: var(--space-2);
-  padding-inline: var(--space-1);
-  border-radius: var(--space-1);
-  background: var(--surface-muted);
-  line-height: 1.25rem;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-regular);
-}
-
 /* The aside keeps its own layout inside the header row. */
 .aside {
   display: contents;
+}
+
+/*
+ * A trailing quiet action ends with its text, or its glyph, on the content's edge. It is shifted
+ * rather than given a margin, so the group it sits in keeps its width and labels do not wrap.
+ */
+.aside > [data-variant="quiet"]:last-child,
+.aside > :last-child > [data-variant="quiet"]:last-child {
+  position: relative;
+  inset-inline-start: calc(-1 * var(--button-end-outdent));
 }

@@ -183,7 +183,8 @@ rule.
 ## Delete unused preparation
 
 A manager can delete an application only while it has never been marked ready and
-has no review requests, assessments, or manager recommendation, including
+has no review requests, assessments, manager recommendation, or
+[committee decision](record-decisions.md), including
 assessments received without a request. Confirmation
 explains the loss of preparation details. The server rechecks current state and retains the
 audit history and creation receipt. Archiving and moving applications between
@@ -199,6 +200,14 @@ working revision. The manager records the date the applicant withdrew, which may
 earlier than today but not later than the latest calendar date anywhere (the current date at UTC+14, from the server clock), and a reason of
 at most 2,000 characters. The recorder and recording time come from the signed-in
 person or verified client and the server clock.
+
+An application whose current committee decision is Fund or Fund with conditions cannot be
+withdrawn: the server rejects it with `application_has_commitment`, so a new decision
+version, such as Decline with an explanation, must be [recorded](record-decisions.md) first.
+The withdrawal dialog explains this and offers only **Close**, so no date or reason is
+entered for a withdrawal that cannot be recorded.
+A current Defer or Decline does not block withdrawal; the decision stays readable but
+cannot change until the application is reinstated.
 
 Withdrawal keeps the intake state, working revision, material version, and judgment
 bases exactly as they were. It does close every **outstanding** review request on

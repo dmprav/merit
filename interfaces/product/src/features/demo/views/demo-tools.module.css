@@ -2,10 +2,6 @@
   margin-top: var(--space-3);
 }
 
-.workspaceActions {
-  margin-inline-start: calc(-1 * var(--space-3));
-}
-
 .expiry {
   margin-bottom: var(--space-2);
 }

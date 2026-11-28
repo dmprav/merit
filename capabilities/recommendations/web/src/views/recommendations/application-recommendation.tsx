@@ -1,10 +1,6 @@
 import { type ComponentProps, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  ApplicationView as Application,
-  ApplicationRoundContext,
-} from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
 import { ActionProvenance } from "@merit/ui/action-provenance";
 import { Button } from "@merit/ui/button";
@@ -12,9 +8,14 @@ import { Judgment } from "@merit/ui/judgment";
 import { Reading, Stack } from "@merit/ui/layout";
 import { PanelSection } from "@merit/ui/panel-section";
 import { Text } from "@merit/ui/text";
+import { CalendarDate } from "@merit/ui/timestamp";
 import { useEventToast } from "@merit/ui/toast";
 
-import type { RecommendationData } from "../../contracts/recommendations";
+import type {
+  RecommendationApplication,
+  RecommendationRound,
+  RecommendationData,
+} from "../../contracts/recommendations";
 import { useRecommendation } from "../../controllers/recommendations/use-recommendation";
 import { recommendationPositionKeys } from "./messages";
 import { RecommendationEditor } from "./recommendation-editor";
@@ -37,7 +38,7 @@ export const ApplicationRecommendation = ({
 }: ApplicationRecommendationProps) => {
   const { t } = useTranslation("fundingRecommendations");
   const { draft, conflict, draftReset, saved, save, updateDraft, keepDraft, loadLatest, ready } =
-    useRecommendation(applicationKey, application, data);
+    useRecommendation(applicationKey, application.version, data);
   useEventToast(saved, { tone: "success", message: t("editor.saved") });
 
   return (
@@ -70,12 +71,12 @@ export const ApplicationRecommendationSummary = ({
   onInspectVersion,
 }: {
   onInspectVersion?: (version: number) => void;
-  application: Application;
-  manager: ApplicationRoundContext["manager"];
+  application: RecommendationApplication;
+  manager: RecommendationRound["manager"];
   action?: ReactNode;
 }) => {
   const { t } = useTranslation("fundingRecommendations");
-  const { money, calendarDate } = useFormat();
+  const { money } = useFormat();
   const recommendation = application.managerRecommendation;
   const basis = recommendation?.recorded?.applicationVersion;
   if (application.intakeStatus === "in_preparation" && !recommendation) {
@@ -90,7 +91,7 @@ export const ApplicationRecommendationSummary = ({
           meta={
             recommendation && (
               <>
-                {recommendation.recorded && calendarDate(recommendation.recorded.date)}
+                {recommendation.recorded && <CalendarDate value={recommendation.recorded.date} />}
                 {recommendation.author?.provenance && (
                   <ActionProvenance value={recommendation.author.provenance} />
                 )}

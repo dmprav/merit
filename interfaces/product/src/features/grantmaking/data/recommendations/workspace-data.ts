@@ -27,7 +27,11 @@ export const workspaceRecommendationData = (
                 ...cached.application,
                 managerRecommendation: saved.recommendation,
               },
-              round: { ...cached.round, budget: saved.budget, totals: saved.totals },
+              round: {
+                ...cached.round,
+                budget: saved.budget,
+                totals: { ...cached.round.totals, ...saved.totals },
+              },
               recommendationVersion: saved.recommendationVersion,
             }
           : cached,

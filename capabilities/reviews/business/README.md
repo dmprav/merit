@@ -9,6 +9,9 @@ versions, and criteria content separately as `same`, `different`, or `unknown`.
 `reviewFreshness` derives currency from application versions and criteria content;
 `assessmentStatus` also preserves outstanding work. Manager, reviewer, and MCP
 reads use this policy; persistence supplies facts rather than deciding equality.
+The [assessment projection](src/domain/assessments.ts) selects the latest amendment
+of each non-superseded judgment and includes outstanding requests. The review
+workspace shares this selection while retaining access to earlier records.
 The [workflow](../../../docs/workflows/review-applications.md#review-basis-and-freshness-policy)
 defines comparison and unknown-basis precedence, including criteria reversions.
 

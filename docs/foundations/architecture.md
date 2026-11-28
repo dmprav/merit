@@ -129,10 +129,11 @@ boundary; a granted scope or successful tool call does not establish that a
 person individually reviewed its content.
 
 Define who approves, what they approve, and how that approval is
-established according to the action's consequences. Future publication and funding
-decisions require those rules before implementation; their
-[workflow design](../workflows/committee-decisions.md) remains separate from
-current editable recommendations.
+established according to the action's consequences. A committee decides outside
+Merit. A program manager [records its decision](../workflows/record-decisions.md),
+and a funding outcome commits the amount against the round budget. The manager's
+recommendation remains a proposal. [Committee preparation and publication](../workflows/committee-decisions.md)
+remain future work.
 
 The [current access behavior](#data-and-access-boundaries) describes authentication,
 delegated access, and edits that save directly today.
@@ -188,6 +189,9 @@ shared business capabilities.
 | `tooling/`                      | Development, build, and verification infrastructure.                                                                                 |
 
 Dependencies flow from application to interfaces to capabilities to foundation.
+Imports between interface packages are forbidden. Shared interactions belong in
+capability web packages. The app supplies the public access-request transport
+through router context.
 Capability web packages use browser-safe business entries and deliberate public
 integrations. Business packages never import web code. Capabilities never import
 interfaces or application assembly, including through types or TypeScript source
@@ -201,7 +205,7 @@ Public entries separate browser-safe definitions from server operations; narrow
 schema and scope exports support cross-capability joins without transferring
 ownership of writes.
 
-Rounds, applications, reviews, recommendations, grantmaking, contacts, and organizations
+Rounds, applications, reviews, recommendations, decisions, grantmaking, contacts, and organizations
 make these roles explicit with `domain/`, `api/`, and `server/`.
 Their browser-safe APIs define service interfaces independently of the server
 implementations. Commands and queries have separate handlers and persistence;
@@ -216,9 +220,11 @@ The [architecture checks](../guides/architecture-checks.md) enforce the common
 production roles and privileged integrations. API definitions share one pure role;
 their internal organization and test placement remain design decisions.
 
-Grant work has four state owners: Rounds owns configuration and criteria;
-Applications owns intake, material, history recording, and creation receipts; Reviews owns assessments and participation;
-Recommendations owns manager proposals and allocations. Grantmaking composes reading
+Grant work has five state owners. Rounds owns configuration and criteria.
+Applications owns intake, material, history recording, and creation receipts.
+Reviews owns assessments and participation. Recommendations owns manager proposals
+and proposed allocations. Decisions owns recorded committee decisions, their versions,
+and the funding they commit. Grantmaking composes reading
 views, history presentation, personal navigation, and examples. Its combined
 application record is a read model, not a unit saved by one general-purpose command.
 
@@ -229,19 +235,23 @@ flowchart TD
     assembly --> applications[Applications]
     assembly --> reviews[Reviews]
     assembly --> recommendations[Recommendations]
+    assembly --> decisions[Decisions]
     grants --> rounds
     grants --> applications
     grants --> reviews
     grants --> recommendations
+    grants --> decisions
     applications --> rounds
     reviews --> applications
     reviews --> rounds
     recommendations --> applications
     recommendations --> rounds
+    decisions --> applications
+    decisions --> rounds
 ```
 
 Arrows show package dependencies. Lifecycle collaborators supplied by assembly use
-the caller's transaction and held locks: round deletion checks application usage,
+a context containing the caller's transaction and locked resource IDs. Round deletion checks application usage,
 and application deletion checks downstream work. Full intake history is composed
 under the same case lock. These contracts preserve atomicity without reverse package
 dependencies. The [grant-work ownership map](../../capabilities/grantmaking/business/README.md)
@@ -344,9 +354,9 @@ organization invitation emails, and Merit AI turns run this way today. Merit AI 
 conversation, woken by each request that changes it and by reconciliation of running
 conversations; its worker runs one step per activity on a dedicated task queue limited to four
 concurrent turns. Emails retry for about fifteen minutes before the
-message is recorded as failed. Organization invitations are not reconciled: only the token's hash is
-stored, and the raw token travels only in the workflow's encrypted input, so a start lost between
-commit and Temporal leaves the invitation unconfirmed until an administrator resends it. A request waits
+message is recorded as failed. Organization invitations save their hash and encrypted token together.
+Worker startup and periodic reconciliation recover a lost start under the original invitation ID.
+Acknowledging the start clears the encrypted token from Postgres. A request waits
 about five seconds, polling Postgres, for the first outcome and returns what it finds.
 
 ```mermaid
@@ -461,8 +471,8 @@ else carries. History is ciphertext in the Temporal UI, and the namespace's rete
 bounds how long it is kept; Postgres, not history, is the record. A failed email send is retried
 with backoff for about fifteen minutes while the message or invitation stays `pending`, then
 recorded as `failed`; the manager's resend, retry, or the assistant's own retry is the way to
-try again. A once-a-minute reconciliation Schedule restarts committed work that has no running
-workflow, except organization invitations, whose tokens are not stored. The
+try again. A reconciliation Schedule runs hourly by default and restarts committed work that has no
+running workflow, including organization invitations that still await handoff. The
 [email guide](../guides/emails.md#ownership-and-delivery) defines the delivery integration and
 the [workflows package](../../foundation/workflows/README.md) the runtime.
 

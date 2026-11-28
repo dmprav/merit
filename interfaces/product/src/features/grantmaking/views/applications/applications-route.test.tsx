@@ -88,6 +88,7 @@ const applications: ApplicationOverview[] = (
   requested: null,
   reviews: { current: 0, outdated: 0, outstanding: 0, unknown: 0 },
   criteriaChanged: false,
+  decision: null,
   recommendation: null,
 }));
 const rounds = [
@@ -124,6 +125,7 @@ const applicationPageData = () => {
     aiReviews: [],
     aiReviewAvailability: "available" as const,
     aiReviewProvider: null,
+    decision: { revision: 0, versions: [] },
     intake: { revision: 0, workingRevision: null, history: [] },
     workspaceSlug: workspace.slug,
   };

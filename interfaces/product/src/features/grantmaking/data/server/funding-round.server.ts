@@ -13,19 +13,18 @@ import type {
 
 type WithIdentity<T> = T & { currentIdentity: () => Promise<Identity> };
 
+const workspaceFailure = (status: "not_found" | "forbidden") =>
+  status === "not_found"
+    ? ({ status: "workspace_not_found" } as const)
+    : ({ status: "not_found" } as const);
+
 export const loadFundingRounds = (
   workspaceSlug: string,
   services: WithIdentity<Pick<GrantmakingQueries, "listRounds">>,
 ) =>
   withActor(services.currentIdentity, async (actor) => {
     const result = await services.listRounds(actor, workspaceSlug);
-    if (result.status === "not_found") {
-      return { status: "workspace_not_found" } as const;
-    }
-    if (result.status === "forbidden") {
-      return { status: "not_found" } as const;
-    }
-    return result;
+    return result.status === "ok" ? result : workspaceFailure(result.status);
   });
 
 export const loadFundingRoundPage = (
@@ -52,13 +51,7 @@ export const loadWorkspaceApplications = (
 ) =>
   withActor(services.currentIdentity, async (actor) => {
     const result = await services.listWorkspaceApplications(actor, input);
-    if (result.status === "not_found") {
-      return { status: "workspace_not_found" } as const;
-    }
-    if (result.status === "forbidden") {
-      return { status: "not_found" } as const;
-    }
-    return result;
+    return result.status === "ok" ? result : workspaceFailure(result.status);
   });
 
 export const loadWorkspaceActivity = (
@@ -70,13 +63,7 @@ export const loadWorkspaceActivity = (
     if (result.status === "invalid") {
       return { status: "unavailable" } as const;
     }
-    if (result.status === "not_found") {
-      return { status: "workspace_not_found" } as const;
-    }
-    if (result.status === "forbidden") {
-      return { status: "not_found" } as const;
-    }
-    return result;
+    return result.status === "ok" ? result : workspaceFailure(result.status);
   });
 
 export const loadWorkspaceSearch = (
@@ -85,11 +72,5 @@ export const loadWorkspaceSearch = (
 ) =>
   withActor(services.currentIdentity, async (actor) => {
     const result = await services.searchWorkspace(actor, input);
-    if (result.status === "not_found") {
-      return { status: "workspace_not_found" } as const;
-    }
-    if (result.status === "forbidden") {
-      return { status: "not_found" } as const;
-    }
-    return result;
+    return result.status === "ok" ? result : workspaceFailure(result.status);
   });

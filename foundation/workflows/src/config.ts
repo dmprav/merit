@@ -56,19 +56,28 @@ export const readTemporalConfig = (
   if (!address) {
     throw new Error("TEMPORAL_ADDRESS is required.");
   }
-  const encodedKey = TEMPORAL_PAYLOAD_KEY ?? (local ? developmentPayloadKey : undefined);
-  if (!encodedKey) {
-    throw new Error("TEMPORAL_PAYLOAD_KEY is required.");
-  }
-  const payloadKey = new Uint8Array(Buffer.from(encodedKey, "base64"));
-  if (payloadKey.byteLength !== keyBytes) {
-    throw new Error("TEMPORAL_PAYLOAD_KEY must be 32 bytes, base64 encoded.");
-  }
   return {
     address,
     namespace: TEMPORAL_NAMESPACE ?? "default",
     apiKey: TEMPORAL_API_KEY,
     tls: TEMPORAL_API_KEY !== undefined,
-    payloadKey,
+    payloadKey: readPayloadKey(TEMPORAL_PAYLOAD_KEY, { local }),
   };
+};
+
+/** Invitation issuance needs the encryption key even while the Temporal service is unavailable. */
+export const readPayloadKey = (setting: string | undefined, { local }: { local: boolean }) => {
+  const value = setting?.trim() ? setting : undefined;
+  const encodedKey = value ?? (local ? developmentPayloadKey : undefined);
+  if (!encodedKey) {
+    throw new Error("TEMPORAL_PAYLOAD_KEY is required.");
+  }
+  if (!z.base64().safeParse(encodedKey).success) {
+    throw new Error("Invalid TEMPORAL_PAYLOAD_KEY.");
+  }
+  const payloadKey = new Uint8Array(Buffer.from(encodedKey, "base64"));
+  if (payloadKey.byteLength !== keyBytes) {
+    throw new Error("TEMPORAL_PAYLOAD_KEY must be 32 bytes, base64 encoded.");
+  }
+  return payloadKey;
 };

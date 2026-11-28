@@ -189,6 +189,7 @@ const handleWebRequest = async (
     applications: services.applications,
     reviews: services.reviews,
     recommendations: services.recommendations,
+    decisions: services.decisions,
     contacts: services.contacts,
   };
 

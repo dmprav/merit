@@ -17,11 +17,13 @@ div.box:focus-within:not(:has(.input[data-focused])) {
   box-shadow: none;
 }
 
+/* Chips hold a visible fill, so their boxes start where the input's text starts. */
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
   min-width: 0;
+  padding-inline: var(--space-1);
 }
 
 .compose {

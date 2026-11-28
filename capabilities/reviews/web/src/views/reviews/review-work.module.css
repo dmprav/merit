@@ -9,8 +9,12 @@
   padding: var(--space-3) var(--pane-inset);
 }
 
-.card {
+/* The history sits a step below its header; its entries are spaced by the divided stack. */
+.history {
   padding-top: var(--space-4);
+}
+
+.card {
   min-width: 0;
 }
 

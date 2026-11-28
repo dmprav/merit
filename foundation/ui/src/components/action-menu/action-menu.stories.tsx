@@ -61,10 +61,14 @@ export const ContextMenu: Story = {
     link.focus();
     await userEvent.pointer({ keys: "[MouseRight]", target: link });
     const body = within(canvasElement.ownerDocument.body);
-    await expect(await body.findByRole("menuitem", { name: "Move up" })).toBeVisible();
+    await waitFor(async () =>
+      expect(await body.findByRole("menuitem", { name: "Move up" })).toBeVisible(),
+    );
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(link).toHaveFocus());
     await userEvent.pointer({ keys: "[MouseRight]", target: link });
-    await expect(await body.findByRole("menuitem", { name: "Move up" })).toBeVisible();
+    await waitFor(async () =>
+      expect(await body.findByRole("menuitem", { name: "Move up" })).toBeVisible(),
+    );
   },
 };

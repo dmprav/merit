@@ -1,6 +1,5 @@
 import { expect, it } from "vite-plus/test";
 
-import { materialVersionSchema } from "@merit/applications/domain";
 import { fromMinorUnits } from "@merit/money";
 
 import { summarizeRound } from "./summaries";
@@ -8,15 +7,12 @@ import { summarizeRound } from "./summaries";
 it("counts the manager allocation independently of the reviewer's proposed amount", () => {
   const applications = [
     {
-      version: materialVersionSchema.parse(1),
       requested: fromMinorUnits(2400000n),
       managerRecommendation: { allocation: fromMinorUnits(2000000n) },
       assessments: [
         {
-          criteriaChanged: false,
-          criteriaUnknown: false,
+          status: "current" as const,
           submission: {
-            applicationVersion: materialVersionSchema.parse(1),
             recommendation: { allocation: fromMinorUnits(1000000n) },
           },
         },
@@ -32,7 +28,6 @@ it("counts the manager allocation independently of the reviewer's proposed amoun
 it("leaves the budget unallocated when no recommendation has been recorded", () => {
   const applications = [
     {
-      version: materialVersionSchema.parse(1),
       requested: null,
       managerRecommendation: null,
       assessments: [],
@@ -48,7 +43,6 @@ it("leaves the budget unallocated when no recommendation has been recorded", () 
 it("reports a negative balance for an over-budget allocation without changing its input", () => {
   const applications = [
     {
-      version: materialVersionSchema.parse(1),
       requested: null,
       managerRecommendation: { allocation: fromMinorUnits(7400000n) },
       assessments: [],
@@ -69,14 +63,24 @@ it("returns zero activity and the full budget for a round with no applications",
     requested: fromMinorUnits(0n),
     proposed: fromMinorUnits(0n),
     remaining: fromMinorUnits(6000000n),
+    committed: fromMinorUnits(0n),
+    available: fromMinorUnits(6000000n),
     reviews: { assigned: 0, submitted: 0, current: 0, outdated: 0, outstanding: 0, unknown: 0 },
   });
+});
+
+it("reports the committed funding the caller supplies beside the proposed total", () => {
+  const totals = summarizeRound(fromMinorUnits(6000000n), [], fromMinorUnits(2400000n));
+
+  expect(totals.proposed).toEqual(fromMinorUnits(0n));
+  expect(totals.committed).toEqual(fromMinorUnits(2400000n));
+  expect(totals.available).toEqual(fromMinorUnits(3600000n));
+  expect(summarizeRound(null, [], fromMinorUnits(100n)).available).toBeNull();
 });
 
 it("counts unknown requested amounts separately while summing known amounts", () => {
   const applications = [null, fromMinorUnits(2400000n)].map((requested) => ({
     requested,
-    version: materialVersionSchema.parse(1),
     managerRecommendation: null,
     assessments: [],
   }));
@@ -101,28 +105,21 @@ it("excludes withdrawn applications from every total and discloses how many it l
     reason: "The applicant withdrew.",
     recorder: { userId: "manager", name: "Dana Reed", recordedAt: "2027-01-11T09:00:00Z" },
   };
-  const outstanding = {
-    criteriaChanged: false,
-    criteriaUnknown: false,
-    submission: null,
-  };
+  const outstanding = { status: "outstanding" } as const;
   const applications = [
     {
-      version: materialVersionSchema.parse(1),
       requested: fromMinorUnits(2400000n),
       managerRecommendation: { allocation: fromMinorUnits(2000000n) },
       assessments: [outstanding],
     },
     {
       withdrawal,
-      version: materialVersionSchema.parse(1),
       requested: fromMinorUnits(5000000n),
       managerRecommendation: { allocation: fromMinorUnits(3000000n) },
       assessments: [outstanding, outstanding],
     },
     {
       withdrawal,
-      version: materialVersionSchema.parse(1),
       requested: null,
       managerRecommendation: null,
       assessments: [],
@@ -135,6 +132,8 @@ it("excludes withdrawn applications from every total and discloses how many it l
     withdrawnApplications: 2,
     proposed: fromMinorUnits(2000000n),
     remaining: fromMinorUnits(4000000n),
+    committed: fromMinorUnits(0n),
+    available: fromMinorUnits(6000000n),
     reviews: { assigned: 1, submitted: 0, current: 0, outdated: 0, outstanding: 1, unknown: 0 },
   });
 });

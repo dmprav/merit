@@ -96,7 +96,7 @@ export const Compact: Story = {
         tone="danger"
         title="Search isn’t available right now."
         description="Your search is kept. Try again in a moment."
-        illustration={<Icon name="warning" />}
+        illustration={<Icon name="attention" />}
         actions={
           <Button variant="quiet">
             <Icon name="reset" />

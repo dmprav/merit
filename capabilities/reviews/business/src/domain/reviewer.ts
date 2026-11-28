@@ -170,6 +170,36 @@ type Decision<T> = ({ ok: true } & T) | { ok: false; error: ReviewerProblem };
 
 const reject = (error: ReviewerProblem) => ({ ok: false, error }) as const;
 
+const workBlocks = [
+  "action_unavailable",
+  "application_withdrawn",
+] as const satisfies readonly ReviewerProblem[];
+
+/** Whether the reviewer can save, submit, or amend their assessment, and if not, why. */
+export const reviewerWorkSchema = z.discriminatedUnion("available", [
+  z.object({ available: z.literal(true) }),
+  z.object({ available: z.literal(false), reason: z.enum(workBlocks) }),
+]);
+
+export type ReviewerWorkAvailability = z.infer<typeof reviewerWorkSchema>;
+
+/**
+ * Decides whether the reviewer can change their assessment now. `permitted` is the
+ * `work_on_review` access decision. Reads report the result so callers offer only writes
+ * that can succeed; each write still checks both facts when it commits.
+ */
+export const decideReviewerWork = (facts: {
+  permitted: boolean;
+  withdrawn: boolean;
+}): ReviewerWorkAvailability => {
+  if (!facts.permitted) {
+    return { available: false, reason: "action_unavailable" };
+  }
+  return facts.withdrawn
+    ? { available: false, reason: "application_withdrawn" }
+    : { available: true };
+};
+
 /**
  * Decides the next participation status. Conflicts are reported and cleared only with
  * an explanation.

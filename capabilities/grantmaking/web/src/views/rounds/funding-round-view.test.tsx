@@ -270,6 +270,53 @@ describe("funding round overview", () => {
   });
 });
 
+describe("committee decisions in the round", () => {
+  it("shows each application's decision beside, and apart from, its recommendation", () => {
+    render(
+      <FundingRoundView
+        round={makeRoundWithReviewStates()}
+        section="applications"
+        decisions={{ first: { outcome: "Decline" }, second: { outcome: "Fund with conditions" } }}
+      />,
+      { wrapper: GrantmakingMessagesProvider },
+    );
+
+    expect(screen.getByRole("columnheader", { name: /Decision/ })).toBeVisible();
+    const funded = within(screen.getByRole("row", { name: /Neighbour Table/ }));
+    // The committee's decision differs from, and does not replace, the recommendation.
+    expect(funded.getByText("Decline")).toBeVisible();
+    expect(funded.getByText("Fund")).toBeVisible();
+    expect(
+      within(screen.getByRole("row", { name: /Ride Together/ })).getByText("Fund with conditions"),
+    ).toBeVisible();
+    const undecided = within(screen.getByRole("row", { name: /Workshop Saturdays/ }));
+    expect(undecided.getByText("No decision")).toBeVisible();
+    expect(undecided.getByText("Defer")).toBeVisible();
+  });
+
+  it("reports committed and available funding beside the proposed total", () => {
+    const base = makeRoundWithReviewStates();
+    const round = {
+      ...base,
+      totals: {
+        ...base.totals,
+        committed: fromMinorUnits(2400000n),
+        available: fromMinorUnits(3600000n),
+      },
+    };
+    render(<FundingRoundView round={round} section="applications" />, {
+      wrapper: GrantmakingMessagesProvider,
+    });
+    const summary = within(screen.getByRole("region", { name: "Round summary" }));
+
+    expect(summary.getByText("Proposed")).toBeVisible();
+    expect(summary.getByText("Committed")).toBeVisible();
+    expect(summary.getByText("€24,000")).toBeVisible();
+    expect(summary.getByText("Available")).toBeVisible();
+    expect(summary.getByText("€36,000")).toBeVisible();
+  });
+});
+
 it("qualifies known requests and explains unknown amounts beside the total", async () => {
   const user = userEvent.setup();
   const round = { ...makeRoundWithReviewStates(), budget: null };
@@ -292,7 +339,8 @@ it("qualifies known requests and explains unknown amounts beside the total", asy
   expect(
     within(screen.getByRole("complementary", { name: "Round properties" })).getByText("Not set"),
   ).toBeVisible();
-  expect(summary.getByText("Budget not set")).toBeVisible();
+  // Both the remaining and the available figure report that no budget exists.
+  expect(summary.getAllByText("Budget not set")).toHaveLength(2);
   expect(
     within(screen.getByRole("row", { name: /Neighbour Table/ })).getByLabelText(
       "Requested amount not known",
@@ -300,7 +348,7 @@ it("qualifies known requests and explains unknown amounts beside the total", asy
   ).toBeVisible();
   expect(within(screen.getByRole("row", { name: /Ride Together/ })).getByText("€0")).toBeVisible();
   await user.click(summary.getByRole("button", { name: "Unknown requested amounts" }));
-  expect(screen.getByRole("dialog", { name: "Unknown requested amounts" })).toHaveTextContent(
+  expect(screen.getByRole("group", { name: "Unknown requested amounts" })).toHaveTextContent(
     "1 requested amount is not known.",
   );
 });
@@ -432,7 +480,7 @@ it("labels withdrawn applications and explains exclusions through whole-round sc
     within(screen.getByRole("row", { name: /Neighbour Table/ })).queryByText("Withdrawn"),
   ).not.toBeInTheDocument();
   await user.click(within(summary).getByRole("button", { name: "Round totals scope" }));
-  const explanation = screen.getByRole("dialog", { name: "Round totals scope" });
+  const explanation = screen.getByRole("group", { name: "Round totals scope" });
   expect(explanation).toHaveTextContent(
     "Totals cover the whole round, regardless of the application filters.",
   );
@@ -557,7 +605,7 @@ it("keeps excess allocations visible and explains their draft status beside the 
   const warning = summary.getByRole("button", { name: "Over budget" });
   expect(warning.closest("dd")).toHaveTextContent("€2,000");
   await user.click(warning);
-  expect(screen.getByRole("dialog", { name: "Over budget" })).toHaveTextContent(
+  expect(screen.getByRole("group", { name: "Over budget" })).toHaveTextContent(
     "Proposed allocations exceed the round budget by €2,000. These are draft recommendations, not funding commitments.",
   );
 });
@@ -580,7 +628,7 @@ it("keeps an earlier recommendation warning separate from review progress", asyn
   ).not.toBeInTheDocument();
   expect(screen.queryByText("Earlier version")).not.toBeInTheDocument();
   await user.click(warning);
-  expect(screen.getByRole("dialog")).toHaveTextContent(
-    "This recommendation was recorded for an earlier application version.",
-  );
+  expect(
+    screen.getByRole("group", { name: "Recommendation uses an earlier version" }),
+  ).toHaveTextContent("This recommendation was recorded for an earlier application version.");
 });

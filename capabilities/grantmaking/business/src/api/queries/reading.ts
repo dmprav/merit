@@ -3,6 +3,7 @@ import { z } from "zod";
 import { materialVersionSchema } from "@merit/applications/domain";
 import { auditPageInput } from "@merit/audit/api";
 import { publicIdSchema } from "@merit/db/identifiers";
+import { decisionVersionDataSchema } from "@merit/decisions/api";
 import { moneyDataSchema } from "@merit/money";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 import { reviewIdSchema, reviewRevisionSchema } from "@merit/reviews/domain";
@@ -49,8 +50,10 @@ export const applicationContentInput = applicationReadInput.extend({
     "review_request",
     "working_revision",
     "recommendation",
+    "decision",
     "intake_change",
     "recommendation_change",
+    "decision_change",
   ]),
   entryId: reviewIdSchema.optional(),
   materialVersion: materialVersionSchema
@@ -63,7 +66,7 @@ export const applicationContentInput = applicationReadInput.extend({
     .int()
     .nonnegative()
     .optional()
-    .describe("Audit revision for intake_change or recommendation_change."),
+    .describe("Audit revision for intake_change, recommendation_change, or decision_change."),
   ...contentRange,
 });
 export const roundHistoryInput = roundReadInput.extend({
@@ -71,7 +74,7 @@ export const roundHistoryInput = roundReadInput.extend({
   limit: z.number().int().min(1).max(50).default(20),
 });
 export const applicationHistoryInput = applicationReadInput.extend({
-  history: z.enum(["intake", "recommendation"]),
+  history: z.enum(["intake", "recommendation", "decision"]),
   afterRevision: z.number().int().nonnegative().optional(),
   limit: z.number().int().min(1).max(50).default(20),
 });
@@ -97,6 +100,7 @@ export const applicationSummarySchema = z.object({
   intakeRevision: z.number().int().nonnegative(),
   reviewRevision: reviewRevisionSchema,
   recommendationRevision: z.number().int().nonnegative(),
+  decisionRevision: z.number().int().nonnegative(),
   intakeStatus: z.enum(["in_preparation", "ready"]),
   withdrawn: z.boolean(),
   requested: moneyDataSchema.nullable(),
@@ -118,6 +122,8 @@ export const roundOverviewSchema = roundSummarySchema.extend({
     withdrawnApplications: z.number().int().nonnegative(),
     proposed: moneyDataSchema,
     remaining: moneyDataSchema.nullable(),
+    committed: moneyDataSchema,
+    available: moneyDataSchema.nullable(),
   }),
 });
 export const applicationContextSchema = applicationSummarySchema.extend({
@@ -126,6 +132,8 @@ export const applicationContextSchema = applicationSummarySchema.extend({
   roundPreparationRevision: z.number().int().nonnegative(),
   lastIntakeRevision: z.number().int().nonnegative(),
   lastRecommendationRevision: z.number().int().nonnegative(),
+  /** The current committee decision with its revision and recorder; null before one is recorded. */
+  decision: decisionVersionDataSchema.nullable(),
 });
 export const contentChunkSchema = z.object({
   status: z.literal("ok"),

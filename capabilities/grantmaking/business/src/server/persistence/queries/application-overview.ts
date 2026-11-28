@@ -4,6 +4,7 @@ import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { applicationPhraseMatch, caseWithdrawn } from "@merit/applications/scope";
 import type { Database } from "@merit/db";
 import { titleOrder } from "@merit/db/search";
+import { currentDecisionRecord } from "@merit/decisions/scope";
 import { authorizedWorkspaces } from "@merit/organizations/scope";
 import {
   candidateRecommendationOverviews,
@@ -168,6 +169,7 @@ export const readApplicationOverviews = async (
         'intakeStatus', ${row.intakeStatus}, 'withdrawn', ${row.withdrawn},
         'requested', case when ${row.requestedMinorUnits} is not null then jsonb_build_object(
           'minorUnits', ${row.requestedMinorUnits}::text, 'currency', ${row.requestedCurrency}) end,
+        'decision', ${currentDecisionRecord(row.id)},
         'recommendation', ${needsRecommendation ? sql`b.recommendation` : recommendationRecord(recommendation)},
         'reviews', ${needsReviews ? sql`b.reviews` : reviewCounts(reviews)},
         'criteriaChanged', ${needsReviews ? sql`b."criteriaChanged"` : reviews.criteriaChanged}

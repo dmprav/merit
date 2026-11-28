@@ -38,6 +38,9 @@ PostgreSQL's write rejection and caller-owned rollback.
 
 Commands lock the organization and current membership before changing access.
 Membership changes, invitation changes, and audit events commit together.
+Commands can throw [OrganizationError](src/server/result.ts) to roll back a rejected
+transaction. The [service wrapper](src/server/execution.ts) returns the problem as
+a typed status after rollback and propagates unexpected exceptions.
 The required `revokeReviewAccess` collaborator ends review assignments in that
 transaction when qualifying responsibilities are removed. Assembly supplies Reviews’
 implementation; Organizations never writes review tables.
@@ -50,9 +53,10 @@ the outcome use the invitation's token-hash scope, so they need no organization 
 continue while the inviter's access changes; `recordDelivery` never overwrites `sent` with `failed`. The
 invitation stays `pending` during about fifteen minutes of automatic retries, then becomes `failed`.
 Requests wait about five seconds, polling Postgres, for the first outcome. The raw token is the only
-sensitive workflow input, protected by the payload codec. Because only the token hash is stored,
-reconciliation cannot restart delivery: a lost start leaves the invitation `pending` until an
-administrator resends it. Retrying the same creation request preserves its invitation and does not
+sensitive workflow input, protected by the payload codec. The issuance transaction stores the
+verification hash and a token encrypted for this invitation ID. The worker can recover a lost
+handoff on startup or on the next reconciliation pass. An acknowledged handoff clears the
+encrypted token, and reconciliation discards obsolete handoffs. Retrying the same creation request preserves its invitation and does not
 send it again. `/server/testing` supplies an inline stand-in for the workflow in business tests.
 
 [Invitation issuance](src/server/commands/issue-invitation.ts) checks delivery limits,
@@ -62,7 +66,7 @@ supply the requested responsibilities or retain those of the invitation being
 replaced. The operation returns the issued record and its token for delivery after
 commit. [Command coordination](src/server/commands/service.ts) sends that result
 without reconstructing or patching it. The token stays private to issuance and
-delivery; only its hash is stored.
+delivery. Acceptance continues to look up the token by its hash.
 
 `@merit/organizations/schema` supports cross-capability joins.
 `@merit/organizations/scope` supplies read predicates.

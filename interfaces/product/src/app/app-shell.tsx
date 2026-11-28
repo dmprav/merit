@@ -229,7 +229,7 @@ const AppNavigation = ({
           <NavigationSection
             title={t("navigation.applications")}
             kind="application"
-            icon="application"
+            icon="document"
             workspaceSlug={grantWork}
             location={{
               to: "/app/$workspaceSlug/applications",
@@ -260,7 +260,7 @@ const AppNavigation = ({
         >
           {grantWork && (
             <Link to="/app/$workspaceSlug/contacts" params={{ workspaceSlug: grantWork }}>
-              <Icon name="contacts" />
+              <Icon name="addressBook" />
               {t("navigation.contacts")}
             </Link>
           )}

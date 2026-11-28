@@ -2,7 +2,7 @@
 
 Run `vp run architecture` after moving code or changing dependencies. It checks
 package and runtime boundaries with JS Boundaries, library and I/O ownership
-with native lint rules, dependency cycles with Fallow, capability TypeScript
+with native lint rules, dependency cycles within and across capabilities, capability TypeScript
 program isolation, and the [cross-cutting mechanisms map](#inspect-cross-cutting-mechanisms).
 The pre-commit hook and `vp run ready` run the same command.
 
@@ -29,7 +29,7 @@ tests may compose their capability’s layers wherever they are placed.
 | Explicit I/O ownership            | Views and controllers cannot access `fetch`, `localStorage`, or `sessionStorage`, including through `window` or `globalThis`. Data adapters and tests can.                                                                                                                                                                                                                                                                                                       |
 | Web workflow ownership            | Views and controllers cannot import concrete data adapters or interface transport, including through types and re-exports. Views cannot import TanStack Query; controllers cannot import views; data adapters cannot import either.                                                                                                                                                                                                                              |
 | Deterministic workflow code       | Files named `*.workflow.ts` can import only `@temporalio/workflow`, other workflow modules, local type-only imports (an `import type` from `@temporalio/client` is still rejected), and pure code. Node.js APIs, npm packages, the database, and capability server entries are rejected. `@temporalio/client`, `worker`, and `proto` belong to `foundation/workflows`, and `@temporalio/testing` is rejected everywhere because it downloads an unpinned server. |
-| Acyclic dependencies              | Fallow detects file and package cycles, including package cycles containing type-only edges.                                                                                                                                                                                                                                                                                                                                                                     |
+| Acyclic dependencies              | Fallow detects file and package cycles. The capability check groups production imports by capability, including type-only imports and re-exports.                                                                                                                                                                                                                                                                                                                |
 
 The [configuration](../../tooling/verification/architecture/config.ts) classifies packages by
 location and files by runtime role. Business source is server-side by default;
@@ -109,6 +109,13 @@ server-only integration entries. Their callers must preserve the documented auth
 lock, and transaction obligations. Ordinary command and query handlers cannot
 depend on these privileged entries or the server assembly.
 
+Only Grantmaking’s own capability packages may import `@merit/grantmaking` or
+its subpaths in production capability code. Grantmaking combines the owners’ contracts for its web and AI
+packages, the interfaces, and application assembly. The
+[capability dependency check](../../tooling/verification/architecture/capabilities.ts)
+also detects cycles across owners by grouping their business, web, and AI
+packages. Test and Storybook fixtures may compose the combined views.
+
 ## Connect capabilities through declared integrations
 
 `serverImports` declares permitted server imports between capabilities and from
@@ -117,8 +124,9 @@ role (`business-assembly`, `business-demo`, `business-shared-persistence`,
 `business-command-persistence`, `business-query-persistence`, `business-grant-work`,
 `business-integrations`, and `business-reading`). All three must match, a leaf rule keeps `audit` isolated
 from all foreign business packages (current and newly added), and
-`upstreamDisallowedTargets` keeps upstream and sibling capabilities independent of
-downstream capabilities outside composition tests (`tests/` and `testing/`). The
+`capabilityGroups` lists capabilities in dependency order. Outside composition
+tests (`tests/` and `testing/`), a capability can import from earlier groups.
+Imports between peers or into a later group are forbidden. The
 policy also covers types, re-exports, and dynamic imports with known sources, and
 applies to unclassified server entries and newly added capabilities as well as the
 structured packages. Browser-safe dependencies retain their existing rules.
@@ -134,23 +142,31 @@ Current integrations have distinct responsibilities:
 | Grantmaking demo seeding              | Grant-work and contact demo seeding through `@merit/*/server/demo`, excluding `organizations/server/demo`.          |
 | Audit recording and history           | Write-owning commands record through `@merit/audit/server/record`; queries read through `@merit/audit/server/read`. |
 
-Organizations, Applications, Rounds, Reviews, and Recommendations record audit
-events in the same transaction as the command. Grantmaking, Organizations, and
+Organizations, Applications, Rounds, Reviews, Recommendations, and Decisions record
+audit events in the same transaction as the command. Grantmaking, Organizations, and
 Reviews authorize history reads through their queries. The
 [audit guide](../../capabilities/audit/business/README.md) explains the recording contract.
 
-The four grant-work owners have explicit downstream dependencies. Applications can
-read Rounds; Reviews and Recommendations can read Applications and Rounds. Neither
-Applications nor Rounds can import review or recommendation implementation. Reviews
-and Recommendations remain independent of each other. Grantmaking composition reads
-all four through owned schema, scope, readers, history, and encoding exports.
-Reviews and Recommendations each implement their part of Applications’ type-only
-`@merit/applications/server/grant-work` contract, and Applications and Reviews each
-implement their part of the Contacts contract, so the rules about their records stay
-with their owners. Application assembly wires these through each owner's
+Applications can read Rounds. Reviews, Recommendations, and Decisions can each
+read Applications and Rounds. Those three capabilities remain independent of one
+another, and Applications and Rounds cannot import their implementations.
+Grantmaking composes reads across all five owners through their public exports.
+
+Reviews, Recommendations, and Decisions each implement their part of the type-only
+`@merit/applications/server/grant-work` contract. Applications uses Decisions to
+block deletion once an application has a decision and to block withdrawal while its
+current decision commits funding. Decisions also implements the commitment check in
+`@merit/rounds/server/grant-work` so Rounds can reject a budget below the committed
+total. Applications and Reviews each implement their part of the Contacts contract.
+Application assembly wires these collaborators through each owner's
 `@merit/*/server/integrations` entry. Grantmaking supplies no integrations: it cannot
 relay downstream lifecycle work, and assembly cannot import an integrations entry
 from it. The architecture fixtures check these allowed and rejected directions.
+
+Grant lock contexts carry the transaction and the IDs of locked rows. Applications
+takes the round context before locking a case. Reviews takes the case context
+before locking an assignment. Round and application lifecycle contracts import
+their own lock types, so callers pass the locked resource to each collaborator.
 
 Organization `scope` exports contain read predicates. The `locks` entry lives in
 command persistence, so neither queries nor the shared scope module can import
@@ -221,10 +237,11 @@ documentation, active decision records, and up to three single-line review
 - Run `vpx tooling/verification/architecture/mechanisms.ts --paths <paths...>`
   before planning or editing to list the guides, decisions, and invariants that
   govern candidate files.
-- Run `vpx tooling/verification/architecture/mechanisms.ts --base <ref>` on a
-  branch to classify touched mechanisms as `extends` (changes to a mechanism's
-  contract) or `composes` (changes to an adapter, view, schema, or controller)
-  and print their `invariants`.
+- Run `vpx tooling/verification/architecture/mechanisms.ts --base <ref>` (with
+  `--head <ref>` to compare a ref other than `HEAD`) on a branch to classify
+  touched mechanisms as `extends` (changes to a mechanism's contract) or
+  `composes` (changes to an adapter, view, schema, or controller) and print
+  their `invariants`.
 - `vp run architecture` runs `--check` to verify pattern matches, documentation
   paths, heading anchors, summary and invariant limits, and active decision
   statuses.

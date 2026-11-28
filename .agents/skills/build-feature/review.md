@@ -27,25 +27,22 @@ repository.
 
 ## Behavior and scope
 
-- Does the change deliver everything under **Behavior** (or **Intended
-  behavior**) and touch nothing under **Out of scope**?
-- When the brief includes **Plan** or **Departures**, does every changed file
-  sit inside the plan and every departure from a precedent appear under
-  **Departures**?
-- Are empty, long, missing, failed, conflicting, authorization, and read-only
-  states handled as the brief and precedent handle them?
-- For bug or security fixes, does the change fix the first wrong step rather
-  than a symptom, and cover every caller and transport (web and MCP)?
+- Does the change deliver all of **Behavior** and touch nothing **Out of scope**?
+- Does every changed file sit inside the brief's **Plan**, and every departure
+  from a precedent appear under **Departures**?
+- Are empty, long, missing, failed, conflicting, unauthorized, and read-only
+  states handled as the precedent does?
+- For bug or security fixes, does it fix the first wrong step, not a symptom,
+  across every caller and transport (web and MCP)?
 
 ## Reuse and simplification
 
-- For every new component, hook, helper, style, fixture, or test helper, did you
-  search by name and behavior to confirm no existing one does the job?
-- Where a shared piece nearly fitted, was it extended rather than copied locally,
-  and are new shared pieces placed where the next change will find them?
+- For every new component, hook, helper, style, or fixture, did a search by name
+  and behavior confirm no existing one does the job?
+- Was a nearly fitting shared piece extended rather than copied, and are new
+  shared pieces where the next change will find them?
 - Is each new abstraction justified by more than one real use or an explicit
-  requirement? For refactors, is the result genuinely simpler rather than moved
-  indirection, with no dead code or scaffolding left behind?
+  requirement? Are refactors simpler, not moved indirection, with no dead code?
 
 ## Architecture and invariants
 
@@ -54,26 +51,27 @@ Standard: [architecture](../../../docs/foundations/architecture.md#design-princi
 and [coding conventions](../../../docs/guides/coding-conventions.md).
 
 - Does each business rule live in the capability's `business` package, and each
-  file in its owning layer (views, controllers, data, interface server code)?
+  file in its owning layer?
 - Do domain terms match [domain concepts](../../../docs/domain/concepts.md)
-  consistently across UI, MCP, and code?
+  across UI, MCP, and code?
 - Does the diff satisfy every matched mechanism's `invariants` and owning docs
   from `mechanisms.ts` (including schema/migration SQL, authorization/tenant
   scope, drafts/recovery, MCP parity, and analytics sanitization when touched)?
-- Does each function stay at one level of abstraction along a clear main path?
+- Does each function keep one level of abstraction on a clear main path?
 
 ## Tests
 
 Standard: [testing](../../../docs/guides/testing.md).
 
 - Does each rule have a test at the lowest layer that can observe it, asserting
-  outcomes rather than internal calls, without weakening existing guarantees or
-  coverage policy?
+  outcomes not internal calls, without weakening coverage policy?
 - Would each test fail if the rule broke? Run a
   [focused mutation check](../../../docs/guides/testing.md#focused-mutation-checks)
   on consequential rules (auth, tenant scope, money, audit, concurrency).
-- Is any overlap across layers justified per the testing guide, and do async or
-  browser tests wait on observable readiness instead of fixed delays?
+- Is cross-layer overlap justified, and do async or browser tests wait on
+  observable readiness, not fixed delays?
+- Do tests use shared browser-error fixtures, and does each component case have
+  a composed-screen case beside it?
 
 ## UI (when UI changes)
 
@@ -83,7 +81,12 @@ Standard: [UI development](../../../docs/guides/ui.md),
 [interface copy](../../../docs/guides/interface-copy.md).
 
 - Side by side with its precedent, does the UI match hierarchy, typography,
-  density, spacing, alignment, framing, and shared patterns on desktop and
-  narrow widths, with keyboard focus and long/missing content handled cleanly?
-- Are redundant controls removed while keeping consequences, recovery states,
-  and historical basis clear before acting?
+  density, spacing, alignment, and shared patterns on desktop and narrow
+  widths, with long or missing content handled and focus visible,
+  including WCAG 1.4.13 hover/focus content and forced colors?
+- One gutter with text on the content edge (only icons or controls outdent);
+  a rule inside a surface lighter than its edge; no layout shift between
+  states; Badge for status only, no fact twice, no heading smaller than its
+  text; popovers and menus on the shared popover surface.
+- Are redundant controls removed while consequences, recovery states, and
+  historical basis stay clear before acting?

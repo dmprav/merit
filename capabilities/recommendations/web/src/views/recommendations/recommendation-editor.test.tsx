@@ -3,18 +3,20 @@ import userEvent from "@testing-library/user-event";
 import { useState, type ComponentProps } from "react";
 import { assert, expect, it, vi } from "vite-plus/test";
 
-import type { ApplicationView, ApplicationRoundContext } from "@merit/grantmaking/api";
-import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
+import { materialVersionSchema } from "@merit/applications/domain";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 
-import type { RecommendationDraft } from "../../contracts/recommendations";
+import type {
+  RecommendationApplication,
+  RecommendationDraft,
+  RecommendationRound,
+} from "../../contracts/recommendations";
 import { GrantmakingMessagesProvider } from "../../testing/providers";
 import { RecommendationEditor } from "./recommendation-editor";
 
-const application: ApplicationView = {
-  id: "community-meals",
+const application: RecommendationApplication = {
   title: "Community meals",
-  version: makeApplication().version,
+  version: materialVersionSchema.parse(1),
   requested: fromMinorUnits(2400000n),
   intakeStatus: "ready",
   managerRecommendation: {
@@ -22,28 +24,15 @@ const application: ApplicationView = {
     allocation: fromMinorUnits(2400000n),
     reasoning: "Support weekly meals for the neighbourhood.",
   },
-  summary: "",
-  evidence: [],
-  reviews: makeApplication().reviews,
-  assessments: [],
-  contactId: null,
-  attention: [],
 };
-const round: ApplicationRoundContext = {
-  id: "k7m2p9x4n6rt",
-  title: "Community grants",
-  foundation: "Alder Foundation",
+const round: RecommendationRound = {
   manager: "Dana Reed",
   budget: fromMinorUnits(6000000n),
   // €24,000 for this application and €28,000 allocated to other applications.
   totals: {
     proposed: fromMinorUnits(5200000n),
-    remaining: fromMinorUnits(800000n),
     withdrawnApplications: 0,
   },
-  criteria: [],
-  criteriaVersion: makeRound().criteriaVersion,
-  criteriaHistory: makeRound().criteriaHistory,
 };
 
 const budgetFigure = (preview: HTMLElement) => ({
@@ -604,7 +593,7 @@ const ConflictedRecommendation = ({
   Partial<Pick<ComponentProps<typeof RecommendationEditor>, "onKeepDraft" | "onLoadLatest">>) => (
   <GrantmakingMessagesProvider>
     <EditableRecommendation
-      application={{ ...application, version: makeApplication({ version: 2 }).version }}
+      application={{ ...application, version: materialVersionSchema.parse(2) }}
       draft={{ position: "Fund", amount: "19000", reasoning: "My draft reasoning" }}
       conflict={conflict}
       onKeepDraft={onKeepDraft}

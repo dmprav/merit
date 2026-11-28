@@ -307,7 +307,7 @@ const LatestValues = ({ editor }: Pick<EditorProps, "editor">) => {
           <DescriptionListItem label={t("intake.reason")}>{latest.reason}</DescriptionListItem>
         )}
       </DescriptionList>
-      {section === "content" && <SubmissionAnswers answers={content.answers} headingLevel={5} />}
+      {section === "content" && <SubmissionAnswers answers={content.answers} />}
     </div>
   );
 };

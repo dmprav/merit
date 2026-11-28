@@ -9,7 +9,6 @@ import Check from "lucide-react/icons/check";
 import ChevronDown from "lucide-react/icons/chevron-down";
 import ChevronLeft from "lucide-react/icons/chevron-left";
 import ChevronRight from "lucide-react/icons/chevron-right";
-import CircleAlert from "lucide-react/icons/circle-alert";
 import CircleCheck from "lucide-react/icons/circle-check";
 import CircleX from "lucide-react/icons/circle-x";
 import Clock from "lucide-react/icons/clock";
@@ -42,7 +41,6 @@ import X from "lucide-react/icons/x";
 import styles from "./icon.module.css";
 
 const icons = {
-  warning: CircleAlert,
   // Feedback tones: each status keeps its own shape, so tone never rests on color alone.
   success: CircleCheck,
   attention: TriangleAlert,
@@ -57,17 +55,17 @@ const icons = {
   discard: Trash2,
   menu: Menu,
   sort: ArrowUpDown,
-  team: Users,
-  contacts: BookUser,
+  people: Users,
+  addressBook: BookUser,
   ascending: ArrowUp,
   descending: ArrowDown,
   guide: Compass,
   more: Ellipsis,
   home: House,
   layers: Layers,
-  application: FileText,
+  document: FileText,
   activity: History,
-  round: CalendarDays,
+  calendar: CalendarDays,
   left: ChevronLeft,
   right: ChevronRight,
   down: ChevronDown,
@@ -89,6 +87,18 @@ const icons = {
 
 export type IconName = keyof typeof icons;
 
+/**
+ * The one icon for each tone, wherever a tone shows a glyph: Badge, Notice, Toast, and the
+ * toggletip. Each tone keeps its own shape so meaning never rests on color alone.
+ */
+export const toneIcons = {
+  info: "info",
+  neutral: "info",
+  success: "success",
+  warning: "attention",
+  danger: "failure",
+} as const satisfies Record<string, IconName>;
+
 /** Every icon name in definition order, for catalog previews. */
 export const iconNames: readonly IconName[] = Object.keys(icons).filter(
   (key): key is IconName => key in icons,
@@ -104,7 +114,6 @@ export const IconBase = ({ name, className }: { name: IconName; className?: stri
   return (
     <Glyph
       aria-hidden="true"
-      size={16}
       strokeWidth={name === "pinned" ? 1.25 : 1.75}
       // Solid glyphs mark a state by shape as well as tone: a pinned item, and the square that stops
       // work in progress. Everything else is drawn in outline.

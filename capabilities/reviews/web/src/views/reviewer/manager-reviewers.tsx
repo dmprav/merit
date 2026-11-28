@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
 import { Form, FormActions, FormDateField, FormDialog, FormTextField, useForm } from "@merit/forms";
-import { useFormat } from "@merit/i18n/format";
 import type { PageSource } from "@merit/query/contracts";
 import { RemotePagedContent } from "@merit/query/pages";
 import type { ReviewerEvent } from "@merit/reviews/api";
@@ -20,7 +19,6 @@ import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
-import { Divider } from "@merit/ui/divider";
 import { Icon } from "@merit/ui/icon";
 import { Inline, Reading, Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
@@ -30,6 +28,7 @@ import { useReadingNavigation } from "@merit/ui/reference-workspace";
 import { SectionHeader } from "@merit/ui/section-header";
 import { Text } from "@merit/ui/text";
 import { Timeline, TimelineEntry } from "@merit/ui/timeline";
+import { CalendarDate } from "@merit/ui/timestamp";
 import { useToastWhile } from "@merit/ui/toast";
 
 import type { useManagerReviewers } from "../../controllers/reviewer/use-manager-reviewers";
@@ -141,16 +140,20 @@ export const ManagerReviewers = ({ reviews, work }: ManagerReviewersProps) => {
             onInvite={() => inviting.open(request)}
           />
         ))}
-      {work.assignments.map((assignment) => (
-        <ReviewerAssignment
-          key={assignment.id}
-          assignment={assignment}
-          historySource={work.historySource?.(assignment)}
-          work={work}
-          onClear={() => clearing.open(assignment)}
-          onRevoke={() => revoking.open(assignment)}
-        />
-      ))}
+      {work.assignments.length > 0 && (
+        <Stack gap={4} divided="between">
+          {work.assignments.map((assignment) => (
+            <ReviewerAssignment
+              key={assignment.id}
+              assignment={assignment}
+              historySource={work.historySource?.(assignment)}
+              work={work}
+              onClear={() => clearing.open(assignment)}
+              onRevoke={() => revoking.open(assignment)}
+            />
+          ))}
+        </Stack>
+      )}
       <InviteReviewerDialog
         key={`invite-${inviting.key}`}
         work={work}
@@ -276,64 +279,61 @@ const ReviewerAssignment = ({
   const historyTrigger = useRef<HTMLButtonElement>(null);
   return (
     <section ref={root} className={styles.assignment} aria-label={assignment.reviewer}>
-      <Stack gap={4}>
-        <Divider />
-        {historyOpen ? (
-          <Stack gap={4}>
-            <Button variant="quiet" alignment="start" onPress={back}>
-              {t("backToReviewers")}
-            </Button>
-            <div>
-              <SectionHeader
-                level={3}
-                headingRef={historyHeading}
-                title={t("historyFor", { name: assignment.reviewer })}
-              />
-              <AssignmentHistory history={assignment.history ?? []} source={historySource} />
-            </div>
-          </Stack>
-        ) : (
-          <Stack gap={3}>
-            <div className={styles.assignmentRow}>
-              <PersonIdentity name={assignment.reviewer} description={assignment.email} />
-              <AssignmentActions
-                assignment={assignment}
-                work={work}
-                triggerRef={historyTrigger}
-                onClear={onClear}
-                onRevoke={onRevoke}
-                onHistory={() => {
-                  open(true, () => historyTrigger.current);
-                }}
-              />
-              <AssignmentFacts assignment={assignment} state={state} />
-            </div>
-            {assignment.conflict && (
-              <Reading as="p">
-                <Text variant="supporting">{t("reportedConflict")}: </Text>
-                {assignment.conflict}
-              </Reading>
-            )}
-            {assignment.notification && assignment.notification !== "sent" && (
-              <Notice
-                appearance="inline"
-                tone="warning"
-                actions={
-                  <Button
-                    variant="quiet"
-                    isDisabled={work.pending}
-                    onPress={() => void work.manage(assignment, "retry_notification")}
-                  >
-                    {t("retryNotification")}
-                  </Button>
-                }
-              >
-                {t("notificationFailed")}
-              </Notice>
-            )}
-          </Stack>
-        )}
-      </Stack>
+      {historyOpen ? (
+        <Stack gap={4}>
+          <Button variant="quiet" alignment="start" onPress={back}>
+            {t("backToReviewers")}
+          </Button>
+          <div>
+            <SectionHeader
+              level={3}
+              headingRef={historyHeading}
+              title={t("historyFor", { name: assignment.reviewer })}
+            />
+            <AssignmentHistory history={assignment.history ?? []} source={historySource} />
+          </div>
+        </Stack>
+      ) : (
+        <Stack gap={3}>
+          <div className={styles.assignmentRow}>
+            <PersonIdentity name={assignment.reviewer} description={assignment.email} />
+            <AssignmentActions
+              assignment={assignment}
+              work={work}
+              triggerRef={historyTrigger}
+              onClear={onClear}
+              onRevoke={onRevoke}
+              onHistory={() => {
+                open(true, () => historyTrigger.current);
+              }}
+            />
+            <AssignmentFacts assignment={assignment} state={state} />
+          </div>
+          {assignment.conflict && (
+            <Reading as="p">
+              <Text variant="supporting">{t("reportedConflict")}: </Text>
+              {assignment.conflict}
+            </Reading>
+          )}
+          {assignment.notification && assignment.notification !== "sent" && (
+            <Notice
+              appearance="inline"
+              tone="warning"
+              actions={
+                <Button
+                  variant="quiet"
+                  isDisabled={work.pending}
+                  onPress={() => void work.manage(assignment, "retry_notification")}
+                >
+                  {t("retryNotification")}
+                </Button>
+              }
+            >
+              {t("notificationFailed")}
+            </Notice>
+          )}
+        </Stack>
+      )}
     </section>
   );
 };
@@ -346,7 +346,6 @@ const AssignmentFacts = ({
   state: AssignmentState;
 }) => {
   const { t } = useTranslation("reviewer");
-  const format = useFormat();
   return (
     <div className={styles.assignmentFacts}>
       <DescriptionList layout="columns">
@@ -361,7 +360,7 @@ const AssignmentFacts = ({
           </Badge>
         </DescriptionListItem>
         <DescriptionListItem label={t("due")}>
-          {assignment.dueDate ? format.calendarDate(assignment.dueDate) : t("noDue")}
+          {assignment.dueDate ? <CalendarDate value={assignment.dueDate} /> : t("noDue")}
         </DescriptionListItem>
         {assignment.status === "invited" && (
           <DescriptionListItem label={t("delivery")}>

@@ -53,7 +53,11 @@ const show = (revision = 2, draft: IntakeDraft = recovered) => {
         >
           <ApplicationIntake
             application={application}
-            session={{ data, onDeleted: vi.fn() }}
+            session={{
+              activity: { hasReviews: false, hasRecommendation: false, outstandingReviews: 0 },
+              data,
+              onDeleted: vi.fn(),
+            }}
             onReveal={vi.fn()}
           >
             {(content) => (
@@ -146,8 +150,8 @@ it("cancels an early title opening when recovery reveals existing unfinished con
   };
   const { data, setApplicationEdit, recover } = show(1, titleDraft);
   await user.click(screen.getByRole("button", { name: "Saved application" }));
-  expect(screen.getByText("Preparing editor…")).toBeVisible();
-  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent("Preparing editor…");
+  expect(screen.getByRole("textbox")).toHaveAttribute("readonly");
   recover();
   const title = await screen.findByRole("button", { name: "Saved application" });
   expect(title).toBeDisabled();
@@ -175,7 +179,13 @@ const restoringController = () => {
   const setApplicationEdit = vi.fn();
   const client = createQueryClient();
   const rendered = renderHook(
-    () => useApplicationIntake({ application, data, onDeleted: vi.fn() }),
+    () =>
+      useApplicationIntake({
+        activity: { hasReviews: false, hasRecommendation: false, outstandingReviews: 0 },
+        application,
+        data,
+        onDeleted: vi.fn(),
+      }),
     {
       wrapper: ({ children }) => (
         <QueryClientProvider client={client}>

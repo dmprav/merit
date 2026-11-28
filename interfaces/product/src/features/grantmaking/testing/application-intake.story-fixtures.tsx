@@ -69,6 +69,7 @@ const fixture = (
     | "revision"
     | "correction"
     | "history"
+    | "funded"
     | "withdrawn",
 ): Page => {
   const preparing = state === "incomplete" || state === "complete";
@@ -136,9 +137,11 @@ const fixture = (
     aiReviews: [],
     aiReviewAvailability: "available" as const,
     aiReviewProvider: null,
+    decision: { revision: 0, versions: [] },
     intake: {
       revision: 2,
       workingRevision: state === "revision" || state === "correction" ? revision : null,
+      ...(state === "funded" ? { decisions: { hasDecision: true, hasCommitment: true } } : {}),
       history:
         state === "history"
           ? [
@@ -282,6 +285,8 @@ export const configureIntake = (state: Parameters<typeof fixture>[0] = "incomple
           application.reviews.requests.length || application.reviews.assessments.length,
         ),
         hasRecommendation: application.managerRecommendation !== null,
+        hasDecision: false,
+        hasCommitment: false,
       },
     );
     if (!changed.ok) {

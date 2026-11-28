@@ -27,6 +27,7 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
+import { roundCommitments } from "./application-work";
 import { contactWork } from "./contact-work";
 
 const contact = async (db: NodePgDatabase, name = "Sam") => {
@@ -160,12 +161,17 @@ it("checks criteria content again when saving a recommendation from an assessmen
     expectedRevision: number,
     criteria: { id: string; title: string; description: string }[],
   ) =>
-    editFundingRound(db, actor, {
-      workspaceSlug,
-      publicId: round.publicId,
-      expectedRevision,
-      change: { section: "criteria", criteria },
-    });
+    editFundingRound(
+      db,
+      actor,
+      {
+        workspaceSlug,
+        publicId: round.publicId,
+        expectedRevision,
+        change: { section: "criteria", criteria },
+      },
+      roundCommitments,
+    );
 
   expect(
     await setCriteria(0, [{ id: randomUUID(), title: "Local benefit", description: "" }]),
@@ -499,21 +505,26 @@ it("recreates the changed-budget scenario, keeps history, and distinguishes foll
   }))!;
 
   expect(
-    await editFundingRound(db, actor, {
-      workspaceSlug,
-      publicId: round.publicId,
-      expectedRevision: roundPage.preparation.revision,
-      change: {
-        section: "criteria",
-        criteria: [
-          {
-            id: "64b39d9c-7b1e-5614-a6fa-bee3d45492d6",
-            title: "Venue",
-            description: "Check the replacement venue.",
-          },
-        ],
+    await editFundingRound(
+      db,
+      actor,
+      {
+        workspaceSlug,
+        publicId: round.publicId,
+        expectedRevision: roundPage.preparation.revision,
+        change: {
+          section: "criteria",
+          criteria: [
+            {
+              id: "64b39d9c-7b1e-5614-a6fa-bee3d45492d6",
+              title: "Venue",
+              description: "Check the replacement venue.",
+            },
+          ],
+        },
       },
-    }),
+      roundCommitments,
+    ),
   ).toMatchObject({ status: "ok" });
 
   page = await read();
@@ -962,7 +973,7 @@ it("supports contacts and reviews with the documented runtime grants and immutab
       await tx.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO ${role}`));
       await tx.execute(
         sql.raw(
-          `GRANT SELECT ON app_users, memberships, organizations, funding_rounds, application_cases, material_versions, material_version_answers, material_version_evidence, material_drafts, material_draft_answers, criteria_versions, criteria_version_items, review_states, review_requests, review_assignments, assessments, assessment_versions, assessment_version_observations, recommendation_versions, assistant_consents, ai_reviews, ai_review_sections, ai_review_items, ai_review_citations, ai_review_questions TO ${role}`,
+          `GRANT SELECT ON app_users, memberships, organizations, funding_rounds, application_cases, material_versions, material_version_answers, material_version_evidence, material_drafts, material_draft_answers, criteria_versions, criteria_version_items, review_states, review_requests, review_assignments, assessments, assessment_versions, assessment_version_observations, recommendation_versions, committee_decision_versions, ai_reviews, ai_review_sections, ai_review_items, ai_review_citations, ai_review_questions TO ${role}`,
         ),
       );
       await tx.execute(sql.raw(`GRANT UPDATE (name) ON organizations TO ${role}`));

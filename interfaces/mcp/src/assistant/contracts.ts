@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+export const recordSchema = z.record(z.string(), z.unknown());
+
+export const fields = (value: unknown) => recordSchema.safeParse(value).data ?? {};
+
 export const assistantDependencySchema = z.union([
   z.strictObject({ kind: z.enum(["membership", "grants", "team", "reviewer"]) }),
   z.strictObject({
@@ -23,7 +27,7 @@ const targetSchema = z.strictObject({
 });
 export const assistantPreviewSchema = z.strictObject({
   name: z.string(),
-  input: z.record(z.string(), z.unknown()),
+  input: recordSchema,
   targets: z.array(
     z.union([
       targetSchema,

@@ -8,19 +8,12 @@ import {
 } from "react-aria-components/Toast";
 
 import { ButtonBase } from "../../components/button/button-base";
-import { IconBase } from "../../components/icon/icon-base";
+import { IconBase, toneIcons } from "../../components/icon/icon-base";
 import styles from "./toast.module.css";
-
-const icons = {
-  neutral: "info",
-  success: "success",
-  warning: "attention",
-  danger: "failure",
-} as const;
 
 export type ToastMessage = {
   /** The same tones as Notice: success for a completed action, danger for a failure. */
-  tone: keyof typeof icons;
+  tone: "neutral" | "success" | "warning" | "danger";
   /** One short sentence, such as "Recommendation saved". */
   message: string;
   /** Called when the person dismisses the notification using its close button. */
@@ -120,7 +113,7 @@ export const Toasts = () => {
     <AriaToastRegion queue={queue} className={styles.region}>
       {({ toast }) => (
         <AriaToast toast={toast} className={styles.toast} data-tone={toast.content.tone}>
-          <IconBase name={icons[toast.content.tone]} className={styles.icon} />
+          <IconBase name={toneIcons[toast.content.tone]} className={styles.icon} />
           <AriaToastContent className={styles.content}>
             <Text slot="title">{toast.content.message}</Text>
           </AriaToastContent>

@@ -8,6 +8,8 @@ import {
   type TooltipProps as AriaTooltipProps,
 } from "react-aria-components/Tooltip";
 
+import { popoverOffset, popoverSurface } from "../../foundations/popover";
+import { isInExternalOverlay, TOOLTIP_CLOSE_DELAY, TOOLTIP_OPEN_DELAY } from "./tooltip-base";
 import styles from "./tooltip.module.css";
 
 type TooltipProps = {
@@ -18,11 +20,6 @@ type TooltipProps = {
   isDisabled?: boolean;
   /** Connect a real DOM link or a ref-forwarding router link to the tooltip. */
   customTrigger?: boolean;
-};
-
-const isInExternalOverlay = (target: Element | null, trigger: Element | null) => {
-  const overlay = target?.closest('[role="dialog"], [role="menu"]');
-  return Boolean(overlay && trigger && !overlay.contains(trigger));
 };
 
 // React Aria intercepts Escape in a document capture listener whenever any tooltip is open.
@@ -86,10 +83,18 @@ export const Tooltip = ({
   isDisabled = false,
   customTrigger = false,
 }: TooltipProps) => (
-  <TooltipTrigger delay={350} closeDelay={150} isDisabled={isDisabled}>
+  <TooltipTrigger
+    delay={TOOLTIP_OPEN_DELAY}
+    closeDelay={TOOLTIP_CLOSE_DELAY}
+    isDisabled={isDisabled}
+  >
     {customTrigger ? <Focusable>{children}</Focusable> : children}
     <TooltipOverlayGuard />
-    <AriaTooltip className={styles.tooltip} placement={placement} offset={6}>
+    <AriaTooltip
+      className={`${popoverSurface} ${styles.tooltip}`}
+      placement={placement}
+      offset={popoverOffset}
+    >
       {content}
     </AriaTooltip>
   </TooltipTrigger>

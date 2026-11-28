@@ -3,9 +3,9 @@ import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { accessScope } from "@merit/access/scope";
 import { decodeApplicationMaterial } from "@merit/applications/domain";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
-import { readMaterialVersionRecord } from "@merit/applications/scope";
+import { caseWithdrawn, readMaterialVersionRecord } from "@merit/applications/scope";
 import { appUsers } from "@merit/auth/schema";
-import type { Database, Transaction } from "@merit/db";
+import type { Database } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
 import { activeOrganization, authorizedWorkspaces } from "@merit/organizations/scope";
 import { reviewCriteriaSchema } from "@merit/rounds/domain";
@@ -58,6 +58,7 @@ const selectReviewerRows = (db: Database, reviewerId?: string) =>
       title: materialVersions.title,
       applicant: sql<string>`coalesce(${materialVersions.applicantOrganization}, '')`,
       currentVersion: applicationCases.materialVersion,
+      withdrawn: caseWithdrawn,
       currentCriteriaVersion: fundingRounds.criteriaVersion,
       organization: organizations.name,
       organizationKind: organizations.kind,
@@ -125,15 +126,6 @@ export const activeReviewer = async (db: Database, userId: string) =>
       .select()
       .from(appUsers)
       .where(and(eq(appUsers.id, userId), eq(appUsers.active, true)))
-  )[0];
-
-export const lockActiveReviewer = async (tx: Transaction, userId: string) =>
-  (
-    await tx
-      .select()
-      .from(appUsers)
-      .where(and(eq(appUsers.id, userId), eq(appUsers.active, true)))
-      .for("share")
   )[0];
 
 /**

@@ -10,6 +10,7 @@ export type GrantOutcome = {
     | "application_recorded"
     | "assessment_submitted"
     | "funding_recommendation_saved"
+    | "committee_decision_recorded"
     | "ai_review_saved";
   surface: "web" | "mcp";
   workspaceKind: "standard" | "demo";

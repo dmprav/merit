@@ -13,7 +13,6 @@
 
 .header > svg {
   color: var(--muted);
-  margin-right: var(--space-2);
 }
 
 .identity {
@@ -58,13 +57,17 @@
   font-weight: var(--weight-regular);
 }
 
+/* The choice is outdented by its padding and border, so its avatar and chevron meet the content edges. */
 .choice[data-variant] {
+  --judgment-outdent: calc(var(--space-2) + 1px);
   display: grid;
   justify-content: stretch;
   text-align: left;
   white-space: normal;
   gap: var(--space-1);
   padding: var(--space-2);
-  width: 100%;
+  margin-inline: calc(-1 * var(--judgment-outdent));
+  width: calc(100% + 2 * var(--judgment-outdent));
+  max-width: none;
   font-weight: var(--weight-regular);
 }

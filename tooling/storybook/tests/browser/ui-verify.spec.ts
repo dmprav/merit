@@ -9,15 +9,14 @@ import type { Browser, BrowserContext } from "@playwright/test";
 
 import { collectBrowserErrors, expect, test, type BrowserError } from "@merit/test-support/browser";
 
+import { openTargetOnPage, runTargetsInBrowser, verifyLoadedPage } from "../../ui-verify/audit.ts";
+import { checkKeyboardFocusTraversal } from "../../ui-verify/focus/check.ts";
+import { writeProofArtifacts } from "../../ui-verify/report.ts";
 import {
-  checkKeyboardFocusTraversal,
-  openTargetOnPage,
-  runTargetsInBrowser,
+  describeIncompleteTraversal,
   summarizeResults,
   uiVerifyResultsSchema,
-  verifyLoadedPage,
-  writeProofArtifacts,
-} from "../../ui-verify.ts";
+} from "../../ui-verify/results.ts";
 
 const VIEWPORT_META = '<meta name="viewport" content="width=device-width, initial-scale=1">';
 
@@ -49,12 +48,9 @@ const runFixture = async (
     return await verifyLoadedPage({
       page,
       browserErrors: errors,
-      kind: "story",
-      target: name,
-      name,
+      target: { kind: "story", id: name, name, fullPage: true },
       url: `fixture://${name}`,
       viewport: "desktop",
-      fullPage: true,
       screenshotPath,
     });
   } finally {
@@ -276,6 +272,138 @@ test.describe("live Chromium checker failure detection", () => {
     }
   });
 
+  test("counts only painted focus cues on the same relative across snapshots", async ({ page }) => {
+    await page.setContent(`
+      <style>
+        button { outline: none; display: inline-flex; }
+        .transparent, .reveal { opacity: 0; }
+        .ring, button:focus-visible .indicator { outline: 2px solid blue; }
+        button:focus-visible .reveal { opacity: 1; }
+        .ring { order: 1; }
+      </style>
+      <button>Hidden ring<span class="transparent"><span class="indicator">A</span></span></button>
+      <button>Visible ring<span class="indicator">B</span></button>
+      <button>Revealed ring<span class="reveal ring">C</span></button>
+      <button data-reorder aria-label="Reordered"><span>A</span><span class="ring">B</span></button>
+      <button data-reorder aria-label="Reordered with cue"><span class="indicator">A</span><span class="ring">B</span></button>
+      <script>
+        for (const button of document.querySelectorAll('[data-reorder]')) {
+          const ring = button.lastElementChild;
+          button.addEventListener('focus', () => button.prepend(ring));
+          button.addEventListener('blur', () => button.append(ring));
+        }
+      </script>`);
+    const focus = await checkKeyboardFocusTraversal(page);
+    expect(focus.stopsChecked).toBe(5);
+    expect(focus.failures.map(({ element, reasons }) => ({ element, reasons }))).toEqual([
+      {
+        element: 'button "Hidden ringA"',
+        reasons: ["no visible focus indicator change compared to unfocused state"],
+      },
+      {
+        element: 'button "Reordered"',
+        reasons: ["no visible focus indicator change compared to unfocused state"],
+      },
+    ]);
+  });
+
+  test("checks the paint revealed by a visibility change", async ({ page }) => {
+    await page.setContent(`
+      <style>
+        button { outline: none; }
+        .indicator { display: inline-block; opacity: 0; }
+        button:focus-visible .indicator { opacity: 1; }
+        .empty-fill { background: red; width: 0; height: 0; }
+        .empty-line { width: 10px; height: 10px; text-decoration: underline transparent; }
+        button:focus-visible .line { text-decoration: underline solid blue 3px; }
+        button:focus-visible .clear-line { text-decoration-color: transparent; }
+        .spread { box-shadow: 0 0 0 4px blue; }
+        .offset { box-shadow: 3px 3px blue; }
+        .atomic { display: inline-block; }
+        .flat-text { display: block; transform: scaleZ(0); }
+        .collapsed { transform: scale(0); }
+        .scaled-wrapper { display: inline-block; scale: 0; }
+      </style>
+      <button>Empty fill<span class="indicator empty-fill"></span></button>
+      <button>Empty underline<span class="indicator empty-line"></span></button>
+      <button>Real underline<span class="indicator line">marked</span></button>
+      <button>Clear underline<span class="indicator line clear-line">marked</span></button>
+      <button>Nested underline<span class="indicator line"><em>marked</em></span></button>
+      <button>Suppressed text<span class="indicator line"><em class="flat-text">marked</em></span></button>
+      <button>Atomic inline<span class="indicator line"><em class="atomic">marked</em></span></button>
+      <button>Spread shadow<span class="indicator spread"></span></button>
+      <button>Offset shadow<span class="indicator offset"></span></button>
+      <button>Collapsed shadow<span class="indicator spread collapsed"></span></button>
+      <button>Collapsed wrapper<span class="scaled-wrapper"><span class="indicator spread"></span></span></button>
+      <button>Inline wrapper<span class="collapsed"><span class="indicator spread"></span></span></button>`);
+    const focus = await checkKeyboardFocusTraversal(page);
+    expect(focus.stopsChecked).toBe(12);
+    expect(focus.failures.map(({ element }) => element)).toEqual([
+      'button "Empty fill"',
+      'button "Empty underline"',
+      'button "Clear underlinemarked"',
+      'button "Suppressed textmarked"',
+      'button "Atomic inlinemarked"',
+      'button "Offset shadow"',
+      'button "Collapsed shadow"',
+      'button "Collapsed wrapper"',
+    ]);
+  });
+
+  test("compares a focus-trapped list option with its neighbour's focus, not a blur", async ({
+    newContext,
+  }) => {
+    const context = await newContext({ viewport: { width: 1280, height: 800 } });
+
+    const html = (
+      barRule: string,
+    ) => `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>List</title><style>
+        body { background: #fff; color: #111; }
+        [role="option"] { display: block; padding: 6px 10px; outline: none; background: #fff; color: #111; }
+        ${barRule}
+      </style></head><body>
+        <div role="listbox" aria-label="Choices" tabindex="-1">
+          <div role="option" tabindex="-1" id="a">Alpha</div>
+          <div role="option" tabindex="-1" id="b">Beta</div>
+        </div>
+        <script>
+          const list = document.querySelector('[role="listbox"]');
+          const options = [...list.querySelectorAll('[role="option"]')];
+          options[1].focus();
+          // Like an open list: Tab and blur leave focus where it was, and arrows move it.
+          list.addEventListener("focusout", (event) => {
+            if (!list.contains(event.relatedTarget)) {
+              queueMicrotask(() => event.target.focus());
+            }
+          });
+          list.addEventListener("keydown", (event) => {
+            const index = options.indexOf(document.activeElement);
+            if (event.key === "ArrowDown") options[Math.min(index + 1, 1)].focus();
+            if (event.key === "ArrowUp") options[Math.max(index - 1, 0)].focus();
+            if (event.key === "Tab") event.preventDefault();
+          });
+        </script>
+      </body></html>`;
+
+    const withBar = await context.newPage();
+    await withBar.setContent(
+      html('[role="option"]:focus { background: #edf0f7; box-shadow: inset 3px 0 #455779; }'),
+    );
+    const passing = await checkKeyboardFocusTraversal(withBar);
+    expect(passing.stopsChecked).toBe(1);
+    expect(passing.failures).toEqual([]);
+
+    const withoutBar = await context.newPage();
+    await withoutBar.setContent(html(""));
+    const failing = await checkKeyboardFocusTraversal(withoutBar);
+    expect(failing.failures).toEqual([
+      expect.objectContaining({
+        element: 'div[role=option] "Beta"',
+        reasons: ["no visible focus indicator change compared to unfocused state"],
+      }),
+    ]);
+  });
+
   test("re-checks the paint of a dialog's first stop when focus cycles back to it", async ({
     newContext,
   }) => {
@@ -445,7 +573,7 @@ test.describe("live Chromium checker failure detection", () => {
     await page.waitForFunction(() => "__traversalStarted" in window, undefined, { polling: 20 });
     releaseRenderBlock();
     const focus = await traversal;
-    expect(focus.incompleteReason).toBeUndefined();
+    expect(focus.traversal).toEqual({ complete: true });
     expect(focus.stopsChecked).toBe(2);
     expect(focus.failures.map((failure) => failure.element)).toEqual([
       'button "Earlier broken button"',
@@ -741,16 +869,25 @@ test.describe("live Chromium checker failure detection", () => {
 
         expect(targetResults).toHaveLength(4);
         expect(targetResults[0]?.passed).toBe(false);
-        expect(targetResults[0]?.error).toContain("play() assertion failed: contrast");
+        expect(targetResults[0]).toMatchObject({
+          status: "errored",
+          error: expect.stringContaining("play() assertion failed: contrast"),
+        });
         expect(targetResults[0]?.screenshot).toBeNull();
         expect(existsSync(stalePath)).toBe(false);
 
         expect(targetResults[1]?.passed).toBe(false);
-        expect(targetResults[1]?.error).toContain("HTTP 404");
+        expect(targetResults[1]).toMatchObject({
+          status: "errored",
+          error: expect.stringContaining("HTTP 404"),
+        });
         expect(targetResults[1]?.screenshot).toBeNull();
 
         expect(targetResults[2]?.passed).toBe(false);
-        expect(targetResults[2]?.error).toContain("did not render non-empty content");
+        expect(targetResults[2]).toMatchObject({
+          status: "errored",
+          error: expect.stringContaining("did not render non-empty content"),
+        });
         expect(targetResults[2]?.screenshot).toBeNull();
 
         // A redirected route keeps the URL it requested beside the page it audited.
@@ -786,38 +923,31 @@ test.describe("live Chromium checker failure detection", () => {
       const exactResult = await verifyLoadedPage({
         page: exactPage,
         browserErrors: [],
-        kind: "story",
-        target: "exact-cap",
-        name: "exact-cap",
+        target: { kind: "story", id: "exact-cap", name: "exact-cap", fullPage: true },
         url: "fixture://exact-cap",
         viewport: "desktop",
-        fullPage: true,
         screenshotPath: null,
         maxTabStops: 3,
       });
       expect(exactResult.passed).toBe(true);
       expect(exactResult.focus.stopsChecked).toBe(3);
-      expect(exactResult.focus.reachedCap).toBe(false);
-      expect(exactResult.focus.incompleteReason).toBeUndefined();
+      expect(exactResult.focus.traversal).toEqual({ complete: true });
 
       const cappedPage = await context.newPage();
       await cappedPage.setContent(buildButtonsHtml(4));
       const cappedResult = await verifyLoadedPage({
         page: cappedPage,
         browserErrors: [],
-        kind: "story",
-        target: "exceeds-cap",
-        name: "exceeds-cap",
+        target: { kind: "story", id: "exceeds-cap", name: "exceeds-cap", fullPage: true },
         url: "fixture://exceeds-cap",
         viewport: "desktop",
-        fullPage: true,
         screenshotPath: null,
         maxTabStops: 3,
       });
       expect(cappedResult.passed).toBe(false);
       expect(cappedResult.focus.stopsChecked).toBe(3);
-      expect(cappedResult.focus.reachedCap).toBe(true);
-      expect(cappedResult.focus.incompleteReason).toBe("Incomplete: >3 stops");
+      expect(cappedResult.focus.traversal).toEqual({ complete: false, reason: "cap" });
+      expect(describeIncompleteTraversal(cappedResult.focus)).toBe("Incomplete: >3 stops");
       expect(cappedResult.focus.failures).toEqual([]);
 
       const summary = summarizeResults({
@@ -837,8 +967,10 @@ test.describe("live Chromium checker failure detection", () => {
       );
       expect(savedJson.passed).toBe(false);
       expect(savedJson.targets[1]?.passed).toBe(false);
-      expect(savedJson.targets[1]?.focus.reachedCap).toBe(true);
-      expect(savedJson.targets[1]?.focus.incompleteReason).toBe("Incomplete: >3 stops");
+      expect(savedJson.targets[1]).toMatchObject({
+        status: "audited",
+        focus: { traversal: { complete: false, reason: "cap" } },
+      });
 
       const markdown = readFileSync(join(outDir, "report.md"), "utf8");
       expect(markdown).toContain("**Status:** FAIL");
@@ -894,7 +1026,7 @@ test.describe("live Chromium checker failure detection", () => {
     expect(focus.failures).toHaveLength(1);
     expect(focus.failures[0]?.element).toContain("Removed on blur");
     expect(focus.failures[0]?.reasons).toEqual([
-      "no unfocused baseline: the control left the document after losing focus, so its focus indicator could not be compared",
+      "no unfocused baseline: the control left the document or kept taking focus back, so its focus indicator could not be compared",
     ]);
   });
 
@@ -921,7 +1053,7 @@ test.describe("live Chromium checker failure detection", () => {
     await sameOrigin.frameLocator("iframe").getByRole("button", { name: "Inner two" }).waitFor();
     const traversed = await checkKeyboardFocusTraversal(sameOrigin);
     expect(traversed.stopsChecked).toBe(2);
-    expect(traversed.incompleteReason).toBeUndefined();
+    expect(traversed.traversal).toEqual({ complete: true });
     expect(traversed.failures).toEqual([]);
 
     const crossOrigin = await context.newPage();
@@ -930,16 +1062,18 @@ test.describe("live Chromium checker failure detection", () => {
     const opaque = await verifyLoadedPage({
       page: crossOrigin,
       browserErrors: [],
-      kind: "story",
-      target: "cross-origin-frame",
-      name: "cross-origin-frame",
+      target: {
+        kind: "story",
+        id: "cross-origin-frame",
+        name: "cross-origin-frame",
+        fullPage: true,
+      },
       url: "fixture://cross-origin-frame",
       viewport: "desktop",
-      fullPage: true,
       screenshotPath: null,
     });
-    expect(opaque.focus.reachedCap).toBe(false);
-    expect(opaque.focus.incompleteReason).toContain("cross-origin frame");
+    expect(opaque.focus.traversal).toEqual({ complete: false, reason: "opaqueFrame" });
+    expect(describeIncompleteTraversal(opaque.focus)).toContain("cross-origin frame");
     expect(opaque.passed).toBe(false);
   });
 
@@ -968,7 +1102,8 @@ test.describe("live Chromium checker failure detection", () => {
     );
     const focus = await checkKeyboardFocusTraversal(page);
     expect(focus.stopsChecked).toBe(1);
-    expect(focus.incompleteReason).toBe(
+    expect(focus.traversal).toEqual({ complete: false, reason: "trackerLost" });
+    expect(describeIncompleteTraversal(focus)).toBe(
       "Incomplete: the page navigated to a new document during focus traversal",
     );
   });
@@ -1012,11 +1147,11 @@ test.describe("live Chromium checker failure detection", () => {
 test("lets the CLI finish its Ctrl+C cleanup before the process exits", async () => {
   await withTempDir(async (dir) => {
     const script = join(dir, "sigint.mjs");
-    const uiVerifyUrl = new URL("../../ui-verify.ts", import.meta.url).href;
+    const auditModuleUrl = new URL("../../ui-verify/audit.ts", import.meta.url).href;
     // The child stands in for the CLI: its SIGINT handler needs time to stop servers.
     writeFileSync(
       script,
-      `import { launchVerificationBrowser } from ${JSON.stringify(uiVerifyUrl)};
+      `import { launchVerificationBrowser } from ${JSON.stringify(auditModuleUrl)};
       const browser = await launchVerificationBrowser();
       process.on("SIGINT", () => {
         setTimeout(async () => {

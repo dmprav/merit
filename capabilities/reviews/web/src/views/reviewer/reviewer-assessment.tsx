@@ -3,19 +3,18 @@ import { useTranslation } from "react-i18next";
 
 import { ConflictBanner } from "@merit/forms";
 import { useLocaleSettings } from "@merit/i18n";
-import { useFormat } from "@merit/i18n/format";
 import { decodeMoney } from "@merit/money";
 import type { ReviewerPage } from "@merit/reviews/api";
 import type { ReviewerSubmissionProblem } from "@merit/reviews/domain";
 import { Attribution } from "@merit/ui/attribution";
-import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
-import { PickerPopover } from "@merit/ui/dialog";
 import { Disclosure } from "@merit/ui/disclosure";
 import { Divider } from "@merit/ui/divider";
 import { Icon } from "@merit/ui/icon";
 import { Inline, Reading, Stack } from "@merit/ui/layout";
+import { Link } from "@merit/ui/link";
+import { MetaItem } from "@merit/ui/meta-item";
 import { MoneyField } from "@merit/ui/money-field";
 import { Notice } from "@merit/ui/notice";
 import { WorkPane } from "@merit/ui/reference-workspace";
@@ -24,8 +23,11 @@ import { Select } from "@merit/ui/select";
 import { Text } from "@merit/ui/text";
 import { TextField } from "@merit/ui/text-field";
 import { Timeline, TimelineEntry } from "@merit/ui/timeline";
+import { CalendarDate } from "@merit/ui/timestamp";
 import { showToast, useEventToast } from "@merit/ui/toast";
+import { Toggletip } from "@merit/ui/toggletip";
 import { Tooltip } from "@merit/ui/tooltip";
+import { VisuallyHidden } from "@merit/ui/visually-hidden";
 
 import { reconcileObservations } from "../../controllers/reviews/observations";
 import { AssessmentOutcome } from "../reviews/assessment-outcome";
@@ -42,7 +44,7 @@ const fundingPositions = new Set(["Fund", "Fund with a condition"]);
 export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
   const { t } = useTranslation("reviewer");
   const { page } = work;
-  const writing = Boolean(work.draft) && (!page.assessment || work.amending);
+  const writing = work.canWrite && Boolean(work.draft) && (!page.assessment || work.amending);
   const form = useRef<HTMLDivElement>(null);
   const [attempt, setAttempt] = useState(0);
 
@@ -64,7 +66,9 @@ export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
           note={writing ? t(page.assessment ? "amendmentHelp" : "privacy") : undefined}
         />
       }
-      titleActions={!writing && page.assessment && <AmendmentTrigger work={work} />}
+      titleActions={
+        work.canWrite && !writing && page.assessment && <AmendmentTrigger work={work} />
+      }
       footer={
         writing && (
           <ReviewerSubmitActions work={work} onInvalid={() => setAttempt((value) => value + 1)} />
@@ -74,17 +78,38 @@ export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
       <SubmissionConfirmation page={page} />
       <div ref={form}>
         <Stack gap={5}>
+          <WithdrawnNotice page={page} />
           {writing ? <ReviewerDraftForm work={work} /> : <SubmittedAssessment work={work} />}
           <EarlierVersions page={page} />
+          <RetainedDraft work={work} />
         </Stack>
       </div>
     </WorkPane>
   );
 };
 
+/** Access that ends removes the material, so only withdrawal explains itself in this pane. */
+const WithdrawnNotice = ({ page }: { page: ReviewerPage }) => {
+  const { t } = useTranslation("reviewer");
+  if (page.work.available || page.work.reason !== "application_withdrawn") {
+    return null;
+  }
+  const { managerEmail, managerName } = page.assignment;
+  return (
+    <Notice
+      tone="neutral"
+      actions={
+        <Link href={`mailto:${managerEmail}`}>{t("contactManager", { name: managerName })}</Link>
+      }
+    >
+      {t("withdrawnReadOnly")}
+    </Notice>
+  );
+};
+
 /**
- * When the response is due beside the pane title, and on request who asked, by when, and while
- * writing, who can read the draft.
+ * When the response is due beside the pane title, and on request who asked, followed by help text
+ * about privacy or amendments. A review with no due date shows no date at all.
  */
 const AssessmentRequest = ({
   assignment,
@@ -94,33 +119,20 @@ const AssessmentRequest = ({
   note?: string;
 }) => {
   const { t } = useTranslation("reviewer");
-  const format = useFormat();
-  const due = assignment.dueDate && format.calendarDate(assignment.dueDate);
-  const [open, setOpen] = useState(false);
   return (
     <>
-      {due && <Badge>{t("dueBadge", { date: due })}</Badge>}
-      <PickerPopover
-        title={t("requestDetails")}
-        placement="bottom start"
-        isOpen={open}
-        onOpenChange={setOpen}
-        trigger={
-          <Tooltip content={t("requestDetails")} isDisabled={open}>
-            <Button variant="quiet" iconOnly aria-label={t("requestDetails")}>
-              <Icon name="info" />
-            </Button>
-          </Tooltip>
-        }
-      >
-        <Text as="div" variant="supporting">
-          <Stack gap={2}>
-            <p>{t("requestedBy", { name: assignment.managerName })}</p>
-            <p>{due ? t("dueOn", { date: due }) : t("noDue")}</p>
-            {note && <p>{note}</p>}
-          </Stack>
-        </Text>
-      </PickerPopover>
+      {assignment.dueDate && (
+        <MetaItem icon="calendar">
+          <VisuallyHidden>{t("due")} </VisuallyHidden>
+          <CalendarDate value={assignment.dueDate} />
+        </MetaItem>
+      )}
+      <Toggletip label={t("requestDetails")}>
+        <Stack gap={1}>
+          <span>{t("requestedBy", { name: assignment.managerName })}</span>
+          {note && <span>{note}</span>}
+        </Stack>
+      </Toggletip>
     </>
   );
 };
@@ -493,7 +505,7 @@ export const RetainedDraft = ({ work }: { work: ReviewerWork }) => {
 
   return (
     <Stack as="section" gap={5} aria-label={t("unsavedAssessment")}>
-      <Divider />
+      <Divider spacing={5} />
       <Stack gap={3}>
         <SectionHeader
           title={t("unsavedAssessment")}

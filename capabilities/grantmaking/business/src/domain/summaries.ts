@@ -1,16 +1,27 @@
 import { isWithdrawn, type ApplicationWithdrawal } from "@merit/applications/domain";
 import { add, subtract, fromMinorUnits, type Money } from "@merit/money";
-import { assessmentStatus, reviewProgress } from "@merit/reviews/domain";
+import { reviewProgress, type ReviewAssessment } from "@merit/reviews/domain";
 
+export const roundBalances = (budget: Money | null, proposed: Money, committed: Money) => ({
+  proposed,
+  remaining: budget === null ? null : subtract(budget, proposed),
+  committed,
+  available: budget === null ? null : subtract(budget, committed),
+});
+
+/**
+ * Round totals from application records. Commitments belong to Decisions, so callers that
+ * hold the committed total pass it; a round without decisions has committed nothing.
+ */
 export const summarizeRound = (
   budget: Money | null,
   applications: readonly {
     withdrawal?: ApplicationWithdrawal | undefined;
     requested: Money | null;
     managerRecommendation: { allocation: Money } | null;
-    version: Parameters<typeof assessmentStatus>[1];
-    assessments: readonly Parameters<typeof assessmentStatus>[0][];
+    assessments: readonly Pick<ReviewAssessment, "status">[];
   }[],
+  committed: Money = fromMinorUnits(0n),
 ) => {
   const totals = {
     requested: fromMinorUnits(0n),
@@ -35,14 +46,13 @@ export const summarizeRound = (
     }
 
     for (const assessment of application.assessments) {
-      const status = assessmentStatus(assessment, application.version);
-      totals.reviews[status]++;
+      totals.reviews[assessment.status]++;
     }
   }
 
   return {
     ...totals,
     reviews: { ...totals.reviews, ...reviewProgress(totals.reviews) },
-    remaining: budget === null ? null : subtract(budget, totals.proposed),
+    ...roundBalances(budget, totals.proposed, committed),
   };
 };

@@ -1,4 +1,4 @@
-import { proxyActivities } from "@temporalio/workflow";
+import { patched, proxyActivities } from "@temporalio/workflow";
 
 import type { ReconcileActivities } from "./activities.ts";
 
@@ -18,6 +18,9 @@ export const reconcile = async () => {
   const reconcilers = {
     reviewerMessages: activities.reconcileReviewerMessages,
     conversations: activities.reconcileConversations,
+    ...(patched("reconcile-organization-invitations") && {
+      organizationInvitations: activities.reconcileOrganizationInvitations,
+    }),
   };
   // The reconcilers are independent, so they run at once; each result is kept by name.
   const results = await Promise.all(

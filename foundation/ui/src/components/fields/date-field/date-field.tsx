@@ -82,7 +82,7 @@ export const DateField = ({
               onKeyDown={onKeyDown}
               data-invalid-focus-target={isInvalid || undefined}
               placeholder="YYYY-MM-DD"
-              className={inputStyles.input}
+              className={`${inputStyles.input} ${styles.input}`}
             />
             {actions}
             {showCalendar && (
@@ -100,7 +100,7 @@ export const DateField = ({
                       aria-label={calendarLabel}
                       isDisabled={props.isDisabled || props.isReadOnly}
                     >
-                      <IconBase name="round" />
+                      <IconBase name="calendar" />
                     </ButtonBase>
                   </Tooltip>
                 }

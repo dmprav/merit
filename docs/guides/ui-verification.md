@@ -59,6 +59,7 @@ Choose checks for the behavior you changed:
 | Applications components and controllers                 | `vp run @merit/applications-web#test`               |
 | Reviews components and controllers                      | `vp run @merit/reviews-web#test`                    |
 | Recommendations components and controllers              | `vp run @merit/recommendations-web#test`            |
+| Committee decision components and controllers           | `vp run @merit/decisions-web#test`                  |
 | Contact components and controllers                      | `vp run @merit/contacts-web#test --project ui`      |
 | Team components and controllers                         | `vp run @merit/organizations-web#test --project ui` |
 | Product routes and connected feature composition        | `vp run @merit/product#test --project ui`           |
@@ -67,11 +68,16 @@ Choose checks for the behavior you changed:
 | Shared form behavior                                    | `vp run @merit/forms#test`                          |
 | Story rendering, interaction, accessibility             | `vp run test:stories`                               |
 | Story tests while editing                               | `vp run test:stories:watch`                         |
-| Storybook layout, docs, and visual regression           | `vp run test:browser:stories`                       |
+| Storybook layout, docs, and interactions                | `vp run test:browser:stories`                       |
+| Storybook visual regression                             | `vp run test:browser:stories:container`             |
 | Application navigation and browser behavior             | `vp run test:browser:app`                           |
 | Shared browser checks, Storybook, and application flows | `vp run test:browser`                               |
 | Deterministic UI sweep, a11y, focus, and screenshots    | `vp run ui:verify`                                  |
 | Storybook configuration or packaging                    | `vp run @merit/storybook#build`                     |
+
+`visual.spec.ts` failures in a host `vp run test:browser:stories` run are expected and are not
+signal; every other test must pass. Check visual changes with the container row, per
+[Review visual changes](#review-visual-changes).
 
 Run the suite belonging to the changed code. Capability component tests and
 product integration tests cover different boundaries; the product command does
@@ -107,13 +113,14 @@ when stories, components, or configuration change, then serves `dist/` with
 reports their warnings as browser errors. Use `vp run storybook` for live editing.
 
 Install the browsers once with `pnpm --filter @merit/test-support exec playwright install chromium firefox webkit`
-before running browser checks. Storybook browser artifacts are in `merit-storybook-results` and
+before running browser checks. Storybook browser artifacts are in per-port `merit-storybook-results-*` and
 application artifacts in per-run `merit-demo-browser-*` and `merit-workspace-browser-*`
 directories under the operating system's temporary directory.
 The [Storybook configuration](../../tooling/storybook/playwright.config.ts)
 and [application configuration](../../app/tests/browser/playwright.config.ts) use the
 shared [browser projects](verification.md#browser-compatibility). Chromium runs the
-full suites and visual baselines; the `:all` commands also run representative
+full suites, and visual baselines are compared only in the pinned container or CI (see
+[Review visual changes](#review-visual-changes)); the `:all` commands also run representative
 `@cross-browser` checks in Firefox and desktop and mobile WebKit. Story test-addon
 runs remain in Chromium.
 
@@ -147,13 +154,20 @@ focus that enters a cross-origin frame or navigates to a new document fails as i
 (override with `--out <dir>`): `report.md`, Zod-validated `results.json`, and
 `screenshots/*.png`. A route that redirects, such as to sign-in, is checked where it lands:
 `results.json` records that page as `url` beside the requested `requestedUrl`, and `report.md` shows it after the requested route, in full when it is on another origin.
-When a target fails before its checks run, such as on an HTTP error, `results.json` records the
-`error` and `report.md` marks its axe, overflow, and focus checks as not checked.
+Each target in `results.json` (schema `version` 2) has a `status`: an `audited` target carries
+its audit and `focus` results, where `focus.traversal` is `{ "complete": true }` or names why
+traversal stopped short (`cap`, `opaqueFrame`, or `trackerLost`). When a target fails before its
+checks run, such as on an HTTP error, it is `errored` with its `error` and no audit or focus
+results, and `report.md` marks its axe, overflow, and focus checks as not checked.
 Servers and ephemeral databases are torn down automatically on exit or
-failure. Pass `--update` on host runs to delete the selected targets' previous screenshots for
+failure, and a teardown step that fails is logged rather than ignored. Pass `--update` on host runs to delete the selected targets' previous screenshots for
 the selected viewports before checking; screenshots of other targets and viewports stay. A run
 locks its output directory until its report is written, so a second concurrent run against the
-same `--out` fails immediately; give concurrent runs separate `--out` directories. Running with
+same `--out` fails immediately; give concurrent runs separate `--out` directories. The lock is the
+[shared file lock](../../tooling/agents/file-lock.ts): a run reclaims a lock left by a run that has
+exited, even when its PID now belongs to another process, and a damaged lock that names no run, so
+an interrupted run never blocks later ones. An interrupted host run releases the directory during
+teardown and does not write a report there afterwards. Running with
 `--container` (or `--container --update`) delegates pixel-exact comparison to Docker Playwright,
 writing only the delegation `report.md` and `results.json` (with `containerExitCode`) under
 `--out` rather than host `screenshots/*.png`; Linux visual baselines live in
@@ -183,8 +197,6 @@ and rerun the comparison cleanly:
 vp run ui:verify --container --update
 vp run ui:verify --container
 ```
-
-On native Ubuntu 24.04 hosts with the locked browser version installed (`pnpm --filter @merit/test-support exec playwright install --with-deps chromium firefox webkit`), `vp run test:browser:stories:all visual.spec.ts --project desktop --project mobile` also runs directly without Docker. Append `--update-snapshots` only when preparing an intentional baseline update, then rerun without it.
 
 Review a new baseline against the established reference before accepting it;
 screenshots detect later changes but cannot judge whether the initial design fits.

@@ -8,6 +8,7 @@ type Invalid<Error extends string> = { status: "invalid"; error: Error };
 
 import type { Money } from "@merit/money";
 
+import type { BudgetTotals } from "../domain/budget";
 import type { Recommendation, RecommendationUpdateError } from "../domain/recommendation";
 import type { SaveRecommendationRequest } from "./commands";
 
@@ -21,7 +22,7 @@ export interface RecommendationsService {
         recommendation: Recommendation;
         recommendationVersion: number;
         budget: Money | null;
-        totals: { proposed: Money; remaining: Money | null; withdrawnApplications: number };
+        totals: BudgetTotals;
       }
     | NotFound
     | Conflict

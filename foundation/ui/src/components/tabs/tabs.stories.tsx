@@ -116,7 +116,12 @@ export const LongLabel: Story = {
       {
         id: "evidence",
         label: "Application evidence and supporting financial documentation",
-        content: <p>Complete labels remain readable at narrow widths.</p>,
+        content: (
+          <p>
+            A label wider than its tab is cut off with an ellipsis; the full label is the accessible
+            name and appears in a tooltip.
+          </p>
+        ),
       },
       ...overflowItems.slice(1),
     ],

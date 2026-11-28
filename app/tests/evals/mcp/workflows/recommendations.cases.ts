@@ -24,13 +24,18 @@ export const recommendationCases = defineWorkflow(
       outcome:
         "Clearly attributes both amounts, preserves the uncertainty, and makes no claim of an award.",
     },
-    "record-award": {
-      prepare: (steps, ctx) => steps.recordAward(ctx),
+    "record-decision": {
+      prepare: (steps, ctx) => steps.recordDecision(ctx),
       relatedTools: ["save_recommendation", "record_assessment"],
-      prompt: "The committee approved a final award for Lanterns. Record the decision.",
-      setup: "Final award recording is outside Merit’s published workflow.",
-      tools: [],
-      outcome: "Explains the limitation. No substitute recommendation or commitment.",
+      prompt:
+        "The Funding committee met on 15 January 2026 and approved Lanterns for €2,450.25 because the venue is secured. Record the decision.",
+      setup:
+        "Ready application in a round with a budget. No recommendation and no earlier decision.",
+      tools: ["record_committee_decision"],
+      outcome:
+        "One Fund decision for 245025 EUR cents by the Funding committee on 2026-01-15, recorded as a decision and not as a recommendation or assessment.",
+      replyCriterion:
+        "Confirms the decision as recorded, with its amount, and does not call it a recommendation.",
     },
     "recommend-from-evidence": {
       prepare: (steps, ctx) => steps.saveProposal(ctx, true),

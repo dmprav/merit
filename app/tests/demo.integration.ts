@@ -12,6 +12,7 @@ import {
 import { listWorkspaceContacts } from "@merit/contacts/server";
 import { removeDemoContacts } from "@merit/contacts/server/demo";
 import { withDatabase, type Database, type DatabaseRunner } from "@merit/db";
+import { recordCommitteeDecision } from "@merit/decisions/server";
 import {
   getFundingRoundPage,
   getFundingApplicationPage,
@@ -25,6 +26,7 @@ import {
   removeDemoFunding,
 } from "@merit/grantmaking/server/demo";
 import { contactWork } from "@merit/grantmaking/testing/contact-work";
+import { encodeMoney } from "@merit/money";
 import { organizations } from "@merit/organizations/schema";
 import { getWorkspace } from "@merit/organizations/server";
 import {
@@ -117,8 +119,50 @@ test("creates independent complete examples and resumes concurrent starts", asyn
   );
 
   expect(page?.round.applicationCount).toBe(3);
+  expect(page && encodeMoney(page.round.totals.committed)).toEqual({
+    minorUnits: "2400000",
+    currency: "EUR",
+  });
+  expect(page?.round.totals.available && encodeMoney(page.round.totals.available)).toEqual({
+    minorUnits: "3600000",
+    currency: "EUR",
+  });
 
   const ids = await fundingExampleIds(first.workspace.id);
+  // The seeded decision follows the same rules as a saved one, so it can be changed.
+  const decided = await getFundingApplicationPage(
+    db,
+    { userId: "alice" },
+    { workspaceSlug: first.workspace.slug, publicId: ids.applications.A1! },
+  );
+
+  expect(decided?.decision.versions).toHaveLength(1);
+  expect(decided?.decision.versions[0]?.decision).toMatchObject({
+    outcome: "Fund",
+    decidedBy: "Funding committee",
+    decisionDate: new Date().toISOString().slice(0, 10),
+  });
+  const seeded = decided!.decision.versions[0]!.decision;
+  expect(
+    await recordCommitteeDecision(
+      db,
+      { userId: "alice" },
+      {
+        workspaceSlug: first.workspace.slug,
+        publicId: ids.applications.A1!,
+        expectedRevision: 1,
+        decision: {
+          outcome: seeded.outcome,
+          amount: seeded.amount,
+          conditions: seeded.conditions,
+          reason: "Amended in the demo.",
+          decidedBy: seeded.decidedBy,
+          decisionDate: seeded.decisionDate,
+          changeExplanation: "Checking that the seeded date is accepted.",
+        },
+      },
+    ),
+  ).toMatchObject({ status: "ok", recorded: true });
   const detail = await getFundingApplicationPage(
     db,
     { userId: "alice" },

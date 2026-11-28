@@ -4,6 +4,7 @@ import { encodeApplicationMaterial } from "@merit/applications/domain";
 import { recordApplicationChange } from "@merit/applications/server/demo";
 import { seedExampleContacts } from "@merit/contacts/server/demo";
 import type { Transaction } from "@merit/db";
+import { encodeDecision } from "@merit/decisions/domain";
 import { fromMinorUnits } from "@merit/money";
 import { insertAiReview } from "@merit/reviews/server/demo";
 import { encodeRound } from "@merit/rounds/domain";
@@ -12,7 +13,7 @@ import { insertPreparedRound } from "@merit/rounds/server/demo";
 import { decodeApplication, encodeRoundOverview } from "../domain/encoding";
 import { applicationRecordSchema } from "../domain/model";
 import { exampleAiReviewProvider, exampleAiReviews } from "../examples/example-ai-reviews";
-import { exampleRound } from "../examples/example-data";
+import { exampleDecisions, exampleRound } from "../examples/example-data";
 import { getExampleRound } from "../examples/get-example-round";
 import { insertExampleApplication, deleteDemoFunding } from "./persistence/commands/demo";
 
@@ -79,6 +80,32 @@ const seedPreparedAiReview = async (
   });
 };
 
+const seededContent = (
+  application: ReturnType<typeof encodeRoundOverview>["applications"][number],
+  ids: Awaited<ReturnType<typeof fundingExampleIds>>,
+  contactIds: Awaited<ReturnType<typeof seedExampleContacts>>,
+) => {
+  const reviews = structuredClone(application.reviews);
+  for (const review of [...reviews.requests, ...reviews.assessments]) {
+    const contactId = contactIds.get(review.contactId);
+    if (!contactId) {
+      throw new Error(`Missing seeded contact for review: ${review.contactId}`);
+    }
+    review.contactId = contactId;
+  }
+
+  const seededApplicationId = ids.applications[application.id];
+  if (!seededApplicationId) {
+    throw new Error(`Missing seeded ID for application: ${application.id}`);
+  }
+  return {
+    ...application,
+    id: seededApplicationId,
+    reviews,
+    contactId: application.contactId ? (contactIds.get(application.contactId) ?? null) : null,
+  };
+};
+
 const seedExampleApplication = async (
   db: Transaction,
   options: {
@@ -94,25 +121,9 @@ const seedExampleApplication = async (
 ) => {
   const { organizationId, roundId, authorUserId, position, example, application, ids, contactIds } =
     options;
-  const reviews = structuredClone(application.reviews);
-  for (const review of [...reviews.requests, ...reviews.assessments]) {
-    const contactId = contactIds.get(review.contactId);
-    if (!contactId) {
-      throw new Error(`Missing seeded contact for review: ${review.contactId}`);
-    }
-    review.contactId = contactId;
-  }
-
-  const seededApplicationId = ids.applications[application.id];
-  if (!seededApplicationId) {
-    throw new Error(`Missing seeded ID for application: ${application.id}`);
-  }
-  const content = {
-    ...application,
-    id: seededApplicationId,
-    reviews,
-    contactId: application.contactId ? (contactIds.get(application.contactId) ?? null) : null,
-  };
+  const content = seededContent(application, ids, contactIds);
+  const exampleDecision = exampleDecisions[application.id];
+  const seededAt = new Date();
   const earlierMaterial =
     application.id === "A3" ? originalWorkshopMaterial(example, content) : undefined;
   const saved = await insertExampleApplication(db, {
@@ -120,6 +131,13 @@ const seedExampleApplication = async (
     roundId,
     position,
     snapshot: content,
+    decision:
+      exampleDecision &&
+      encodeDecision({
+        ...exampleDecision,
+        decisionDate: seededAt.toISOString().slice(0, 10),
+        recordedAt: seededAt.toISOString(),
+      }),
     revision: earlierMaterial ? 1 : 0,
     recordedByUserId: authorUserId,
     earlierMaterial: earlierMaterial

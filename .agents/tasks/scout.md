@@ -5,7 +5,9 @@ Read-only scheduled audit of Merit across seven specialized lenses. This task
 deletes `verifications/*.md` files. Its only outputs are concise, decision-ready
 proposal issues created through
 [proposal.ts](../../tooling/agents/proposal.ts) and cursor updates on pinned
-state issue `#219` via [scout.ts](../../tooling/agents/scout.ts).
+state issue `#219` via [scout.ts](../../tooling/agents/scout.ts). The one Git
+change it makes is switching a clean checkout to `scanTipSha` when
+`scout.ts context` asks for it.
 
 Start with [AGENTS.md](../../AGENTS.md) and the guide for the lens you are
 running.
@@ -29,6 +31,11 @@ scheduled runs; picks the most overdue lens from `#219` cursors) or an explicit
      `architecture`/`simplification`), `unreadVerifications`, `openIssues`, and
      `wontfixIssues` (including each maintainer rejection `reason`, when
      present).
+   - A ready run reads the working tree as `origin/main`, so `scout.ts context`
+     fails when the checkout is at another commit, has changed or untracked
+     paths, or hides tracked paths from `git status` (a sparse checkout). On a clean checkout, run the `git switch --detach <scanTipSha>` the
+     error names and retry. If the checkout has changes, stop and report them
+     without advancing any cursor rather than stashing or discarding them.
 2. **Respect the proposal cap:**
    While running in human-gated mode (`--tier2-only`), every proposal lands in
    `agent:proposed` (capped at 5 open issues). Leaving the cursor untouched on
@@ -307,7 +314,9 @@ Run **one** recurring scheduled task **2–3 times daily** passing `--lens auto`
 with a strong reasoning model. [scout.ts](../../tooling/agents/scout.ts)
 prioritizes high-leverage engineering lenses and selects the most overdue lens
 from `#219` cursors (~17 runs/week total), exiting `idle` if every lens is
-still fresh:
+still fresh. Each lens declares its interval, priority, rotation, telemetry, and
+verification reading in `LENS_POLICIES` in
+[lenses.ts](../../tooling/agents/scout/lenses.ts):
 
 | Lens                             | Target interval |
 | -------------------------------- | --------------- |
@@ -317,9 +326,15 @@ still fresh:
 | `verification-flakes`            | Every 5 days    |
 
 Both [scout.ts](../../tooling/agents/scout.ts) and
-[proposal.ts](../../tooling/agents/proposal.ts) use GitHub REST (`gh api`) so
-they run cleanly in Claude Code Cloud sessions using the built-in GitHub proxy
-with no custom secret. In cloud runners whose default GitHub App token lacks
-`issues:write` (such as Cursor Cloud Agents), configure a fine-grained PAT
-scoped to `dmprav/merit` with `Issues: Read and write` in the
-`MERIT_SCOUT_GH_TOKEN` secret — both scripts pick it up automatically.
+[proposal.ts](../../tooling/agents/proposal.ts) read and file issues only
+through GitHub REST (`gh api`), using the issue client in
+[github.ts](../../tooling/agents/github.ts), so they run cleanly in Claude Code
+Cloud sessions using the built-in GitHub proxy with no custom secret. In cloud
+runners whose default GitHub App token lacks `issues:write` (such as Cursor
+Cloud Agents), configure a fine-grained PAT scoped to `dmprav/merit` with
+`Issues: Read and write` in the `MERIT_SCOUT_GH_TOKEN` secret — when it is set,
+the issue client passes it to `gh` as `GH_TOKEN`; otherwise `gh` keeps the
+runner's own credentials. Create the token from an account with push access to
+the repository: GitHub silently drops the labels of a new issue filed without
+it. When `proposal.ts` reports that an issue was created without its labels,
+apply the missing labels to that issue instead of filing the proposal again.

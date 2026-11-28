@@ -1,19 +1,25 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join, relative } from "node:path";
 
 import stylelint from "stylelint";
 import { loadConfigFromFile } from "vite-plus";
 import { expect, it } from "vite-plus/test";
 import { z } from "zod";
 
-const root = fileURLToPath(new URL("../../", import.meta.url));
+import { REPO_ROOT } from "../paths.ts";
+import { typecheckTask } from "./typecheck";
+
 const lintResult = z.object({ diagnostics: z.array(z.object({ code: z.string() })) });
 
 const run = (args: string[], input?: string) => {
-  const result = spawnSync("vp", args, { cwd: root, input, encoding: "utf8", timeout: 30_000 });
+  const result = spawnSync("vp", args, {
+    cwd: REPO_ROOT,
+    input,
+    encoding: "utf8",
+    timeout: 30_000,
+  });
 
   if (result.error) {
     throw result.error;
@@ -28,7 +34,7 @@ const withSource = (
   check: (path: string) => void,
   area = "interfaces/product/src",
 ) => {
-  const directory = mkdtempSync(join(root, area, "checks-fixture-"));
+  const directory = mkdtempSync(join(REPO_ROOT, area, "checks-fixture-"));
   const path = join(directory, name);
 
   try {
@@ -38,6 +44,36 @@ const withSource = (
     rmSync(directory, { recursive: true, force: true });
   }
 };
+
+it("rechecks imported workspace types after a cached success", () => {
+  const task = ["run", "@merit/recommendations-ai#typecheck"];
+  withSource(
+    "shared.ts",
+    "export type Shared = string;",
+    (provider) => {
+      withSource(
+        "consumer.ts",
+        "",
+        (consumer) => {
+          const specifier = relative(dirname(consumer), provider);
+          writeFileSync(
+            consumer,
+            `import type { Shared } from "${specifier}"; export const value: Shared = "ok";`,
+          );
+          const baseline = run(task);
+          expect(baseline.status, baseline.stdout + baseline.stderr).toBe(0);
+
+          writeFileSync(provider, "export type Shared = number;");
+          const result = run(task);
+          expect(result.status, result.stdout + result.stderr).toBe(1);
+          expect(result.stdout + result.stderr).toContain("TS2322");
+        },
+        "capabilities/recommendations/ai/src",
+      );
+    },
+    "foundation/money/src",
+  );
+}, 30_000);
 
 it("separates exported and local arrow functions and types without separating related constants", () => {
   withSource(
@@ -111,12 +147,25 @@ it.each([
   30_000,
 );
 
+it("enforces the code-line limit in repository tooling", () => {
+  withSource(
+    "length.ts",
+    countedFunction(81),
+    (path) => {
+      const result = run(["lint", "--format", "json", path]);
+      expect(
+        lintResult.parse(JSON.parse(result.stdout)).diagnostics.map(({ code }) => code),
+      ).toContain("eslint(max-lines-per-function)");
+    },
+    "tooling/verification",
+  );
+}, 30_000);
+
 it.each([
   ["length.test.ts", "interfaces/product/src"],
   ["length.stories.tsx", "interfaces/product/src"],
   ["length.story-fixtures.tsx", "interfaces/product/src"],
   ["length.ts", "app/tests"],
-  ["length.ts", "tooling/verification"],
 ])(
   "excludes function length for %s in %s",
   (name, area) => {
@@ -307,7 +356,7 @@ it.each([
   async (name, packageDirectory, sourceAreas) => {
     const loaded = await loadConfigFromFile(
       { command: "serve", mode: "test" },
-      join(root, packageDirectory, "vite.config.ts"),
+      join(REPO_ROOT, packageDirectory, "vite.config.ts"),
     );
     // Batched probes must not mask a lowered threshold with more uncovered code.
     expect(loaded?.config.test?.coverage?.thresholds).toEqual({
@@ -322,7 +371,9 @@ it.each([
 
     try {
       const sources = sourceAreas.map((sourceArea) => {
-        const directory = mkdtempSync(join(root, packageDirectory, sourceArea, "coverage-probe-"));
+        const directory = mkdtempSync(
+          join(REPO_ROOT, packageDirectory, sourceArea, "coverage-probe-"),
+        );
         directories.push(directory);
         const source = join(directory, "unimported.ts");
         writeFileSync(
@@ -371,7 +422,7 @@ it.each([
 );
 
 it("adds CSS rule and media spacing and catches invalid CSS without rejecting CSS Modules", async () => {
-  const configFile = join(root, "stylelint.config.mjs");
+  const configFile = join(REPO_ROOT, "stylelint.config.mjs");
   const code =
     ".one { color: var(--foreground); }\n.two { color: var(--muted); }\n@media (width > 600px) {\n  :global(.control) { color: var(--action); }\n}\n";
   const fixed = await stylelint.lint({
@@ -409,7 +460,7 @@ it("adds CSS rule and media spacing and catches invalid CSS without rejecting CS
 });
 
 it("requires colors from tokens outside the token file", async () => {
-  const configFile = join(root, "stylelint.config.mjs");
+  const configFile = join(REPO_ROOT, "stylelint.config.mjs");
   const code =
     ".one { color: #fff; background: rgb(0 0 0); border-color: white; }\n\n.two { outline-color: color-mix(in srgb, var(--foreground) 10%, transparent); }\n\n.three { caret-color: color(srgb 1 0 0); }\n";
 
@@ -424,19 +475,19 @@ it("requires colors from tokens outside the token file", async () => {
     "function-disallowed-list",
     "function-disallowed-list",
   ]);
-  expect(await rules(join(root, "foundation/ui/src/foundations/tokens.css"))).toEqual([]);
+  expect(await rules(join(REPO_ROOT, "foundation/ui/src/foundations/tokens.css"))).toEqual([]);
 });
 
 it("keeps type, color, and surfaces out of feature styles", async () => {
-  const configFile = join(root, "stylelint.config.mjs");
+  const configFile = join(REPO_ROOT, "stylelint.config.mjs");
   // Earlier feature styles restyled shared text, links, and buttons this way.
   const code =
     ".meta { display: grid; gap: var(--space-2); color: var(--muted); font-size: var(--text-caption); }\n\n.panel { border-top: 1px solid var(--border); }\n\n.actions > button { justify-self: start; }\n\n.choice[data-variant] { width: 100%; }\n";
 
   const rules = async (path: string) =>
-    (await stylelint.lint({ code, codeFilename: join(root, path), configFile })).results.flatMap(
-      ({ warnings }) => warnings.map(({ rule }) => rule),
-    );
+    (
+      await stylelint.lint({ code, codeFilename: join(REPO_ROOT, path), configFile })
+    ).results.flatMap(({ warnings }) => warnings.map(({ rule }) => rule));
 
   expect((await rules("capabilities/reviews/web/src/views/probe.module.css")).toSorted()).toEqual([
     "property-disallowed-list",
@@ -448,6 +499,98 @@ it("keeps type, color, and surfaces out of feature styles", async () => {
   expect(await rules("interfaces/product/src/features/probe.stories.module.css")).toEqual([]);
   expect(await rules("interfaces/site/src/features/probe.module.css")).toEqual([]);
   expect(await rules("foundation/ui/src/components/probe.module.css")).toEqual([]);
+});
+
+it("keeps the base rules in examples, development tools, and third-party appearance files", async () => {
+  const configFile = join(REPO_ROOT, "stylelint.config.mjs");
+  const code = ".one { font-weight: 700; color: var(--muted); }\n";
+
+  const rules = async (path: string) =>
+    (
+      await stylelint.lint({ code, codeFilename: join(REPO_ROOT, path), configFile })
+    ).results.flatMap(({ warnings }) => warnings.map(({ rule }) => rule));
+
+  for (const path of [
+    "interfaces/product/src/features/probe.stories.module.css",
+    "app/src/development/probe.module.css",
+    "app/src/auth/probe.clerk.module.css",
+  ]) {
+    expect(await rules(path)).toEqual(["declaration-property-value-allowed-list"]);
+  }
+});
+
+it("requires tokens for spacing, corners, motion, layers, and icon sizes in shared UI", async () => {
+  const configFile = join(REPO_ROOT, "stylelint.config.mjs");
+  const flagged = [
+    ".a { padding: 6px; }",
+    ".a { margin-inline: 0 -0.5rem; }",
+    ".a { gap: calc(var(--space-2) + 3px); }",
+    ".a { inset-block-start: 10px; }",
+    ".a { border-radius: 6px; }",
+    ".a { border-start-start-radius: 0.25rem; }",
+    ".a { transition: opacity 160ms; }",
+    ".a { animation-duration: 1s; }",
+    ".a { z-index: 40; }",
+    ".a svg { width: 14px; }",
+    ".icon { height: 1rem; }",
+    ".a > svg:not(.b) { width: 14px; }",
+    ".a :is(svg, .b) { width: 14px; }",
+    ".icon { &:hover { width: 14px; } }",
+    ".a { & svg { height: 1rem; } }",
+    ".icon { @media (pointer: coarse) { width: 14px; } }",
+    "svg { min-width: 14px; max-inline-size: 1rem; }",
+    ".icon { --icon-size-small: 14px; width: var(--icon-size-small); }",
+    ".a { --icon-size: 1rem; }",
+    ".a { --gap: 6px; gap: var(--gap); }",
+    ".a { --local-radius: 7px; }",
+    ".a { --d: 200ms; }",
+    ".a { --enter-duration: 200ms; }",
+  ];
+  const allowed = [
+    ".a { padding: 0 var(--space-2); margin: auto; gap: calc(var(--space-2) * 2); }",
+    ".a { padding: 2%; inset-inline: clamp(var(--space-2), 5vw, var(--space-4)); }",
+    ".a { border-bottom: 1px solid var(--border); inset-block-end: -1px; }",
+    ".a { border-radius: var(--badge-radius) 0 50% 999px; }",
+    ".a { border-radius: calc(var(--control-radius) - 2px); }",
+    ".a { transition: opacity var(--motion-fast); animation-duration: var(--motion-spin); }",
+    ".a { z-index: var(--z-modal); }",
+    ".a { z-index: 2; }",
+    ".a svg { width: var(--icon-size); height: var(--icon-size-small); }",
+    ".box { width: 14px; }",
+    ".button:has(svg) { width: 100%; }",
+    ".icon + .label { width: 10rem; }",
+    ".icon { & + .label { width: 10rem; } }",
+    ".icon { &:hover { width: var(--icon-size); } }",
+    "svg { min-width: var(--icon-size-small); max-block-size: var(--icon-size); }",
+    ".a { --icon-size: var(--icon-size-small); }",
+    ".box { min-width: 10rem; }",
+    '.a[title="svg icon"] { width: 14px; }',
+    ".a { --page-gutter: var(--space-gutter); --card-radius: var(--control-radius); }",
+    ".a { --enter-duration: var(--motion-fast); --pane-inset: var(--space-4); }",
+  ];
+
+  const rules = async (code: string, path: string) =>
+    (
+      await stylelint.lint({ code, codeFilename: join(REPO_ROOT, path), configFile })
+    ).results.flatMap(({ warnings }) =>
+      warnings.map(({ rule }) => rule).filter((rule) => rule !== "no-duplicate-selectors"),
+    );
+
+  const component = "foundation/ui/src/components/probe/probe.module.css";
+
+  for (const code of flagged) {
+    expect(await rules(code, component), code).not.toEqual([]);
+  }
+  for (const code of allowed) {
+    expect(await rules(code, component), code).toEqual([]);
+  }
+  expect(
+    await rules(
+      flagged.join("\n\n"),
+      "foundation/ui/src/components/probe/probe.stories.module.css",
+    ),
+  ).toEqual([]);
+  expect(await rules(flagged.join("\n\n"), "foundation/ui/src/foundations/tokens.css")).toEqual([]);
 });
 
 it.each([
@@ -463,11 +606,16 @@ it.each([
   async (capability) => {
     const loaded = await loadConfigFromFile(
       { command: "serve", mode: "test" },
-      join(root, `capabilities/${capability}/web/vite.config.ts`),
+      join(REPO_ROOT, `capabilities/${capability}/web/vite.config.ts`),
     );
     const { workspaceUiSetup } = await import("../testing/web-config");
     expect(loaded?.config).toMatchObject({
-      run: { tasks: { test: "vp test", typecheck: "tsc --noEmit -p tsconfig.json" } },
+      run: {
+        tasks: {
+          test: "vp test",
+          typecheck: typecheckTask,
+        },
+      },
       test: {
         allowOnly: false,
         projects: [

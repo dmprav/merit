@@ -1,0 +1,41 @@
+<!-- @dsCard group="Patterns" height=120 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>MetaItem — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 3 },
+            h(
+              M.Inline,
+              { gap: 4 },
+              h(
+                M.MetaItem,
+                { icon: "calendar" },
+                h(M.VisuallyHidden, null, "Response requested by "),
+                h(M.CalendarDate, { value: "2027-02-14" }),
+              ),
+              h(M.MetaItem, { icon: "clock" }, "Updated 3 days ago"),
+            ),
+            h(M.Attribution, {
+              actor: "Dana Reed",
+              provenance: { interface: "web" },
+              recordedAt: "2027-01-17T11:00:00Z",
+            }),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>
