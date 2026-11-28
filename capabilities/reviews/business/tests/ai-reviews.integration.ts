@@ -7,7 +7,7 @@ import { createFundingApplication } from "@merit/applications/server";
 import { recordedEvents } from "@merit/audit/testing";
 import type { DatabaseRunner } from "@merit/db";
 import { actor, workspaceSlug } from "@merit/organizations/testing/workspace";
-import type { AiReviewerRequest } from "@merit/reviews/domain";
+import { aiReviewLimits, type AiReviewerRequest } from "@merit/reviews/domain";
 import { readApplicationAiReviews } from "@merit/reviews/server";
 
 import {
@@ -919,35 +919,47 @@ it("stamps a run when it is inserted after the case lock, so history order is co
 });
 
 it(
-  "saves a review at the most the output allows, in batches within one transaction",
+  "saves a review at the whole-review caps, in batches within one transaction, well inside the statement timeout",
   { timeout: 120_000 },
   async ({ aiReviewSetup, database }) => {
     const { run, rows } = await aiReviewSetup({ roundCriteria: manyCriteria(100) });
     const quote = "Repair workshops with a free venue";
+    const { itemsPerReview, citationsPerReview, itemsPerList } = aiReviewLimits;
+    const sections = 100;
+    // 100 sections of 1 claim (6 citations) and 3 gaps: exactly 400 items and 600 citations.
+    const claim = {
+      text: "Claim",
+      citations: Array.from({ length: citationsPerReview / sections }, () => ({
+        source: questionId,
+        quote,
+      })),
+    };
+    const gaps = Array.from(
+      { length: itemsPerReview / sections - 1 },
+      (_, index) => `Gap ${index}`,
+    );
+    const list = Array.from({ length: itemsPerList }, (_, index) => `Question ${index}`);
 
-    const claim = (index: number) => ({
-      text: `Claim ${index}`,
-      citations: Array.from({ length: 10 }, () => ({ source: questionId, quote })),
-    });
-
-    const list = Array.from({ length: 20 }, (_, index) => `Point ${index}`);
-
+    const started = performance.now();
     const result = await run(
       stub((request) => ({
         ...validReply(request),
         criteria: request.input.criteria.map(({ id }) => ({
           criterionId: id,
-          claims: Array.from({ length: 20 }, (_, index) => claim(index)),
-          gaps: list,
-          strengths: list,
-          weaknesses: list,
-          concerns: list,
+          claims: [claim],
+          gaps,
+          strengths: [],
+          weaknesses: [],
+          concerns: [],
         })),
         questions: list,
       })).reviewer,
     );
+    const elapsed = performance.now() - started;
 
     assert(result.status === "ok");
+    // The statement timeout is 10 s; the largest reply a provider can return saves in a fraction.
+    expect(elapsed).toBeLessThan(3000);
     expect(await rows()).toBe(1);
     const counts = await database.client.query<Record<string, string>>(
       `SELECT (SELECT count(*) FROM ai_review_sections) AS sections,
@@ -955,14 +967,13 @@ it(
             (SELECT count(*) FROM ai_review_citations) AS citations,
             (SELECT count(*) FROM ai_review_questions) AS questions`,
     );
-    // 100 sections of 20 claims with 10 citations each: 140,000 citation parameters in one statement.
     expect(counts.rows[0]).toEqual({
       sections: "100",
-      items: "10000",
-      citations: "20000",
+      items: String(itemsPerReview),
+      citations: String(citationsPerReview),
       questions: "20",
     });
     expect(result.review.criteria).toHaveLength(100);
-    expect(result.review.criteria[99]?.claims[19]?.citations).toHaveLength(10);
+    expect(result.review.criteria[99]?.claims[0]?.citations).toHaveLength(6);
   },
 );

@@ -1,4 +1,4 @@
-import { expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
@@ -8,6 +8,7 @@ import {
   aiReviewAvailability,
   aiReviewEntry,
   aiReviewInput,
+  aiReviewLimits,
   aiReviewPrior,
   aiReviewOutputSchema,
   verifyAiReviewOutput,
@@ -328,6 +329,64 @@ it("bounds list items, claims, citations and quotes", () => {
     }),
   ).toBe(false);
   expect(overlong({ gaps: Array.from({ length: 20 }, () => "Gap") })).toBe(true);
+});
+
+describe("whole-review caps", () => {
+  const claimWith = (citations: number) => ({
+    text: "Claim",
+    citations: Array.from({ length: citations }, () => ({ source: "title", quote: "Workshop" })),
+  });
+
+  const sections = (change: object, count = 1) =>
+    Array.from({ length: count }, (_, index) => ({
+      ...section(index === 0 ? first : second),
+      claims: [],
+      ...change,
+    }));
+
+  const accepts = (criteriaSections: object[]) =>
+    aiReviewOutputSchema.safeParse({ ...output, criteria: criteriaSections }).success;
+
+  it("accepts a reply at both caps and rejects one item or citation over", () => {
+    const items = aiReviewLimits.itemsPerReview;
+
+    const gaps = (count: number) => Array.from({ length: count }, () => "Gap");
+
+    // 20 sections of 20 gaps fill the item cap exactly; claims add to the same total.
+    expect(accepts(sections({ gaps: gaps(20) }, items / 20))).toBe(true);
+    expect(
+      accepts([...sections({ gaps: gaps(20) }, items / 20), ...sections({ gaps: gaps(1) })]),
+    ).toBe(false);
+    expect(accepts(sections({ gaps: gaps(19), claims: [claimWith(1)] }, items / 20))).toBe(true);
+    expect(
+      accepts(sections({ gaps: gaps(19), claims: [claimWith(1), claimWith(1)] }, items / 20)),
+    ).toBe(false);
+  });
+
+  it("caps citations across all claims", () => {
+    const citations = aiReviewLimits.citationsPerReview;
+
+    const perSection = (count: number) => ({
+      claims: Array.from({ length: count / 10 }, () => claimWith(10)),
+    });
+
+    // 3 sections of 20 claims x 10 citations would be 600; stay under the item cap.
+    expect(accepts(sections(perSection(200), citations / 200))).toBe(true);
+    expect(
+      accepts([
+        ...sections(perSection(200), citations / 200),
+        ...sections({ claims: [claimWith(1)] }),
+      ]),
+    ).toBe(false);
+  });
+
+  it("fails a reply over a cap as invalid output", () => {
+    const over = sections({ gaps: Array.from({ length: 20 }, () => "Gap") }, 21);
+    expect(verifyAiReviewOutput(input, { ...output, criteria: over })).toEqual({
+      ok: false,
+      error: "invalid_output",
+    });
+  });
 });
 
 it("treats a funding position as a positive amount and deferral as zero", () => {

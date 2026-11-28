@@ -70,6 +70,12 @@ limit. The business package validates the reply with Zod, and every cited quote
 must appear in the field it names, before anything is saved. Any provider error,
 timeout, malformed reply or unverifiable citation saves nothing.
 
+The reply is capped at 8,192 completion tokens, so besides the per-list limits (20
+items per list, 10 citations per claim) a review holds at most 400 items (claims,
+gaps, strengths, weaknesses and concerns together) and 600 citations in all. A
+reply over either cap is invalid and saves nothing. The instructions and the
+provider schema state both caps.
+
 The assistant offers `run_ai_review` as a write. Its preview names the application
 and criteria versions, the provider and model, the effect "Sends this application's current
 material and the round's criteria to the provider", and "Saves a new AI review".

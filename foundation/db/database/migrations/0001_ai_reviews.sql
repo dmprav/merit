@@ -140,8 +140,8 @@ BEGIN
   LOOP
     predicate := format('(SELECT merit_scope()->>''kind'') = ''workspace''
       AND organization_id IN (SELECT merit_workspace_ids())
-      AND EXISTS (SELECT 1 FROM memberships m WHERE m.organization_id = %I.organization_id
-        AND m.user_id = (SELECT merit_scope()->>''userId'') AND m.role = ''program_manager'')', relation);
+      AND organization_id IN (SELECT m.organization_id FROM memberships m
+        WHERE m.user_id = (SELECT merit_scope()->>''userId'') AND m.role = ''program_manager'')');
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', relation);
     EXECUTE format('CREATE POLICY manager_read ON %I FOR SELECT USING (%s)', relation, predicate);
     EXECUTE format('CREATE POLICY manager_write ON %I FOR ALL USING (%s)', relation, predicate);
