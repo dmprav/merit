@@ -13,6 +13,7 @@ import {
   type AffectedStoryFiles,
   type PrScreenshot,
 } from "./pr-screenshots.ts";
+import { renderSchemaDelta } from "./schema-delta.ts";
 import {
   EXEMPT_AUTHORS,
   extractRecordSections,
@@ -44,13 +45,6 @@ export type DiffSizeSummary = {
   prod: DiffSizeBucket;
   tests: DiffSizeBucket;
   docsOther: DiffSizeBucket;
-};
-
-export type SqlDdlChange = {
-  action: "added" | "removed";
-  kind: "table" | "index" | "function" | "policy" | "trigger" | "grant";
-  summary: string;
-  securityDefiner: boolean;
 };
 
 export type AddedDiffLine = {
@@ -206,213 +200,6 @@ export const summarizeDiffSize = (entries: readonly NumstatEntry[]): DiffSizeSum
   return summary;
 };
 
-type SqlPiece = { kind: "literal" | "comment" | "char"; text: string };
-
-/** End of the single-quoted literal opening at `index`, past doubled quotes; unterminated runs to the end. */
-const singleQuotedEnd = (sql: string, index: number): number => {
-  let end = index + 1;
-  while (end < sql.length) {
-    if (sql[end] === "'" && sql[end + 1] === "'") {
-      end += 2;
-    } else if (sql[end] === "'") {
-      return end + 1;
-    } else {
-      end += 1;
-    }
-  }
-  return sql.length;
-};
-
-/** End of a single-quoted or dollar-quoted (`$$`, `$tag$`) literal opening at `index`, or -1. */
-const quotedLiteralEnd = (sql: string, index: number): number => {
-  if (sql[index] === "'") {
-    return singleQuotedEnd(sql, index);
-  }
-  const tag = sql[index] === "$" ? /^\$[A-Za-z_0-9]*\$/u.exec(sql.slice(index))?.[0] : undefined;
-  if (!tag) {
-    return -1;
-  }
-  const close = sql.indexOf(tag, index + tag.length);
-  return close === -1 ? sql.length : close + tag.length;
-};
-
-/** End of a `--` or `/* *\/` comment opening at `index`, or -1; an unterminated comment ends the text. */
-const commentEnd = (sql: string, index: number): number => {
-  if (sql.startsWith("--", index)) {
-    const newline = sql.indexOf("\n", index);
-    return newline === -1 ? sql.length : newline + 1;
-  }
-  if (sql.startsWith("/*", index)) {
-    const end = sql.indexOf("*/", index + 2);
-    return end === -1 ? sql.length : end + 2;
-  }
-  return -1;
-};
-
-/** Breaks SQL into quoted literals, optionally comments, and single characters of code. */
-const readSqlPieces = (sql: string, { comments }: { comments: boolean }): SqlPiece[] => {
-  const pieces: SqlPiece[] = [];
-  let index = 0;
-  while (index < sql.length) {
-    const commentStop = comments ? commentEnd(sql, index) : -1;
-    const literalStop = commentStop === -1 ? quotedLiteralEnd(sql, index) : -1;
-    const end = Math.max(commentStop, literalStop, index + 1);
-    const kind = commentStop !== -1 ? "comment" : literalStop !== -1 ? "literal" : "char";
-    pieces.push({ kind, text: sql.slice(index, end) });
-    index = end;
-  }
-  return pieces;
-};
-
-const pushTrimmed = (statements: string[], statement: string) => {
-  const trimmed = statement.trim();
-  if (trimmed) {
-    statements.push(trimmed);
-  }
-};
-
-/**
- * Splits SQL text into top-level statements while respecting comments, single-quoted
- * strings, and PostgreSQL dollar-quoted function bodies (`$$` or `$tag$`).
- */
-export const splitSqlStatements = (sqlText: string): string[] => {
-  const statements: string[] = [];
-  let current = "";
-  for (const piece of readSqlPieces(sqlText, { comments: true })) {
-    if (piece.kind === "char" && piece.text === ";") {
-      pushTrimmed(statements, current);
-      current = "";
-    } else if (piece.kind !== "comment") {
-      current += piece.text;
-    }
-  }
-  pushTrimmed(statements, current);
-  return statements;
-};
-
-const normalizeSqlSummary = (statement: string) => statement.replace(/\s+/gu, " ").trim();
-
-/**
- * Normalizes whitespace only outside PostgreSQL single-quoted and dollar-quoted
- * literals so literal-only changes (e.g. `'a  b'` vs `'a b'`) stay detectable.
- */
-const normalizeSqlForComparison = (statement: string): string => {
-  let out = "";
-  let pendingSpace = false;
-  for (const piece of readSqlPieces(statement, { comments: false })) {
-    if (piece.kind === "char" && /\s/u.test(piece.text)) {
-      pendingSpace = out.length > 0;
-      continue;
-    }
-    out += pendingSpace ? ` ${piece.text}` : piece.text;
-    pendingSpace = false;
-  }
-  return out.trim();
-};
-
-const unquote = (name = "") => name.replaceAll('"', "");
-
-const onClause = (target: string | undefined) => (target ? ` ON ${unquote(target)}` : "");
-
-/** DDL statement shapes the packet reports, tried in order; the first match names the change. */
-const DDL_MATCHERS: ReadonlyArray<{
-  kind: SqlDdlChange["kind"];
-  pattern: RegExp;
-  summarize: (match: RegExpExecArray) => string;
-}> = [
-  {
-    kind: "table",
-    pattern: /^(CREATE|ALTER|DROP)\s+TABLE\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?([^\s(]+)/iu,
-    summarize: ([, verb = "", name]) => `${verb.toUpperCase()} TABLE ${unquote(name)}`,
-  },
-  {
-    kind: "index",
-    pattern:
-      /^(CREATE(?:\s+UNIQUE)?|DROP)\s+INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+(?:NOT\s+)?EXISTS\s+)?([^\s]+)(?:\s+ON\s+([^\s(]+))?/iu,
-    summarize: ([, verb = "", name, table]) =>
-      `${verb.toUpperCase()} INDEX ${unquote(name)}${onClause(table)}`,
-  },
-  {
-    kind: "function",
-    pattern:
-      /^(CREATE(?:\s+OR\s+REPLACE)?|DROP)\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?([^\s(]+\([^)]*\))/iu,
-    summarize: ([, verb = "", signature]) => `${verb.toUpperCase()} FUNCTION ${unquote(signature)}`,
-  },
-  {
-    kind: "policy",
-    pattern: /^(CREATE|ALTER|DROP)\s+POLICY\s+(?:IF\s+EXISTS\s+)?([^\s]+)\s+ON\s+([^\s(]+)/iu,
-    summarize: ([, verb = "", name, table]) =>
-      `${verb.toUpperCase()} POLICY ${unquote(name)} ON ${unquote(table)}`,
-  },
-  {
-    kind: "trigger",
-    pattern:
-      /^(CREATE|DROP)\s+TRIGGER\s+(?:IF\s+EXISTS\s+)?([^\s]+)(?:[\s\S]*?\bON\s+([^\s(]+))?/iu,
-    summarize: ([, verb = "", name, table]) =>
-      `${verb.toUpperCase()} TRIGGER ${unquote(name)}${onClause(table)}`,
-  },
-  {
-    kind: "grant",
-    pattern: /^(GRANT|REVOKE)\s+(.+)$/iu,
-    summarize: ([, verb = "", detail = ""]) =>
-      `${verb.toUpperCase()} ${detail.length > 100 ? `${detail.slice(0, 97)}...` : detail}`,
-  },
-];
-
-const classifySqlStatement = (
-  statement: string,
-  action: "added" | "removed",
-): SqlDdlChange | null => {
-  const flat = normalizeSqlSummary(statement);
-  for (const { kind, pattern, summarize } of DDL_MATCHERS) {
-    const match = pattern.exec(flat);
-    if (match) {
-      const securityDefiner = kind === "function" && /\bSECURITY\s+DEFINER\b/iu.test(flat);
-      return { action, kind, summary: summarize(match), securityDefiner };
-    }
-  }
-  return null;
-};
-
-/** Counts statements by their comparison form, so repeated statements match one for one. */
-const countByComparisonKey = (statements: readonly string[]): Map<string, number> => {
-  const counts = new Map<string, number>();
-  for (const statement of statements) {
-    const key = normalizeSqlForComparison(statement);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return counts;
-};
-
-/** Classifies the statements that have no remaining equal statement on the other side. */
-const unmatchedDdl = (
-  statements: readonly string[],
-  counterpart: readonly string[],
-  action: "added" | "removed",
-): SqlDdlChange[] => {
-  const remaining = countByComparisonKey(counterpart);
-  const changes: SqlDdlChange[] = [];
-  for (const statement of statements) {
-    const key = normalizeSqlForComparison(statement);
-    const count = remaining.get(key) ?? 0;
-    remaining.set(key, count - 1);
-    const classified = count > 0 ? null : classifySqlStatement(statement, action);
-    if (classified) {
-      changes.push(classified);
-    }
-  }
-  return changes;
-};
-
-/**
- * Compares combined base vs. head SQL so squashed migrations report only actual DDL changes.
- */
-export const extractSqlDdlDelta = (baseSql: string, headSql: string): SqlDdlChange[] => {
-  const base = splitSqlStatements(baseSql);
-  const head = splitSqlStatements(headSql);
-  return [...unmatchedDdl(head, base, "added"), ...unmatchedDdl(base, head, "removed")];
-};
-
 const SUPPRESSION_PATTERNS: ReadonlyArray<{ label: string; regex: RegExp }> = [
   { label: "oxlint-disable", regex: /\boxlint-disable\b/u },
   { label: "eslint-disable", regex: /\beslint-disable\b/u },
@@ -526,29 +313,12 @@ const formatSizeBucket = (label: string, bucket: DiffSizeBucket) =>
 
 const MIGRATIONS_DIRECTORY = "foundation/db/database/migrations/";
 
-const MAX_DDL_LINES = 20;
-
 /** Lists changed SQL migrations, or nothing when no `.sql` migration changed. */
 const migrationLines = (dbFiles: readonly ChangedFile[]): string[] => {
   const summary = dbFiles
     .filter((file) => file.path.startsWith(MIGRATIONS_DIRECTORY) && file.path.endsWith(".sql"))
     .map((file) => `${file.status} \`${file.path.replace(MIGRATIONS_DIRECTORY, "")}\``);
   return summary.length > 0 ? [`- **Migrations:** ${summary.join(", ")}`] : [];
-};
-
-const ddlLines = (ddlChanges: readonly SqlDdlChange[]): string[] => {
-  if (ddlChanges.length === 0) {
-    return ["- No net SQL DDL changes detected."];
-  }
-  const lines = ddlChanges.slice(0, MAX_DDL_LINES).map((change) => {
-    const prefix = change.action === "added" ? "+" : "-";
-    const badge = change.securityDefiner ? " **[SECURITY DEFINER]**" : "";
-    return `- \`${prefix}\` \`${change.summary}\`${badge}`;
-  });
-  if (ddlChanges.length > MAX_DDL_LINES) {
-    lines.push(`- _+${ddlChanges.length - MAX_DDL_LINES} more DDL statements_`);
-  }
-  return lines;
 };
 
 const renderDbSection = (input: ReviewPacketInput): string[] => {
@@ -558,10 +328,6 @@ const renderDbSection = (input: ReviewPacketInput): string[] => {
   }
 
   const schemaTsFiles = dbFiles.filter((file) => file.path.endsWith(".ts"));
-  const ddlChanges = [
-    ...extractSqlDdlDelta(input.baseMigrationSql, input.headMigrationSql),
-    ...extractSqlDdlDelta(input.baseRuntimeGrantsSql ?? "", input.headRuntimeGrantsSql ?? ""),
-  ];
 
   const lines = ["### DB & Schema Delta", ...migrationLines(dbFiles)];
   if (schemaTsFiles.length > 0) {
@@ -569,7 +335,13 @@ const renderDbSection = (input: ReviewPacketInput): string[] => {
       `- **Schema modules:** ${formatCappedList([...new Set(schemaTsFiles.map((f) => f.path))].sort())}`,
     );
   }
-  lines.push(...ddlLines(ddlChanges));
+  // Runtime grants join the migrations, so a grant moving between them is no change.
+  lines.push(
+    ...renderSchemaDelta({
+      baseSql: `${input.baseMigrationSql};\n${input.baseRuntimeGrantsSql ?? ""}`,
+      headSql: `${input.headMigrationSql};\n${input.headRuntimeGrantsSql ?? ""}`,
+    }),
+  );
   return lines;
 };
 

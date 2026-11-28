@@ -129,6 +129,17 @@ its contract, with the mechanism's summary. When it finds nothing, it posts no
 comment, but it still replaces an earlier revision's comment so stale findings do
 not remain.
 
+The packet's schema section comes from
+[`schema-delta.ts`](../../tooling/verification/schema-delta.ts), which compares
+the combined migrations and runtime grants at the base and head, so squashed
+migrations report only their net change. Access changes come first and are never
+capped: row-level security, policies, security-definer functions, grants
+regrouped into the privileges that changed, and `DO` blocks with the SQL they
+execute, since a migration can create policies through dynamic SQL. Each table
+then gets one line counting its changed columns, constraints, indexes, and
+triggers. Statements the summary does not recognize, such as a data backfill, are
+listed rather than dropped.
+
 `pr-screenshots.ts select` chooses stories from the import graph in the
 `preview-stats.json` that the Storybook `build` task writes beside `index.json`.
 A story file is affected when it changed or imports a changed module, however
