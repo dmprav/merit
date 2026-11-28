@@ -137,7 +137,9 @@ policy also covers types, re-exports, and dynamic imports with known sources, an
 applies to unclassified server entries and newly added capabilities as well as the
 structured packages. Browser-safe dependencies retain their existing rules.
 
-Current integrations have distinct responsibilities:
+The table lists production consumers. Composition tests can also import public
+server entries to exercise behavior across capabilities, including the assistant
+store in the assignment-access integration suite.
 
 | Consumer                              | Permitted integration                                                                                               |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -182,9 +184,10 @@ command persistence, so neither queries nor the shared scope module can import
 or re-export it. Public entry names alone cannot bypass this distinction: a scope
 export redirected to command persistence also fails the check.
 
-Application permissions are limited to the service composition in
-`app/src/server/services.server.ts`, demo composition in `app/src/server/demo.server.ts`
-and `app/src/server/demo-workspace.server.ts`, and demo cleanup in `app/scripts/clean-demos.ts`.
+Alongside the assistant and worker imports above, the application has permits for
+service composition in `app/src/server/services.server.ts`, demo composition in
+`app/src/server/demo.server.ts` and `app/src/server/demo-workspace.server.ts`,
+and demo cleanup in `app/scripts/clean-demos.ts`.
 Each location has its own permitted entries.
 Interface adapters use the services supplied by assembly and browser-safe API
 types; they cannot instantiate capability services through direct server imports.
