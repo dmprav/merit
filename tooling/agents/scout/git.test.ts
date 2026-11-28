@@ -10,6 +10,7 @@ import {
   buildCommitQueryArgs,
   createGitPort,
   parseCommitLog,
+  parseHiddenPaths,
   parseStatusPaths,
 } from "./git.ts";
 
@@ -92,7 +93,7 @@ describe("scout checkout state", () => {
     withScratchRepo((repo, git) => {
       const port = createGitPort(repo);
       const head = port.revParse("HEAD");
-      expect(port.checkoutState()).toEqual({ headSha: head, changedPaths: [] });
+      expect(port.checkoutState()).toEqual({ headSha: head, changedPaths: [], hiddenPaths: [] });
       expect(() => assertCheckoutAt(port, head)).not.toThrow();
 
       writeFileSync(join(repo, "README.md"), "# Changed\n");
@@ -102,14 +103,47 @@ describe("scout checkout state", () => {
       expect(port.checkoutState()).toEqual({
         headSha: head,
         changedPaths: ["README.md", "docs/guides/cafe.md", "scratch.ts"],
+        hiddenPaths: [],
       });
       expect(() => assertCheckoutAt(port, head)).toThrow(/3 changed or untracked paths/);
     });
   });
 
+  test("reads skip-worktree and assume-unchanged paths from ls-files tags", () => {
+    expect(parseHiddenPaths("H a.ts\0S b.ts\0h c.ts\0s d.ts\0H café.md\0")).toEqual([
+      "b.ts",
+      "c.ts",
+      "d.ts",
+    ]);
+  });
+
+  test("reports tracked paths a sparse checkout or assume-unchanged flag hides", () => {
+    withScratchRepo((repo, git) => {
+      mkdirSync(join(repo, "tooling"));
+      writeFileSync(join(repo, "tooling/x.ts"), "export {};\n");
+      git(["add", "."]);
+      git(["-c", "user.name=Scout", "-c", "user.email=scout@example.com", "commit", "-qm", "x"]);
+      git(["sparse-checkout", "set", "docs"]);
+      git(["update-index", "--assume-unchanged", "README.md"]);
+      writeFileSync(join(repo, "README.md"), "# Edited but hidden\n");
+
+      const port = createGitPort(repo);
+      const head = port.revParse("HEAD");
+      expect(port.checkoutState()).toEqual({
+        headSha: head,
+        changedPaths: [],
+        hiddenPaths: ["README.md", "tooling/x.ts"],
+      });
+      expect(() => assertCheckoutAt(port, head)).toThrow(/hides 2 tracked paths from git status/);
+    });
+  });
+
   test("refuses a clean checkout at another commit", () => {
     expect(() =>
-      assertCheckoutAt({ checkoutState: () => ({ headSha: "b", changedPaths: [] }) }, "a"),
+      assertCheckoutAt(
+        { checkoutState: () => ({ headSha: "b", changedPaths: [], hiddenPaths: [] }) },
+        "a",
+      ),
     ).toThrow('scan tip a, but the checkout is at b. Run "git switch --detach a" and retry.');
   });
 });

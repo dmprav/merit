@@ -32,8 +32,8 @@ scheduled runs; picks the most overdue lens from `#219` cursors) or an explicit
      `wontfixIssues` (including each maintainer rejection `reason`, when
      present).
    - A ready run reads the working tree as `origin/main`, so `scout.ts context`
-     fails when the checkout is at another commit or has changed or untracked
-     paths. On a clean checkout, run the `git switch --detach <scanTipSha>` the
+     fails when the checkout is at another commit, has changed or untracked
+     paths, or hides tracked paths from `git status` (a sparse checkout). On a clean checkout, run the `git switch --detach <scanTipSha>` the
      error names and retry. If the checkout has changes, stop and report them
      without advancing any cursor rather than stashing or discarding them.
 2. **Respect the proposal cap:**

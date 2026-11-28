@@ -32,7 +32,7 @@ const describeQuery = ({ state, label }: IssueListQuery) => `${state}${label ? `
 const createFakePorts = ({
   body = stateBody({}),
   openProposedCount = 0,
-  checkout = { headSha: "tip1234567", changedPaths: [] },
+  checkout = { headSha: "tip1234567", changedPaths: [], hiddenPaths: [] },
 }: {
   body?: string;
   openProposedCount?: number;
@@ -120,7 +120,7 @@ describe("building scout context", () => {
     "refuses to scan for the %s lens from a checkout at another commit",
     (lens) => {
       const { ports, calls } = createFakePorts({
-        checkout: { headSha: "other7654321", changedPaths: [] },
+        checkout: { headSha: "other7654321", changedPaths: [], hiddenPaths: [] },
       });
       expect(() => buildContext(ports, lens)).toThrow(
         'but the checkout is at other7654321. Run "git switch --detach tip1234567" and retry.',
@@ -136,16 +136,28 @@ describe("building scout context", () => {
 
   test("refuses a ready run from a checkout with changed or untracked paths", () => {
     const changedPaths = ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts", "f.ts", "g.ts"];
-    const { ports } = createFakePorts({ checkout: { headSha: "tip1234567", changedPaths } });
+    const { ports } = createFakePorts({
+      checkout: { headSha: "tip1234567", changedPaths, hiddenPaths: [] },
+    });
     expect(() => buildContext(ports, "tests")).toThrow(
       "but the checkout has 7 changed or untracked paths (a.ts, b.ts, c.ts, d.ts, e.ts, and 2 more). " +
         "Commit, stash, or remove the changed paths and retry.",
     );
   });
 
+  test("refuses a ready run from a checkout that hides tracked paths from git status", () => {
+    const { ports } = createFakePorts({
+      checkout: { headSha: "tip1234567", changedPaths: [], hiddenPaths: ["tooling/x.ts"] },
+    });
+    expect(() => buildContext(ports, "simplification")).toThrow(
+      "but the checkout hides 1 tracked paths from git status (tooling/x.ts). " +
+        'Run "git sparse-checkout disable" or clear',
+    );
+  });
+
   test("names both fixes for a dirty checkout at another commit", () => {
     const { ports } = createFakePorts({
-      checkout: { headSha: "other7654321", changedPaths: ["a.ts"] },
+      checkout: { headSha: "other7654321", changedPaths: ["a.ts"], hiddenPaths: [] },
     });
     expect(() => buildContext(ports, "docs")).toThrow(
       "is at other7654321 and has 1 changed or untracked paths (a.ts). " +

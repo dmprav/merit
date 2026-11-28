@@ -16,6 +16,11 @@ export type CheckoutState = {
   headSha: string;
   /** Staged, unstaged, and untracked paths, which fallow and the reading agent would also see. */
   changedPaths: string[];
+  /**
+   * Tracked paths flagged skip-worktree (as a sparse checkout does) or assume-unchanged, whose
+   * absence or edits `git status` does not report.
+   */
+  hiddenPaths: string[];
 };
 
 /** The repository history and tree a scout run reads. */
@@ -96,6 +101,16 @@ export const parseStatusPaths = (raw: string): string[] => {
   return paths;
 };
 
+/**
+ * Reads the paths `git ls-files -v -z` tags as hidden from `git status`: `S` marks skip-worktree, and
+ * a lowercase tag marks assume-unchanged.
+ */
+export const parseHiddenPaths = (raw: string): string[] =>
+  splitPaths(raw).flatMap((entry) => {
+    const tag = entry.charAt(0);
+    return tag === "S" || /[a-z]/.test(tag) ? [entry.slice(2)] : [];
+  });
+
 const MAX_LISTED_CHANGED_PATHS = 5;
 
 const describeChangedPaths = (paths: readonly string[]): string => {
@@ -109,10 +124,11 @@ const describeChangedPaths = (paths: readonly string[]): string => {
  * read the working tree, so anything else would describe different code from the commit reported.
  */
 export const assertCheckoutAt = (git: Pick<GitPort, "checkoutState">, scanTipSha: string): void => {
-  const { headSha, changedPaths } = git.checkoutState();
+  const { headSha, changedPaths, hiddenPaths } = git.checkoutState();
   const elsewhere = headSha !== scanTipSha;
   const dirty = changedPaths.length > 0;
-  if (!elsewhere && !dirty) {
+  const hiding = hiddenPaths.length > 0;
+  if (!elsewhere && !dirty && !hiding) {
     return;
   }
   const problems = [
@@ -122,9 +138,19 @@ export const assertCheckoutAt = (git: Pick<GitPort, "checkoutState">, scanTipSha
           `has ${changedPaths.length} changed or untracked paths (${describeChangedPaths(changedPaths)})`,
         ]
       : []),
+    ...(hiding
+      ? [
+          `hides ${hiddenPaths.length} tracked paths from git status (${describeChangedPaths(hiddenPaths)})`,
+        ]
+      : []),
   ];
   const remedies = [
     ...(dirty ? ["commit, stash, or remove the changed paths"] : []),
+    ...(hiding
+      ? [
+          'run "git sparse-checkout disable" or clear the paths\' skip-worktree and assume-unchanged flags',
+        ]
+      : []),
     ...(elsewhere ? [`run "git switch --detach ${scanTipSha}"`] : []),
   ];
   const remedy = remedies.join(", then ");
@@ -193,6 +219,7 @@ export const createGitPort = (repoRoot: string): GitPort => {
       changedPaths: parseStatusPaths(
         git(["status", "--porcelain=v1", "-z", "--untracked-files=all"]),
       ),
+      hiddenPaths: parseHiddenPaths(git(["ls-files", "-v", "-z"])),
     }),
   };
 };
