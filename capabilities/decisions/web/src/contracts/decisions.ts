@@ -1,10 +1,26 @@
+import type { IntakeApplication } from "@merit/applications/domain";
 import type {
   DecisionUpdateError,
   EncodedDecisionResult,
   RecordDecisionRequest,
 } from "@merit/decisions/api";
-import type { DecisionOutcome, DecisionInput, DecisionVersion } from "@merit/decisions/domain";
+import type {
+  decodeCommitmentContext,
+  DecisionOutcome,
+  DecisionInput,
+  DecisionVersion,
+} from "@merit/decisions/domain";
 import type { MoneyData } from "@merit/money";
+import type { Recommendation } from "@merit/recommendations/domain";
+
+export type DecisionApplication = Pick<
+  IntakeApplication,
+  "title" | "intakeStatus" | "withdrawal"
+> & {
+  managerRecommendation: Recommendation | null;
+};
+
+export type DecisionRound = ReturnType<typeof decodeCommitmentContext>;
 
 export type DecisionBaseline = {
   /** The decision revision the person saw when the draft began; 0 before any decision. */

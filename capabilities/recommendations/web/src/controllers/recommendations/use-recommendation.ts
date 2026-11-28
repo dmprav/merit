@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { ApplicationView as Application } from "@merit/grantmaking/api";
+import type { MaterialVersion } from "@merit/applications/domain";
 import type { Recommendation } from "@merit/recommendations/domain";
 
 import type {
@@ -14,7 +14,7 @@ export type RecommendationConflict = "basis_changed" | "record_changed";
 
 export const useRecommendation = (
   applicationKey: string,
-  application: Application,
+  applicationVersion: MaterialVersion,
   data: RecommendationData,
 ) => {
   const { drafts, conflicts, resolveConflict, setDraft, ready } = useRecommendationDrafts();
@@ -23,11 +23,11 @@ export const useRecommendation = (
   const draft = drafts[applicationKey];
   const baseline = {
     expectedRevision: data.revision,
-    expectedApplicationVersion: application.version,
+    expectedApplicationVersion: applicationVersion,
   };
   const storeConflict = conflicts.has(applicationKey);
   const serverConflict: RecommendationConflict | null = draft
-    ? draft.baseline.expectedApplicationVersion !== application.version
+    ? draft.baseline.expectedApplicationVersion !== applicationVersion
       ? "basis_changed"
       : draft.baseline.expectedRevision !== data.revision
         ? "record_changed"

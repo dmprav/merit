@@ -46,9 +46,7 @@ export { updateRecommendation } from "./queries/recommendation-preview";
 export {
   encodeApplicationDetail,
   decodeApplicationDetail,
-  encodeBudgetTotals,
   encodeRoundTotals,
-  totalsDataSchema,
   roundTotalsDataSchema,
 } from "./queries/application-detail";
 export { encodeRoundSummary, decodeRoundSummary } from "./queries/round-summary";

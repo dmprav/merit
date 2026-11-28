@@ -1,8 +1,12 @@
 import type { DecisionInput, DecisionVersion } from "@merit/decisions/domain";
 import { useDraftEditor } from "@merit/drafts";
-import type { ApplicationView as Application } from "@merit/grantmaking/api";
 
-import type { DecisionDraft, DecisionFailure, SaveDecision } from "../../contracts/decisions";
+import type {
+  DecisionApplication,
+  DecisionDraft,
+  DecisionFailure,
+  SaveDecision,
+} from "../../contracts/decisions";
 import { decisionDraft } from "./form-state";
 
 export const useDecisionEditor = ({
@@ -14,7 +18,7 @@ export const useDecisionEditor = ({
   onSave,
   onClose,
 }: {
-  application: Application;
+  application: DecisionApplication;
   current: DecisionVersion | undefined;
   ready?: boolean;
   draft?: DecisionDraft;

@@ -1,7 +1,12 @@
 import { z } from "zod";
 
 import { commitmentTotals, decodeCommitments } from "@merit/decisions/domain";
-import { decodeMoney, encodeMoney, moneyDataSchema, type Money } from "@merit/money";
+import { decodeMoney, encodeMoney, moneyDataSchema } from "@merit/money";
+import {
+  decodeBudgetTotals,
+  encodeBudgetTotals,
+  totalsDataSchema,
+} from "@merit/recommendations/api";
 import { decodeBudgetContext } from "@merit/recommendations/domain";
 import { fundingRoundSchema } from "@merit/rounds/domain";
 
@@ -19,11 +24,6 @@ const contextSchema = fundingRoundSchema.pick({
   criteriaHistory: true,
 });
 const contextDataSchema = contextSchema.extend({ budget: moneyDataSchema.nullable() });
-export const totalsDataSchema = z.object({
-  proposed: moneyDataSchema,
-  remaining: moneyDataSchema.nullable(),
-  withdrawnApplications: z.number().int().nonnegative(),
-});
 
 /** Proposed totals come from recommendations; committed totals come from decisions. */
 export const roundTotalsDataSchema = totalsDataSchema.extend({
@@ -48,16 +48,6 @@ export const decodeApplicationContext = (
     },
   };
 };
-
-export const encodeBudgetTotals = (totals: {
-  proposed: Money;
-  remaining: Money | null;
-  withdrawnApplications: number;
-}) => ({
-  proposed: encodeMoney(totals.proposed),
-  remaining: totals.remaining === null ? null : encodeMoney(totals.remaining),
-  withdrawnApplications: totals.withdrawnApplications,
-});
 
 export const encodeRoundTotals = (totals: ApplicationRoundContext["totals"]) => ({
   ...encodeBudgetTotals(totals),
@@ -91,11 +81,9 @@ export const decodeApplicationDetail = (input: unknown) => {
       ...round,
       budget: round.budget === null ? null : decodeMoney(round.budget),
       totals: {
-        proposed: decodeMoney(totals.proposed),
-        remaining: totals.remaining === null ? null : decodeMoney(totals.remaining),
+        ...decodeBudgetTotals(totals),
         committed: decodeMoney(totals.committed),
         available: totals.available === null ? null : decodeMoney(totals.available),
-        withdrawnApplications: totals.withdrawnApplications,
       },
     },
     application: applicationView(

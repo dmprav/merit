@@ -1,44 +1,26 @@
 import type { Decision, DecisionVersion } from "@merit/decisions/domain";
-import type { ApplicationRoundContext, ApplicationView } from "@merit/grantmaking/api";
-import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
 import { fromMinorUnits } from "@merit/money";
 
-export const decisionApplication: ApplicationView = {
-  id: "community-meals",
+import type { DecisionApplication, DecisionRound } from "../contracts/decisions";
+
+export const decisionApplication: DecisionApplication = {
   title: "Community meals",
-  version: makeApplication().version,
-  requested: fromMinorUnits(2400000n),
   intakeStatus: "ready",
   managerRecommendation: {
     position: "Fund with a condition",
     allocation: fromMinorUnits(2000000n),
     reasoning: "Confirm the venue before funding.",
   },
-  summary: "",
-  evidence: [],
-  reviews: makeApplication().reviews,
-  assessments: [],
-  contactId: null,
-  attention: [],
 };
 
 /** A €60,000 round holding this application's €24,000 award and €28,000 of others. */
-export const decisionRound: ApplicationRoundContext = {
-  id: "k7m2p9x4n6rt",
-  title: "Community grants",
-  foundation: "Alder Foundation",
-  manager: "Dana Reed",
+export const decisionRound: DecisionRound = {
   budget: fromMinorUnits(6000000n),
   totals: {
-    proposed: fromMinorUnits(2000000n),
-    remaining: fromMinorUnits(4000000n),
     committed: fromMinorUnits(5200000n),
     available: fromMinorUnits(800000n),
     withdrawnApplications: 0,
   },
-  criteria: [],
-  criteriaVersion: makeRound().criteriaVersion,
-  criteriaHistory: makeRound().criteriaHistory,
 };
 
 export const firstDecision: Decision = {

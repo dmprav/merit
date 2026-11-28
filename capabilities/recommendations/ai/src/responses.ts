@@ -1,9 +1,10 @@
 import { z } from "zod";
 
 import { publicIdSchema } from "@merit/db/identifiers";
-import { totalsDataSchema, encodeBudgetTotals } from "@merit/grantmaking/api";
 import { encodeMoney, moneyDataSchema } from "@merit/money";
 import {
+  totalsDataSchema,
+  encodeBudgetTotals,
   recommendationDataSchema,
   encodeRecommendation,
   type RecommendationsService,

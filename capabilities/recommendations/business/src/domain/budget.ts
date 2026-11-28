@@ -5,6 +5,8 @@ export const allocationTotals = (budget: Money | null, allocations: readonly Mon
   return { proposed, remaining: budget === null ? null : subtract(budget, proposed) };
 };
 
+export type BudgetTotals = ReturnType<typeof allocationTotals> & { withdrawnApplications: number };
+
 /** The proposed total must stay within the money contract for totals to be recorded and read. */
 export const allocationTotalProblem = (allocations: readonly Money[]) => {
   try {

@@ -1,6 +1,27 @@
+import type { IntakeApplication } from "@merit/applications/domain";
 import type { encodeMoney } from "@merit/money";
-import type { encodeRecommendation, SaveRecommendationRequest } from "@merit/recommendations/api";
-import type { Recommendation, RecommendationUpdateError } from "@merit/recommendations/domain";
+import type {
+  encodeBudgetTotals,
+  encodeRecommendation,
+  SaveRecommendationRequest,
+} from "@merit/recommendations/api";
+import type {
+  BudgetTotals,
+  Recommendation,
+  RecommendationUpdateError,
+} from "@merit/recommendations/domain";
+import type { FundingRound } from "@merit/rounds/domain";
+
+export type RecommendationApplication = Pick<
+  IntakeApplication,
+  "title" | "version" | "requested" | "intakeStatus" | "withdrawal"
+> & {
+  managerRecommendation: Recommendation | null;
+};
+
+export type RecommendationRound = Pick<FundingRound, "budget" | "manager"> & {
+  totals: Pick<BudgetTotals, "proposed" | "withdrawnApplications">;
+};
 
 export type RecommendationBaseline = {
   expectedRevision: number;
@@ -38,11 +59,7 @@ export type RecommendationSaveResponse =
       recommendation: ReturnType<typeof encodeRecommendation>;
       recommendationVersion: number;
       budget: ReturnType<typeof encodeMoney> | null;
-      totals: {
-        proposed: ReturnType<typeof encodeMoney>;
-        remaining: ReturnType<typeof encodeMoney> | null;
-        withdrawnApplications: number;
-      };
+      totals: ReturnType<typeof encodeBudgetTotals>;
     }
   | RecommendationFailure;
 

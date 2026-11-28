@@ -1,12 +1,11 @@
 import type { Decision, DecisionOutcome } from "@merit/decisions/domain";
-import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import { fromMinorUnits, toDecimal } from "@merit/money";
+import type { Recommendation } from "@merit/recommendations/domain";
 
 import type { DecisionDraft } from "../../contracts/decisions";
 
-const recommendedOutcome = (
-  position: "Fund" | "Fund with a condition" | "Defer",
-): DecisionOutcome => (position === "Fund with a condition" ? "Fund with conditions" : position);
+const recommendedOutcome = (position: Recommendation["position"]): DecisionOutcome =>
+  position === "Fund with a condition" ? "Fund with conditions" : position;
 
 /**
  * An existing decision is the starting point for a change. Without one, the manager's
@@ -14,7 +13,7 @@ const recommendedOutcome = (
  */
 export const decisionDraft = (
   decision: Decision | null,
-  recommendation: Application["managerRecommendation"],
+  recommendation: Recommendation | null,
 ): DecisionDraft => {
   if (decision) {
     return {
