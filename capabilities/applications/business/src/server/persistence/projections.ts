@@ -4,8 +4,10 @@ import { contacts } from "@merit/contacts/schema";
 import type { Database } from "@merit/db";
 import { containsEveryWord, matchRank, titleOrder, type SearchTerms } from "@merit/db/search";
 
+import type { ApplicationPdf } from "../../domain/pdf";
 import {
   applicationCases,
+  applicationPdfs,
   materialVersions,
   materialVersionAnswers,
   materialVersionEvidence,
@@ -32,6 +34,7 @@ type ApplicationMaterialData = {
     organization?: string;
     submittedOn?: string;
     projectPeriod?: string;
+    pdfs?: ApplicationPdf[];
     answers: AnswerRecord[];
   };
   evidence: EvidenceRecord[];
@@ -90,6 +93,7 @@ const assembleRecordedSubmission = (row: MaterialRow, answers: AnswerRecord[]) =
     ...(row.applicantOrganization !== null ? { organization: row.applicantOrganization } : {}),
     ...(row.submittedOn !== null ? { submittedOn: row.submittedOn } : {}),
     ...(row.projectPeriod !== null ? { projectPeriod: row.projectPeriod } : {}),
+    ...(row.pdfs.length ? { pdfs: row.pdfs } : {}),
     answers,
   };
 };
@@ -326,6 +330,7 @@ export const readWorkingRevisionsMap = async (db: Database, caseIds: string[]) =
         applicant: string;
         projectPeriod?: string;
         requested: string;
+        pdfs?: ApplicationPdf[];
         answers: AnswerRecord[];
       };
     }
@@ -360,6 +365,7 @@ export const readWorkingRevisionsMap = async (db: Database, caseIds: string[]) =
         applicant: draft.applicant,
         ...(draft.projectPeriod !== null ? { projectPeriod: draft.projectPeriod } : {}),
         requested: draft.requested,
+        ...(draft.pdfs.length ? { pdfs: draft.pdfs } : {}),
         answers: answersByCase.get(draft.caseId) ?? [],
       },
     });
@@ -418,3 +424,23 @@ export const applicationPhraseMatch = (phrase: string) => {
 /** 0 when the title or applicant equals the whole query, 1 when one starts with it, 2 otherwise. */
 export const applicationSearchRank = (terms: SearchTerms) =>
   matchRank([applicationSearchTitle, searchApplicant], terms);
+
+/** The caller already authorized this case (and the pinned PDF ID for an assigned reviewer). */
+export const findCasePdfReference = async (
+  db: Database,
+  caseId: string,
+  id: string,
+  stagingUserId?: string,
+) => {
+  const [file] = await db
+    .select()
+    .from(applicationPdfs)
+    .where(and(eq(applicationPdfs.caseId, caseId), eq(applicationPdfs.id, id)));
+  if (!file || (file.attachedAt === null && file.uploaderId !== stagingUserId)) {
+    return null;
+  }
+  return {
+    filename: file.filename,
+    reference: { objectKey: file.objectKey, sha256: file.sha256, byteLength: file.byteLength },
+  };
+};

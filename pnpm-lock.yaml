@@ -790,6 +790,9 @@ importers:
       '@merit/rounds':
         specifier: workspace:*
         version: link:../../rounds/business
+      '@merit/storage':
+        specifier: workspace:*
+        version: link:../../../foundation/storage
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.4(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(pg@8.23.1)

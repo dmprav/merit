@@ -19,6 +19,7 @@ import {
   listManagerReviewerRecords,
   readPrivateReviewerDraft,
   readReviewerEvidence,
+  readReviewerPdfReference,
   readReviewerAssessment,
   type ReviewerRecord,
 } from "../persistence/reviewer-records";
@@ -92,6 +93,43 @@ export const listReviewerAssignments = (
     },
   );
 
+const authorizedReviewerRecord = async (
+  db: Database,
+  actor: Actor,
+  id: string,
+  workspaceSlug?: string,
+) => {
+  const record = await readReviewerRecord(db, id, actor.userId);
+  if (
+    !record ||
+    (workspaceSlug !== undefined && record.slug !== workspaceSlug) ||
+    !(await activeReviewer(db, actor.userId)) ||
+    !reviewerOwns(record, actor.userId) ||
+    !(await reviewerIdentityCurrent(db, id, actor.userId))
+  ) {
+    return null;
+  }
+  return record;
+};
+
+export const readReviewerApplicationPdf = (
+  db: Database,
+  actor: Actor,
+  input: { workspaceSlug: string; assignmentId: string; id: string },
+) =>
+  readWorkspace(db, actor.userId, input.workspaceSlug, async (tx) => {
+    const record = await authorizedReviewerRecord(
+      tx,
+      actor,
+      input.assignmentId,
+      input.workspaceSlug,
+    );
+    if (!record?.evidenceAvailable) {
+      return null;
+    }
+    return readReviewerPdfReference(tx, record, input.id);
+  });
+
 export const readReviewerAssignment = (
   db: Database,
   actor: Actor,
@@ -99,14 +137,8 @@ export const readReviewerAssignment = (
   workspaceSlug?: string,
 ): ReturnType<ReviewerService["read"]> =>
   readScoped(db, assignmentScope(actor.userId, id, workspaceSlug), async (tx) => {
-    const record = await readReviewerRecord(tx, id, actor.userId);
-    if (
-      !record ||
-      (workspaceSlug !== undefined && record.slug !== workspaceSlug) ||
-      !(await activeReviewer(tx, actor.userId)) ||
-      !reviewerOwns(record, actor.userId) ||
-      !(await reviewerIdentityCurrent(tx, id, actor.userId))
-    ) {
+    const record = await authorizedReviewerRecord(tx, actor, id, workspaceSlug);
+    if (!record) {
       return { status: "not_found" };
     }
     const assignment = reviewerSummary(record);

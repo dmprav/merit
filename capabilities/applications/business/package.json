@@ -28,6 +28,7 @@
     "@merit/money": "workspace:*",
     "@merit/organizations": "workspace:*",
     "@merit/rounds": "workspace:*",
+    "@merit/storage": "workspace:*",
     "drizzle-orm": "catalog:",
     "zod": "catalog:"
   },

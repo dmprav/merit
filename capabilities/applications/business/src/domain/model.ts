@@ -3,6 +3,7 @@ import { z } from "zod";
 import { calendarDateSchema } from "@merit/dates";
 import { moneySchema, isNegative } from "@merit/money";
 
+import { applicationPdfsSchema } from "./pdf";
 import { materialVersionSchema } from "./versions";
 
 const amount = moneySchema.refine((value) => !isNegative(value), "Amount must be nonnegative");
@@ -17,6 +18,7 @@ export const applicationMaterialSchema = z.object({
       organization: z.string().optional(),
       submittedOn: calendarDateSchema.optional(),
       projectPeriod: z.string().optional(),
+      pdfs: applicationPdfsSchema.optional(),
       answers: z
         .array(z.object({ questionId: z.uuid(), question: z.string(), response: z.string() }))
         .refine(

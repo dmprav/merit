@@ -3,7 +3,11 @@ import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { accessScope } from "@merit/access/scope";
 import { decodeApplicationMaterial } from "@merit/applications/domain";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
-import { caseWithdrawn, readMaterialVersionRecord } from "@merit/applications/scope";
+import {
+  caseWithdrawn,
+  readMaterialVersionRecord,
+  findCasePdfReference,
+} from "@merit/applications/scope";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
@@ -321,6 +325,21 @@ export const readReviewerEvidence = async (db: Database, record: ReviewerRecord)
     material: decodeApplicationMaterial(materialRecord?.content),
     criteria: criteria ? reviewCriteriaSchema.parse(criteria) : null,
   };
+};
+
+export const readReviewerPdfReference = async (
+  db: Database,
+  record: ReviewerRecord,
+  id: string,
+) => {
+  const version = await readMaterialVersionRecord(
+    db,
+    record.assignment.caseId,
+    record.applicationVersion,
+  );
+  return version?.content.submission?.pdfs?.some((pdf) => pdf.id === id)
+    ? findCasePdfReference(db, record.assignment.caseId, id)
+    : null;
 };
 
 export const readReviewerAssessment = async (db: Database, record: ReviewerRecord) => {
