@@ -85,20 +85,24 @@ const definePaintReader = () => {
     );
   };
 
+  const transformSuppressesPaint = (
+    node: Element,
+    { transform, scale, display }: CSSStyleDeclaration,
+  ): boolean => {
+    if (transform === "none" && scale === "none") {
+      return false;
+    }
+    // A singular transform suppresses the entire subtree, including paint outside a zero-size box.
+    const singular =
+      scale.split(/\s+/).some((axis) => Number.parseFloat(axis) === 0) ||
+      (transform !== "none" && Number.isNaN(new DOMMatrixReadOnly(transform).inverse().m11));
+    return singular && takesTransform(node, display);
+  };
+
   const hasPaintableTransform = (el: Element): boolean => {
     for (let node: Element | null = el; node; node = composedParent(node)) {
-      const { transform, scale, display } = computedStyleOf(node);
-      if (transform === "none" && scale === "none") {
-        continue;
-      }
-      // A singular transform suppresses the entire subtree, including paint outside a zero-size box.
-      if (
-        scale.split(/\s+/).some((axis) => Number.parseFloat(axis) === 0) ||
-        (transform !== "none" && Number.isNaN(new DOMMatrixReadOnly(transform).inverse().m11))
-      ) {
-        if (takesTransform(node, display)) {
-          return false;
-        }
+      if (transformSuppressesPaint(node, computedStyleOf(node))) {
+        return false;
       }
     }
     return true;
@@ -118,6 +122,7 @@ const definePaintReader = () => {
           style.cssFloat === "none" &&
           style.opacity !== "0" &&
           style.contentVisibility !== "hidden" &&
+          !transformSuppressesPaint(node, style) &&
           hasTextRun(node)
         );
       }
