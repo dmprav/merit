@@ -1,7 +1,7 @@
 import { lockApplicationCase } from "@merit/applications/locks";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
-import type { Database, Transaction } from "@merit/db";
+import type { DatabaseRunner, Transaction } from "@merit/db";
 import type { WorkspaceChangeObserver } from "@merit/organizations/domain";
 import { writeObservedWorkspace, writeWorkspace } from "@merit/organizations/transactions";
 
@@ -192,9 +192,12 @@ const saveRun = async (
   } as const;
 };
 
-/** Run an AI review and save it. The model call happens between two short transactions, never inside one. */
+/**
+ * Run an AI review and save it. The model call happens between two short transactions, never
+ * inside one, and no pooled connection is held during it: each transaction checks out its own.
+ */
 export const runAiReview = async (
-  db: Database,
+  database: DatabaseRunner,
   actor: Actor,
   input: AiReviewRunRequest,
   { reviewer, onSaved }: AiReviewDependencies,
@@ -205,16 +208,18 @@ export const runAiReview = async (
   }
   const request = parsed.data;
 
-  const started = await writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
-    const opened = await openRun(tx, actor, request, reviewer);
-    if (opened.status !== "open") {
-      return opened;
-    }
-    const basis = await readRunBasis(tx, opened.access.organizationId, request.publicId);
-    return basis
-      ? ({ status: "ready", basis, reviewer: opened.reviewer } as const)
-      : ({ status: "not_found" } as const);
-  });
+  const started = await database((db) =>
+    writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
+      const opened = await openRun(tx, actor, request, reviewer);
+      if (opened.status !== "open") {
+        return opened;
+      }
+      const basis = await readRunBasis(tx, opened.access.organizationId, request.publicId);
+      return basis
+        ? ({ status: "ready", basis, reviewer: opened.reviewer } as const)
+        : ({ status: "not_found" } as const);
+    }),
+  );
   if (started.status === "saved") {
     return { status: "ok", review: started.review } as const;
   }
@@ -226,25 +231,27 @@ export const runAiReview = async (
     return { status: "failed" } as const;
   }
 
-  return writeObservedWorkspace(db, actor, request, onSaved, async (tx, changed) => {
-    // Permission, consent and withdrawal may have changed while the provider worked.
-    const opened = await openRun(tx, actor, request, reviewer);
-    if (opened.status === "saved") {
-      return { status: "ok", review: opened.review } as const;
-    }
-    if (opened.status !== "open") {
-      return opened;
-    }
-    const saved = await saveRun(tx, { actor, request }, opened, started.basis, output);
-    if (!saved) {
-      return { status: "not_found" } as const;
-    }
-    if (saved.created) {
-      changed(opened.access.organizationId, opened.access.organizationKind, {
-        applicationId: request.publicId,
-        prior: saved.prior,
-      });
-    }
-    return { status: "ok", review: saved.review } as const;
-  });
+  return database((db) =>
+    writeObservedWorkspace(db, actor, request, onSaved, async (tx, changed) => {
+      // Permission, consent and withdrawal may have changed while the provider worked.
+      const opened = await openRun(tx, actor, request, reviewer);
+      if (opened.status === "saved") {
+        return { status: "ok", review: opened.review } as const;
+      }
+      if (opened.status !== "open") {
+        return opened;
+      }
+      const saved = await saveRun(tx, { actor, request }, opened, started.basis, output);
+      if (!saved) {
+        return { status: "not_found" } as const;
+      }
+      if (saved.created) {
+        changed(opened.access.organizationId, opened.access.organizationKind, {
+          applicationId: request.publicId,
+          prior: saved.prior,
+        });
+      }
+      return { status: "ok", review: saved.review } as const;
+    }),
+  );
 };

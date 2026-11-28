@@ -89,6 +89,28 @@ describe("AI review section", () => {
     expect(screen.queryByText("No AI review yet.")).not.toBeInTheDocument();
   });
 
+  it("shows no amount for a deferral in the overview or among earlier runs", async () => {
+    const deferred = { position: "Defer", amount: { minorUnits: "0", currency: "EUR" } } as const;
+    const user = userEvent.setup();
+    show(
+      aiReviewDataFixture({
+        reviews: [
+          aiReviewFixture(deferred),
+          earlierAiReviewFixture({ ...deferred, id: "earlier-deferred" }),
+        ],
+      }),
+    );
+
+    const entry = screen.getByRole("button", { name: /Merit AI/ });
+    expect(entry).toHaveTextContent("Defer");
+    expect(entry).not.toHaveTextContent("€");
+    await user.click(entry);
+    await user.click(section().getByRole("button", { name: /^Earlier AI reviews/ }));
+    const timeline = section().getByRole("list", { name: "Earlier AI reviews" });
+    expect(within(timeline).getByText("Defer")).toBeVisible();
+    expect(timeline).not.toHaveTextContent("€");
+  });
+
   it("qualifies an outdated review and offers Run again", () => {
     show(aiReviewDataFixture({ reviews: [outdatedAiReviewFixture()] }));
 
@@ -151,7 +173,10 @@ describe("AI review section", () => {
 
     await user.click(screen.getByRole("button", { name: "Run AI review" }));
 
-    expect(await screen.findByText("Withdrawn applications can't be reviewed.")).toBeVisible();
+    const explanation = await screen.findByRole("status");
+    expect(explanation).toHaveTextContent("Withdrawn applications can't be reviewed.");
+    // The focused button is gone, so focus moves to the explanation that replaced it.
+    expect(explanation).toHaveFocus();
     expect(screen.queryByRole("button", { name: /Run/ })).not.toBeInTheDocument();
   });
 
@@ -220,8 +245,9 @@ describe("AI review in full", () => {
     expect(full.getByText("gpt-5.1")).toBeVisible();
     expect(full.getByText("OpenAI")).toBeVisible();
     expect(full.getByText("Dana Reed")).toBeVisible();
-    expect(full.getByText("Fund")).toBeVisible();
-    expect(full.getByText("Proposed amount: €24,000")).toBeVisible();
+    // The outcome reads as a recorded assessment's does.
+    expect(full.getByText("Recommends funding")).toBeVisible();
+    expect(full.getByText("€24,000 proposed")).toBeVisible();
     expect(
       full.getByText(
         "AI review. Merit AI's interpretation of the application material, not an assessment by a reviewer.",
@@ -240,7 +266,7 @@ describe("AI review in full", () => {
     );
 
     expect(section().getByText("No funding proposed")).toBeVisible();
-    expect(section().queryByText(/Proposed amount/)).not.toBeInTheDocument();
+    expect(section().queryByText(/€/)).not.toBeInTheDocument();
   });
 
   it("lists each criterion with quoted citations labelled by their field or question, omitting empty lists", async () => {
@@ -267,7 +293,7 @@ describe("AI review in full", () => {
 
     const full = section();
     const order = [
-      full.getByText("Proposed amount: €24,000"),
+      full.getByText("€24,000 proposed"),
       full.getByText("Based on an earlier submission"),
       full.getByText(/^AI review\. Merit AI's interpretation/),
       full.getByRole("heading", { name: "Reasoning" }),
@@ -376,14 +402,14 @@ describe("AI review in full", () => {
     expect(within(timeline).getByText("12 January 2027 · gpt-5.1")).toBeVisible();
     expect(within(timeline).getByText("Fund with a condition")).toBeVisible();
     expect(within(timeline).getByText("Based on an earlier submission")).toBeVisible();
-    expect(within(timeline).getByText("Run by Dana Reed")).toBeVisible();
+    expect(within(timeline).getByText(/Recorded by Dana Reed/)).toBeVisible();
 
     await user.click(within(timeline).getByRole("button", { name: "Open" }));
-    expect(section().getByText("Proposed amount: €18,000")).toBeVisible();
+    expect(section().getByText("€18,000 proposed")).toBeVisible();
     expect(section().queryByRole("button", { name: /Earlier AI reviews/ })).not.toBeInTheDocument();
 
     await user.click(section().getByRole("button", { name: "Back to AI review" }));
-    expect(section().getByText("Proposed amount: €24,000")).toBeVisible();
+    expect(section().getByText("€24,000 proposed")).toBeVisible();
     expect(section().getByRole("button", { name: /^Earlier AI reviews/ })).toHaveAttribute(
       "aria-expanded",
       "true",

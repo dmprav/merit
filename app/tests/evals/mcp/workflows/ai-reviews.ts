@@ -24,7 +24,7 @@ export const runAiReview = async (f: ReviewFixture): Promise<Scenario> => {
     async control(call) {
       const target = await findApplication(call, application);
       const saved = await checked(call, "run_ai_review", target);
-      const review = z.object({ position: z.string() }).parse(saved.review);
+      const review = z.object({ position: z.string() }).parse(saved.aiReview);
       return `Merit AI's review of River Gardens proposes: ${review.position}. This is an AI review, not an assessment by a reviewer.`;
     },
     async verifyEffects() {

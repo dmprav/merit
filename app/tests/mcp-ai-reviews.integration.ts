@@ -71,7 +71,7 @@ it("runs and reads AI reviews through MCP as the delegated manager", async ({ ai
   assert(ran.status === "ok");
   expect(ran).toMatchObject({
     applicationId: a.address.applicationId,
-    review: {
+    aiReview: {
       provider: "OpenAI",
       model: "merit-test",
       provenance: { interface: "mcp", clientId: "integration-client" },
@@ -111,7 +111,7 @@ it("runs and reads AI reviews through MCP as the delegated manager", async ({ ai
   expect(read).toMatchObject({ applicationVersion: 1 });
   expect((read.aiReviews as { id: string }[]).map(({ id }) => id)).toEqual([
     web.review.id,
-    (ran.review as { id: string }).id,
+    (ran.aiReview as { id: string }).id,
   ]);
   const page = await getFundingApplicationPage(a.db, actor, a.application);
   expect(page?.aiReviews.map(({ id }) => id)).toEqual(
@@ -156,7 +156,7 @@ it("returns the saved review when an MCP run repeats its runId, and saves a new 
 
   const other = await a.invoke("dana", "run_ai_review");
   assert(other.status === "ok");
-  expect(other.review).not.toEqual(first.review);
+  expect(other.aiReview).not.toEqual(first.aiReview);
   expect(a.review).toHaveBeenCalledTimes(2);
   expect(((await a.invoke("dana", "read_ai_reviews")).aiReviews as unknown[]).length).toBe(2);
 });

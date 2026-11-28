@@ -1,7 +1,7 @@
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useFormat } from "@merit/i18n/format";
-import { decodeMoney } from "@merit/money";
 import { Button } from "@merit/ui/button";
 import { JudgmentChoice } from "@merit/ui/judgment";
 import { Stack } from "@merit/ui/layout";
@@ -9,8 +9,8 @@ import { Notice } from "@merit/ui/notice";
 import { PanelSection } from "@merit/ui/panel-section";
 import { Text } from "@merit/ui/text";
 
-import { reviewPositionKeys } from "../reviews/assessment-outcome";
 import { AiReviewBasis } from "./ai-review-basis";
+import { AiReviewSummary } from "./ai-review-summary";
 import styles from "./ai-review.module.css";
 import type { AiReviewWork } from "./use-ai-review-work";
 
@@ -26,8 +26,8 @@ export const AiReviewOverview = ({
   /** Reveal the reference pane that shows the review, then open it. */
   onSelect: (id: string) => void;
 }) => {
-  const { t } = useTranslation(["aiReview", "reviewGrant"]);
-  const { money, calendarDate } = useFormat();
+  const { t } = useTranslation("aiReview");
+  const { calendarDate } = useFormat();
   const latest = work.reviews[0];
 
   return (
@@ -39,16 +39,12 @@ export const AiReviewOverview = ({
               ref={(element) => work.reading.registerTrigger(latest.id, element)}
               onPress={() => onSelect(latest.id)}
               author={t("author")}
+              authorIcon="assistant"
               meta={t("entryMeta", {
                 date: calendarDate(latest.recordedAt.slice(0, 10)),
                 model: latest.model,
               })}
-              summary={
-                <>
-                  <strong>{t(reviewPositionKeys[latest.position], { ns: "reviewGrant" })}</strong>
-                  <span>{t("proposed", { amount: money(decodeMoney(latest.amount)) })}</span>
-                </>
-              }
+              summary={<AiReviewSummary review={latest} />}
               basis={<AiReviewBasis review={latest} />}
             />
           </div>
@@ -66,11 +62,26 @@ export const AiReviewOverview = ({
 const AiReviewRun = ({ work }: { work: AiReviewWork }) => {
   const { t } = useTranslation("aiReview");
   const { availability, failure, pending, provider, reviews } = work;
+  const explanation = useRef<HTMLDivElement>(null);
+  const requested = useRef(false);
+  // A refused run replaces the focused button with its explanation: focus follows it, and a screen
+  // reader reads it. Only a run that was just asked for moves focus.
+  useEffect(() => {
+    if (pending || !requested.current) {
+      return;
+    }
+    requested.current = false;
+    if (availability !== "available") {
+      explanation.current?.focus();
+    }
+  }, [availability, pending]);
   if (availability !== "available") {
     return (
-      <Text as="p" variant="supporting">
-        {t(`availability.${availability}`)}
-      </Text>
+      <div role="status" tabIndex={-1} ref={explanation}>
+        <Text as="p" variant="supporting">
+          {t(`availability.${availability}`)}
+        </Text>
+      </div>
     );
   }
   const latest = reviews[0];
@@ -116,7 +127,14 @@ const AiReviewRun = ({ work }: { work: AiReviewWork }) => {
           alignment="start"
           aria-busy={pending}
           aria-disabled={pending}
-          onPress={pending ? undefined : () => void work.run()}
+          onPress={
+            pending
+              ? undefined
+              : () => {
+                  requested.current = true;
+                  void work.run();
+                }
+          }
         >
           {label}
         </Button>

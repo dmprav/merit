@@ -24,6 +24,16 @@ export const useAiReview = (data: AiReviewData | null | undefined) => {
   const running = useRef(false);
   // Kept after an outcome that may have saved, so sending it again cannot add a second review.
   const runId = useRef<string | null>(null);
+  // What the page last said. A refusal at save time speaks for the page as it was; newer page data
+  // replaces it, whether that now agrees with the refusal or not.
+  const pageState = data ? `${data.availability}:${data.reviews.map(({ id }) => id).join()}` : "";
+  const [seenPageState, setSeenPageState] = useState(pageState);
+  if (seenPageState !== pageState) {
+    setSeenPageState(pageState);
+    if (failure?.kind === "not_available") {
+      setFailure(null);
+    }
+  }
   const { refresh, refreshError, refreshing } = useWorkflowRefresh(() =>
     data ? data.refresh() : Promise.resolve(),
   );
@@ -33,7 +43,7 @@ export const useAiReview = (data: AiReviewData | null | undefined) => {
   }
 
   const refused = failure?.kind === "not_available" ? failure.availability : null;
-  // A refusal at save time holds until the next run; a page that already refuses says why.
+  // A refusal at save time holds until newer page data arrives; a page that already refuses says why.
   const availability = data.availability === "available" && refused ? refused : data.availability;
 
   const run = async () => {

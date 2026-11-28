@@ -24,7 +24,6 @@ export const en = {
   refresh: "Refresh",
   refreshError: "Saved, but the latest AI reviews could not be loaded.",
   refreshReadError: "The latest AI reviews could not be loaded.",
-  proposed: "Proposed amount: {{amount}}",
   entryMeta: "{{date}} · {{model}}",
   criteriaChanged: "Criteria changed since this AI review",
   details: {
@@ -43,7 +42,6 @@ export const en = {
     questions: "Questions for the applicant",
     noQuestions: "No questions for the applicant.",
   },
-  noFunding: "No funding proposed",
   back: "Back to assessments",
   backReview: "Back to AI review",
   section: {
@@ -63,6 +61,5 @@ export const en = {
     from: "Quoted from {{source}}",
   },
   earlier: "Earlier AI reviews",
-  runBySummary: "Run by {{name}}",
   open: "Open",
 } as const;

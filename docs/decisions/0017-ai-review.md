@@ -29,7 +29,7 @@ so managers read both kinds of record the same way.
 ## Why it reads only material and criteria
 
 The model receives one material version of the application (title, applicant,
-requested amount, project period and each submitted answer) and the round's
+requested amount, project period, submitted date and each submitted answer) and the round's
 current criteria. It never receives assessments, recommendations, staff summaries
 or manager notes, contacts, or other applications. This keeps a review
 reproducible from what the manager can see in the application, limits what leaves

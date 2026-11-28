@@ -6,21 +6,22 @@ import { useFormat } from "@merit/i18n/format";
 import { decodeMoney } from "@merit/money";
 import type { AiReviewEntry } from "@merit/reviews/domain";
 import { ActionProvenance } from "@merit/ui/action-provenance";
+import { Attribution } from "@merit/ui/attribution";
 import { Button } from "@merit/ui/button";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { Disclosure } from "@merit/ui/disclosure";
 import { Divider } from "@merit/ui/divider";
 import { Icon } from "@merit/ui/icon";
-import { Reading, Stack } from "@merit/ui/layout";
+import { Inline, Reading, Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
-import { OutcomeSummary } from "@merit/ui/outcome-summary";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { SectionHeader } from "@merit/ui/section-header";
 import { Text } from "@merit/ui/text";
 import { Timeline, TimelineEntry } from "@merit/ui/timeline";
 
-import { reviewPositionKeys } from "../reviews/assessment-outcome";
+import { AssessmentOutcome } from "../reviews/assessment-outcome";
 import { AiReviewBasis, AiReviewBasisNotice } from "./ai-review-basis";
+import { AiReviewSummary } from "./ai-review-summary";
 import styles from "./ai-review.module.css";
 import type { AiReviewWork } from "./use-ai-review-work";
 
@@ -58,6 +59,7 @@ export const AiReviewContent = ({
         <SectionHeader headingRef={heading} title={t("title")} />
         <PersonIdentity
           name={t("author")}
+          icon="assistant"
           nameAs="h3"
           description={t("entryMeta", {
             date: calendarDate(selected.recordedAt.slice(0, 10)),
@@ -149,20 +151,9 @@ const RunDetails = ({ review }: { review: AiReviewEntry }) => {
   );
 };
 
-const Outcome = ({ review }: { review: AiReviewEntry }) => {
-  const { t } = useTranslation(["aiReview", "reviewGrant"]);
-  const { money } = useFormat();
-  return (
-    <OutcomeSummary
-      title={t(reviewPositionKeys[review.position], { ns: "reviewGrant" })}
-      detail={
-        review.position === "Defer" || review.position === "Decline"
-          ? t("noFunding")
-          : t("proposed", { amount: money(decodeMoney(review.amount)) })
-      }
-    />
-  );
-};
+const Outcome = ({ review }: { review: AiReviewEntry }) => (
+  <AssessmentOutcome position={review.position} amount={decodeMoney(review.amount)} />
+);
 
 const CriterionSection = ({ section }: { section: Section }) => {
   const { t } = useTranslation("aiReview");
@@ -215,9 +206,11 @@ const Citation = ({ citation }: { citation: Section["claims"][number]["citations
       <blockquote>
         <p>“{citation.quote}”</p>
       </blockquote>
-      <Text as="div" variant="caption">
-        <figcaption>{t("citation.from", { source })}</figcaption>
-      </Text>
+      <figcaption>
+        <Text as="span" variant="caption">
+          {t("citation.from", { source })}
+        </Text>
+      </figcaption>
     </figure>
   );
 };
@@ -229,24 +222,30 @@ const EarlierRun = ({
   review: AiReviewEntry;
   onOpen: (id: string) => void;
 }) => {
-  const { t } = useTranslation(["aiReview", "reviewGrant"]);
-  const { money, calendarDate } = useFormat();
+  const { t } = useTranslation("aiReview");
+  const { calendarDate } = useFormat();
   return (
     <TimelineEntry
       title={t("entryMeta", {
         date: calendarDate(review.recordedAt.slice(0, 10)),
         model: review.model,
       })}
+      attribution={
+        <Attribution
+          actor={review.runBy.name}
+          provenance={review.provenance}
+          recordedAt={review.recordedAt}
+        />
+      }
     >
-      <div className={styles.earlierEntry}>
-        <div className={styles.earlierSummary}>
-          <strong>{t(reviewPositionKeys[review.position], { ns: "reviewGrant" })}</strong>
-          <span>{t("proposed", { amount: money(decodeMoney(review.amount)) })}</span>
-        </div>
+      <Stack gap={1}>
+        <Inline align="baseline" gap={3}>
+          <AiReviewSummary review={review} />
+        </Inline>
         <Text as="div" variant="caption">
-          <span>{t("runBySummary", { name: review.runBy.name })}</span>
-          {" · "}
-          <AiReviewBasis review={review} />
+          <Inline align="baseline" gap={2}>
+            <AiReviewBasis review={review} />
+          </Inline>
         </Text>
         <div>
           <Button
@@ -259,7 +258,7 @@ const EarlierRun = ({
             <Icon name="right" />
           </Button>
         </div>
-      </div>
+      </Stack>
     </TimelineEntry>
   );
 };

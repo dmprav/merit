@@ -124,9 +124,10 @@ export const ConsentWithdrawnDuringRun: Story = {
   },
   play: async (context) => {
     const section = await startRun(context);
-    await expect(
-      await section.findByText(/must turn on Merit AI for this workspace/),
-    ).toBeVisible();
+    const explanation = await section.findByRole("status");
+    await expect(explanation).toHaveTextContent(/must turn on Merit AI for this workspace/);
+    // The Run button that had focus is gone: focus moves to the explanation.
+    await expect(explanation).toHaveFocus();
     await expect(section.queryByRole("button", { name: /Run/ })).not.toBeInTheDocument();
   },
 };

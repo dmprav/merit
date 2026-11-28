@@ -217,7 +217,7 @@ the same `runId`, after a lost response for example, returns the review it alrea
 saved without asking the provider again, even if consent has since been turned off.
 A `runId` used for another application returns `not_found`. Reuse a `runId` only to
 retry that run: a new run, which saves another review, needs a new one. The result
-is the saved review, or:
+is the saved review in `aiReview`, or:
 
 | Result                              | Meaning                                                                                                 |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------- |

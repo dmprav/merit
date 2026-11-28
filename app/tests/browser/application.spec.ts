@@ -624,7 +624,7 @@ test("demo shows a prepared AI review and explains why a new one cannot be run",
   const review = page.getByRole("region", { name: "AI review details" });
 
   await expect(review.getByRole("heading", { name: "AI review", exact: true })).toBeFocused();
-  await expect(review.getByText("Prepared example")).toBeVisible();
+  await expect(review.getByText("Prepared example", { exact: true })).toBeVisible();
   await expect(
     review.getByText(
       "AI review. Merit AI's interpretation of the application material, not an assessment by a reviewer.",

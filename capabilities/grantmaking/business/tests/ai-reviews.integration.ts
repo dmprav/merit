@@ -6,7 +6,7 @@ import type { Client } from "pg";
 import { assert, expect, vi } from "vite-plus/test";
 
 import { createFundingApplication, editFundingApplication } from "@merit/applications/server";
-import { withDatabase } from "@merit/db";
+import { withDatabase, type DatabaseRunner } from "@merit/db";
 import {
   getFundingApplicationPage,
   listApplicationReviewSummaries,
@@ -126,19 +126,18 @@ const setup = async (
       onSaved?: () => void;
       runId?: string;
       publicId?: string;
+      runner?: DatabaseRunner;
     } = {},
   ) =>
-    runtime((rdb) =>
-      runAiReview(
-        rdb,
-        options.as ?? actor,
-        {
-          ...address,
-          publicId: options.publicId ?? address.publicId,
-          runId: options.runId ?? randomUUID(),
-        },
-        { reviewer, onSaved: options.onSaved },
-      ),
+    runAiReview(
+      options.runner ?? runtime,
+      options.as ?? actor,
+      {
+        ...address,
+        publicId: options.publicId ?? address.publicId,
+        runId: options.runId ?? randomUUID(),
+      },
+      { reviewer, onSaved: options.onSaved },
     );
 
   const page = () => getFundingApplicationPage(db, actor, address);
@@ -422,6 +421,36 @@ it("works outside any transaction, saves simultaneous runs, and keeps the basis 
     id: revised.review.id,
     freshness: "outdated",
   });
+});
+
+it("holds no database connection while the provider works", async ({
+  db,
+  database,
+  runtimeUrl,
+}) => {
+  const { runtime, run, rows } = await setup(db, database, runtimeUrl);
+  let checkedOut = 0;
+  const checkouts: number[] = [];
+
+  const counting: DatabaseRunner = async (operation) => {
+    checkedOut += 1;
+    try {
+      return await runtime(operation);
+    } finally {
+      checkedOut -= 1;
+    }
+  };
+
+  const { reviewer } = stub(async (request) => {
+    checkouts.push(checkedOut);
+    return validReply(request);
+  });
+
+  expect((await run(reviewer, { runner: counting })).status).toBe("ok");
+  // The reviewer was asked once, with no checkout held, and both transactions ran around it.
+  expect(checkouts).toEqual([0]);
+  expect(checkedOut).toBe(0);
+  expect(await rows()).toBe(1);
 });
 
 it("labels each citation with the question as worded in the version the review read", async ({

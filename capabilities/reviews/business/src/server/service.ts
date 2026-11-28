@@ -144,7 +144,7 @@ export const createReviewService = ({
 }): ReviewService => ({
   saveReview: (actor, input) => database((db) => saveApplicationReview(db, actor, input)),
   runAiReview: (actor, input) =>
-    database((db) => runAiReview(db, actor, input, { reviewer, onSaved: onAiReviewSaved })),
+    runAiReview(database, actor, input, { reviewer, onSaved: onAiReviewSaved }),
   readAiReviews: (actor, input) => database((db) => readApplicationAiReviews(db, actor, input)),
   aiReviewProvider: reviewer ? { provider: reviewer.provider, model: reviewer.model } : null,
 });

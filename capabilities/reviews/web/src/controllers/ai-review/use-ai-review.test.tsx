@@ -81,6 +81,30 @@ it("shows the reason a run was refused at save time and reloads the page", async
   expect(data.run).toHaveBeenCalledOnce();
 });
 
+it("offers the run again once newer page data says it is available", async () => {
+  const refused = vi
+    .fn<AiReviewData["run"]>()
+    .mockResolvedValueOnce({ status: "not_available", availability: "consent_required" })
+    .mockResolvedValue({ status: "ok", review: aiReviewFixture() });
+  const available = aiReviewDataFixture({ run: refused });
+  const { result, rerender } = renderHook(({ page }: { page: AiReviewData }) => useAiReview(page), {
+    initialProps: { page: available },
+  });
+
+  await act(() => result.current!.run());
+  expect(result.current?.availability).toBe("consent_required");
+
+  // The reloaded page still refuses, then consent comes back: the save-time reason is gone.
+  rerender({ page: { ...available, availability: "consent_required" } });
+  expect(result.current?.availability).toBe("consent_required");
+  rerender({ page: { ...available, availability: "available" } });
+  expect(result.current?.availability).toBe("available");
+  expect(result.current?.failure).toBeNull();
+
+  await act(() => result.current!.run());
+  expect(refused).toHaveBeenCalledTimes(2);
+});
+
 it("does not offer a run that the page already refuses", async () => {
   const { result, data } = setup({ availability: "withdrawn" });
 
