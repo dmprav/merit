@@ -81,10 +81,9 @@ const setup = ({
     );
   };
 
-  const hook = renderHook(
-    () => useDecision("application", { revision, versions: [], disabled: false, save }),
-    { wrapper: Provider },
-  );
+  const hook = renderHook(() => useDecision("application", { revision, versions: [], save }), {
+    wrapper: Provider,
+  });
   return { ...hook, save, setDraft, resolveConflict };
 };
 

@@ -28,7 +28,6 @@ export type RecommendationBaseline = {
 
 export type RecommendationData = {
   revision: number;
-  disabled: boolean;
   save: (
     value: Recommendation,
     baseline: RecommendationBaseline,

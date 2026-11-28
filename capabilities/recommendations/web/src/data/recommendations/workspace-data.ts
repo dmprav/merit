@@ -26,7 +26,6 @@ export const createRecommendationData = <TApplication, TKey extends QueryKey>(
   const { application, roundScope, save, applySaved } = source;
 
   return {
-    disabled: false,
     revision,
     save: async (recommendation, baseline) => {
       const response = await save({

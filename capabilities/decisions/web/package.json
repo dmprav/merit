@@ -10,7 +10,6 @@
     "./work": "./src/work.ts",
     "./contracts": "./src/contracts/decisions.ts",
     "./drafts": "./src/controllers/decisions/decision-drafts.tsx",
-    "./message-content": "./src/views/decisions/messages.en.ts",
     "./data": "./src/data/decisions/workspace-data.ts"
   },
   "dependencies": {

@@ -12,7 +12,7 @@ to follow one connected save.
 Use the named entries in the [export map](package.json), such as
 `@merit/grantmaking-web/applications` for composed reading views. Intake uses
 `@merit/applications-web/intake`, preparation uses `@merit/rounds-web/preparation`,
-reviews and participation use `@merit/reviews-web/reviews` and `/reviewer`, and
+review work uses `@merit/reviews-web/work`, participation uses `/reviewer`, and
 recommendations use `@merit/recommendations-web/recommendations`, and committee
 decisions use `@merit/decisions-web/work`. Each workflow
 exports its data adapter through `/data` and its messages through `/messages`.

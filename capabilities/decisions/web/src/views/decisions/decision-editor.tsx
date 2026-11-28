@@ -61,7 +61,7 @@ type DecisionEditorProps = {
   application: DecisionApplication;
   round: DecisionRound;
   versions: readonly DecisionVersion[];
-  disabled: boolean;
+  disabled?: boolean;
   ready?: boolean;
   onClose?: () => void | Promise<void>;
   children?: (slots: {
@@ -84,7 +84,7 @@ export const DecisionEditor = (props: DecisionEditorProps) => {
     application,
     round,
     versions,
-    disabled,
+    disabled = false,
     ready = true,
     draft,
     conflict = null,
