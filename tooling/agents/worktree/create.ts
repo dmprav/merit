@@ -159,16 +159,14 @@ const assertTargetAndBranchFree = ({ plan, git }: CreateRun): void => {
 
 const addCheckout = ({ plan, progress, git }: CreateRun): void => {
   mkdirSync(dirname(plan.targetDir), { recursive: true });
-  // Create the branch on its own first: `git branch` refuses an existing name, so its success
-  // proves this attempt owns the branch that rollback may delete.
+  // Creating the branch separately makes Git reject a name already in use.
   git.run(["branch", plan.branch, plan.baseRef]);
   progress.branchCreated = true;
-  progress.checkoutAttempted = true;
   git.run(["worktree", "add", plan.targetDir, plan.branch]);
   progress.checkoutPath = canonicalPath(plan.targetDir);
   const gitDir = readWorktreeGitDir(progress.checkoutPath);
   if (!gitDir) {
-    throw new Error(`Cannot identify the new Git worktree at "${progress.checkoutPath}".`);
+    throw new Error(`Could not identify the linked checkout at "${progress.checkoutPath}".`);
   }
   writeCheckoutToken(gitDir, plan.checkoutToken);
   // Until the token is written, rollback uses the branch and Git back-link to prove ownership.
@@ -269,6 +267,9 @@ const createDatabase = async (run: CreateRun, postgresReachable: boolean): Promi
     ];
   }
   progress.databaseCreated = (await deps.database.ensure(plan.databaseName)).created;
+  if (progress.databaseCreated) {
+    await updateCreating(run, (record) => ({ ...record, databaseCreated: true }));
+  }
   return [];
 };
 
@@ -294,12 +295,9 @@ const updateCreating = async ({ plan, git, deps }: CreateRun, apply: RecordUpdat
 };
 
 const runDoctor = async (run: CreateRun): Promise<void> => {
-  const { request, progress, deps } = run;
+  const { request, deps } = run;
   if (!request.doctor) {
     return;
-  }
-  if (progress.databaseCreated) {
-    await updateCreating(run, (record) => ({ ...record, databaseCreated: true }));
   }
   const cwd = checkoutPathOf(run);
   const doctorScript = join(cwd, ".agents/install-environment.sh");
@@ -332,7 +330,7 @@ const buildWorktree = async (
   let path = progress.checkoutPath;
   await updateCreating(run, (record) => {
     path = checkoutPathOf(run);
-    return { ...withoutOwner(record), databaseCreated: progress.databaseCreated, status: "active" };
+    return { ...withoutOwner(record), status: "active" };
   });
   return {
     result: {
@@ -377,7 +375,6 @@ export const createWorktree = async (
     deps,
     progress: {
       branchCreated: false,
-      checkoutAttempted: false,
       checkoutPath: canonicalPath(plan.targetDir),
       registryReserved: false,
       databaseCreated: false,

@@ -159,7 +159,7 @@ const observeCheckout = (
  */
 export const checkoutIdentityRefusal = (
   normalizedPath: string,
-  identity: CheckoutIdentity,
+  identity: CheckoutIdentity & { checkoutToken: string },
   seen: CheckoutObservation,
 ): string | undefined => {
   if (seen.movedPath) {
@@ -177,11 +177,7 @@ export const checkoutIdentityRefusal = (
   }
   // Git may reuse the same `.git/worktrees/<id>` for a new checkout at this path, so a live
   // metadata directory must also carry the token written when this worktree was created.
-  if (
-    identity.checkoutToken &&
-    seen.actualGitDirExists &&
-    seen.actualToken !== identity.checkoutToken
-  ) {
+  if (seen.actualGitDirExists && seen.actualToken !== identity.checkoutToken) {
     return `Refusing to remove "${normalizedPath}": checkout identity mismatch (gitdir "${seen.actualGitDir}" belongs to a different checkout than the one worktree:create registered).`;
   }
   return undefined;
@@ -190,15 +186,25 @@ export const checkoutIdentityRefusal = (
 /** Throws unless the checkout at `worktreePath` is still the one `identity` registered. */
 export const assertCheckoutIdentity = (
   worktreePath: string,
-  identity: CheckoutIdentity | undefined,
+  identity: WorktreeRecord | undefined,
 ): void => {
-  if (!identity?.gitDir) {
+  if (!identity) {
     return;
   }
+  if (!identity.checkoutToken || !identity.gitDir) {
+    throw new Error(
+      `Refusing to clean "${worktreePath}": the registry record lacks a checkout token or Git metadata path. Inspect the checkout, branch "${identity.branch}", and database "${identity.databaseName}" manually.`,
+    );
+  }
+  const registered = {
+    gitDir: identity.gitDir,
+    checkoutToken: identity.checkoutToken,
+    partialRemoval: identity.partialRemoval,
+  };
   const refusal = checkoutIdentityRefusal(
     worktreePath,
-    identity,
-    observeCheckout(worktreePath, { ...identity, gitDir: identity.gitDir }),
+    registered,
+    observeCheckout(worktreePath, registered),
   );
   if (refusal) {
     throw new Error(refusal);

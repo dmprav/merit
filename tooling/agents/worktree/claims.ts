@@ -72,6 +72,7 @@ export type CleanClaim = {
   cleanToken: string;
   normalizedPath: string;
   databaseName: string;
+  databaseCreated: boolean;
 };
 
 /**
@@ -90,6 +91,7 @@ export const matchesCleanClaim = (
     current.status === "cleaning" &&
     current.cleanToken === claim.cleanToken &&
     canonicalPath(current.path) === claim.normalizedPath &&
-    current.databaseName === claim.databaseName
+    current.databaseName === claim.databaseName &&
+    current.databaseCreated === claim.databaseCreated
   );
 };

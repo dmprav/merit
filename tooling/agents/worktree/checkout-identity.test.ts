@@ -63,12 +63,6 @@ describe("checkoutIdentityRefusal", () => {
       seen: { ...intact, movedPath: null, actualGitDirExists: false, actualToken: null },
       refusal: undefined,
     },
-    {
-      name: "a checkout registered before tokens were recorded",
-      identity: { gitDir: GIT_DIR },
-      seen: { ...intact, actualToken: null },
-      refusal: undefined,
-    },
   ])("decides whether clean may remove $name", ({ identity: registered, seen, refusal }) => {
     const result = checkoutIdentityRefusal(PATH, registered, seen);
     if (refusal) {
