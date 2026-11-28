@@ -37,6 +37,10 @@ export const Overview: Story = {
         <Avatar size="regular" />
         <Text variant="supporting">Unassigned (empty outline)</Text>
       </Inline>
+      <Inline gap={4} align="center">
+        <Avatar name="Merit AI" icon="assistant" size="regular" />
+        <Text variant="supporting">Icon, for an author that is not a person</Text>
+      </Inline>
     </Stack>
   ),
 };
