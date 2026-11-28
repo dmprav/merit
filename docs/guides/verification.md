@@ -188,7 +188,7 @@ diffs for high-risk changes.
 
 The `records` run of the
 [maintenance scout](../../.agents/tasks/scout.md#verification) reads new records
-once eight have accumulated and proposes fixes for recurring blockers or
+once enough have accumulated and proposes fixes for recurring blockers or
 dismissals; a monthly
 [pruning workflow](../../.github/workflows/prune-verifications.yml) removes
 scouted records older than 30 days.

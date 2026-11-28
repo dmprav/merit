@@ -5,7 +5,8 @@ and files it as an issue a work session can build from. Part of the loop in
 [decision 0017](../../docs/decisions/0017-autonomous-maintenance-loop.md); only
 Claude Code cloud sessions run it.
 
-A scout session never edits repository files, opens pull requests, or deletes
+A scout session commits nothing but failing-test evidence, never leaves a
+mutation or any other edit in place, and never opens pull requests or deletes
 `verifications/*.md`. Its outputs are issues filed through
 [proposal.ts](../../tooling/agents/proposal.ts), cursor updates on pinned state
 issue `#219` through [scout.ts](../../tooling/agents/scout.ts), and one commit per
@@ -25,15 +26,16 @@ A scheduled task runs the check; it audits nothing itself.
    `Follow .agents/tasks/scout.md run protocol for run <id>`. Then exit; do not
    audit, file, or advance anything.
 
-`due` lists the runs in descending `metric / threshold`. The thresholds are in
-`SCOUT_RUN_POLICY` in [runs.ts](../../tooling/agents/scout/runs.ts):
+`due` lists the runs in descending `metric / threshold`. Each kind has one
+threshold, tuned in `SCOUT_RUN_POLICY` in
+[runs.ts](../../tooling/agents/scout/runs.ts); this table does not restate the values.
 
-| Run kind       | Id                         | Due when                                                               |
-| -------------- | -------------------------- | ---------------------------------------------------------------------- |
-| `change-batch` | `change-batch`             | 10 commits merged since its cursor                                     |
-| `area`         | `area:<area>`              | 3000 changed lines in the area since its cursor                        |
-| `mechanism`    | `mechanism:<mechanism id>` | 5 commits since its cursor touched the mechanism's contract or adapter |
-| `records`      | `records`                  | 8 `verifications/<n>.md` files newer than its cursor's `lastPrNumber`  |
+| Run kind       | Id                         | Due when                                                                     |
+| -------------- | -------------------------- | ---------------------------------------------------------------------------- |
+| `change-batch` | `change-batch`             | `changeBatch.minCommits` commits merged since its cursor                     |
+| `area`         | `area:<area>`              | `area.minChangedLines` changed lines in the area since its cursor            |
+| `mechanism`    | `mechanism:<mechanism id>` | `mechanism.minCommits` commits since its cursor touched its contract/adapter |
+| `records`      | `records`                  | `records.minRecords` `verifications/<n>.md` files newer than `lastPrNumber`  |
 
 An area is a path's first two segments under `capabilities/`, `foundation/`,
 `interfaces/`, and `tooling/`, else its first segment. Lockfiles, snapshots, images,
@@ -47,7 +49,10 @@ You were given one run id.
 1. **Load context.** `vpx tooling/agents/scout.ts context --run <id>`. It fails
    unless the checkout is clean at `scanTipSha`; run the
    `git switch --detach <scanTipSha>` it names and retry. If the checkout has
-   changes, stop and report them without advancing the cursor.
+   changes, stop and report them without advancing the cursor. Once `context`
+   passes, move onto your session's branch at the same commit with
+   `git switch -C <session branch> <scanTipSha>`, so evidence commits land there
+   and the checkout stays at the scan tip until the first one.
    `context` prints `run`, `scanTipSha`, `cursor`, `commits`, `changedFiles`,
    `matchedMechanisms`, `concerns`, `openIssues`, `wontfixIssues` (with each
    maintainer rejection `reason`), and, by run kind, `telemetry` (`area` and
@@ -75,8 +80,10 @@ A finding without executable evidence is not filed. A brief that cites code nobo
 ran is a hypothesis, and the builder pays for testing it.
 
 - **Behavioral bug:** write a failing test at the owning layer (see the testing
-  guide), commit only that test to your session's own branch, one commit per
-  finding, and push the branch. Evidence type `failing-test` with `command` (the
+  guide), commit only that test to your session's own branch (see the run protocol), one
+  commit per finding, and push the branch. Put each failing test in its own new test
+  file, so every evidence commit cherry-picks cleanly on its own; the builder may
+  move it into the owning test file. Evidence type `failing-test` with `command` (the
   test run), `output` (the failure excerpt), `branch`, `commit`, and `citations`
   to the production code at fault. `proposal.ts` fetches `origin/<branch>` and
   refuses to file unless `commit` is on it.
