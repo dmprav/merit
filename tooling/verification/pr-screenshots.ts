@@ -187,7 +187,10 @@ const importDistances = (
   return distance;
 };
 
-/** Orders the story files a change reaches, nearest first, then by path. */
+/**
+ * Orders the story files a change reaches: nearest first, then those beside a changed module,
+ * so a component's own story is not crowded out by screens that use it, then by path.
+ */
 const rankAffectedStoryFiles = (
   changed: readonly string[],
   storyFiles: readonly string[],
@@ -196,13 +199,24 @@ const rankAffectedStoryFiles = (
   const distance = importDistances(changed, importers);
   // No story imports the preview, so stories it reaches sit one step beyond the annotations.
   const throughPreview = (distance.get(EVERY_STORY) ?? Infinity) + 1;
+  // Only modules stories render count: a changed test or story says nothing about its neighbors.
+  const rendered = changed.filter((path) => importers.has(path) && !storyFiles.includes(path));
+  const changedDirs = new Set(rendered.map((path) => posix.dirname(path)));
+
+  const beside = (storyFile: string) => (changedDirs.has(posix.dirname(storyFile)) ? 0 : 1);
+
   return storyFiles
     .map((storyFile) => ({
       storyFile,
       distance: Math.min(distance.get(storyFile) ?? Infinity, throughPreview),
     }))
     .filter((ranked) => Number.isFinite(ranked.distance))
-    .sort((a, b) => a.distance - b.distance || a.storyFile.localeCompare(b.storyFile));
+    .sort(
+      (a, b) =>
+        a.distance - b.distance ||
+        beside(a.storyFile) - beside(b.storyFile) ||
+        a.storyFile.localeCompare(b.storyFile),
+    );
 };
 
 /** Takes one story from each queue in turn until `max` are taken or every queue is empty. */
@@ -224,7 +238,8 @@ const takeRoundRobin = <T>(queues: readonly T[][], max: number): T[] => {
  * Selects desktop Storybook stories for changed PR paths from the preview's import graph:
  * a story file is affected when it changed or imports a changed module, however indirectly,
  * and every story is affected when `.storybook/preview` does. Affected files are ranked by
- * import distance, then path, and stories are taken one per file in turn, so the closest
+ * import distance, then whether they sit beside a changed module, then path, and stories are
+ * taken one per file in turn, so the closest
  * screens are shown before any file contributes a second variant.
  * "Direct" files changed themselves or import a changed module.
  */

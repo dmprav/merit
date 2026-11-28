@@ -162,6 +162,29 @@ describe("pr-screenshots", () => {
     expect(result.affected).toEqual({ storyFiles: 2, directStoryFiles: 2 });
   });
 
+  test("puts a story beside a changed module ahead of other story files at the same distance", () => {
+    const result = select([
+      "foundation/ui/src/dialog/dialog.tsx",
+      "capabilities/decisions/web/src/views/decision-editor.tsx",
+    ]);
+
+    // Both story files import a changed module; editor.stories would sort first by path.
+    expect(result.selected.map((s) => s.id)).toEqual([
+      "dialog--default",
+      "editor--empty",
+      "dialog--long",
+    ]);
+    // A changed test or story beside a story file is not a module that story renders.
+    expect(
+      select([
+        "capabilities/decisions/web/src/views/decision-editor.tsx",
+        "foundation/ui/src/dialog/dialog.tsx",
+        "capabilities/grantmaking/web/src/views/history.test.tsx",
+        "capabilities/grantmaking/web/src/views/history.stories.tsx",
+      ]).selected.map((s) => s.id),
+    ).toEqual(["history--three", "dialog--default", "editor--empty", "dialog--long"]);
+  });
+
   test("reaches every story when a module the Storybook preview imports changes", () => {
     const result = select(["foundation/ui/src/tokens.css"], 4);
 
