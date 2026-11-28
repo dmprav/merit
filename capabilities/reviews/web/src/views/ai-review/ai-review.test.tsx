@@ -402,7 +402,7 @@ describe("AI review in full", () => {
     expect(within(timeline).getByText("12 January 2027 · gpt-5.1")).toBeVisible();
     expect(within(timeline).getByText("Fund with a condition")).toBeVisible();
     expect(within(timeline).getByText("Based on an earlier submission")).toBeVisible();
-    expect(within(timeline).getByText(/Recorded by Dana Reed/)).toBeVisible();
+    expect(within(timeline).getByText(/Run by Dana Reed/)).toBeVisible();
 
     await user.click(within(timeline).getByRole("button", { name: "Open" }));
     expect(section().getByText("€18,000 proposed")).toBeVisible();

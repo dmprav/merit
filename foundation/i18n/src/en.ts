@@ -31,6 +31,7 @@ export const common = {
     unknown: "Interface not recorded",
   },
   recordedBy: "Recorded by {{name}}",
+  ranBy: "Run by {{name}}",
   unknownActor: "Name not recorded",
   pageTitle: "{{title}} · Merit",
   demoWorkspace: "{{name}} (demo)",

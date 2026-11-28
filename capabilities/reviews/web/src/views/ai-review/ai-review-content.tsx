@@ -231,11 +231,7 @@ const EarlierRun = ({
         model: review.model,
       })}
       attribution={
-        <Attribution
-          actor={review.runBy.name}
-          provenance={review.provenance}
-          recordedAt={review.recordedAt}
-        />
+        <Attribution actor={review.runBy.name} action="ran" provenance={review.provenance} />
       }
     >
       <Stack gap={1}>

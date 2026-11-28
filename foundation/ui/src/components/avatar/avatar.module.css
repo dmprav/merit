@@ -31,3 +31,14 @@
 .avatar[data-empty]::before {
   content: none;
 }
+
+/* A glyph has no text baseline; a zero-width character in the same cell keeps the avatar on the
+   baseline initials use, so a name beside it aligns with neighbouring metadata. */
+.avatar[data-icon]::before {
+  content: "\200b";
+  grid-area: 1 / 1;
+}
+
+.avatar[data-icon] > svg {
+  grid-area: 1 / 1;
+}

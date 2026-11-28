@@ -46,12 +46,14 @@ export const Variants: Story = {
       />
       <Attribution actor={null} provenance={null} recordedAt="2027-01-08T09:30:00Z" />
       <Attribution actor="Priya Shah" />
+      <Attribution actor="Dana Reed" action="ran" provenance={{ interface: "web" }} />
     </Stack>
   ),
   play: async ({ canvas }) => {
     await expect(canvas.getByText("Recorded by Dana Reed")).toBeVisible();
     await expect(canvas.getByText("via MCP client grant-review-assistant")).toBeVisible();
     await expect(canvas.getByText("Recorded by Name not recorded")).toBeVisible();
+    await expect(canvas.getByText("Run by Dana Reed")).toBeVisible();
   },
 };
 
