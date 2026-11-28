@@ -10,7 +10,7 @@ const identity = { gitDir: GIT_DIR, checkoutToken: "token" };
 /** The registered checkout, unmoved and intact. */
 const intact: CheckoutObservation = {
   expectedGitDir: GIT_DIR,
-  movedPath: PATH,
+  movedPath: null,
   checkoutExists: true,
   dotGitExists: true,
   actualGitDir: GIT_DIR,

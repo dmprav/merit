@@ -136,7 +136,7 @@ const claimCleanup = (
     ...others.map((other) => other.path),
     ...linkedCheckoutPaths(git.worktrees(), git.root),
   ]);
-  assertCheckoutIdentity(worktreePath, normalizedPath, record);
+  assertCheckoutIdentity(worktreePath, record);
   const databaseName = record?.databaseName ?? databaseNameForSlug(slug);
   assertSafeManagedDatabaseName(databaseName);
 
@@ -202,7 +202,7 @@ const removeCheckout = (run: CleanRun): boolean => {
   const { target, git } = run;
   const gitWorktrees = git.worktrees();
   const commonGitDir = git.commonGitDir();
-  assertCheckoutIdentity(target.worktreePath, target.normalizedPath, target.identity);
+  assertCheckoutIdentity(target.worktreePath, target.identity);
   assertNoNestedWorktrees(target.normalizedPath, linkedCheckoutPaths(gitWorktrees, git.root));
 
   const removal = decideCheckoutRemoval({
