@@ -110,20 +110,28 @@ const describeChangedPaths = (paths: readonly string[]): string => {
  */
 export const assertCheckoutAt = (git: Pick<GitPort, "checkoutState">, scanTipSha: string): void => {
   const { headSha, changedPaths } = git.checkoutState();
-  const problems = [
-    ...(headSha === scanTipSha ? [] : [`is at ${headSha}`]),
-    ...(changedPaths.length === 0
-      ? []
-      : [
-          `has ${changedPaths.length} changed or untracked paths (${describeChangedPaths(changedPaths)})`,
-        ]),
-  ];
-  if (problems.length > 0) {
-    throw new Error(
-      `Scout reads the working tree as scan tip ${scanTipSha}, but the checkout ${problems.join(" and ")}. ` +
-        `Run "git switch --detach ${scanTipSha}" on a clean checkout and retry.`,
-    );
+  const elsewhere = headSha !== scanTipSha;
+  const dirty = changedPaths.length > 0;
+  if (!elsewhere && !dirty) {
+    return;
   }
+  const problems = [
+    ...(elsewhere ? [`is at ${headSha}`] : []),
+    ...(dirty
+      ? [
+          `has ${changedPaths.length} changed or untracked paths (${describeChangedPaths(changedPaths)})`,
+        ]
+      : []),
+  ];
+  const remedies = [
+    ...(dirty ? ["commit, stash, or remove the changed paths"] : []),
+    ...(elsewhere ? [`run "git switch --detach ${scanTipSha}"`] : []),
+  ];
+  const remedy = remedies.join(", then ");
+  throw new Error(
+    `Scout reads the working tree as scan tip ${scanTipSha}, but the checkout ${problems.join(" and ")}. ` +
+      `${remedy.charAt(0).toUpperCase()}${remedy.slice(1)} and retry.`,
+  );
 };
 
 /** Reads history with the `git` command line in `repoRoot`. */

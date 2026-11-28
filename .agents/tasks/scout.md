@@ -5,7 +5,9 @@ Read-only scheduled audit of Merit across seven specialized lenses. This task
 deletes `verifications/*.md` files. Its only outputs are concise, decision-ready
 proposal issues created through
 [proposal.ts](../../tooling/agents/proposal.ts) and cursor updates on pinned
-state issue `#219` via [scout.ts](../../tooling/agents/scout.ts).
+state issue `#219` via [scout.ts](../../tooling/agents/scout.ts). The one Git
+change it makes is switching a clean checkout to `scanTipSha` when
+`scout.ts context` asks for it.
 
 Start with [AGENTS.md](../../AGENTS.md) and the guide for the lens you are
 running.

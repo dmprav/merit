@@ -110,7 +110,7 @@ describe("scout checkout state", () => {
   test("refuses a clean checkout at another commit", () => {
     expect(() =>
       assertCheckoutAt({ checkoutState: () => ({ headSha: "b", changedPaths: [] }) }, "a"),
-    ).toThrow(/scan tip a, but the checkout is at b\. Run "git switch --detach a"/);
+    ).toThrow('scan tip a, but the checkout is at b. Run "git switch --detach a" and retry.');
   });
 });
 
