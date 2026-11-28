@@ -3,6 +3,20 @@ import { expect, it } from "vite-plus/test";
 import { fromMinorUnits } from "@merit/money";
 
 import { canChangeDecision, prepareDecision, sameDecision, type DecisionContent } from "./decision";
+import { decisionUsage } from "./decision-outcome";
+
+it.each([
+  [undefined, false, false],
+  ["Defer", true, false],
+  ["Decline", true, false],
+  ["Fund", true, true],
+  ["Fund with conditions", true, true],
+] as const)(
+  "derives decision and commitment flags for %s",
+  (outcome, hasDecision, hasCommitment) => {
+    expect(decisionUsage(outcome)).toEqual({ hasDecision, hasCommitment });
+  },
+);
 
 const recordedAt = "2027-01-20T10:00:00.000Z";
 

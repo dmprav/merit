@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 
 import type { ApplicationDecisionWork } from "@merit/applications/server/grant-work";
 import type { RoundCommitments } from "@merit/rounds/server/grant-work";
@@ -16,13 +16,13 @@ export const applicationDecisionWork: ApplicationDecisionWork = {
     return rows[0]?.decided === true;
   },
   hasCommitment: async ({ tx, caseId }) => {
-    const { rows } = await tx.execute<{ committed: boolean }>(sql`select exists (
-      select 1 from ${committeeDecisionVersions} d
-      where d.case_id = ${caseId}
-        and d.revision = (select max(l.revision) from ${committeeDecisionVersions} l where l.case_id = d.case_id)
-        and d.outcome in ('Fund', 'Fund with conditions')
-    ) as committed`);
-    return rows[0]?.committed === true;
+    const [latest] = await tx
+      .select({ committed: sql<boolean>`${committeeDecisionVersions.amountMinorUnits} > 0` })
+      .from(committeeDecisionVersions)
+      .where(eq(committeeDecisionVersions.caseId, caseId))
+      .orderBy(desc(committeeDecisionVersions.revision))
+      .limit(1);
+    return latest?.committed === true;
   },
 };
 

@@ -5,6 +5,7 @@ import { activeCase } from "@merit/applications/scope";
 import type { Provenance } from "@merit/auth";
 import type { Database } from "@merit/db";
 
+import { commitsFunding } from "../../domain/decision-outcome";
 import type { DecisionStateData } from "../../domain/encoding";
 import { committeeDecisionVersions } from "./schema";
 
@@ -117,7 +118,7 @@ export const readRoundCommitments = async (
     )
     .orderBy(committeeDecisionVersions.caseId, desc(committeeDecisionVersions.revision));
   return rows
-    .filter((row) => row.outcome === "Fund" || row.outcome === "Fund with conditions")
+    .filter((row) => commitsFunding(row.outcome))
     .map((row) => ({ minorUnits: row.minorUnits, currency: euroCurrency(row.currency) }));
 };
 
@@ -127,17 +128,11 @@ export const hasDecision = (caseId: string) => sql<boolean>`exists (
 
 export const decisionRevision = sql<number>`coalesce((select max(d.revision) from ${committeeDecisionVersions} d where d.case_id = ${applicationCases.id}), 0)`;
 
-/** The latest decision of one case: its outcome and what it commits (zero unless it funds). */
+/** The amount check guarantees the latest decision commits zero unless it funds. */
 export const decisionOverview = (db: Database, caseId: SQLWrapper) =>
   db
     .select({
-      outcome: committeeDecisionVersions.outcome,
-      amountMinorUnits: committeeDecisionVersions.amountMinorUnits,
-      amountCurrency: committeeDecisionVersions.amountCurrency,
-      committedMinorUnits:
-        sql<string>`case when ${committeeDecisionVersions.outcome} in ('Fund', 'Fund with conditions') then ${committeeDecisionVersions.amountMinorUnits} else 0 end`.as(
-          "decision_committed",
-        ),
+      committedMinorUnits: committeeDecisionVersions.amountMinorUnits,
     })
     .from(committeeDecisionVersions)
     .where(eq(committeeDecisionVersions.caseId, caseId))

@@ -9,6 +9,7 @@ import { createFundingApplication, editFundingApplication } from "@merit/applica
 import { withDatabase, type Database } from "@merit/db";
 import type { RecordDecisionRequest } from "@merit/decisions/api";
 import { recordCommitteeDecision } from "@merit/decisions/server";
+import { encodeRoundTotals } from "@merit/grantmaking/api";
 import { encodeMoney } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
 import { readWorkspace } from "@merit/organizations/transactions";
@@ -674,9 +675,13 @@ describe("decisions and application lifecycle", () => {
 describe("decision reads", () => {
   it("lists the decision outcome beside the recommendation status and the round's committed totals", async ({
     db,
+    rounds,
     scenario: s,
   }) => {
-    expect(await s.record(s.first, {})).toMatchObject({ status: "ok" });
+    await rounds.recommendApplication(s.preparing, "7000");
+    expect(
+      await s.record(s.first, { amount: { minorUnits: "4000", currency: "EUR" } }),
+    ).toMatchObject({ status: "ok" });
     const list = await listWorkspaceApplications(db, actor, {
       workspaceSlug: s.first.workspaceSlug,
       filter: {},
@@ -693,16 +698,20 @@ describe("decision reads", () => {
       "Still in preparation": null,
     });
 
+    const { round } = await s.roundPage();
     const overview = await getFundingRoundOverview(db, actor, {
       workspaceSlug: s.first.workspaceSlug,
-      roundId: (await s.roundPage()).round.id,
+      roundId: round.id,
     });
     assert(overview.status === "ok");
-    expect(overview.round.totals).toMatchObject({
-      committed: { minorUnits: "5000" },
-      available: { minorUnits: "5000" },
-      proposed: { minorUnits: "0" },
-    });
+    const expected = {
+      proposed: { minorUnits: "7000", currency: "EUR" },
+      remaining: { minorUnits: "3000", currency: "EUR" },
+      committed: { minorUnits: "4000", currency: "EUR" },
+      available: { minorUnits: "6000", currency: "EUR" },
+    };
+    expect(overview.round.totals).toMatchObject(expected);
+    expect(encodeRoundTotals(round.totals)).toMatchObject(expected);
   });
 
   it("reads decision sections and history for the MCP surface", async ({ db, scenario: s }) => {
