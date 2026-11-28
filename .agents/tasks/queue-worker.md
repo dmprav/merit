@@ -1,5 +1,9 @@
 # Autonomous Queue Worker
 
+> **Paused.** This task is being replaced by the loop in
+> [decision 0017](../../docs/decisions/0017-autonomous-maintenance-loop.md).
+> Do not schedule or run it.
+
 Scheduled execution worker for Merit's autonomous maintenance queue. Designed
 for hosted Claude Code cloud runs with a **strict one-unit-of-work-per-run**
 budget so every PR shepherd round or new proposal implementation starts in a
