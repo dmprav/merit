@@ -15,8 +15,13 @@ const consent = async (f: ReviewFixture) => {
   await f.ctx.sql.query("insert into assistant_consents (organization_id) values ('alder')");
 };
 
+/** The saved AI reviews and the application each belongs to. */
 const rows = async (f: ReviewFixture) =>
-  (await f.ctx.sql.query<{ position: string }>("select position from ai_reviews")).rows;
+  (
+    await f.ctx.sql.query<{ case_id: string; position: string }>(
+      "select case_id, position from ai_reviews order by recorded_at",
+    )
+  ).rows;
 
 export const runAiReview = async (f: ReviewFixture): Promise<Scenario> => {
   await consent(f);
@@ -28,7 +33,10 @@ export const runAiReview = async (f: ReviewFixture): Promise<Scenario> => {
       return `Merit AI's review of River Gardens proposes: ${review.position}. This is an AI review, not an assessment by a reviewer.`;
     },
     async verifyEffects() {
-      expect(await rows(f)).toEqual([{ position: "Fund with a condition" }]);
+      // The review is of the fixture's own application, not merely the only one saved.
+      expect(await rows(f)).toEqual([
+        { case_id: f.target.applicationId, position: "Fund with a condition" },
+      ]);
       // An AI review is not an assessment and changes no review state.
       expect((await f.reviews()).assessments).toEqual([]);
     },

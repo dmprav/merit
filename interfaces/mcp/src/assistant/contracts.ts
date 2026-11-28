@@ -71,6 +71,11 @@ export type AssistantCatalog = {
     stored?: boolean,
   ): Promise<AssistantReceipt & { preview?: AssistantPreview }>;
   execute(preview: AssistantPreview): Promise<AssistantReceipt & { retry?: AssistantPreview }>;
+  /**
+   * What an approved slow action already saved under its run identity, found without running it
+   * again. Undefined when it saved nothing, or is not a slow action.
+   */
+  recover(approved: AssistantPreview): Promise<AssistantReceipt | undefined>;
 };
 
 export const receipt = (status: string): AssistantReceipt => ({

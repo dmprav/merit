@@ -14,7 +14,7 @@ import {
   type AiReviewer,
   type AiReviewerRequest,
 } from "@merit/reviews/domain";
-import { saveApplicationReview } from "@merit/reviews/server";
+import { runAiReview, saveApplicationReview } from "@merit/reviews/server";
 import { inlineReviewerDelivery } from "@merit/reviews/testing";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
@@ -565,7 +565,13 @@ it(
         "Sends this application's current material and the round's criteria to OpenAI (scripted).",
         "Saves a new AI review.",
       ],
-      targets: [{ kind: "application", id: applicationId, version: "application version 1" }],
+      targets: [
+        {
+          kind: "application",
+          id: applicationId,
+          version: "application version 1, criteria version 1",
+        },
+      ],
     });
     expect(review).not.toHaveBeenCalled();
     expect(await savedRows()).toEqual([]);
@@ -776,16 +782,30 @@ it(
 );
 
 it(
-  "keeps an AI review that committed before Stop and offers no retry that could save it twice",
+  "keeps an AI review whose save was under way when Stop arrived and offers no retry that could save it twice",
   { timeout: 30_000 },
   async ({ database, runtime, committee: { applicationId } }) => {
-    // This provider ignores the abort and answers: the review commits after Stop was requested.
-    const committed = slowReviewer(reviewOutput, false);
-    const { command } = harness(runtime, async () => {}, committed.reviewer);
+    const provider = slowReviewer(reviewOutput);
+    const { command } = harness(runtime, async () => {}, provider.reviewer);
     const { id, group, read } = await approvedRun(database, command, applicationId);
-    await committed.begun;
+    await provider.begun;
+    // The provider has answered and the run has begun to save, but the save waits for another writer.
+    await database.client.query("begin");
+    await database.client.query("select id from application_cases where id = $1 for update", [
+      applicationId,
+    ]);
+    provider.release();
+    await vi.waitFor(
+      async () => {
+        const waiting = await database.client.query("select 1 from pg_locks where not granted");
+        expect(waiting.rowCount).toBeGreaterThan(0);
+      },
+      { timeout: 10_000, interval: 50 },
+    );
+
     expect((await command({ action: "stop", id })).status).toBe(200);
-    committed.release();
+    await database.client.query("commit");
+
     await vi.waitFor(
       async () =>
         expect((await read()).groups[0]?.actions[0]).toMatchObject({ status: "succeeded" }),
@@ -799,6 +819,36 @@ it(
       (await command({ action: "retry", id, previewId: group.id, actionId: action.id })).status,
     ).toBe(409);
     expect((await database.client.query("select id from ai_reviews")).rows).toHaveLength(1);
+  },
+);
+
+it(
+  "saves nothing when Stop arrives while a provider that ignores it answers",
+  { timeout: 30_000 },
+  async ({ database, runtime, committee: { applicationId } }) => {
+    // This provider ignores the abort and answers anyway; the run still saves nothing.
+    const provider = slowReviewer(reviewOutput, false);
+    const { command } = harness(runtime, async () => {}, provider.reviewer);
+    const { id, read } = await approvedRun(database, command, applicationId);
+    await provider.begun;
+    expect((await command({ action: "stop", id })).status).toBe(200);
+
+    provider.release();
+
+    await vi.waitFor(
+      async () =>
+        expect(
+          (
+            await database.client.query(
+              "select 1 from assistant_conversations where id = $1 and state #> '{groups,0,actions,0,executing}' is null",
+              [id],
+            )
+          ).rowCount,
+        ).toBe(1),
+      { timeout: 10_000, interval: 50 },
+    );
+    expect((await database.client.query("select id from ai_reviews")).rows).toEqual([]);
+    expect((await read()).groups[0]?.actions[0]).toMatchObject({ status: "stopped" });
   },
 );
 
@@ -856,6 +906,67 @@ it(
   },
 );
 
+/** What a worker that saved its review under the action's run identity and then died leaves behind. */
+const savedByDeadWorker = async (
+  runtime: Runtime,
+  applicationId: string,
+  action: z.infer<typeof snapshot>["groups"][number]["actions"][number],
+) =>
+  runAiReview(
+    (operation) => withDatabase(runtime, operation),
+    actor,
+    {
+      workspaceSlug,
+      publicId: applicationId,
+      runId: z.uuid().parse(action.preview.input.runId),
+    },
+    {
+      reviewer: {
+        provider: "OpenAI",
+        model: "scripted",
+        review: async (request) => reviewOutput(request),
+      },
+    },
+  );
+
+it(
+  "records an expired claim as succeeded with the review its run had already saved, without asking the provider again",
+  { timeout: 30_000 },
+  async ({ database, runtime, committee: { applicationId } }) => {
+    const crashed = slowReviewer(reviewOutput, false);
+    const { command, step } = harness(runtime, async () => {}, crashed.reviewer);
+    const { id, read } = await approvedRun(database, command, applicationId);
+    await crashed.begun;
+    const [started] = (await read()).groups[0]?.actions ?? [];
+    assert(started);
+    // The worker saved the review under the action's run identity, then died before it could say so.
+    const saved = await savedByDeadWorker(runtime, applicationId, started);
+    assert(saved.status === "ok");
+    await database.client.query(
+      "update assistant_conversations set state = jsonb_set(state, '{groups,0,actions,0,executing,until}', '0') where id = $1",
+      [id],
+    );
+
+    expect(await step(id)).toBe("progressed");
+
+    const [action] = (await read()).groups[0]?.actions ?? [];
+    expect(action).toMatchObject({ status: "succeeded", canRetry: false });
+    expect(crashed.review).toHaveBeenCalledOnce();
+    expect((await database.client.query("select id from ai_reviews")).rows).toEqual([
+      { id: saved.review.id },
+    ]);
+    // The conversation goes on to cite the review it recorded, never to report a failure.
+    await vi.waitFor(
+      async () => {
+        await step(id);
+        expect((await read()).status).toBe("completed");
+      },
+      { timeout: 10_000, interval: 50 },
+    );
+    expect((await read()).messages.at(-1)?.citations).toMatchObject([{ kind: "ai_review" }]);
+  },
+);
+
 it(
   "returns the saved review when an approved retry follows a worker that died after saving, without a second review",
   { timeout: 30_000 },
@@ -881,13 +992,9 @@ it(
     expect(failed).toMatchObject({ status: "failed", canRetry: true });
     assert(failed);
 
-    // The run commits after all, but nothing records its outcome on the action.
-    provider.release();
-    await vi.waitFor(
-      async () =>
-        expect((await database.client.query("select id from ai_reviews")).rows).toHaveLength(1),
-      { timeout: 10_000, interval: 50 },
-    );
+    // The worker saved the review after all, but nothing records its outcome on the action.
+    assert((await savedByDeadWorker(runtime, applicationId, failed)).status === "ok");
+    expect((await database.client.query("select id from ai_reviews")).rows).toHaveLength(1);
     expect((await read()).groups[0]?.actions[0]?.status).toBe("failed");
 
     expect(
@@ -909,7 +1016,8 @@ it(
         interval: 50,
       },
     );
-    // The retry carried the approved action's run identity: the saved review answered it.
+    // The retry carried the approved action's run identity: the saved review answered it, and no
+    // provider was asked again.
     expect(provider.review).toHaveBeenCalledOnce();
     expect((await database.client.query("select id from ai_reviews")).rows).toHaveLength(1);
   },

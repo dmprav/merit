@@ -35,7 +35,12 @@ export const application =
       throw new PreviewProblem(loaded.status);
     }
     const app = loaded.application;
-    if (
+    if (revision === "material") {
+      // The material a person approves sending is the application and criteria versions shown;
+      // the run refuses when either has moved on. A refresh rebases them like any other revision.
+      bindRevision(ctx, input, "expectedApplicationVersion", app.applicationVersion);
+      bindRevision(ctx, input, "expectedCriteriaVersion", app.criteriaVersion);
+    } else if (
       (input.expectedApplicationVersion !== undefined &&
         input.expectedApplicationVersion !== app.applicationVersion) ||
       (input.expectedCriteriaVersion !== undefined &&
@@ -47,7 +52,7 @@ export const application =
       revision === "context"
         ? app.intakeRevision
         : revision === "material"
-          ? `application version ${app.applicationVersion}`
+          ? `application version ${app.applicationVersion}, criteria version ${app.criteriaVersion}`
           : app[revision];
     if (revision !== "context" && revision !== "material") {
       bindRevision(ctx, input, revisionInputs[revision], app[revision]);

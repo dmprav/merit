@@ -149,6 +149,36 @@ const deliveryOutcome = async (
   return observation;
 };
 
+/**
+ * What an approved AI review run already saved under its run identity, found without running it
+ * again; undefined when it saved nothing or the action is another tool.
+ */
+const recoverSavedRun = async (
+  { actor, workspaceSlug, ops }: AssistantContext,
+  approved: AssistantPreview,
+) => {
+  const { applicationId, runId } = approved.input;
+  if (
+    approved.name !== "run_ai_review" ||
+    typeof applicationId !== "string" ||
+    typeof runId !== "string"
+  ) {
+    return undefined;
+  }
+  const found = await ops.reviews.readAiReviewRun(actor, {
+    workspaceSlug,
+    publicId: applicationId,
+    runId,
+  });
+  return found.status === "ok"
+    ? describeResult(approved.name, approved.input, {
+        status: "ok",
+        applicationId,
+        aiReview: found.review,
+      })
+    : undefined;
+};
+
 export const createAssistantCatalog = (
   actor: Actor,
   workspaceSlug: string,
@@ -206,6 +236,7 @@ export const createAssistantCatalog = (
     permits,
     preview,
     execute,
+    recover: (approved) => recoverSavedRun(ctx, approved),
     read: async (name, input): Promise<AssistantReceipt> => {
       const resolved = await resolveTool(ctx, definitions, name, input, false);
       if (!resolved.tool) {

@@ -99,6 +99,7 @@ const fixture = async () => {
       preview: proposal(name, input),
     })),
     execute: vi.fn<ReturnType<TurnDependencies["catalog"]>["execute"]>(async () => ok),
+    recover: vi.fn<ReturnType<TurnDependencies["catalog"]>["recover"]>(async () => undefined),
     deliver: vi.fn<ReturnType<TurnDependencies["catalog"]>["deliver"]>(async () => "sent"),
     retryDelivery: vi.fn<ReturnType<TurnDependencies["catalog"]>["retryDelivery"]>(async () => {}),
   };

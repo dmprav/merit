@@ -160,3 +160,19 @@ it("returns the saved review when an MCP run repeats its runId, and saves a new 
   expect(a.review).toHaveBeenCalledTimes(2);
   expect(((await a.invoke("dana", "read_ai_reviews")).aiReviews as unknown[]).length).toBe(2);
 });
+
+it("sends nothing and reports a conflict when the versions the client showed are out of date", async ({
+  aiReview: a,
+}) => {
+  const outdated = await a.invoke("dana", "run_ai_review", { expectedApplicationVersion: 2 });
+  expect(outdated).toEqual({ status: "conflict" });
+  expect(a.review).not.toHaveBeenCalled();
+  expect(a.captureGrantOutcome).not.toHaveBeenCalled();
+
+  // Naming the current versions runs; naming none keeps the web's and MCP's current behavior.
+  const current = await a.invoke("dana", "run_ai_review", {
+    expectedApplicationVersion: 1,
+    expectedCriteriaVersion: 1,
+  });
+  expect(current.status).toBe("ok");
+});

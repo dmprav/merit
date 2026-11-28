@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { change, type Access, type Stored } from "./access.server";
+import { change, type Access, type AssistantRuntimeCatalog, type Stored } from "./access.server";
 import { applyReceipt, disposition, failNext, nextAction, type Receipt } from "./dispatch.server";
 import { beginModelRequest, endModelRequest } from "./model-request.server";
 import { conversationState, recordReceipt, type ConversationState } from "./state";
@@ -90,6 +90,22 @@ const record = async (access: Access, claim: string, receipt?: Receipt) => {
 };
 
 /**
+ * An expired claim: the worker that held it is presumed dead. It may have saved before it died, so
+ * look for the review under the action's run identity first and record the action as succeeded
+ * with it. Nothing is run again. Only when none exists is the action reported as failed.
+ */
+const reconcileExpired = async (
+  state: ConversationState,
+  tools: AssistantRuntimeCatalog,
+  status: Stored["status"],
+) => {
+  const next = nextAction(state);
+  const claim = next?.action.executing?.id;
+  const saved = claim && next ? await tools.recover(next.action.preview) : undefined;
+  return claim && saved ? applyOutcome(state, tools, claim, status, saved) : failNext(state);
+};
+
+/**
  * Run the next approved slow action: claim it under a short lock, run it with no lock and no
  * surrounding transaction, then apply its outcome under another. The conversation stays readable
  * and Stop works meanwhile; Stop aborts the provider request through `cancellation`, and another
@@ -103,7 +119,9 @@ export const executeSlow = async (access: Access, row: Stored, cancellation?: Ab
   if (current.action.executing) {
     return current.action.executing.until > Date.now()
       ? false
-      : Boolean(await access.locked(row, failNext));
+      : Boolean(
+          await access.locked(row, (state, tools) => reconcileExpired(state, tools, row.status)),
+        );
   }
   const claim = randomUUID();
   const work: { signal?: AbortSignal } = {};

@@ -10,7 +10,11 @@ import { withDatabase, type Database } from "@merit/db";
 import { contactWork } from "@merit/grantmaking/testing/contact-work";
 import { roundTest } from "@merit/grantmaking/testing/rounds";
 import { actor, workspaceSlug } from "@merit/organizations/testing/workspace";
-import { reviewRevisionSchema } from "@merit/reviews/domain";
+import {
+  reviewRevisionSchema,
+  type AiReviewer,
+  type AiReviewerRequest,
+} from "@merit/reviews/domain";
 import { saveApplicationReview, type ReviewerMessageWork } from "@merit/reviews/server";
 import { inlineReviewerDelivery } from "@merit/reviews/testing";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
@@ -238,9 +242,20 @@ const it = roundTest
       return deliverInline(work);
     };
 
+    // The provider behind AI reviews; each test says what a request does.
+    const aiReview: { provider: (request: AiReviewerRequest) => Promise<unknown> } = {
+      provider: () => Promise.reject(new Error("No AI review is expected.")),
+    };
+    const aiReviewer: AiReviewer = {
+      provider: "OpenAI",
+      model: "scripted",
+      review: (request) => aiReview.provider(request),
+    };
+
     const dependencies = {
       database: run,
       invitationOrigin: "https://merit.test",
+      aiReviewer,
       startReviewerMessage: startInline,
       startOrganizationInvitation: async () => true,
     };
@@ -315,6 +330,7 @@ const it = roundTest
       applicationId: address.publicId,
       requestId,
       rounds,
+      aiReview,
       database,
       delivered,
       mail,
@@ -345,6 +361,34 @@ const it = roundTest
       history,
     };
   });
+
+/** A reply to an AI review request that verifies against the application it was sent. */
+const reviewReply = ({ input }: AiReviewerRequest) => ({
+  criteria: [
+    {
+      criterionId: null,
+      claims: [
+        {
+          text: "Activities run weekly.",
+          citations: [
+            {
+              source: input.application.answers[0]?.questionId,
+              quote: "Weekly community activities",
+            },
+          ],
+        },
+      ],
+      gaps: [],
+      strengths: [],
+      weaknesses: [],
+      concerns: [],
+    },
+  ],
+  questions: [],
+  reasoning: "Weekly and clear.",
+  position: "Fund",
+  amount: { minorUnits: "8000", currency: "EUR" },
+});
 
 const roundCall = (roundId: string) => calls(["list_applications", { roundId }]);
 
@@ -745,5 +789,102 @@ it(
     expect((await s.settled(id)).status).toBe("completed");
     expect((await s.open(id)).groups[0]?.actions[0]?.status).toBe("succeeded");
     expect(s.delivered).toEqual(["sam@example.test"]);
+  },
+);
+
+/** An approved AI review run under way in the worker, its provider request held until the test lets it go. */
+const runningAiReview = async (
+  s: {
+    applicationId: string;
+    aiReview: { provider: (request: AiReviewerRequest) => Promise<unknown> };
+    fetchModel: {
+      mockResolvedValueOnce: (response: Response) => unknown;
+      mockResolvedValue: (response: Response) => unknown;
+    };
+    create: () => Promise<string>;
+    begin: (id: string, message: string) => Promise<void>;
+    settled: (id: string) => Promise<z.infer<typeof snapshot>>;
+    command: (input: AssistantCommand) => Promise<Response>;
+  },
+  honorsStop: boolean,
+) => {
+  const requests: Array<AbortSignal | undefined> = [];
+  const answer_ = deferred<void>();
+  s.aiReview.provider = async (request) => {
+    requests.push(request.signal);
+    await new Promise<void>((resolve, reject) => {
+      void answer_.promise.then(resolve);
+      if (honorsStop) {
+        request.signal?.addEventListener("abort", () => reject(new Error("The run was stopped.")));
+      }
+    });
+    return reviewReply(request);
+  };
+  s.fetchModel.mockResolvedValueOnce(calls(["run_ai_review", { applicationId: s.applicationId }]));
+  const id = await s.create();
+  await s.begin(id, "Run an AI review of this application.");
+  const waiting = await s.settled(id);
+  expect(waiting.status).toBe("awaiting_approval");
+  const [group] = waiting.groups;
+  assert(group);
+  s.fetchModel.mockResolvedValue(answer("The AI review was stopped."));
+  expect((await s.command({ action: "approve", id, previewId: group.id })).status).toBe(202);
+  await vi.waitFor(() => expect(requests).toHaveLength(1), { timeout: 15_000, interval: 50 });
+  expect(requests[0]?.aborted).toBe(false);
+  return { id, requests, answered: answer_ };
+};
+
+it(
+  "aborts the provider request of a slow AI review and saves nothing when the turn is stopped in the worker",
+  { timeout: 40_000 },
+  async ({ scenario: s, database }) => {
+    const { id, requests } = await runningAiReview(s, true);
+
+    expect((await s.command({ action: "stop", id })).status).toBe(200);
+
+    // The web process holds no request: the workflow cancels the activity, which aborts it.
+    await vi.waitFor(() => expect(requests[0]?.aborted).toBe(true), {
+      timeout: 10_000,
+      interval: 50,
+    });
+    await s.closed(id);
+    const stopped = await s.open(id);
+    expect(stopped.status).toBe("stopped");
+    expect(stopped.groups[0]?.actions[0]?.status).toBe("stopped");
+    expect((await database.client.query("select id from ai_reviews")).rows).toEqual([]);
+    expect(s.fetchModel).toHaveBeenCalledTimes(1);
+  },
+);
+
+it(
+  "saves nothing when the provider answers after Stop reached the worker, even if it ignores the abort",
+  { timeout: 40_000 },
+  async ({ scenario: s, database }) => {
+    const { id, requests, answered } = await runningAiReview(s, false);
+
+    expect((await s.command({ action: "stop", id })).status).toBe(200);
+    await vi.waitFor(() => expect(requests[0]?.aborted).toBe(true), {
+      timeout: 10_000,
+      interval: 50,
+    });
+    // The provider returns a verified reply only now, after the stop was delivered.
+    answered.resolve();
+
+    // The run is over once its claim is released, whether or not it saved.
+    await vi.waitFor(
+      async () =>
+        expect(
+          (
+            await database.client.query(
+              "select 1 from assistant_conversations where id = $1 and state #> '{groups,0,actions,0,executing}' is null",
+              [id],
+            )
+          ).rowCount,
+        ).toBe(1),
+      { timeout: 15_000, interval: 50 },
+    );
+    await s.closed(id);
+    expect((await s.open(id)).groups[0]?.actions[0]?.status).toBe("stopped");
+    expect((await database.client.query("select id from ai_reviews")).rows).toEqual([]);
   },
 );

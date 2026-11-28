@@ -62,11 +62,9 @@ const catalogFor = (dependencies: AssistantRuntimeDependencies) => {
     const { aiReviewer } = dependencies;
     const services = createApplicationServices({
       ...dependencies,
-      // Stop aborts the provider request of an AI review the assistant runs outside a transaction.
-      aiReviewer:
-        aiReviewer && signal
-          ? { ...aiReviewer, review: (request) => aiReviewer.review({ ...request, signal }) }
-          : aiReviewer,
+      // Stop aborts the provider request of an AI review the assistant runs outside a transaction,
+      // and a run that was stopped saves nothing.
+      aiReviewer: aiReviewer && signal ? { ...aiReviewer, signal } : aiReviewer,
       database: transaction ? (use) => use(transaction) : dependencies.database,
       deferReviewerDelivery: transaction
         ? (pending) => {
