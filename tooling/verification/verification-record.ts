@@ -236,7 +236,7 @@ export const checkVerificationRecord = ({
 const GAP_SECTIONS = ["Could not verify", "Did not verify"] as const;
 
 const CI_DEFERRAL =
-  /\b(?:left|leave|leaving|leaves|deferred|defer)\b[^.\n]{0,40}?\bto\s+(?:the\s+)?(?:PR\s+|pull request\s+)?CI\b|\bcovered\s+by\s+(?:the\s+)?(?:PR\s+)?CI\b|\bCI\s+covers\b/iu;
+  /\b(?:left|leave|leaving|leaves|deferred|defer)\b[^\n]{0,40}?\b(?:to|for)\s+(?:the\s+)?(?:PR\s+|pull request\s+)?CI\b/iu;
 
 const MAX_QUOTE_LENGTH = 80;
 

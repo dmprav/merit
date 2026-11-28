@@ -185,11 +185,13 @@ Record facts about this change in the past tense. Advice for future work belongs
 The [Review Packet workflow](../../.github/workflows/review-packet.yml) posts one
 sticky comment on same-repo pull requests with what neither the description nor
 the diff shows a reviewer: the record's gaps and dismissed findings, deleted or
-skipped tests and added suppressions, DB/schema DDL deltas, auth, MCP, email,
-route, dependency, and runtime configuration touches, changes to a shared mechanism's contract,
-and desktop screenshots of affected stories. It leaves out **Behavioral
-decisions**, which the description states. A pull request with none of these gets
-no comment.
+skipped tests, added suppressions, protected paths and CI or coverage
+configuration touched, DB/schema DDL deltas, auth, MCP, email, route, dependency,
+and runtime configuration touches, changes to a shared mechanism's contract, UI
+modules changed, and desktop screenshots of affected stories. It leaves out
+**Behavioral decisions**, which the description states. A pull request with none
+of these gets no new comment; an existing one is updated so earlier findings do
+not remain.
 
 The `verification-flakes` lens in the
 [maintenance scout](../../.agents/tasks/scout.md#verification-flakes) reads new

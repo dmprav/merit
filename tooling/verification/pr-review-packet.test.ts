@@ -9,7 +9,7 @@ import {
   parseNumstatZ,
   parseReviewPacketArgs,
   renderReviewPacket,
-  reviewPacketHasFindings,
+  buildReviewPacket,
   REVIEW_PACKET_MARKER,
   splitSqlStatements,
   summarizeDiffSize,
@@ -192,7 +192,7 @@ None.
     expect(markdown).toContain("**Docs/other:** `+5/-2` (1 file)");
     // The description states decisions, so the packet does not repeat them.
     expect(markdown).toContain(EMPTY_REVIEW_PACKET_NOTE);
-    expect(reviewPacketHasFindings(input)).toBe(false);
+    expect(buildReviewPacket(input).hasFindings).toBe(false);
     expect(markdown).not.toContain("### Behavioral Decisions");
     expect(markdown).not.toContain("guide now leads");
     expect(markdown).not.toContain("### DB & Schema Delta");
@@ -204,10 +204,10 @@ None.
       changedFiles: [{ status: "modified", path: "capabilities/reviews/business/src/server/x.ts" }],
       recordContent: undefined,
     };
-    expect(reviewPacketHasFindings(composes)).toBe(false);
+    expect(buildReviewPacket(composes).hasFindings).toBe(false);
   });
 
-  test("surfaces behavioral decisions, DB DDL, UI touches, contracts, and integrity flags", () => {
+  test("orders integrity, DB, contracts, and UI sections and omits behavioral decisions", () => {
     const markdown = renderReviewPacket({
       changedFiles: [
         { status: "added", path: "foundation/db/database/migrations/0002_retry.sql" },
@@ -427,6 +427,13 @@ None.
     expect(
       summarizePaths(["m/a.ts", "m/b.ts", "m/c.ts", "r/a.ts", "p/a.ts", "q/a.ts", "root.ts"]),
     ).toBe("7 files in `m/` (3), `./` (1), `p/` (1), _+2 more folders_");
+    expect(summarizePaths(["a/x.ts", "b/x.ts", "c/x.ts", "d/x.ts"])).toBe(
+      "4 files in `a/` (1), `b/` (1), `c/` (1), _+1 more folder_",
+    );
+    const components = ["button", "dialog", "menu", "table"].map(
+      (name) => `foundation/ui/src/components/${name}/${name}.tsx`,
+    );
+    expect(summarizePaths(components)).toBe("4 files under `foundation/ui/src/components/`");
   });
 
   test("summarizes prod, test, and docs/other buckets cleanly", () => {

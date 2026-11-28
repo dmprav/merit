@@ -479,6 +479,18 @@ const formatCappedList = (items: readonly string[], limit = MAX_LIST_ITEMS): str
 
 const MAX_NAMED_PATHS = 3;
 
+/** The deepest folder that contains every given folder, or "" when they share none. */
+const commonFolder = (folders: readonly string[]): string => {
+  const [first = "", ...rest] = folders;
+  let prefix = first;
+  for (const folder of rest) {
+    while (!folder.startsWith(prefix)) {
+      prefix = prefix.slice(0, prefix.lastIndexOf("/", prefix.length - 2) + 1);
+    }
+  }
+  return prefix;
+};
+
 /** Names a few paths outright, or counts many by folder so a long list stays one line. */
 export const summarizePaths = (paths: readonly string[]): string => {
   const unique = [...new Set(paths)].sort();
@@ -494,11 +506,17 @@ export const summarizePaths = (paths: readonly string[]): string => {
   if (folders.length === 1) {
     return `${unique.length} files in \`${folders[0]?.[0]}\``;
   }
+  // Sibling folders, such as one per component, read better as the folder holding them all.
+  const common = commonFolder(folders.map(([folder]) => folder));
+  if (folders.length > MAX_NAMED_PATHS && common) {
+    return `${unique.length} files under \`${common}\``;
+  }
   const shown = folders
     .slice(0, MAX_NAMED_PATHS)
     .map(([folder, count]) => `\`${folder}\` (${count})`);
-  if (folders.length > MAX_NAMED_PATHS) {
-    shown.push(`_+${folders.length - MAX_NAMED_PATHS} more folders_`);
+  const hidden = folders.length - MAX_NAMED_PATHS;
+  if (hidden > 0) {
+    shown.push(`_+${hidden} more ${hidden === 1 ? "folder" : "folders"}_`);
   }
   return `${unique.length} files in ${shown.join(", ")}`;
 };
@@ -775,15 +793,16 @@ const reviewPacketBlocks = (input: ReviewPacketInput): string[][] => {
   ].filter((block) => block.length > 0);
 };
 
-export const EMPTY_REVIEW_PACKET_NOTE =
-  "Nothing to add to the description and diff: no verification gaps, schema changes, contract or auth touches, or UI changes.";
+// Screenshots may still be on their way, so the note claims nothing about UI.
+export const EMPTY_REVIEW_PACKET_NOTE = "Nothing to add to the description and diff.";
 
-/** Whether the packet would say anything beyond its size line, so it is worth posting. */
-export const reviewPacketHasFindings = (input: ReviewPacketInput): boolean =>
-  reviewPacketBlocks(input).length > 0;
-
-/** Renders the sticky PR Review Packet: only what the description and diff do not show. */
-export const renderReviewPacket = (input: ReviewPacketInput): string => {
+/**
+ * Builds the sticky PR Review Packet: only what the description and diff do not show.
+ * `hasFindings` is false when the packet says nothing beyond its size line.
+ */
+export const buildReviewPacket = (
+  input: ReviewPacketInput,
+): { markdown: string; hasFindings: boolean } => {
   const size = summarizeDiffSize(input.numstat);
   const blocks = reviewPacketBlocks(input);
   const header = [
@@ -795,11 +814,17 @@ export const renderReviewPacket = (input: ReviewPacketInput): string => {
 
   if (blocks.length === 0) {
     header.push("", EMPTY_REVIEW_PACKET_NOTE);
-    return `${header.join("\n")}\n`;
+    return { markdown: `${header.join("\n")}\n`, hasFindings: false };
   }
 
-  return `${header.join("\n")}\n\n${blocks.map((block) => block.join("\n")).join("\n\n")}\n`;
+  return {
+    markdown: `${header.join("\n")}\n\n${blocks.map((block) => block.join("\n")).join("\n\n")}\n`,
+    hasFindings: true,
+  };
 };
+
+export const renderReviewPacket = (input: ReviewPacketInput): string =>
+  buildReviewPacket(input).markdown;
 
 const parseNextLink = (linkHeader: string | null): string | null => {
   if (!linkHeader) {
@@ -1095,11 +1120,11 @@ const runCli = async () => {
     recordFilePath: record.path,
     ...readScreenshotManifest(options.screenshotsManifest),
   };
-  const markdown = renderReviewPacket(input);
+  const { markdown, hasFindings } = buildReviewPacket(input);
   appendGitHubFile("GITHUB_STEP_SUMMARY", `${markdown}\n`);
 
   if (options.post) {
-    await postReviewPacket(options.prNumber, markdown, reviewPacketHasFindings(input));
+    await postReviewPacket(options.prNumber, markdown, hasFindings);
   } else {
     process.stdout.write(markdown);
   }
