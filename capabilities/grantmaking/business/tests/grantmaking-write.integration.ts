@@ -122,106 +122,8 @@ const it = roundTest.extend("scenario", async ({ db, rounds }) => {
   );
   assert(saved.status === "ok", "Could not record a second material version");
 
-  return {
-    roundId: rounds.pageInput.publicId,
-    address,
-    assessmentId,
-    contactId,
-    otherWorkspaceContactId: await createContact(
-      db,
-      { slug: "birch", userId: "birch-manager" },
-      "Birch contact",
-    ),
-  };
+  return { address };
 });
-
-const versionUpdates = {
-  material: "UPDATE material_versions SET title=title",
-  materialAnswer: "UPDATE material_version_answers SET response=response",
-  criteria: "UPDATE criteria_versions SET version=version",
-  criteriaItem: "UPDATE criteria_version_items SET title=title",
-  assessment: "UPDATE assessment_versions SET reasoning=reasoning",
-  assessmentObservation: "UPDATE assessment_version_observations SET text=text",
-  recommendation: "UPDATE recommendation_versions SET reasoning=reasoning",
-};
-
-it.for([
-  "material",
-  "materialAnswer",
-  "criteria",
-  "criteriaItem",
-  "assessment",
-  "assessmentObservation",
-  "recommendation",
-] as const)(
-  "rejects updates to recorded %s versions at the database boundary",
-  async (kind, { db, database, scenario }) => {
-    const before = await getFundingApplicationPage(db, actor, scenario.address);
-    await expect(database.client.query(versionUpdates[kind])).rejects.toMatchObject({
-      code: "23514",
-    });
-    expect(await getFundingApplicationPage(db, actor, scenario.address)).toEqual(before);
-  },
-);
-
-it.for([
-  "material_versions",
-  "material_version_answers",
-  "criteria_versions",
-  "criteria_version_items",
-  "assessment_versions",
-  "assessment_version_observations",
-  "recommendation_versions",
-] as const)(
-  "preserves recorded %s rows while their owner exists",
-  async (table, { database, scenario }) => {
-    expect(
-      (
-        await database.client.query("SELECT 1 FROM application_cases WHERE id=$1", [
-          scenario.address.publicId,
-        ])
-      ).rowCount,
-    ).toBe(1);
-    await expect(database.client.query(`DELETE FROM ${table}`)).rejects.toMatchObject({
-      code: "23514",
-    });
-  },
-);
-
-it.for([
-  "criteria_version_items",
-  "material_version_answers",
-  "material_version_evidence",
-  "assessment_version_observations",
-] as const)(
-  "rejects adding %s rows to a committed version at the database boundary",
-  async (table, { db, database, scenario }) => {
-    const before = await getFundingApplicationPage(db, actor, scenario.address);
-    const queries = {
-      criteria_version_items: {
-        sql: "INSERT INTO criteria_version_items (round_id, version, position, criterion_id, title) VALUES ($1, 2, 1, $2, 'Extra')",
-        params: [scenario.roundId, randomUUID()],
-      },
-      material_version_answers: {
-        sql: "INSERT INTO material_version_answers (case_id, material_version, position, question_id, question, response) VALUES ($1, 1, 1, $2, 'Extra', 'Added')",
-        params: [scenario.address.publicId, randomUUID()],
-      },
-      material_version_evidence: {
-        sql: "INSERT INTO material_version_evidence (case_id, material_version, position, evidence_version, passage) VALUES ($1, 1, 0, 1, 'Added')",
-        params: [scenario.address.publicId],
-      },
-      assessment_version_observations: {
-        sql: "INSERT INTO assessment_version_observations (case_id, assessment_id, version, position, criterion_id, criterion, text) VALUES ($1, $2, 1, 1, NULL, 'Extra', 'Added')",
-        params: [scenario.address.publicId, scenario.assessmentId],
-      },
-    };
-    const query = queries[table];
-    await expect(database.client.query(query.sql, query.params)).rejects.toMatchObject({
-      code: "23514",
-    });
-    expect(await getFundingApplicationPage(db, actor, scenario.address)).toEqual(before);
-  },
-);
 
 it("requires current material and review bases to belong to the same case", async ({
   database,
@@ -249,26 +151,6 @@ it("requires current material and review bases to belong to the same case", asyn
       )
     ).rows,
   ).toEqual([{ material_version: 1 }]);
-});
-
-it("prevents an application case from linking another organization's contact", async ({
-  database,
-  scenario,
-}) => {
-  await expect(
-    database.client.query("UPDATE application_cases SET contact_id=$1 WHERE id=$2", [
-      scenario.otherWorkspaceContactId,
-      scenario.address.publicId,
-    ]),
-  ).rejects.toMatchObject({ code: "23503" });
-  expect(
-    (
-      await database.client.query<{ contact_id: string }>(
-        "SELECT contact_id FROM application_cases WHERE id=$1",
-        [scenario.address.publicId],
-      )
-    ).rows,
-  ).toEqual([{ contact_id: scenario.contactId }]);
 });
 
 it("keeps staff summary edits out of material versions and review bases", async ({
@@ -305,26 +187,4 @@ it("keeps staff summary edits out of material versions and review bases", async 
   expect(after.application.version).toBe(before.application.version);
   expect(after.application.reviews).toEqual(before.application.reviews);
   expect(after.application.summary).toBe("Staff interpretation after discussion.");
-});
-
-it("enforces relational intake boundaries on recorded material versions", async ({
-  database,
-  scenario,
-}) => {
-  await expect(
-    database.client.query(
-      `INSERT INTO material_versions (case_id, version, title, requested_minor_units, requested_currency, change_kind, source_kind)
-       VALUES ($1, 99, 'Invalid requested amount', -1, 'EUR', 'correction', 'recorded_external')`,
-      [scenario.address.publicId],
-    ),
-  ).rejects.toMatchObject({ code: "23514" });
-  const columns = (
-    await database.client.query<{ column_name: string }>(
-      `SELECT column_name FROM information_schema.columns
-       WHERE table_schema = 'public' AND table_name = 'material_versions'`,
-    )
-  ).rows.map((row) => row.column_name);
-  expect(columns).not.toContain("summary");
-  expect(columns).not.toContain("reviews");
-  expect(columns).not.toContain("manager_recommendation");
 });

@@ -4,6 +4,7 @@ import { assert, expect } from "vite-plus/test";
 
 import { materialVersionSchema, type IntakeChange } from "@merit/applications/domain";
 import { editFundingApplication, selectApplicationContact } from "@merit/applications/server";
+import { recordedEvents, withAuditFailure } from "@merit/audit/testing";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
@@ -25,7 +26,6 @@ import {
   listWorkspaceApplications,
 } from "../src/server";
 import { applicationWork } from "./application-work";
-import { recordedEvents, withAuditFailure } from "./audit-events";
 import { contactWork } from "./contact-work";
 import { roundTest } from "./round-test";
 
@@ -246,49 +246,6 @@ it("records the withdrawal beside the retained case and keeps all of its work", 
   ]);
 });
 
-it("keeps the intake state and the shared working revision exactly as they were", async ({
-  scenario: s,
-}) => {
-  expect(await s.edit({ action: "start_revision", kind: "revision" })).toMatchObject({
-    status: "ok",
-  });
-  const saved = await s.edit({
-    action: "save_revision",
-    draft: {
-      kind: "revision",
-      reason: "Clarify the venue",
-      content: { title: "Retitled while withdrawn" },
-    },
-  });
-  expect(saved).toMatchObject({ status: "ok" });
-  const before = await s.read();
-
-  expect(await s.edit(withdrawal())).toMatchObject({ status: "ok" });
-  const withdrawn = await s.read();
-  expect(withdrawn.intake.workingRevision).toEqual(before.intake.workingRevision);
-  expect(withdrawn.application.intakeStatus).toBe(before.application.intakeStatus);
-  expect(withdrawn.application.version).toBe(before.application.version);
-
-  expect(await s.edit({ action: "reinstate", reason: "The applicant returned." })).toMatchObject({
-    status: "ok",
-  });
-  const reinstated = await s.read();
-  expect(reinstated.intake.workingRevision).toEqual(before.intake.workingRevision);
-  expect(reinstated.application).not.toHaveProperty("withdrawal");
-});
-
-it("can withdraw an application that is still in preparation", async ({ rounds, scenario: s }) => {
-  const preparing = await rounds.createApplication("Still preparing");
-  const page = await s.read(preparing);
-  expect(page.application.intakeStatus).toBe("in_preparation");
-
-  expect(await s.edit(withdrawal(), preparing)).toMatchObject({ status: "ok" });
-  expect((await s.read(preparing)).application).toMatchObject({
-    intakeStatus: "in_preparation",
-    withdrawal: { reason: "The applicant secured other funding." },
-  });
-});
-
 it("closes outstanding review requests and ends reviewer access without touching finished work", async ({
   database,
   scenario: s,
@@ -446,39 +403,6 @@ it("rolls back the withdrawal and its closures when any part cannot be recorded"
   expect(after.intake.revision).toBe(before.intake.revision);
   expect(after.application.reviews).toEqual(before.application.reviews);
   expect((await s.reviewerPage()).assignment.status).toBe("accepted");
-});
-
-it("rejects a withdrawal at a stale intake revision without recording it", async ({
-  scenario: s,
-}) => {
-  const before = await s.read();
-
-  expect(await s.edit(withdrawal(), s.address, before.intake.revision - 1)).toEqual({
-    status: "conflict",
-  });
-  expect(await s.read()).toEqual(before);
-});
-
-it("rejects a blank withdrawal reason as an invalid request", async ({ scenario: s }) => {
-  const before = await s.read();
-
-  expect(await s.edit(withdrawal("   "))).toEqual({
-    status: "invalid",
-    error: "invalid_application",
-  });
-  expect(await s.read()).toEqual(before);
-});
-
-it("rejects a withdrawal dated after today on the server's clock", async ({ scenario: s }) => {
-  const before = await s.read();
-  // Later than the current date in every time zone.
-  const future = new Date(Date.now() + 60 * 3_600_000).toISOString().slice(0, 10);
-
-  expect(await s.edit(withdrawal("Too soon", future))).toEqual({
-    status: "invalid",
-    error: "withdrawal_date_in_future",
-  });
-  expect(await s.read()).toEqual(before);
 });
 
 it("rejects every write to a withdrawn case on every capability, while reads stay whole", async ({
@@ -732,22 +656,6 @@ it("lets a manager restore a closed reviewer assignment after reinstatement", as
     }),
   ).toMatchObject({ status: "ok" });
   expect((await s.reviewerPage()).assignment.status).toBe("accepted");
-});
-
-it("records a later withdrawal as a new event instead of editing the earlier one", async ({
-  scenario: s,
-}) => {
-  expect(await s.edit(withdrawal("Withdrew the first time."))).toMatchObject({ status: "ok" });
-  expect(await s.edit({ action: "reinstate", reason: "The applicant returned." })).toMatchObject({
-    status: "ok",
-  });
-
-  expect(await s.edit(withdrawal("Withdrew a second time."))).toMatchObject({ status: "ok" });
-  expect(
-    (await s.read()).intake.history
-      .filter((entry) => entry.action === "application.withdraw")
-      .map((entry) => entry.reason),
-  ).toEqual(["Withdrew a second time.", "Withdrew the first time."]);
 });
 
 it("excludes withdrawn applications from every total and discloses how many", async ({

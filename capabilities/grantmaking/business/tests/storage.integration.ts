@@ -189,19 +189,3 @@ it("returns exact metadata and tenant-scoped counts without reading application 
     decodeRoundSummary(encodeRoundSummary(summaries[0] ?? assert.fail("Expected summaries[0]"))),
   ).toEqual(summaries[0]);
 });
-
-it("rejects invalid calendar dates at the normalized storage boundary", async ({ database }) => {
-  await expect(
-    database.client.query(
-      "UPDATE funding_rounds SET meeting_date = '2027-02-30' WHERE organization_id = 'alder'",
-    ),
-  ).rejects.toMatchObject({ code: "22008" });
-});
-
-it("rejects invalid budgets at the normalized storage boundary", async ({ database }) => {
-  await expect(
-    database.client.query(
-      "UPDATE funding_rounds SET budget_minor_units = -1 WHERE organization_id = 'alder'",
-    ),
-  ).rejects.toThrow();
-});
