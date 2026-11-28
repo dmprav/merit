@@ -11,10 +11,8 @@ import { type RegistryLockOptions, updateRecord } from "./registry.ts";
 
 /** What a create attempt has changed so far; rollback undoes exactly these changes. */
 export type CreateProgress = {
-  /** This attempt's own `git branch` created the branch, so rollback may delete it. */
+  /** This attempt created the branch and proceeded to add its checkout. */
   branchCreated: boolean;
-  /** `git worktree add` ran, so a checkout may exist at `checkoutPath`. */
-  checkoutAttempted: boolean;
   checkoutPath: string;
   /** The added checkout's Git metadata directory, set once the attempt's token is written there. */
   gitDir?: string;
@@ -37,8 +35,6 @@ export type RegistryRollback =
   | { action: "none" | "remove" }
   | { action: "retain"; partialRemoval: boolean; databaseCreated: boolean };
 
-export type RollbackCleanup = { deleteBranch: boolean; registry: RegistryRollback };
-
 const UNTOUCHED_CHECKOUT: CheckoutRollback = {
   preserved: false,
   remains: false,
@@ -46,31 +42,27 @@ const UNTOUCHED_CHECKOUT: CheckoutRollback = {
 };
 
 /**
- * Decides what rollback does with the branch and registry record once the checkout is dealt with.
+ * Decides what happens to the registry record once rollback has dealt with the checkout.
  * A checkout Git refused to remove keeps its branch and its record, with the recorded identity,
  * so `worktree:clean` can finish the job and still reject a replacement checkout. A database
  * rollback created but could not drop also keeps the record, so `worktree:clean` can drop it.
  */
-export const decideRollbackCleanup = (
-  progress: Pick<CreateProgress, "branchCreated" | "registryReserved" | "databaseCreated">,
+export const decideRegistryRollback = (
+  progress: Pick<CreateProgress, "registryReserved" | "databaseCreated">,
   checkout: CheckoutRollback,
   databaseDropped: boolean,
-): RollbackCleanup => {
-  const deleteBranch = progress.branchCreated && !checkout.remains;
+): RegistryRollback => {
   const databaseRemains = progress.databaseCreated && !databaseDropped;
   if (!progress.registryReserved) {
-    return { deleteBranch, registry: { action: "none" } };
+    return { action: "none" };
   }
   if (!checkout.remains && !databaseRemains) {
-    return { deleteBranch, registry: { action: "remove" } };
+    return { action: "remove" };
   }
   return {
-    deleteBranch,
-    registry: {
-      action: "retain",
-      partialRemoval: checkout.metadataRemoved,
-      databaseCreated: databaseRemains,
-    },
+    action: "retain",
+    partialRemoval: checkout.metadataRemoved,
+    databaseCreated: databaseRemains,
   };
 };
 
@@ -87,9 +79,11 @@ export const rollbackError = (
   checkoutPath: string,
   checkout: CheckoutRollback,
   undroppedDatabase?: string,
+  createdBranch?: string,
 ): unknown => {
   const problems = [
     checkoutRollbackProblem(checkoutPath, checkout),
+    createdBranch && `inspect branch "${createdBranch}" before retrying with that name`,
     undroppedDatabase === undefined
       ? undefined
       : `rollback could not drop database "${undroppedDatabase}"; its registry record is kept so \`vp run worktree:clean\` can drop it`,
@@ -189,7 +183,7 @@ const removeOwnedCheckout = (git: RepoGit, checkoutDir: string): CheckoutRollbac
 };
 
 const rollBackCheckout = (attempt: CreateAttempt, progress: CreateProgress): CheckoutRollback => {
-  if (!progress.checkoutAttempted) {
+  if (!progress.branchCreated) {
     return UNTOUCHED_CHECKOUT;
   }
   const checkoutDir = existsSync(progress.checkoutPath)
@@ -225,6 +219,7 @@ const settleRegistryRecord = async (
                 ...withoutOwner(record),
                 ...(registry.partialRemoval ? { partialRemoval: true } : {}),
                 databaseCreated: registry.databaseCreated,
+                cleanupPolicy: "finish-rollback",
                 status: "cleaning",
               }
             : undefined,
@@ -245,14 +240,15 @@ export const rollBackCreate = async (
 ): Promise<unknown> => {
   const databaseDropped = await dropCreatedDatabase(attempt, progress);
   const checkout = rollBackCheckout(attempt, progress);
-  const cleanup = decideRollbackCleanup(progress, checkout, databaseDropped);
-  // A branch that appeared after the last check may belong to another job, so delete only the
-  // branch this attempt's own `git branch` created.
-  if (cleanup.deleteBranch && attempt.git.branchExists(attempt.branch)) {
-    ignoreFailure(() => attempt.git.run(["branch", "-D", attempt.branch]));
-  }
-  await settleRegistryRecord(attempt, progress, cleanup.registry);
+  const registry = decideRegistryRollback(progress, checkout, databaseDropped);
+  await settleRegistryRecord(attempt, progress, registry);
   const undroppedDatabase =
     progress.databaseCreated && !databaseDropped ? attempt.databaseName : undefined;
-  return rollbackError(error, progress.checkoutPath, checkout, undroppedDatabase);
+  return rollbackError(
+    error,
+    progress.checkoutPath,
+    checkout,
+    undroppedDatabase,
+    progress.branchCreated ? attempt.branch : undefined,
+  );
 };
