@@ -16,6 +16,11 @@ type SnapshotLimits = typeof SNAPSHOT_LIMITS;
 /** What a focused element shows: its size, whether it can paint, and its focus styles. */
 export type FocusedObservation = Pick<CapturedStop, "boundingBox" | "painted" | "focused">;
 
+type PaintReader = {
+  hasTextRun: (el: Element) => boolean;
+  hasPaintableTransform: (el: Element) => boolean;
+};
+
 type StyleReader = {
   relativeOf: (el: Element) => RelativeSnapshot;
   styleOf: (el: Element, pseudo?: string) => ElementStyleSnapshot;
@@ -42,13 +47,104 @@ type MeritFocusTracker = FocusLocator & {
 declare global {
   interface Window {
     __meritStyleReader?: StyleReader;
+    __meritPaintReader?: PaintReader;
     __meritFocusLocator?: FocusLocator;
     __meritFocusTracker?: MeritFocusTracker;
   }
 }
 
+/** Runs in the page: measures paint that depends on layout and the rendered ancestor chain. */
+const definePaintReader = () => {
+  const computedStyleOf = (el: Element) =>
+    (el.ownerDocument.defaultView ?? window).getComputedStyle(el);
+
+  const composedParent = (el: Element): Element | null => {
+    const root = el.getRootNode();
+    const view = el.ownerDocument.defaultView ?? window;
+    return (
+      el.assignedSlot ??
+      el.parentElement ??
+      (root instanceof view.ShadowRoot
+        ? root.host
+        : (el.ownerDocument.defaultView?.frameElement ?? null))
+    );
+  };
+
+  // CSS transforms do not apply to boxless elements, table columns, or ordinary HTML inline boxes.
+  const takesTransform = (el: Element, display: string): boolean => {
+    if (["contents", "table-column", "table-column-group"].includes(display)) {
+      return false;
+    }
+    const view = el.ownerDocument.defaultView ?? window;
+    return (
+      display !== "inline" ||
+      !(el instanceof view.HTMLElement) ||
+      el.matches(
+        "img, video, canvas, iframe, embed, object, input, audio, select, textarea, button",
+      )
+    );
+  };
+
+  const hasPaintableTransform = (el: Element): boolean => {
+    for (let node: Element | null = el; node; node = composedParent(node)) {
+      const { transform, scale, display } = computedStyleOf(node);
+      if (transform === "none" && scale === "none") {
+        continue;
+      }
+      // A singular transform suppresses the entire subtree, including paint outside a zero-size box.
+      if (
+        scale.split(/\s+/).some((axis) => Number.parseFloat(axis) === 0) ||
+        (transform !== "none" && Number.isNaN(new DOMMatrixReadOnly(transform).inverse().m11))
+      ) {
+        if (takesTransform(node, display)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  // A decoration on an empty box has no text run to draw across.
+  const hasTextRun = (el: Element): boolean => {
+    const view = el.ownerDocument.defaultView ?? window;
+    return Array.from(el.childNodes).some((node) => {
+      if (node instanceof view.Element) {
+        const style = computedStyleOf(node);
+        // Decorations cross in-flow boxes, but stop at atomic inlines and out-of-flow children.
+        return (
+          !/^(inline-(block|flex|grid|table)|none|ruby-text)$/.test(style.display) &&
+          style.position !== "absolute" &&
+          style.position !== "fixed" &&
+          style.cssFloat === "none" &&
+          style.opacity !== "0" &&
+          style.contentVisibility !== "hidden" &&
+          hasTextRun(node)
+        );
+      }
+      if (
+        node.nodeType !== Node.TEXT_NODE ||
+        !node.textContent?.trim() ||
+        computedStyleOf(el).visibility !== "visible"
+      ) {
+        return false;
+      }
+      const range = el.ownerDocument.createRange();
+      range.selectNodeContents(node);
+      const { width, height } = range.getBoundingClientRect();
+      return width > 0 && height > 0;
+    });
+  };
+
+  window.__meritPaintReader = { hasTextRun, hasPaintableTransform };
+};
+
 /** Runs in the page: installs how a snapshot reads the styles that can paint a focus cue. */
-const defineStyleReader = () => {
+const defineStyleReader = (): boolean => {
+  const paint = window.__meritPaintReader;
+  if (!paint) {
+    return false;
+  }
+
   const pickStyle = (style: CSSStyleDeclaration, pseudo: boolean): ElementStyleSnapshot => ({
     outlineStyle: style.outlineStyle,
     outlineWidth: style.outlineWidth,
@@ -82,37 +178,6 @@ const defineStyleReader = () => {
   const isPainted = (el: Element): boolean =>
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
 
-  // A decoration on an empty box has no text run to draw across.
-  const hasTextRun = (el: Element): boolean => {
-    const view = el.ownerDocument.defaultView ?? window;
-    return Array.from(el.childNodes).some((node) => {
-      if (node instanceof view.Element) {
-        const style = computedStyleOf(node);
-        // Decorations cross in-flow boxes, but stop at atomic inlines and out-of-flow children.
-        return (
-          !/^(inline-(block|flex|grid|table)|none|ruby-text)$/.test(style.display) &&
-          style.position !== "absolute" &&
-          style.position !== "fixed" &&
-          style.cssFloat === "none" &&
-          style.opacity !== "0" &&
-          style.contentVisibility !== "hidden" &&
-          hasTextRun(node)
-        );
-      }
-      if (
-        node.nodeType !== Node.TEXT_NODE ||
-        !node.textContent?.trim() ||
-        computedStyleOf(el).visibility !== "visible"
-      ) {
-        return false;
-      }
-      const range = el.ownerDocument.createRange();
-      range.selectNodeContents(node);
-      const { width, height } = range.getBoundingClientRect();
-      return width > 0 && height > 0;
-    });
-  };
-
   const relativeOf = (el: Element): RelativeSnapshot => {
     let nodeId = nodeIds.get(el);
     if (nodeId === undefined) {
@@ -121,20 +186,22 @@ const defineStyleReader = () => {
     }
     const { width, height } = el.getBoundingClientRect();
     const style = computedStyleOf(el);
-    const painted = isPainted(el);
+    const painted = isPainted(el) && paint.hasPaintableTransform(el);
     return {
       nodeId,
       hasArea: width > 0 && height > 0,
       painted,
       style: pickStyle(style, false),
       decorationColor:
-        painted && style.textDecorationLine !== "none" && hasTextRun(el)
+        painted && style.textDecorationLine !== "none" && paint.hasTextRun(el)
           ? style.textDecorationColor
           : undefined,
     };
   };
 
   window.__meritStyleReader = { styleOf, relativeOf, isPainted };
+  delete window.__meritPaintReader;
+  return true;
 };
 
 /** Runs in the page: installs how traversal finds focus and returns it to the document start. */
@@ -304,7 +371,10 @@ const defineFocusTracker = (limits: SnapshotLimits): boolean => {
  * later, during traversal, loses the tracker, which traversal reports.
  */
 export const installFocusTracker = async (page: Page): Promise<boolean> => {
-  await page.evaluate(defineStyleReader);
+  await page.evaluate(definePaintReader);
+  if (!(await page.evaluate(defineStyleReader))) {
+    return false;
+  }
   await page.evaluate(defineFocusLocator);
   if (!(await page.evaluate(defineFocusTracker, SNAPSHOT_LIMITS))) {
     return false;
