@@ -68,14 +68,33 @@ export const reviewerPage = (): ReviewerPage => ({
           questionId: "ea6818f9-940d-417b-b094-ed0c0d145f5b",
           question: "Project overview",
           response:
-            "Weekly shared meals will bring residents together over 24 weeks. Eight volunteers will cook and welcome neighbours at the community hall.",
+            "Neighbour Table will bring local residents together for a weekly shared meal over 24 weeks. Each session combines cooking, a low-cost lunch and facilitated conversation. We aim to involve 60 residents across the programme, particularly adults living alone who do not currently attend community activities.",
+        },
+        {
+          questionId: "31512cd2-519b-4baa-b9af-f8870df5c084",
+          question: "Community need",
+          response:
+            "Our six-session pilot recorded 90 attendances. We did not count unique people, so this is not a measure of how many residents we reached. Of the 18 attendees who gave feedback, 14 said they would return. We will record unique participants and repeat attendance during the funded programme.",
+        },
+        {
+          questionId: "6cf6d5da-fb0f-4da3-9268-49f572a9c7b7",
+          question: "Delivery plan",
+          response:
+            "The community hall has confirmed all 24 dates. Our coordinator and eight volunteers will prepare the meals and welcome participants. Local community groups will help us reach residents who may be reluctant to attend on their own. Funding covers food, coordination, room hire and volunteer support.",
+        },
+        {
+          questionId: "e327abe8-f952-4789-ac6d-3a6e5e02d8f4",
+          question: "Submitted budget breakdown (EUR)",
+          response:
+            "Food and supplies: €9600.00\nProject coordinator: €8400.00\nHall hire: €3600.00\nVolunteer training and travel: €2400.00",
         },
       ],
     },
     evidence: [
       {
         version: 1,
-        passage: "Of the 18 pilot attendees who gave feedback, 14 said they would return.",
+        passage:
+          "Our six-session pilot recorded 90 attendances. We did not count unique people. In feedback from 18 attendees, 14 said they would return. The community hall has confirmed all 24 dates, and our coordinator and eight volunteers will run them.",
       },
     ],
   },
