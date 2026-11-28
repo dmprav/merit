@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vite-plus/test";
 
@@ -430,4 +430,36 @@ it("captures the save boundary when preparation finishes rather than on later up
 
   expect(recovered).toHaveBeenCalledExactlyOnceWith("Recovered name");
   expect(later).not.toHaveBeenCalled();
+});
+
+it("does not submit a completed Enter rename again if focus moves before the editor closes", async () => {
+  let finish!: () => void;
+  const save = vi.fn(
+    () =>
+      new Promise<null>((resolve) => {
+        finish = () => resolve(null);
+      }),
+  );
+  render(
+    <>
+      <InlineName {...props} onSave={save} />
+      <button>Elsewhere</button>
+    </>,
+  );
+  const user = userEvent.setup();
+  const input = await openEditor(user);
+  await user.type(input, " 2027{Enter}");
+  expect(save).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    finish();
+    await Promise.resolve();
+    screen.getByRole("button", { name: "Elsewhere" }).focus();
+  });
+  expect(save).toHaveBeenCalledTimes(1);
+  const reopened = await openEditor(user);
+  await user.type(reopened, " 2028{Enter}");
+  expect(save).toHaveBeenCalledTimes(2);
+  await act(async () => {
+    finish();
+  });
 });
