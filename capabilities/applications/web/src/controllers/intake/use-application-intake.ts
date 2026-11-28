@@ -7,12 +7,12 @@ import {
   canStartIntakeRevision,
   missingIntakeFields,
   intakeContent,
+  type IntakeApplication,
   type IntakeChange,
 } from "@merit/applications/domain";
-import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import { useWorkflowRefresh } from "@merit/query/refresh";
 
-import type { IntakeData, IntakeFailure } from "../../contracts/intake";
+import type { IntakeActivity, IntakeData, IntakeFailure } from "../../contracts/intake";
 import { useIntakeDrafts } from "./drafts";
 import {
   intakeSnapshot,
@@ -21,7 +21,6 @@ import {
   intakeRenameCommand,
   intakeMenuActions,
   intakeConfirmationChange,
-  outstandingReviewCount,
   intakeDraftChanged,
   buildIntakeDraft,
   newIntakeDraft,
@@ -34,7 +33,8 @@ import {
 } from "./intake-state";
 
 type UseApplicationIntakeOptions = {
-  application: Application;
+  activity: IntakeActivity;
+  application: IntakeApplication;
   data: IntakeData;
   onDeleted: () => Promise<void>;
 };
@@ -54,6 +54,7 @@ const useConfirmationState = () => {
 
 export const useApplicationIntake = ({
   application,
+  activity,
   data,
   onDeleted,
 }: UseApplicationIntakeOptions) => {
@@ -62,6 +63,7 @@ export const useApplicationIntake = ({
   const editing = useIntakeEditing(application, data, saving.busy);
   const actions = intakeActions(application, data, editing, saving, confirmation, setConfirmation);
   const intake = data.state;
+  const decisions = intake.decisions ?? { hasDecision: false, hasCommitment: false };
   return {
     editor: {
       ready: editing.ready,
@@ -84,18 +86,16 @@ export const useApplicationIntake = ({
     ready: editing.ready,
     application,
     withdrawn: isWithdrawn(application),
-    outstandingReviews: outstandingReviewCount(application),
-    hasCommitment: intake.decisions?.hasCommitment ?? false,
+    outstandingReviews: activity.outstandingReviews,
+    hasCommitment: decisions.hasCommitment,
     metadataEditing: intakeMetadataEditing(application, data, editing.section),
     workingRevision: intake.workingRevision,
     canStartRevision: canStartIntakeRevision(application, intake.workingRevision),
     missingFields: missingIntakeFields(intakeContent(application)),
-    menuActions: intakeMenuActions(
-      application,
-      intake.workingRevision,
-      editing.changed("title"),
-      intake.decisions,
-    ).filter((action) => editing.ready || (action !== "delete" && action !== "discard_revision")),
+    menuActions: intakeMenuActions(application, intake.workingRevision, editing.changed("title"), {
+      ...activity,
+      ...decisions,
+    }).filter((action) => editing.ready || (action !== "delete" && action !== "discard_revision")),
     canOpen: (target: IntakeSection) =>
       !isWithdrawn(application) &&
       editing.section !== target &&
@@ -131,7 +131,7 @@ export const useApplicationIntake = ({
 };
 
 const intakeMetadataEditing = (
-  application: Application,
+  application: IntakeApplication,
   data: IntakeData,
   section: IntakeSection | null,
 ) => {
@@ -157,7 +157,7 @@ const intakeMetadataEditing = (
 };
 
 const useIntakeEditing = (
-  application: Application,
+  application: IntakeApplication,
   data: IntakeData,
   busy: ReturnType<typeof useRef<boolean>>,
 ) => {
@@ -349,7 +349,7 @@ const useIntakeSave = (
 };
 
 const intakeActions = (
-  application: Application,
+  application: IntakeApplication,
   data: IntakeData,
   editing: ReturnType<typeof useIntakeEditing>,
   saving: ReturnType<typeof useIntakeSave>,
@@ -429,7 +429,7 @@ const intakeActions = (
 };
 
 const intakeRenameAction = (
-  application: Application,
+  application: IntakeApplication,
   data: IntakeData,
   editing: ReturnType<typeof useIntakeEditing>,
   saving: ReturnType<typeof useIntakeSave>,

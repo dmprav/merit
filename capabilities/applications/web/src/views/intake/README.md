@@ -90,7 +90,10 @@ submissions. Each caller supplies only its authorized source and owns its headin
 
 The [intake controller](../../controllers/intake/use-application-intake.ts) owns
 section eligibility, opening an editor, original revision baselines, and save
-commands. Forms receive its focused editor interface and supply edited values.
+commands. Grantmaking supplies review activity, recommendation presence, and the
+number of outstanding review requests when it opens an editable session. The
+controller combines these with the intake state’s decision facts for deletion
+and withdrawal. Forms receive its focused editor interface and supply edited values.
 The pure [intake state helpers](../../controllers/intake/intake-state.ts) build
 section saves and title corrections from those values and their baselines.
 They also detect a conflicting draft and reconcile it with the latest saved

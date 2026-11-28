@@ -53,7 +53,11 @@ const show = (revision = 2, draft: IntakeDraft = recovered) => {
         >
           <ApplicationIntake
             application={application}
-            session={{ data, onDeleted: vi.fn() }}
+            session={{
+              activity: { hasReviews: false, hasRecommendation: false, outstandingReviews: 0 },
+              data,
+              onDeleted: vi.fn(),
+            }}
             onReveal={vi.fn()}
           >
             {(content) => (
@@ -175,7 +179,13 @@ const restoringController = () => {
   const setApplicationEdit = vi.fn();
   const client = createQueryClient();
   const rendered = renderHook(
-    () => useApplicationIntake({ application, data, onDeleted: vi.fn() }),
+    () =>
+      useApplicationIntake({
+        activity: { hasReviews: false, hasRecommendation: false, outstandingReviews: 0 },
+        application,
+        data,
+        onDeleted: vi.fn(),
+      }),
     {
       wrapper: ({ children }) => (
         <QueryClientProvider client={client}>

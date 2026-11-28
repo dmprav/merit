@@ -9,7 +9,12 @@ import type { IntakeData, IntakeState } from "@merit/applications-web/contracts"
 import { ApplicationIntake, type IntakeSession } from "@merit/applications-web/work";
 import { prepareIntakeChange } from "@merit/applications/domain";
 import { roundView, applicationView } from "@merit/grantmaking/api";
-import { makeApplication, makeReviewRequest, makeRound } from "@merit/grantmaking/testing/fixtures";
+import {
+  makeApplication,
+  makeReviewedApplication,
+  makeReviewRequest,
+  makeRound,
+} from "@merit/grantmaking/testing/fixtures";
 import { MessagesProvider } from "@merit/i18n";
 import { fromMinorUnits } from "@merit/money";
 import { createQueryClient } from "@merit/query";
@@ -764,6 +769,26 @@ it("withdraws with a date and reason, then offers only reinstatement while the c
   await user.click(screen.getByRole("button", { name: "Application actions" }));
   expect(await screen.findByRole("menuitem", { name: "Withdraw application" })).toBeVisible();
   expect(screen.getByRole("menuitem", { name: "Start revised submission" })).toBeVisible();
+});
+
+it.each([
+  ["an unused application", makeApplication(), true],
+  [
+    "a review request",
+    makeApplication({ reviews: { ...original.reviews, requests: [outstandingRequest("one")] } }),
+    false,
+  ],
+  ["an assessment", makeApplication({ reviews: makeReviewedApplication().reviews }), false],
+  [
+    "a recommendation",
+    makeApplication({ managerRecommendation: makeReviewedApplication().managerRecommendation }),
+    false,
+  ],
+] as const)("offers deletion according to recorded work: %s", async (_, application, canDelete) => {
+  const { user } = renderIntake(undefined, undefined, undefined, applicationView(application));
+  await user.click(await screen.findByRole("button", { name: "Application actions" }));
+  expect(await screen.findByRole("menuitem", { name: "Withdraw application" })).toBeVisible();
+  expect(Boolean(screen.queryByRole("menuitem", { name: "Delete application" }))).toBe(canDelete);
 });
 
 it("states how many outstanding review requests will close", async () => {

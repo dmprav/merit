@@ -1,4 +1,4 @@
-import type { ApplicationView } from "@merit/grantmaking/api";
+import type { IntakeApplication } from "@merit/applications/domain";
 import { Reading } from "@merit/ui/layout";
 import { SectionHeader } from "@merit/ui/section-header";
 
@@ -9,7 +9,7 @@ export const SubmissionAnswers = ({
   answers,
   headingLevel = 3,
 }: {
-  answers: NonNullable<ApplicationView["submission"]>["answers"];
+  answers: NonNullable<IntakeApplication["submission"]>["answers"];
   headingLevel?: 3 | 4 | 5;
 }) => {
   return (
