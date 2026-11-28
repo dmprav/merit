@@ -522,11 +522,16 @@ it("returns the saved observations for a citation until access to the chat is lo
 it("discards an unavailable delivery ticket and requires approval for a new invitation", async () => {
   const ctx = await fixture();
   ctx.model.mockResolvedValueOnce(calls("invite", "reviewer"));
-  ctx.catalog.execute.mockResolvedValueOnce({
-    ...ok,
-    delivery: { kind: "invitation", assignmentId: "A", messageId: "superseded" },
-  });
-  ctx.catalog.deliver.mockResolvedValueOnce("unavailable");
+  ctx.catalog.execute
+    .mockResolvedValueOnce({
+      ...ok,
+      delivery: { kind: "invitation", assignmentId: "A", messageId: "superseded" },
+    })
+    .mockResolvedValueOnce({
+      ...ok,
+      delivery: { kind: "invitation", assignmentId: "A", messageId: "replacement" },
+    });
+  ctx.catalog.deliver.mockResolvedValueOnce("unavailable").mockResolvedValueOnce("sent");
   await ctx.run();
   const original = (await ctx.open())?.groups[0];
   assert.isDefined(original);
@@ -554,9 +559,15 @@ it("discards an unavailable delivery ticket and requires approval for a new invi
   expect(ctx.catalog.execute).toHaveBeenCalledTimes(1);
   await ctx.turns.approve(...address, { previewId: fresh.id });
   await ctx.run();
-  expect((await ctx.open())?.groups[1]?.actions[0]?.status).toBe("succeeded");
+  expect((await ctx.open())?.groups[1]?.actions[0]).toMatchObject({
+    status: "succeeded",
+    result: { delivery: "sent" },
+  });
   expect(ctx.catalog.execute).toHaveBeenCalledTimes(2);
-  expect(ctx.catalog.deliver).toHaveBeenCalledTimes(1);
+  expect(ctx.catalog.deliver.mock.calls.map(([ticket]) => ticket.messageId)).toEqual([
+    "superseded",
+    "replacement",
+  ]);
 });
 
 it("keeps an invitation delivering while its message is pending and records the outcome once it settles", async () => {

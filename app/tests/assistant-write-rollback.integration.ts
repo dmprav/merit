@@ -25,6 +25,7 @@ it("rolls back the catalog write and saves its business rejection on the approve
     effects: ["Rename the workspace"],
   };
   const rejected = { status: "invalid", reason: "Name already in use" };
+  const citation = { kind: "organization", recordId: workspace, version: "1", label: original };
   const turns = createAssistantTurns({
     store,
     model: async () => ({ kind: "calls", calls: [{ name: preview.name, input: preview.input }] }),
@@ -40,7 +41,7 @@ it("rolls back the catalog write and saves its business rejection on the approve
           sql`update organizations set name = ${marker} where id = ${workspace} and name = ${original} returning name`,
         );
         expect(changed.rows).toEqual([{ name: marker }]);
-        return { result: rejected, citations: [], dependencies: [] };
+        return { result: rejected, citations: [citation], dependencies: [{ kind: "membership" }] };
       },
       read: vi.fn(),
       deliver: vi.fn(),
@@ -59,11 +60,15 @@ it("rolls back the catalog write and saves its business rejection on the approve
   const saved = await turns.open(...address);
   expect(saved?.groups[0]?.actions[0]).toMatchObject({ status: "failed", result: rejected });
   const stored = await store.read(...address);
-  const { messages } = conversationState.parse(stored?.state);
+  const { messages, sources, dependencies } = conversationState.parse(stored?.state);
+  const source = { ...citation, key: "E1" };
+  expect(dependencies).toContainEqual({ kind: "membership" });
+  expect(sources).toContainEqual(source);
   expect(messages.at(-1)).toMatchObject({
     role: "tool",
     name: preview.name,
     result: { ...rejected, phase: "execution" },
+    citations: [source],
   });
   const committed = await database.client.query("select name from organizations where id = $1", [
     workspace,
