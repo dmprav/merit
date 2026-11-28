@@ -148,6 +148,20 @@ describe("due areas", () => {
     expect(runs).toEqual([]);
   });
 
+  test("lists only areas that still hold tracked files, whatever the state remembers", () => {
+    const state: ScoutState = {
+      "area:capabilities/removed": { lastCommitSha: "abcdef12", lastRunAt: "2026-11-25T00:00:00Z" },
+    };
+    const { runs } = due(
+      {
+        tracked,
+        churn: [churn("capabilities/removed/a.ts", SCOUT_RUN_POLICY.area.minChangedLines)],
+      },
+      state,
+    );
+    expect(runs).toEqual([]);
+  });
+
   test("measures each area from its own cursor and a never-audited one from the lookback", () => {
     const cursor = { lastCommitSha: "abcdef12", lastRunAt: "2026-11-25T00:00:00Z" };
     const { queries } = due({ tracked, churn: [] }, { "area:docs": cursor });
@@ -185,15 +199,17 @@ describe("due mechanisms", () => {
   });
 
   test("counts a commit once however many of its files match", () => {
-    const history = commits(1);
+    const history = commits(SCOUT_RUN_POLICY.mechanism.minCommits - 2);
+    const files = ["capabilities/audit/a.ts", "capabilities/audit/b.ts"];
     const { runs } = due(
       {
         commits: history,
-        filesBySha: { c0: ["capabilities/audit/a.ts", "capabilities/audit/b.ts"] },
+        filesBySha: Object.fromEntries(history.map((entry) => [entry.sha, files])),
       },
       {},
       [auditTrail],
     );
+    // Counting files would give 2 * (threshold - 2) >= threshold.
     expect(runs).toEqual([]);
   });
 

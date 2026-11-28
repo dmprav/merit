@@ -119,6 +119,19 @@ const scanForRun = (
   };
 };
 
+/** Refuses an area run whose area holds no tracked files at the scan tip. */
+const requireKnownArea = (
+  target: ScoutRunTarget,
+  runId: string,
+  trackedFiles: readonly string[],
+): void => {
+  if (target.kind === "area" && !listAreas(trackedFiles).includes(target.area)) {
+    throw new Error(
+      `Unknown area run "${runId}". Valid areas: ${listAreas(trackedFiles).sort().join(", ")}.`,
+    );
+  }
+};
+
 /**
  * Builds the context a scout session reads before auditing one run. Refuses an unknown run id before
  * reading anything, and a run whose checkout is not a clean copy of the scan tip.
@@ -128,11 +141,7 @@ export const buildContext = (ports: ScoutPorts, runId: string): ScoutContext => 
   const state = readScoutState(ports);
   const scanTipSha = ports.git.revParse(SCAN_REF);
   const trackedFiles = ports.git.trackedFiles(scanTipSha);
-  if (target.kind === "area" && !listAreas(trackedFiles).includes(target.area)) {
-    throw new Error(
-      `Unknown area run "${runId}". Valid areas: ${listAreas(trackedFiles).sort().join(", ")}.`,
-    );
-  }
+  requireKnownArea(target, runId, trackedFiles);
   assertCheckoutAt(ports.git, scanTipSha);
   const run: ScoutRun = { id: runId, target, cursor: state[runId], scanTipSha };
   return buildScoutContext(run, scanForRun(ports, run, trackedFiles));
@@ -149,10 +158,11 @@ export const advanceRun = (
   ports: Pick<ScoutPorts, "git" | "issues" | "now">,
   { runId, commitSha, prNumber }: AdvanceOptions,
 ): { status: "advanced"; run: string; cursor: RunCursor } => {
-  resolveRunTarget(runId);
+  const target = resolveRunTarget(runId);
   if (prNumber !== undefined && runId !== RECORDS_RUN_ID) {
     throw new Error(`--pr applies only to the "${RECORDS_RUN_ID}" run (got "${runId}").`);
   }
+  requireKnownArea(target, runId, ports.git.trackedFiles(ports.git.revParse(SCAN_REF)));
   const stateIssue = fetchScoutStateIssue(ports.issues);
   const { body, cursor } = advanceScoutStateBody({
     issueNumber: stateIssue.number,

@@ -395,6 +395,14 @@ describe("advancing a run", () => {
     expect(calls).toEqual([]);
   });
 
+  test("refuses an area with no tracked files at the scan tip before editing the issue", () => {
+    const { ports, edits } = createFakePorts();
+    expect(() =>
+      advanceRun(ports, { runId: "area:capabilities/removed", commitSha: "HEAD" }),
+    ).toThrow(/Unknown area run "area:capabilities\/removed"\. Valid areas: .*tooling\/agents/);
+    expect(edits).toEqual([]);
+  });
+
   test("refuses an unknown run id before touching the state issue", () => {
     const { ports, calls } = createFakePorts();
     expect(() => advanceRun(ports, { runId: "docs", commitSha: "HEAD" })).toThrow(
@@ -421,6 +429,10 @@ describe("advancing a run", () => {
   test("refuses a corrupt state marker before resolving the commit or editing the issue", () => {
     const { ports, calls } = createFakePorts({ body: CORRUPT_STATE_BODY });
     expect(() => advanceRun(ports, options)).toThrow(/Refusing to advance.*#219.*corrupt/);
-    expect(calls).toEqual(["issues.viewIssue"]);
+    expect(calls).toEqual([
+      "git.revParse origin/main",
+      "git.trackedFiles tip1234567",
+      "issues.viewIssue",
+    ]);
   });
 });

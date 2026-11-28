@@ -114,10 +114,9 @@ export const computeDueRuns = ({
     SCOUT_RUN_POLICY.changeBatch.minCommits,
   );
 
-  const knownAreas = Object.keys(state)
-    .filter((key) => key.startsWith("area:"))
-    .map((key) => key.slice("area:".length));
-  for (const area of new Set([...listAreas(trackedFiles), ...knownAreas])) {
+  // Only areas with tracked files at the tip: `context` refuses any other, so a run for a deleted
+  // or renamed area could never be audited or advanced.
+  for (const area of listAreas(trackedFiles)) {
     const id = areaRunId(area);
     measure(
       id,
