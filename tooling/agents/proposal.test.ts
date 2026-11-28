@@ -204,6 +204,19 @@ describe("tier classification", () => {
     ).toBe(1);
   });
 
+  test("treats each tooling package as its own slice", () => {
+    const tier = (paths: string[]) => classifyProposalTier({ paths, ambiguous: false }).tier;
+
+    expect(tier(["tooling/testing/process.test.ts", "tooling/testing/env.test.ts"])).toBe(1);
+    expect(tier(["tooling/testing/process.test.ts", "tooling/stylelint/rules.test.ts"])).toBe(2);
+    expect(
+      classifyProposalTier({
+        paths: ["tooling/testing/process.test.ts", "tooling/stylelint/rules.test.ts"],
+        ambiguous: false,
+      }).slices,
+    ).toEqual(["tooling/stylelint", "tooling/testing"]);
+  });
+
   test("classifies production, multi-slice, extends-mechanism, protected, root/record docs, wildcard, or ambiguous proposals as Tier 2", () => {
     for (const [paths, ambiguous] of [
       [["capabilities/reviews/business/src/server/service.ts"], false],
@@ -545,6 +558,23 @@ describe("proposal depth", () => {
     expect(resolveProposalDepth(client, followUp(22))).toBe(1);
   });
 
+  test("follows the first issue a pull request closes in body order, not the lowest number", () => {
+    const { client, viewed } = fakeIssues({
+      bodies: {
+        30: "Refs #5. closed #32 and Fixes #6, then Closes #31",
+        31: markerBody({ depth: 0 }),
+        32: markerBody({ depth: 2 }),
+      },
+    });
+    expect(
+      resolveProposalDepth(
+        client,
+        sampleProposal({ run: undefined, parent: { type: "pr", number: 30 } }),
+      ),
+    ).toBe(3);
+    expect(viewed).toEqual([30, 32]);
+  });
+
   test("fails when the parent cannot be read", () => {
     const { client } = fakeIssues();
     expect(() =>
@@ -661,7 +691,10 @@ describe("evidence branch verification", () => {
   const git = (cwd: string, ...args: string[]) =>
     execFileSync("git", args, { cwd, encoding: "utf8", stdio: "pipe" }).trim();
 
-  /** A clone whose `origin` holds `claude/evidence` with one commit the clone does not have checked out. */
+  /**
+   * A clone of `origin` taken before `claude/evidence` was pushed, so the evidence commit reaches the
+   * clone only through the fetch `verifyEvidenceBranch` runs. `otherCommit` is already in the clone.
+   */
   const withOrigin = (
     run: (clone: string, evidenceCommit: string, otherCommit: string) => void,
   ) => {
@@ -676,17 +709,18 @@ describe("evidence branch verification", () => {
       writeFileSync(join(origin, "a.txt"), "a");
       git(origin, "add", ".");
       git(origin, "commit", "-q", "-m", "base");
-      git(origin, "switch", "-q", "-c", "claude/evidence");
-      writeFileSync(join(origin, "b.txt"), "b");
-      git(origin, "add", ".");
-      git(origin, "commit", "-q", "-m", "failing test");
-      const evidenceCommit = git(origin, "rev-parse", "HEAD");
-      git(origin, "switch", "-q", "main");
       writeFileSync(join(origin, "c.txt"), "c");
       git(origin, "add", ".");
       git(origin, "commit", "-q", "-m", "unrelated");
       const otherCommit = git(origin, "rev-parse", "HEAD");
       git(root, "clone", "-q", origin, clone);
+
+      git(origin, "switch", "-q", "-c", "claude/evidence", "HEAD~1");
+      writeFileSync(join(origin, "b.txt"), "b");
+      git(origin, "add", ".");
+      git(origin, "commit", "-q", "-m", "failing test");
+      const evidenceCommit = git(origin, "rev-parse", "HEAD");
+      expect(() => git(clone, "cat-file", "-e", `${evidenceCommit}^{commit}`)).toThrow();
       run(clone, evidenceCommit, otherCommit);
     } finally {
       rmSync(root, { recursive: true, force: true });

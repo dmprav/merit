@@ -7,7 +7,6 @@ import { normalizeRepoPath, parseCliArgs } from "../cli.ts";
 import { REPO_ROOT } from "../paths.ts";
 import {
   AGENT_LABELS,
-  extractLinkedIssueNumbers,
   findProtectedPaths,
   parseProposalMarker,
 } from "../verification/agent-policy.ts";
@@ -16,7 +15,7 @@ import {
   type MechanismClassification,
 } from "../verification/architecture/mechanisms.ts";
 import { createGitHubIssueClient, type GitHubIssueClient } from "./github.ts";
-import { hasRunIdForm } from "./scout/runs.ts";
+import { areaForPath, hasRunIdForm } from "./scout/runs.ts";
 
 /** A pull request proposal at most this many steps from a scout finding is ready for a work session. */
 export const MAX_READY_DEPTH = 2;
@@ -164,18 +163,6 @@ export type DuplicateCheckResult =
   | { duplicate: true; matchedIssue: ExistingIssueSummary; reason: string }
   | { duplicate: false };
 
-export const sliceForPath = (filePath: string): string => {
-  const normalized = normalizeRepoPath(filePath);
-  const parts = normalized.split("/");
-  if (
-    (parts[0] === "capabilities" || parts[0] === "foundation" || parts[0] === "interfaces") &&
-    parts[1]
-  ) {
-    return `${parts[0]}/${parts[1]}`;
-  }
-  return parts[0] ?? ".";
-};
-
 export const isTier1DocPath = (filePath: string): boolean => {
   const normalized = normalizeRepoPath(filePath);
   return !GLOB_CHAR_PATTERN.test(normalized) && TIER1_DOC_PATTERN.test(normalized);
@@ -206,7 +193,7 @@ export const classifyProposalTier = ({
   const normalizedPaths = [...new Set(paths.map(normalizeRepoPath))];
   const protectedPaths = findProtectedPaths(normalizedPaths);
   const mechanisms = classifyChangedPaths({ paths: normalizedPaths });
-  const slices = [...new Set(normalizedPaths.map(sliceForPath))].sort();
+  const slices = [...new Set(normalizedPaths.map(areaForPath))].sort();
   const hasGlobs = normalizedPaths.some((filePath) => GLOB_CHAR_PATTERN.test(filePath));
   const allTier1Docs = !hasGlobs && normalizedPaths.every(isTier1DocPath);
   const allTestsInOneSlice =
@@ -415,6 +402,12 @@ const renderEvidence = (evidence: ProposalEvidence): string[] => {
           `Branch \`${evidence.branch}\`, commit \`${evidence.commit}\`. Pick up the ${evidence.type === "failing-test" ? "failing test" : "evidence commit"}:`,
           "",
           `\`git fetch origin ${evidence.branch} && git cherry-pick ${evidence.commit}\``,
+          ...(evidence.type === "failing-test"
+            ? [
+                "",
+                "The commit adds the failing test in a new file, so it cherry-picks cleanly; move it into the owning test file if one exists.",
+              ]
+            : []),
         ]
       : [];
   return [
@@ -481,12 +474,14 @@ const listExistingIssues = (
   return [...byNumber.values()];
 };
 
+const CLOSES_ISSUE_PATTERN = /\bclose[sd]?\s+#(\d+)/i;
+
 /** Steps from a scout finding that a marker records, or 0 for an issue no scout or work session filed. */
 const markerDepth = (body: string): number => parseProposalMarker(body)?.depth ?? 0;
 
 /**
  * Computes a proposal's depth: 0 for a scout finding, else one more than its parent issue's, or than
- * the issue a parent pull request closes (depth 1 when it closes none). Reads the parent, so a
+ * the first issue a parent pull request closes with `Closes #n` (depth 1 when it closes none). Reads the parent, so a
  * parent that does not exist refuses the proposal.
  */
 export const resolveProposalDepth = (
@@ -500,8 +495,8 @@ export const resolveProposalDepth = (
   if (parent.type === "issue") {
     return markerDepth(body) + 1;
   }
-  const [closedIssue] = extractLinkedIssueNumbers(body);
-  return closedIssue === undefined ? 1 : markerDepth(client.viewIssue(closedIssue).body) + 1;
+  const closedIssue = Number.parseInt(CLOSES_ISSUE_PATTERN.exec(body)?.[1] ?? "", 10);
+  return Number.isNaN(closedIssue) ? 1 : markerDepth(client.viewIssue(closedIssue).body) + 1;
 };
 
 /**
