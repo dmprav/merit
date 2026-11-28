@@ -45,11 +45,11 @@ describe("decideRegistryRollback", () => {
       cleanup: { action: "retain", partialRemoval: true, databaseCreated: false },
     },
   ])("undoes $name", ({ progress: made, checkout, cleanup }) => {
-    expect(decideRegistryRollback(made, checkout, false)).toEqual(cleanup);
+    expect(decideRegistryRollback(made, checkout, made.databaseCreated)).toEqual(cleanup);
   });
 
   test("keeps the record of a removed checkout whose database rollback could not drop", () => {
-    expect(decideRegistryRollback({ ...progress, databaseCreated: true }, removed, false)).toEqual({
+    expect(decideRegistryRollback(progress, removed, true)).toEqual({
       action: "retain",
       partialRemoval: false,
       databaseCreated: true,
@@ -57,7 +57,7 @@ describe("decideRegistryRollback", () => {
   });
 
   test("records a retained checkout's database as dropped once rollback dropped it", () => {
-    expect(decideRegistryRollback({ ...progress, databaseCreated: true }, stuck, true)).toEqual({
+    expect(decideRegistryRollback(progress, stuck, false)).toEqual({
       action: "retain",
       partialRemoval: false,
       databaseCreated: false,
@@ -69,19 +69,10 @@ describe("rollbackError", () => {
   const original = new Error("doctor check failed");
   const path = "/repo/.tmp/worktrees/alpha";
 
-  test("names a database rollback could not drop", () => {
-    const error = rollbackError(original, path, removed, "merit_alpha");
-    expect(error).toMatchObject({
-      message:
-        'doctor check failed (rollback could not drop database "merit_alpha"; its registry record is kept so `vp run worktree:clean` can drop it)',
-      cause: original,
-    });
-  });
-
   test("reports both failures when rollback can remove neither the checkout nor the database", () => {
-    const error = rollbackError(original, path, stuck, "merit_alpha");
+    const error = rollbackError(original, path, stuck, "inspect database merit_alpha manually");
     expect(error).toMatchObject({
-      message: `doctor check failed (rollback could not remove checkout at "${path}": worktree is locked; rollback could not drop database "merit_alpha"; its registry record is kept so \`vp run worktree:clean\` can drop it)`,
+      message: `doctor check failed (rollback could not remove checkout at "${path}": worktree is locked; inspect database merit_alpha manually)`,
       cause: original,
     });
   });

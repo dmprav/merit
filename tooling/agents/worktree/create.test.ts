@@ -450,19 +450,45 @@ describe("createWorktree rollback", () => {
     expect(registry.worktrees.sibling).toBeDefined();
   });
 
-  test("keeps a record for worktree:clean when rollback cannot drop the database", async () => {
+  test("consumes rollback ownership before DROP so a lost reply cannot drop a replacement", async () => {
+    const repo = initTempRepo();
+    let ownedDuringDrop: boolean | undefined;
+    const drop = vi.fn(async () => {
+      ownedDuringDrop = readWorktreeRegistry(repo).worktrees.uncertain?.databaseCreated;
+      throw new Error("DROP reply lost");
+    });
+    const database = fakeDatabase({ isReachable: async () => true, drop });
+    await expect(
+      createIn(
+        repo,
+        { slug: "uncertain", dbMode: "required", doctor: true },
+        {
+          execCommand: failDoctor,
+          database,
+        },
+      ),
+    ).rejects.toThrow(/doctor check failed.*uncertain.*inspect the database manually/);
+
+    expect(ownedDuringDrop).toBe(false);
+    expect(await cleanIn(repo, "uncertain", { database })).toMatchObject({
+      databaseDropped: false,
+    });
+    expect(drop).toHaveBeenCalledTimes(1);
+  });
+
+  test("keeps the ownership record when PostgreSQL goes offline before rollback", async () => {
     const repo = initTempRepo();
 
     await expect(
       createIn(
         repo,
-        { slug: "drop-fail", dbMode: "required", doctor: true },
+        { slug: "drop-fail", branch: "feat/rollback-offline", dbMode: "required", doctor: true },
         {
           execCommand: failDoctor,
           database: fakeDatabase({
-            isReachable: async () => true,
+            isReachable: vi.fn().mockResolvedValueOnce(true).mockResolvedValue(false),
             drop: async () => {
-              throw new Error("database is being accessed by other users");
+              throw new Error("unexpected drop while offline");
             },
           }),
         },
@@ -470,7 +496,7 @@ describe("createWorktree rollback", () => {
     ).rejects.toThrow(/doctor check failed.*could not drop database "merit_drop_fail"/);
 
     expect(existsSync(join(repo, ".tmp/worktrees/drop-fail"))).toBe(false);
-    expect(listBranch(repo, "worktree/drop-fail")).toContain("worktree/drop-fail");
+    expect(listBranch(repo, "feat/rollback-offline")).toContain("feat/rollback-offline");
     const retained = readWorktreeRegistry(repo).worktrees["drop-fail"];
     expect(retained).toMatchObject({ status: "cleaning", databaseCreated: true });
     expect(retained?.ownerPid).toBeUndefined();
@@ -480,9 +506,9 @@ describe("createWorktree rollback", () => {
     const dropped: string[] = [];
     await expect(
       cleanIn(repo, "drop-fail", { database: reachableDatabase(dropped) }),
-    ).resolves.toMatchObject({ registryRemoved: true });
+    ).resolves.toMatchObject({ branchDeleted: false, registryRemoved: true });
     expect(dropped).toEqual(["merit_drop_fail"]);
-    expect(listBranch(repo, "worktree/drop-fail")).toContain("worktree/drop-fail");
+    expect(listBranch(repo, "feat/rollback-offline")).toContain("feat/rollback-offline");
   });
 
   test("removes a partial checkout and preserves its branch when git worktree add fails in a hook", async () => {

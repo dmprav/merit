@@ -7,7 +7,12 @@ import { isCreateClaimAt, withoutOwner } from "./claims.ts";
 import { type WorktreeDatabase } from "./database.ts";
 import { describeExecError, type RepoGit } from "./git.ts";
 import { canonicalPath } from "./paths.ts";
-import { type RegistryLockOptions, updateRecord } from "./registry.ts";
+import {
+  consumeDatabaseOwnership,
+  type RegistryLockOptions,
+  updateRecord,
+  type WorktreeRecord,
+} from "./registry.ts";
 
 /** What a create attempt has changed so far; rollback undoes exactly these changes. */
 export type CreateProgress = {
@@ -45,24 +50,23 @@ const UNTOUCHED_CHECKOUT: CheckoutRollback = {
  * Decides what happens to the registry record once rollback has dealt with the checkout.
  * A checkout Git refused to remove keeps its branch and its record, with the recorded identity,
  * so `worktree:clean` can finish the job and still reject a replacement checkout. A database
- * rollback created but could not drop also keeps the record, so `worktree:clean` can drop it.
+ * whose drop was deferred while PostgreSQL was unreachable also keeps its ownership record.
  */
 export const decideRegistryRollback = (
-  progress: Pick<CreateProgress, "registryReserved" | "databaseCreated">,
+  progress: Pick<CreateProgress, "registryReserved">,
   checkout: CheckoutRollback,
-  databaseDropped: boolean,
+  databasePending: boolean,
 ): RegistryRollback => {
-  const databaseRemains = progress.databaseCreated && !databaseDropped;
   if (!progress.registryReserved) {
     return { action: "none" };
   }
-  if (!checkout.remains && !databaseRemains) {
+  if (!checkout.remains && !databasePending) {
     return { action: "remove" };
   }
   return {
     action: "retain",
     partialRemoval: checkout.metadataRemoved,
-    databaseCreated: databaseRemains,
+    databaseCreated: databasePending,
   };
 };
 
@@ -78,15 +82,13 @@ export const rollbackError = (
   error: unknown,
   checkoutPath: string,
   checkout: CheckoutRollback,
-  undroppedDatabase?: string,
+  databaseProblem?: string,
   createdBranch?: string,
 ): unknown => {
   const problems = [
     checkoutRollbackProblem(checkoutPath, checkout),
     createdBranch && `inspect branch "${createdBranch}" before retrying with that name`,
-    undroppedDatabase === undefined
-      ? undefined
-      : `rollback could not drop database "${undroppedDatabase}"; its registry record is kept so \`vp run worktree:clean\` can drop it`,
+    databaseProblem,
   ].filter((problem) => problem !== undefined);
   return problems.length === 0
     ? error
@@ -137,16 +139,49 @@ const ignoreAsyncFailure = async (step: () => Promise<unknown>): Promise<void> =
   }
 };
 
-const dropCreatedDatabase = async (attempt: CreateAttempt, progress: CreateProgress) => {
+const matchesAttempt =
+  (attempt: CreateAttempt, progress: CreateProgress) => (record: WorktreeRecord) =>
+    isCreateClaimAt(progress.checkoutPath)(record) &&
+    record.checkoutToken === (progress.gitDir ? attempt.checkoutToken : undefined) &&
+    record.databaseName === attempt.databaseName;
+
+type DatabaseRollback = "settled" | "deferred" | "inspect";
+
+const dropCreatedDatabase = async (
+  attempt: CreateAttempt,
+  progress: CreateProgress,
+): Promise<DatabaseRollback> => {
   if (!progress.databaseCreated) {
-    return false;
+    return "settled";
   }
   try {
+    if (!(await attempt.database.isReachable())) {
+      return "deferred";
+    }
+    const owned = await consumeDatabaseOwnership(
+      attempt.git.root,
+      attempt.slug,
+      matchesAttempt(attempt, progress),
+      attempt.lockOptions,
+    );
+    if (!owned) {
+      return "inspect";
+    }
     await attempt.database.drop(attempt.databaseName);
-    return true;
+    return "settled";
   } catch {
-    return false;
+    return "inspect";
   }
+};
+
+const databaseRollbackProblem = (outcome: DatabaseRollback, name: string): string | undefined => {
+  if (outcome === "deferred") {
+    return `rollback could not drop database "${name}" while PostgreSQL was unreachable; retry with \`vp run worktree:clean\``;
+  }
+  if (outcome === "inspect") {
+    return `rollback could not confirm the drop of database "${name}"; inspect the database manually`;
+  }
+  return undefined;
 };
 
 const ownsCheckout = (attempt: CreateAttempt, progress: CreateProgress, checkoutDir: string) => {
@@ -212,7 +247,7 @@ const settleRegistryRecord = async (
       attempt.git.root,
       attempt.slug,
       {
-        when: isCreateClaimAt(progress.checkoutPath),
+        when: matchesAttempt(attempt, progress),
         apply: (record) =>
           registry.action === "retain"
             ? {
@@ -238,17 +273,15 @@ export const rollBackCreate = async (
   progress: CreateProgress,
   error: unknown,
 ): Promise<unknown> => {
-  const databaseDropped = await dropCreatedDatabase(attempt, progress);
+  const database = await dropCreatedDatabase(attempt, progress);
   const checkout = rollBackCheckout(attempt, progress);
-  const registry = decideRegistryRollback(progress, checkout, databaseDropped);
+  const registry = decideRegistryRollback(progress, checkout, database === "deferred");
   await settleRegistryRecord(attempt, progress, registry);
-  const undroppedDatabase =
-    progress.databaseCreated && !databaseDropped ? attempt.databaseName : undefined;
   return rollbackError(
     error,
     progress.checkoutPath,
     checkout,
-    undroppedDatabase,
+    databaseRollbackProblem(database, attempt.databaseName),
     progress.branchCreated ? attempt.branch : undefined,
   );
 };
