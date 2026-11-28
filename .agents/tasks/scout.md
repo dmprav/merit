@@ -24,15 +24,21 @@ A scheduled task runs the check; it audits nothing itself.
 4. `{"status": "due", "runs": [...]}`: run
    `vpx tooling/agents/scout.ts start --run <id> [--run <id> ...]` for exactly the
    listed runs. It records each run as in flight on `#219` in one edit, so the next
-   check does not start it again while its session works. Then start one cloud
-   session per listed run with `create_session` in the same environment and the
-   prompt `Follow .agents/tasks/scout.md run protocol for run <id>`, and exit; do
-   not audit, file, or advance anything.
+   check does not start it again while its session works. It prints the runs it
+   started and, as `alreadyStarted`, any it found already in flight. Create one
+   cloud session with `create_session` in the same environment, with the prompt
+   `Follow .agents/tasks/scout.md run protocol for run <id>`, for each run in the
+   `runs` it printed and for no other, then exit; do not audit, file, or advance
+   anything. If `start` fails, exit without creating any session. A run whose
+   session could not be created stays in flight until `check.startedRunTimeoutHours`
+   pass, then is due again.
 
-`due` lists at most `check.maxRunsPerCheck` runs. When more are due, `deferred`
-counts the rest; they wait for the next check. A started run stays out of `due`
-until its session runs `advance`, or `check.startedRunTimeoutHours` pass and a
-crashed session is retried. Both live in `SCOUT_RUN_POLICY`.
+`check.maxRunsInFlight` limits how many runs are in flight at once: `due` lists
+the due runs that fit under it, counting runs already started, and `start` refuses
+to exceed it. When more are due, `deferred` counts the rest; they wait for a later
+check. A started run is not listed by `due` until its session runs `advance`, or
+`check.startedRunTimeoutHours` pass and it is due again, which retries a crashed
+session. Both live in `SCOUT_RUN_POLICY`.
 
 `due` lists the runs in descending `metric / threshold`. Each kind has one
 threshold, tuned in `SCOUT_RUN_POLICY` in
@@ -80,7 +86,7 @@ You were given one run id.
    `vpx tooling/agents/scout.ts advance --run <id> --commit <scanTipSha>`. For
    `records`, add `--pr <highest verification record pull request number read>`.
    Do not advance when `context` or `proposal.ts` failed for an unfiled finding;
-   the next check starts the run again.
+   the run is due again once `check.startedRunTimeoutHours` pass.
 
 ## Evidence rules
 
