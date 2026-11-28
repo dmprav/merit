@@ -973,7 +973,7 @@ it("supports contacts and reviews with the documented runtime grants and immutab
       await tx.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO ${role}`));
       await tx.execute(
         sql.raw(
-          `GRANT SELECT ON app_users, memberships, organizations, funding_rounds, application_cases, material_versions, material_version_answers, material_version_evidence, material_drafts, material_draft_answers, criteria_versions, criteria_version_items, review_states, review_requests, review_assignments, assessments, assessment_versions, assessment_version_observations, recommendation_versions, committee_decision_versions, ai_reviews, ai_review_sections, ai_review_items, ai_review_citations, ai_review_questions TO ${role}`,
+          `GRANT SELECT ON app_users, memberships, organizations, funding_rounds, application_cases, material_versions, material_version_answers, material_version_evidence, material_drafts, material_draft_answers, criteria_versions, criteria_version_items, review_states, review_requests, review_assignments, assessments, assessment_versions, assessment_version_observations, recommendation_versions, committee_decision_versions, assistant_consents, ai_reviews, ai_review_sections, ai_review_items, ai_review_citations, ai_review_questions TO ${role}`,
         ),
       );
       await tx.execute(sql.raw(`GRANT UPDATE (name) ON organizations TO ${role}`));
