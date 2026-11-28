@@ -14,6 +14,8 @@ import { dirname } from "node:path";
 
 import { z } from "zod";
 
+import { parseProcessStat } from "./process-stat.ts";
+
 const DEFAULT_LOCK_TIMEOUT_MS = 15_000;
 const DEFAULT_LOCK_STALE_MS = 30_000;
 const DEFAULT_LOCK_INITIAL_DELAY_MS = 25;
@@ -136,11 +138,7 @@ const readProcessStartTime = (pid: number): string | undefined => {
   if (stat === undefined) {
     return undefined;
   }
-  // Field 22 (starttime); fields after the parenthesized command name start at field 3.
-  const startTicks = stat
-    .slice(stat.lastIndexOf(")") + 2)
-    .split(" ")
-    .at(19);
+  const startTicks = parseProcessStat(stat)?.startTicks;
   if (!startTicks) {
     return undefined;
   }

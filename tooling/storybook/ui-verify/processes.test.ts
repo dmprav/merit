@@ -7,6 +7,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import { describe, expect, it } from "vite-plus/test";
 
+import { hasProcessExited, parseProcessStat } from "../../agents/process-stat.ts";
 import { createCleanupStack } from "./cleanup.ts";
 import {
   allocateFreePort,
@@ -32,12 +33,8 @@ const isRunning = (pid: number): boolean => {
   if (process.platform !== "linux") {
     return true;
   }
-  try {
-    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
-    return stat.charAt(stat.lastIndexOf(")") + 2) !== "Z";
-  } catch {
-    return false;
-  }
+  const stat = parseProcessStat(readFileSync(`/proc/${pid}/stat`, { encoding: "utf8", flag: "r" }));
+  return stat !== undefined && !hasProcessExited(stat);
 };
 
 const killIfRunning = (pid: number | undefined) => {
@@ -46,40 +43,48 @@ const killIfRunning = (pid: number | undefined) => {
   }
 };
 
-/**
- * A wrapper that starts a long-running descendant in its own process group. The descendant
- * inherits the wrapper's output pipes, as a server started by `vp` does, and writes its pid to
- * `pidFile` once its signal handling is in place. The wrapper either exits with code 1 once that
- * pid is written or, like a wrapper that forwards signals, exits with code 0 on SIGTERM.
- */
+// The descendant takes the pid file and whether to ignore SIGTERM as arguments. It writes its
+// pid once its signal handling is in place, renaming the file so a reader never sees it empty.
+const DESCENDANT_SCRIPT = `
+const [pidFile, sigterm] = process.argv.slice(1);
+if (sigterm === "ignore-sigterm") process.on("SIGTERM", () => {});
+const fs = require("node:fs");
+fs.writeFileSync(pidFile + ".tmp", String(process.pid));
+fs.renameSync(pidFile + ".tmp", pidFile);
+setInterval(() => {}, 1_000);
+`;
+
+// The wrapper starts the descendant in its own process group, sharing its output pipes as a
+// server started by \`vp\` does. It then exits with code 1 once the descendant's pid file exists
+// or, like a wrapper that forwards signals, exits with code 0 on SIGTERM.
+const WRAPPER_SCRIPT = `
+const [descendantScript, pidFile, exit, sigterm] = process.argv.slice(1);
+require("node:child_process").spawn(process.execPath, ["-e", descendantScript, pidFile, sigterm], {
+  stdio: "inherit",
+});
+if (exit === "exits-on-sigterm") {
+  process.on("SIGTERM", () => process.exit(0));
+  setInterval(() => {}, 1_000);
+} else {
+  setInterval(() => require("node:fs").existsSync(pidFile) && process.exit(1), 20);
+}
+`;
+
+/** Arguments for `node` that run the wrapper with a long-running descendant. */
 const wrapperWithDescendant = (
   pidFile: string,
   {
     wrapper,
     descendantIgnoresSigterm = false,
   }: { wrapper: "fails-after-start" | "exits-on-sigterm"; descendantIgnoresSigterm?: boolean },
-): string[] => {
-  const descendant = [
-    descendantIgnoresSigterm ? `process.on("SIGTERM", () => {});` : "",
-    `require("node:fs").writeFileSync(${JSON.stringify(`${pidFile}.tmp`)}, String(process.pid));`,
-    `require("node:fs").renameSync(${JSON.stringify(`${pidFile}.tmp`)}, ${JSON.stringify(pidFile)});`,
-    "setInterval(() => {}, 1_000);",
-  ].join("\n");
-  const script =
-    wrapper === "exits-on-sigterm"
-      ? [`process.on("SIGTERM", () => process.exit(0));`, "setInterval(() => {}, 1_000);"]
-      : [
-          `const { existsSync } = require("node:fs");`,
-          `setInterval(() => existsSync(${JSON.stringify(pidFile)}) && process.exit(1), 20);`,
-        ];
-  return [
-    "-e",
-    [
-      `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(descendant)}], { stdio: "inherit" });`,
-      ...script,
-    ].join("\n"),
-  ];
-};
+): string[] => [
+  "-e",
+  WRAPPER_SCRIPT,
+  DESCENDANT_SCRIPT,
+  pidFile,
+  wrapper,
+  descendantIgnoresSigterm ? "ignore-sigterm" : "default-sigterm",
+];
 
 const readDescendantPid = async (pidFile: string): Promise<number> => {
   for (let attempt = 0; attempt < 250; attempt += 1) {
@@ -175,38 +180,6 @@ describe("runCommandAsync", () => {
         await runCleanups();
       }
     }));
-
-  it(
-    "kills a descendant that ignores SIGTERM after its wrapper exits on SIGTERM",
-    () =>
-      withPidFile(async (pidFile) => {
-        const logs: string[] = [];
-        const { registerCleanup, runCleanups } = createCleanupStack((line) => logs.push(line));
-        const run = runCommandAsync(
-          process.execPath,
-          wrapperWithDescendant(pidFile, {
-            wrapper: "exits-on-sigterm",
-            descendantIgnoresSigterm: true,
-          }),
-          { cwd: process.cwd(), label: "Wrapper", registerCleanup },
-        );
-        const settled = run.then(
-          () => undefined,
-          () => undefined,
-        );
-        let descendantPid: number | undefined;
-        try {
-          descendantPid = await readDescendantPid(pidFile);
-          await runCleanups();
-          await settled;
-          expect(isRunning(descendantPid)).toBe(false);
-          expect(logs).toEqual([]);
-        } finally {
-          killIfRunning(descendantPid);
-        }
-      }),
-    15_000,
-  );
 });
 
 describe("stopProcessGroup", () => {
@@ -229,4 +202,41 @@ describe("stopProcessGroup", () => {
         killIfRunning(descendantPid);
       }
     }));
+
+  it("kills a descendant that ignores SIGTERM after its wrapper exits on SIGTERM", () =>
+    withPidFile(async (pidFile) => {
+      const managed = spawnManagedProcess(
+        process.execPath,
+        wrapperWithDescendant(pidFile, {
+          wrapper: "exits-on-sigterm",
+          descendantIgnoresSigterm: true,
+        }),
+        { cwd: process.cwd(), announcedUrl: "http://127.0.0.1:1/" },
+      );
+      let descendantPid: number | undefined;
+      try {
+        descendantPid = await readDescendantPid(pidFile);
+        await stopProcessGroup(managed.child, { graceMs: 200 });
+        expect(managed.child.exitCode).toBe(0);
+        expect(isRunning(descendantPid)).toBe(false);
+      } finally {
+        killIfRunning(descendantPid);
+      }
+    }));
+
+  it("does not signal a group that took the pid of an exited leader whose group emptied", async () => {
+    // A process holding the pid stands in for a reused one: the recorded leader has exited, so
+    // its group must have emptied before the pid was assigned again.
+    const holder = spawnManagedProcess(process.execPath, ["-e", "setInterval(() => {}, 1_000)"], {
+      cwd: process.cwd(),
+      announcedUrl: "http://127.0.0.1:1/",
+    });
+    const holderPid = holder.child.pid!;
+    try {
+      await stopProcessGroup({ pid: holderPid, exitCode: 1, signalCode: null });
+      expect(isRunning(holderPid)).toBe(true);
+    } finally {
+      await stopProcessGroup(holder.child);
+    }
+  });
 });
