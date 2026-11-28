@@ -324,6 +324,24 @@ None.
     }
   });
 
+  test("counts a grant moved from a migration into the runtime grants as no change", () => {
+    const grant = 'GRANT SELECT ON reviews TO :"runtime_role";';
+    const markdown = renderReviewPacket({
+      changedFiles: [
+        { status: "modified", path: "foundation/db/database/migrations/0000_baseline.sql" },
+        { status: "modified", path: "foundation/db/database/runtime-grants.sql" },
+      ],
+      numstat: [],
+      addedLines: [],
+      baseMigrationSql: `CREATE TABLE reviews (id uuid); ${grant}`,
+      headMigrationSql: "CREATE TABLE reviews (id uuid);",
+      baseRuntimeGrantsSql: "",
+      headRuntimeGrantsSql: grant,
+    });
+    expect(markdown).toContain("### DB & Schema Delta");
+    expect(markdown).toContain("- No net SQL DDL changes detected.");
+  });
+
   test("names a few paths and counts many by folder", () => {
     expect(summarizePaths(["b/x.ts", "a/y.ts", "a/y.ts"])).toBe("`a/y.ts`, `b/x.ts`");
     expect(summarizePaths(["t/w/a.ts", "t/w/b.ts", "t/w/c.ts", "t/w/d.ts"])).toBe(
