@@ -92,9 +92,9 @@ export const scoutStateForReading = (
 
 /**
  * Computes the state issue body that records the next cursor for `runId`. Entries under run-id keys
- * stay exactly as stored, even when they fail validation; entries under any other key, such as the
- * old lens cursors, are dropped after seeding a missing `records` cursor from the old
- * `verification-flakes` one. Refuses before computing the cursor when the marker is corrupt, because
+ * stay exactly as stored, even when they fail validation, except that a missing or invalid `records`
+ * entry is replaced by the cursor seeded from the old `verification-flakes` one when that exists;
+ * entries under any other key, such as the old lens cursors, are dropped. Refuses before computing the cursor when the marker is corrupt, because
  * rewriting it would erase the cursors it still holds.
  */
 export const advanceScoutStateBody = ({
