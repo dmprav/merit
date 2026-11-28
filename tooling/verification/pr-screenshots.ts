@@ -193,15 +193,13 @@ const rankAffectedStoryFiles = (
   storyFiles: readonly string[],
   importers: ReadonlyMap<string, ReadonlySet<string>>,
 ): Array<{ storyFile: string; distance: number }> => {
-  const distance = importDistances(
-    changed.filter((path) => importers.has(path) || storyFiles.includes(path)),
-    importers,
-  );
-  const everyStory = distance.get(EVERY_STORY);
+  const distance = importDistances(changed, importers);
+  // No story imports the preview, so stories it reaches sit one step beyond the annotations.
+  const throughPreview = (distance.get(EVERY_STORY) ?? Infinity) + 1;
   return storyFiles
     .map((storyFile) => ({
       storyFile,
-      distance: Math.min(distance.get(storyFile) ?? Infinity, everyStory ?? Infinity),
+      distance: Math.min(distance.get(storyFile) ?? Infinity, throughPreview),
     }))
     .filter((ranked) => Number.isFinite(ranked.distance))
     .sort((a, b) => a.distance - b.distance || a.storyFile.localeCompare(b.storyFile));

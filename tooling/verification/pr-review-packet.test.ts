@@ -3,6 +3,7 @@ import { describe, expect, test } from "vite-plus/test";
 import {
   describeScreenshotCoverage,
   extractSqlDdlDelta,
+  mayAffectStorybook,
   parseAddedDiffLines,
   parseNumstatZ,
   parseReviewPacketArgs,
@@ -309,6 +310,31 @@ None.
     expect(describeScreenshotCoverage(variants, { storyFiles: 9, directStoryFiles: 0 })).toBe(
       "_Showing 1 of 9 affected story files, nearest to the change first. None imports a changed module directly; each reaches the change through shared code._",
     );
+  });
+
+  test("runs the screenshot job for any source the Storybook preview may bundle", () => {
+    for (const path of [
+      "tooling/storybook/.storybook/preview.tsx",
+      "tooling/storybook/.storybook/styles.css",
+      "foundation/forms/src/form/form.tsx",
+      "foundation/money/src/index.ts",
+      "capabilities/grantmaking/business/src/examples/get-example-round.ts",
+      "capabilities/grantmaking/web/src/testing/providers.tsx",
+      "capabilities/reviews/web/src/views/reviewer/reviewer-screen.stories.tsx",
+      "interfaces/product/src/features/grantmaking/my-work.tsx",
+    ]) {
+      expect(mayAffectStorybook(path), path).toBe(true);
+    }
+    for (const path of [
+      "capabilities/decisions/web/src/views/decision-editor.test.tsx",
+      "foundation/ui/src/components/button/README.md",
+      "foundation/ui/src/components/button/button.mdx",
+      "tooling/verification/pr-screenshots.ts",
+      "docs/guides/ui.md",
+      "app/src/server/runtime-config.server.ts",
+    ]) {
+      expect(mayAffectStorybook(path), path).toBe(false);
+    }
   });
 
   test("summarizes prod, test, and docs/other buckets cleanly", () => {

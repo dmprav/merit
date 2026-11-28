@@ -174,6 +174,28 @@ describe("pr-screenshots", () => {
     expect(result.affected).toEqual({ storyFiles: 4, directStoryFiles: 0 });
   });
 
+  test("counts no story file as direct when the Storybook preview itself changes", () => {
+    const result = select(["tooling/storybook/.storybook/preview.tsx"], 1);
+
+    expect(result.selected.map((s) => s.id)).toEqual(["editor--empty"]);
+    expect(result.affected).toEqual({ storyFiles: 4, directStoryFiles: 0 });
+  });
+
+  test("selects a changed story file first even when the stats do not list it", () => {
+    const newStory = story("banner--default", "foundation/ui/src/banner/banner.stories.tsx");
+    const result = selectStoriesForPr({
+      changedPaths: [
+        "foundation/ui/src/banner/banner.stories.tsx",
+        "capabilities/decisions/web/src/views/decision-editor.tsx",
+      ],
+      indexEntries: { ...indexEntries, [newStory.id]: newStory },
+      importers,
+    });
+
+    expect(result.selected.map((s) => s.id)).toEqual(["banner--default", "editor--empty"]);
+    expect(result.affected).toEqual({ storyFiles: 2, directStoryFiles: 2 });
+  });
+
   test("selects nothing for changes no story bundles, such as tests, server code, and docs", () => {
     expect(
       select([

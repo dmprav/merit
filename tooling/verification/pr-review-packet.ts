@@ -100,6 +100,18 @@ const isUiProdPath = (path: string) =>
 
 const isStoryPath = (path: string) => path.endsWith(".stories.tsx");
 
+/**
+ * Whether the Storybook preview may bundle a changed path, so the screenshot job should run.
+ * `pr-screenshots.ts select` then decides from the build's import graph which stories it reaches.
+ */
+export const mayAffectStorybook = (path: string) =>
+  isStoryPath(path) ||
+  path.startsWith("tooling/storybook/.storybook/") ||
+  // Story providers and fixtures under testing/ are bundled, so only test files are excluded.
+  (!/\.(?:test|spec|integration|eval)\.[cm]?[jt]sx?$/u.test(path) &&
+    !isDocsOrGeneratedPath(path) &&
+    /^(?:foundation\/[^/]+|capabilities\/[^/]+\/[^/]+|interfaces\/[^/]+)\/src\//u.test(path));
+
 const isCiOrCoverageConfigPath = (path: string) =>
   path.startsWith(".github/workflows/") ||
   path === ".fallowrc.jsonc" ||
@@ -660,7 +672,7 @@ export const describeScreenshotCoverage = (
   affected: AffectedStoryFiles,
 ): string => {
   const shown = new Set(screenshots.map((shot) => shot.storyFile)).size;
-  const total = Math.max(affected.storyFiles, shown);
+  const total = affected.storyFiles;
   const files = total === 1 ? "story file" : "story files";
   const reach =
     affected.directStoryFiles === 0
@@ -1029,7 +1041,7 @@ const runCli = async () => {
 
   const diff = readPullRequestDiff(options.baseRef, options.headRef);
   const hasUiChanges = diff.changedFiles.some(
-    (file) => file.status !== "deleted" && (isUiProdPath(file.path) || isStoryPath(file.path)),
+    (file) => file.status !== "deleted" && mayAffectStorybook(file.path),
   );
   appendGitHubFile("GITHUB_OUTPUT", `has_ui_changes=${hasUiChanges ? "true" : "false"}\n`);
 
