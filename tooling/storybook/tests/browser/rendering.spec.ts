@@ -24,6 +24,7 @@ for (const story of [
     id: "features-applications-recommendation-editor--budget-preview",
     ready: '[aria-label="Budget preview"]',
   },
+  { id: "features-applications-decision-editor--no-budget", ready: '[role="alert"]' },
   { id: "features-applications-application-detail--changed-evidence", ready: "h1" },
   {
     id: "features-applications-application-detail--reviews",

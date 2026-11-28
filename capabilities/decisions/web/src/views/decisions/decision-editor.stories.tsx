@@ -24,6 +24,10 @@ type PreviewProps = Pick<
   onSave: (value: { outcome: string; reason: string }) => DecisionFailure | null;
 };
 
+const roundWithoutBudget = {
+  budget: null,
+  totals: { committed: fromMinorUnits(0n), available: null, withdrawnApplications: 0 },
+};
 const savedVersions = { none: [], first: oneVersion, amended: twoVersions };
 
 const EditablePreview = ({
@@ -38,14 +42,7 @@ const EditablePreview = ({
     <DecisionEditor
       {...args}
       application={decisionApplication}
-      round={
-        withBudget
-          ? decisionRound
-          : {
-              budget: null,
-              totals: { committed: fromMinorUnits(0n), available: null, withdrawnApplications: 0 },
-            }
-      }
+      round={withBudget ? decisionRound : roundWithoutBudget}
       versions={savedVersions[history]}
       disabled={false}
       draft={draft}
