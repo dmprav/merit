@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 
 import {
+  describeScreenshotCoverage,
   extractSqlDdlDelta,
   parseAddedDiffLines,
   parseNumstatZ,
@@ -261,7 +262,16 @@ None.
     expect(markdown).toContain("Live Temporal Cloud connection");
   });
 
-  test("embeds desktop UI screenshots and omitted story count inside UI Touched", () => {
+  test("embeds desktop UI screenshots and how many affected story files they cover", () => {
+    const screenshot = (storyId: string, storyFile: string) => ({
+      storyId,
+      title: "Components/Button",
+      name: "Overview",
+      storyFile,
+      url: `https://raw.githubusercontent.com/dmprav/merit/abc123/pr-42/${storyId}-desktop.png`,
+      passed: true,
+    });
+
     const markdown = renderReviewPacket({
       changedFiles: [
         { status: "modified", path: "foundation/ui/src/components/button/button.tsx" },
@@ -273,25 +283,32 @@ None.
       baseMigrationSql: "",
       headMigrationSql: "",
       screenshots: [
-        {
-          storyId: "components-button--overview",
-          title: "Components/Button",
-          name: "Overview",
-          url: "https://raw.githubusercontent.com/dmprav/merit/abc123/pr-42/components-button--overview-desktop.png",
-          passed: true,
-        },
+        screenshot("components-button--overview", "foundation/ui/src/button/button.stories.tsx"),
       ],
-      omittedScreenshotCount: 2,
+      affectedStoryFiles: { storyFiles: 5, directStoryFiles: 2 },
     });
 
     expect(markdown).toContain("#### Desktop Screenshots");
+    expect(markdown).toContain(
+      "_Showing 1 of 5 affected story files, nearest to the change first. 2 changed or import a changed module directly._",
+    );
     expect(markdown).toContain(
       "**Components/Button — Overview** (`components-button--overview` · passed)",
     );
     expect(markdown).toContain(
       "![Components/Button — Overview](https://raw.githubusercontent.com/dmprav/merit/abc123/pr-42/components-button--overview-desktop.png)",
     );
-    expect(markdown).toContain("_+2 more affected stories omitted._");
+
+    const variants = [
+      screenshot("components-button--overview", "foundation/ui/src/button/button.stories.tsx"),
+      screenshot("components-button--disabled", "foundation/ui/src/button/button.stories.tsx"),
+    ];
+    expect(describeScreenshotCoverage(variants, { storyFiles: 1, directStoryFiles: 1 })).toBe(
+      "_Showing 1 of 1 affected story file, nearest to the change first. 1 changed or imports a changed module directly._",
+    );
+    expect(describeScreenshotCoverage(variants, { storyFiles: 9, directStoryFiles: 0 })).toBe(
+      "_Showing 1 of 9 affected story files, nearest to the change first. None imports a changed module directly; each reaches the change through shared code._",
+    );
   });
 
   test("summarizes prod, test, and docs/other buckets cleanly", () => {
