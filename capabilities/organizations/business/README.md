@@ -38,6 +38,9 @@ PostgreSQL's write rejection and caller-owned rollback.
 
 Commands lock the organization and current membership before changing access.
 Membership changes, invitation changes, and audit events commit together.
+Commands can throw [OrganizationError](src/server/result.ts) to roll back a rejected
+transaction. The [service wrapper](src/server/execution.ts) returns the problem as
+a typed status after rollback and propagates unexpected exceptions.
 The required `revokeReviewAccess` collaborator ends review assignments in that
 transaction when qualifying responsibilities are removed. Assembly supplies Reviews’
 implementation; Organizations never writes review tables.
