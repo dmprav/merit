@@ -14,7 +14,10 @@ import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { appUsers } from "@merit/auth/schema";
 import { enumCheck, moneyMinorUnits, positiveCheck, recordedAt } from "@merit/db/schema";
 
-const outcomes = ["Fund", "Fund with conditions", "Defer", "Decline"] as const;
+import { commitsFunding, decisionOutcomes } from "../../domain/decision-outcome";
+
+const fundingOutcomes = decisionOutcomes.filter(commitsFunding);
+const nonFundingOutcomes = decisionOutcomes.filter((outcome) => !commitsFunding(outcome));
 
 /** Append-only versions of the committee's decision for an application; the head is current. */
 export const committeeDecisionVersions = pgTable(
@@ -24,7 +27,7 @@ export const committeeDecisionVersions = pgTable(
       .notNull()
       .references(() => applicationCases.id, { onDelete: "cascade" }),
     revision: integer().notNull(),
-    outcome: text({ enum: outcomes }).notNull(),
+    outcome: text({ enum: decisionOutcomes }).notNull(),
     amountMinorUnits: moneyMinorUnits("amount_minor_units").notNull(),
     amountCurrency: text("amount_currency").notNull().default("EUR"),
     conditions: text(),
@@ -48,10 +51,10 @@ export const committeeDecisionVersions = pgTable(
     index("committee_decision_versions_material_idx").on(t.caseId, t.applicationVersion),
     index("committee_decision_versions_actor_user_idx").on(t.actorUserId),
     positiveCheck("committee_decision_version_positive", t.revision),
-    enumCheck("committee_decision_outcome_check", t.outcome, outcomes),
+    enumCheck("committee_decision_outcome_check", t.outcome, decisionOutcomes),
     check(
       "committee_decision_amount_check",
-      sql`${t.amountMinorUnits} >= 0 AND ${t.amountMinorUnits} <> 'NaN' AND ${t.amountCurrency} = 'EUR' AND ((${t.outcome} IN ('Defer', 'Decline') AND ${t.amountMinorUnits} = 0) OR (${t.outcome} IN ('Fund', 'Fund with conditions') AND ${t.amountMinorUnits} > 0))`,
+      sql`${t.amountMinorUnits} >= 0 AND ${t.amountMinorUnits} <> 'NaN' AND ${t.amountCurrency} = 'EUR' AND ((${t.outcome} IN ${nonFundingOutcomes} AND ${t.amountMinorUnits} = 0) OR (${t.outcome} IN ${fundingOutcomes} AND ${t.amountMinorUnits} > 0))`.inlineParams(),
     ),
     check(
       "committee_decision_conditions_check",
