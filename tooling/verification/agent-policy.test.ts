@@ -208,18 +208,49 @@ describe("agent-policy", () => {
 
   test("keeps the last proposal marker whose payload is a JSON object, normalizing its paths", () => {
     const body = [
-      '<!-- merit-proposal: {"paths":["./docs\\\\a.md", "", 3, "docs/b.md"],"lens":"docs","kind":"pr","tier":1} -->',
+      '<!-- merit-proposal: {"paths":["./docs\\\\a.md", "", 3, "docs/b.md"],"kind":"pr","tier":1} -->',
       '<!-- merit-proposal: ["docs/array.md"] -->',
       "<!-- merit-proposal: {not json} -->",
     ].join("\n");
     expect(parseProposalMarker(body)).toEqual({
       paths: ["docs/a.md", "docs/b.md"],
-      lens: "docs",
       kind: "pr",
     });
-    expect(parseProposalMarker('<!-- merit-proposal: {"paths":"docs/a.md","lens":7} -->')).toEqual({
+    expect(parseProposalMarker('<!-- merit-proposal: {"paths":"docs/a.md","kind":7} -->')).toEqual({
       paths: [],
     });
+  });
+
+  test("reads a scout finding's run, depth, and evidence from the marker and ignores the old lens", () => {
+    const finding = [
+      '<!-- merit-proposal: {"kind":"pr","run":"area:tooling/agents","depth":0,"tier":2,',
+      '"paths":["tooling/agents/x.ts"],',
+      '"evidence":{"type":"failing-test","branch":"claude/scout-1","commit":"abc1234","extra":1}} -->',
+    ].join("");
+    expect(parseProposalMarker(finding)).toEqual({
+      paths: ["tooling/agents/x.ts"],
+      kind: "pr",
+      run: "area:tooling/agents",
+      depth: 0,
+      evidence: { type: "failing-test", branch: "claude/scout-1", commit: "abc1234" },
+    });
+    expect(
+      parseProposalMarker('<!-- merit-proposal: {"paths":["docs/a.md"],"lens":"docs"} -->'),
+    ).toEqual({ paths: ["docs/a.md"] });
+  });
+
+  test("reads a follow-up's parent and drops malformed provenance fields", () => {
+    const followUp =
+      '<!-- merit-proposal: {"paths":["docs/a.md"],"parent":{"type":"pr","number":412},"depth":2,"evidence":{"type":"command"}} -->';
+    expect(parseProposalMarker(followUp)).toEqual({
+      paths: ["docs/a.md"],
+      parent: { type: "pr", number: 412 },
+      depth: 2,
+      evidence: { type: "command" },
+    });
+    const malformed =
+      '<!-- merit-proposal: {"paths":["docs/a.md"],"parent":{"type":"repo","number":1},"depth":-1,"evidence":"text","run":""} -->';
+    expect(parseProposalMarker(malformed)).toEqual({ paths: ["docs/a.md"] });
   });
 
   test("extracts linked issue numbers and imports only Node built-ins and sibling verification-record", () => {

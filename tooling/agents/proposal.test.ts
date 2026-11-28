@@ -1,28 +1,50 @@
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, test } from "vite-plus/test";
 
 import type { IssueListItem, IssueListQuery } from "./github.ts";
 import {
-  applyTier2OnlyOverride,
   classifyProposalTier,
   fileProposal,
   findDuplicateProposal,
-  isProposalCapReached,
   parseProposalArgs,
   proposalInputSchema,
-  renderProposalMarkdown,
-  selectProposalLabels,
-  targetLabelForTier,
+  type ProposalEvidence,
   type ProposalInput,
+  renderProposalMarkdown,
+  resolveProposalDepth,
+  selectProposalLabels,
+  targetLabelFor,
+  verifyEvidenceBranch,
 } from "./proposal.ts";
 
 type PrProposalInput = Extract<ProposalInput, { kind: "pr" }>;
 
-const sampleProposal = (overrides: Partial<PrProposalInput> = {}): PrProposalInput => {
+const failingTestEvidence = {
+  type: "failing-test",
+  command: "vp run @merit/reviews#test -- reviewer.test.ts",
+  output: "FAIL reviewer.test.ts > withdraws once\nAssertionError: expected 2 to be 1",
+  citations: ["capabilities/reviews/business/src/domain/reviewer.ts:42"],
+  branch: "claude/scout-reviews",
+  commit: "abc1234",
+} as const;
+
+const commandEvidence = {
+  type: "command",
+  command: "vp run architecture",
+  output: "serverImports: capabilities/reviews imports capabilities/rounds",
+  citations: ["capabilities/reviews/business/src/server/service.ts:12"],
+} as const;
+
+const sampleProposal = (overrides: Record<string, unknown> = {}): PrProposalInput => {
   const parsed = proposalInputSchema.parse({
-    lens: "tests",
+    run: "area:capabilities/reviews",
     title: "Consolidate duplicate withdrawal assertions in reviews",
     why: "Three integration specs repeat identical withdrawal preconditions without adding new coverage.",
-    evidence: "capabilities/reviews/business/tests/reviewer.integration.ts:110-180",
+    evidence: commandEvidence,
     change: [
       "Collapse the three repeated withdrawal cases into one table-driven test",
       "Keep all existing outcome assertions intact",
@@ -47,24 +69,139 @@ const sampleProposal = (overrides: Partial<PrProposalInput> = {}): PrProposalInp
   return parsed;
 };
 
-describe("proposal", () => {
-  test("classifies unambiguous docs and single-slice pure-test proposals as Tier 1", () => {
-    const docsResult = classifyProposalTier({
-      paths: ["docs/guides/testing.md", "capabilities/reviews/business/README.md"],
-      ambiguous: false,
-    });
-    expect(docsResult.tier).toBe(1);
-    expect(targetLabelForTier(docsResult.tier)).toBe("agent:ready");
+const issue = (number: number, title: string, overrides: Partial<IssueListItem> = {}) => ({
+  number,
+  title,
+  state: "OPEN" as const,
+  body: "",
+  labels: [],
+  comments: [],
+  ...overrides,
+});
 
-    const singleSliceTestResult = classifyProposalTier({
-      paths: [
-        "capabilities/reviews/business/src/domain/reviewer.test.ts",
-        "capabilities/reviews/business/tests/reviewer.integration.ts",
-      ],
-      ambiguous: false,
+const markerBody = (marker: Record<string, unknown>) =>
+  `Body.\n\n<!-- merit-proposal: ${JSON.stringify({ paths: ["docs/a.md"], ...marker })} -->`;
+
+/** Answers issue list queries and views, and records every query and created issue. */
+const fakeIssues = ({
+  issuesFor = () => [],
+  bodies = {},
+}: {
+  issuesFor?: (query: IssueListQuery) => IssueListItem[];
+  bodies?: Record<number, string>;
+} = {}) => {
+  const queries: IssueListQuery[] = [];
+  const viewed: number[] = [];
+  const created: Array<{ title: string; body: string; labels: readonly string[] }> = [];
+  const client = {
+    listIssues: (query: IssueListQuery) => {
+      queries.push(query);
+      return issuesFor(query);
+    },
+    viewIssue: (number: number) => {
+      viewed.push(number);
+      const body = bodies[number];
+      if (body === undefined) {
+        throw new Error(`gh: Not Found (#${number})`);
+      }
+      return { number, state: "OPEN", title: `Issue ${number}`, body };
+    },
+    createIssue: (request: { title: string; body: string; labels: readonly string[] }) => {
+      created.push(request);
+      return "https://github.com/dmprav/merit/issues/400";
+    },
+  };
+  return { client, queries, viewed, created };
+};
+
+const acceptEvidence = () => {
+  const checked: ProposalEvidence[] = [];
+  return { checked, verifyEvidence: (evidence: ProposalEvidence) => void checked.push(evidence) };
+};
+
+describe("proposal input", () => {
+  test("requires exactly one source: a scout run or a parent", () => {
+    expect(() => sampleProposal({ run: undefined })).toThrow(/exactly one source/);
+    expect(() => sampleProposal({ parent: { type: "issue", number: 12 } })).toThrow(
+      /exactly one source/,
+    );
+    expect(sampleProposal({ run: undefined, parent: { type: "pr", number: 12 } }).parent).toEqual({
+      type: "pr",
+      number: 12,
     });
-    expect(singleSliceTestResult.tier).toBe(1);
-    expect(targetLabelForTier(singleSliceTestResult.tier)).toBe("agent:ready");
+  });
+
+  test.each(["lens-docs", "area:", "mechanism:"])("rejects the run id %j", (run) => {
+    expect(() => sampleProposal({ run })).toThrow(/run id/);
+  });
+
+  test.each(["change-batch", "records", "area:tooling/agents", "mechanism:audit-trail"])(
+    "accepts the run id %j",
+    (run) => {
+      expect(sampleProposal({ run }).run).toBe(run);
+    },
+  );
+
+  test("requires evidence as an object with a command, output, and file:line citations", () => {
+    expect(() => sampleProposal({ evidence: "capabilities/a.ts:1" })).toThrow();
+    expect(() => sampleProposal({ evidence: { ...commandEvidence, citations: [] } })).toThrow();
+    expect(() =>
+      sampleProposal({ evidence: { ...commandEvidence, citations: ["no line number"] } }),
+    ).toThrow(/file:line/);
+    expect(() => sampleProposal({ evidence: { ...commandEvidence, output: "" } })).toThrow();
+    expect(() =>
+      sampleProposal({ evidence: { ...commandEvidence, output: "x".repeat(1501) } }),
+    ).toThrow();
+    expect(
+      sampleProposal({ evidence: { ...commandEvidence, output: "x".repeat(1500) } }).evidence
+        .output,
+    ).toHaveLength(1500);
+  });
+
+  test("requires a failing test's branch and commit, and accepts them as optional otherwise", () => {
+    const { branch: _branch, ...withoutBranch } = failingTestEvidence;
+    const { commit: _commit, ...withoutCommit } = failingTestEvidence;
+    expect(() => sampleProposal({ evidence: withoutBranch })).toThrow(/evidence branch/);
+    expect(() => sampleProposal({ evidence: withoutCommit })).toThrow(/evidence branch/);
+    expect(sampleProposal({ evidence: failingTestEvidence }).evidence.commit).toBe("abc1234");
+    expect(
+      sampleProposal({
+        evidence: { ...commandEvidence, type: "surviving-mutation" },
+      }).evidence.type,
+    ).toBe("surviving-mutation");
+  });
+
+  test.each(["--upload-pack=x", "a..b", "has space", ""])(
+    "rejects the evidence branch %j",
+    (branch) => {
+      expect(() => sampleProposal({ evidence: { ...failingTestEvidence, branch } })).toThrow();
+    },
+  );
+
+  test("rejects workflow-controlled agent:* and comma-separated labels in extraLabels", () => {
+    expect(() => sampleProposal({ extraLabels: ["agent:ready"] })).toThrow(/agent:\*/);
+    expect(() => sampleProposal({ extraLabels: ["agent:allow-protected"] })).toThrow(/agent:\*/);
+    expect(() => sampleProposal({ extraLabels: ["type:bug,agent:ready"] })).toThrow(/commas/);
+  });
+});
+
+describe("tier classification", () => {
+  test("classifies unambiguous docs and single-slice pure-test proposals as Tier 1", () => {
+    expect(
+      classifyProposalTier({
+        paths: ["docs/guides/testing.md", "capabilities/reviews/business/README.md"],
+        ambiguous: false,
+      }).tier,
+    ).toBe(1);
+    expect(
+      classifyProposalTier({
+        paths: [
+          "capabilities/reviews/business/src/domain/reviewer.test.ts",
+          "capabilities/reviews/business/tests/reviewer.integration.ts",
+        ],
+        ambiguous: false,
+      }).tier,
+    ).toBe(1);
   });
 
   test("classifies production, multi-slice, extends-mechanism, protected, root/record docs, wildcard, or ambiguous proposals as Tier 2", () => {
@@ -86,46 +223,117 @@ describe("proposal", () => {
       [["AGENTS.md"], false],
       [["docs/guides/*.md"], false],
     ] as const) {
-      const result = classifyProposalTier({ paths: [...paths], ambiguous });
-      expect(result.tier, paths.join(",")).toBe(2);
-      expect(targetLabelForTier(result.tier), paths.join(",")).toBe("agent:proposed");
+      expect(classifyProposalTier({ paths: [...paths], ambiguous }).tier, paths.join(",")).toBe(2);
     }
   });
 
-  test("rejects workflow-controlled agent:* and comma-separated labels in extraLabels and enforces --tier2-only metadata consistency", () => {
-    expect(() => sampleProposal({ extraLabels: ["agent:ready"] })).toThrow(/agent:\*/);
-    expect(() => sampleProposal({ extraLabels: ["agent:allow-protected"] })).toThrow(/agent:\*/);
-    expect(() => sampleProposal({ extraLabels: ["type:bug,agent:ready"] })).toThrow(/commas/);
-
-    const proposal = sampleProposal();
-    const base = classifyProposalTier({ paths: proposal.paths, ambiguous: false });
-    expect(base.tier).toBe(1);
-
-    const overridden = applyTier2OnlyOverride(base, true);
-    expect(overridden.tier).toBe(2);
-    expect(targetLabelForTier(overridden.tier)).toBe("agent:proposed");
-
-    const markdown = renderProposalMarkdown(proposal, overridden);
-    expect(markdown).toContain("`tier:2");
-    expect(markdown).toContain('"tier":2');
-    expect(markdown).not.toContain("allowProtectedPaths");
+  test("classifies design proposals as Tier 2 even for docs-only paths", () => {
+    expect(
+      classifyProposalTier({
+        paths: ["docs/foundations/architecture.md"],
+        ambiguous: false,
+        kind: "design",
+      }).tier,
+    ).toBe(2);
   });
+});
 
-  test("renders a compact above-the-fold Decision Card with collapsed Implementer Brief and metadata marker", () => {
-    const proposal = sampleProposal();
-    const classification = classifyProposalTier({
+describe("rendered proposal", () => {
+  const classify = (proposal: ProposalInput) =>
+    classifyProposalTier({
       paths: proposal.paths,
       ambiguous: proposal.ambiguous,
+      kind: proposal.kind,
     });
-    const markdown = renderProposalMarkdown(proposal, classification);
-    const aboveFold = markdown.split("<details>")[0]?.trimEnd().split("\n") ?? [];
 
-    expect(aboveFold.length).toBeLessThanOrEqual(12);
+  test("renders the Evidence section with the command, output, and citations, and a marker recording the run", () => {
+    const proposal = sampleProposal();
+    const markdown = renderProposalMarkdown(proposal, classify(proposal), 0);
+
+    expect(markdown).toContain("**Evidence:** command");
+    expect(markdown).toContain(
+      "```text\n$ vp run architecture\nserverImports: capabilities/reviews imports capabilities/rounds\n```",
+    );
+    expect(markdown).toContain("- `capabilities/reviews/business/src/server/service.ts:12`");
+    expect(markdown).toContain("run:area:capabilities/reviews · depth:0");
+    expect(markdown).not.toContain("git cherry-pick");
     expect(markdown).toContain("<summary>Implementer brief (for builder & reviewer)</summary>");
-    expect(markdown).toContain("<!-- merit-proposal:");
-    expect(markdown).toContain('"tier":1');
+    expect(markdown).toContain(
+      '<!-- merit-proposal: {"kind":"pr","run":"area:capabilities/reviews","depth":0,"tier":1,"paths":["capabilities/reviews/business/tests/reviewer.integration.ts"],"evidence":{"type":"command"}} -->',
+    );
   });
 
+  test("tells a builder how to pick up a failing test from its evidence branch", () => {
+    const proposal = sampleProposal({ evidence: failingTestEvidence });
+    const markdown = renderProposalMarkdown(proposal, classify(proposal), 0);
+
+    expect(markdown).toContain("**Evidence:** failing-test");
+    expect(markdown).toContain("Branch `claude/scout-reviews`, commit `abc1234`.");
+    expect(markdown).toContain(
+      "`git fetch origin claude/scout-reviews && git cherry-pick abc1234`",
+    );
+    expect(markdown).toContain(
+      '"evidence":{"type":"failing-test","branch":"claude/scout-reviews","commit":"abc1234"}',
+    );
+  });
+
+  test("records a follow-up's parent and depth, and fences output that contains backticks", () => {
+    const proposal = sampleProposal({
+      run: undefined,
+      parent: { type: "pr", number: 412 },
+      evidence: { ...commandEvidence, output: "```ts\nconst a = 1;\n```" },
+    });
+    const markdown = renderProposalMarkdown(proposal, classify(proposal), 2);
+
+    expect(markdown).toContain("parent:PR #412 · depth:2");
+    expect(markdown).toContain('"parent":{"type":"pr","number":412},"depth":2');
+    expect(markdown).toContain("````text\n$ vp run architecture\n```ts\nconst a = 1;\n```\n````");
+  });
+
+  test("renders structured sequencing details for a design instead of an implementer brief", () => {
+    const designProposal = proposalInputSchema.parse({
+      kind: "design",
+      run: "area:app",
+      title: "Defer product route bundles behind lazy route loaders",
+      why: "app/src/router.tsx eagerly pulls 634 modules (~1,671 KB) across all product routes.",
+      evidence: {
+        type: "command",
+        command: "fallow entry-weight",
+        output: "app/src/router.tsx 634 eager modules, 2 deferred",
+        citations: ["app/src/router.tsx:1"],
+      },
+      change: [
+        "Split heavy product capability routes onto lazy route imports",
+        "Keep shared workspace shell synchronous while deferring leaf editors",
+      ],
+      decision: "Needs agreement on route-split boundaries before touching 15+ route modules.",
+      whyNot: "Keeping all routes eager slows initial page load for every user.",
+      paths: ["docs/foundations/architecture.md"],
+      design: {
+        options: [
+          "Option A: TanStack Router lazy route files per product feature",
+          "Option B: Split only heavy review/intake editors via dynamic import",
+        ],
+        recommendation: "Option A aligns with TanStack Router code-splitting conventions.",
+        prSequence: [
+          "PR 1: Split review and intake editor routes and add entry-weight check",
+          "PR 2: Migrate remaining product workspace routes",
+        ],
+        openQuestions: ["Should admin routes split in the same sequence or separately?"],
+      },
+    });
+    const markdown = renderProposalMarkdown(designProposal, classify(designProposal), 0);
+
+    expect(markdown).toContain("tier:2 · design · run:area:app");
+    expect(markdown).toContain(
+      "<summary>Architecture design & sequencing (not auto-executed)</summary>",
+    );
+    expect(markdown).not.toContain("Implementer brief");
+    expect(markdown).toContain('"kind":"design"');
+  });
+});
+
+describe("duplicate detection", () => {
   test("deduplicates accurately without false positives on disjoint paths or short-token titles", () => {
     const proposal = sampleProposal();
 
@@ -183,73 +391,22 @@ describe("proposal", () => {
         },
       ]).duplicate,
     ).toBe(false);
-
-    expect(isProposalCapReached(4)).toBe(false);
-    expect(isProposalCapReached(5)).toBe(true);
   });
 
-  test("classifies design proposals as Tier 2 and renders structured sequencing details instead of an implementer brief", () => {
-    const designProposal = proposalInputSchema.parse({
-      kind: "design",
-      lens: "architecture",
-      title: "Defer product route bundles behind lazy route loaders",
-      why: "app/src/router.tsx eagerly pulls 634 modules (~1,671 KB) across all product routes.",
-      evidence: "fallow entry-weight: app/src/router.tsx 634 eager modules, 2 deferred",
-      change: [
-        "Split heavy product capability routes onto lazy route imports",
-        "Keep shared workspace shell synchronous while deferring leaf editors",
-      ],
-      decision: "Needs agreement on route-split boundaries before touching 15+ route modules.",
-      whyNot: "Keeping all routes eager slows initial page load for every user.",
-      paths: ["docs/foundations/architecture.md"],
-      design: {
-        options: [
-          "Option A: TanStack Router lazy route files per product feature",
-          "Option B: Split only heavy review/intake editors via dynamic import",
-        ],
-        recommendation: "Option A aligns with TanStack Router code-splitting conventions.",
-        prSequence: [
-          "PR 1: Split review and intake editor routes and add entry-weight check",
-          "PR 2: Migrate remaining product workspace routes",
-        ],
-        openQuestions: ["Should admin routes split in the same sequence or separately?"],
-      },
-    });
-    expect(designProposal.kind).toBe("design");
-
-    // Even docs-only paths stay Tier 2 when kind is "design".
-    const classification = classifyProposalTier({
-      paths: designProposal.paths,
-      ambiguous: false,
-      kind: designProposal.kind,
-    });
-    expect(classification.tier).toBe(2);
-    expect(targetLabelForTier(classification.tier)).toBe("agent:proposed");
-
-    const markdown = renderProposalMarkdown(designProposal, classification);
-    expect(markdown).toContain("tier:2 · design · lens:architecture");
-    expect(markdown).toContain(
-      "<summary>Architecture design & sequencing (not auto-executed)</summary>",
-    );
-    expect(markdown).not.toContain("Implementer brief");
-    expect(markdown).toContain('"kind":"design"');
-  });
-
-  test("deduplicates rephrased same-lens proposals targeting the same hotspot paths without false positives on unrelated work", () => {
+  test("deduplicates rephrased proposals targeting the same paths without false positives on unrelated work", () => {
     const existing = [
       {
         number: 240,
         title: "Decompose editable-review-work into controller and focused views",
         state: "OPEN" as const,
         labels: ["agent:proposed", "agent:design"],
-        body: '<!-- merit-proposal: {"kind":"design","lens":"architecture","paths":["capabilities/reviews/web/src/views/reviews/editable-review-work.tsx","capabilities/reviews/web/src/views/reviews/review-content.tsx"]} -->',
+        body: '<!-- merit-proposal: {"kind":"design","run":"area:capabilities/reviews","paths":["capabilities/reviews/web/src/views/reviews/editable-review-work.tsx","capabilities/reviews/web/src/views/reviews/review-content.tsx"]} -->',
       },
     ];
 
     expect(
       findDuplicateProposal(
         {
-          lens: "architecture",
           title: "Split editable-review-work view orchestration and rendering",
           paths: [
             "capabilities/reviews/web/src/views/reviews/editable-review-work.tsx",
@@ -260,11 +417,10 @@ describe("proposal", () => {
       ).duplicate,
     ).toBe(true);
 
-    // Unrelated change on the same files under a different topic does not falsely deduplicate.
+    // Unrelated change on the same file under a different topic does not falsely deduplicate.
     expect(
       findDuplicateProposal(
         {
-          lens: "security",
           title: "Sanitize external links rendered in review comments",
           paths: ["capabilities/reviews/web/src/views/reviews/editable-review-work.tsx"],
         },
@@ -272,7 +428,7 @@ describe("proposal", () => {
       ).duplicate,
     ).toBe(false);
 
-    // When an issue body contains multiple markers, lens and paths come from the same last valid marker.
+    // When an issue body contains multiple markers, paths come from the last valid marker.
     const multiMarkerIssue = [
       {
         number: 241,
@@ -280,17 +436,16 @@ describe("proposal", () => {
         state: "OPEN" as const,
         labels: ["agent:proposed"],
         body: [
-          '<!-- merit-proposal: {"lens":"architecture","paths":["capabilities/reviews/web/src/views/reviews/old.tsx"]} -->',
-          '<!-- merit-proposal: {"lens":"security","paths":["capabilities/reviews/web/src/views/reviews/editable-review-work.tsx"]} -->',
+          '<!-- merit-proposal: {"paths":["capabilities/reviews/web/src/views/reviews/old.tsx"]} -->',
+          '<!-- merit-proposal: {"paths":["capabilities/reviews/web/src/views/reviews/editable-review-work.tsx"]} -->',
         ].join("\n"),
       },
     ];
     expect(
       findDuplicateProposal(
         {
-          lens: "architecture",
           title: "Decompose review editor layout",
-          paths: ["capabilities/reviews/web/src/views/reviews/editable-review-work.tsx"],
+          paths: ["capabilities/reviews/web/src/views/reviews/old.tsx"],
         },
         multiMarkerIssue,
       ).duplicate,
@@ -299,17 +454,16 @@ describe("proposal", () => {
 });
 
 describe("proposal arguments", () => {
-  test("reads the input file, dry-run, and tier-2 override flags", () => {
-    expect(parseProposalArgs([])).toEqual({ dryRun: false, tier2Only: false });
-    expect(parseProposalArgs(["--file", "finding.json", "--dry-run", "--tier2-only"])).toEqual({
+  test("reads the input file and dry-run flags", () => {
+    expect(parseProposalArgs([])).toEqual({ dryRun: false });
+    expect(parseProposalArgs(["--file", "finding.json", "--dry-run"])).toEqual({
       file: "finding.json",
       dryRun: true,
-      tier2Only: true,
     });
   });
 
   // A misspelt --dry-run must not fall through to filing a real GitHub issue.
-  test.each([["--dry-rn"], ["--tier2only"], ["--dry-run", "extra"]])(
+  test.each([["--dry-rn"], ["--tier2-only"], ["--dry-run", "extra"]])(
     "rejects %j before any GitHub call",
     (...args) => {
       expect(() => parseProposalArgs(args)).toThrow(/Usage: proposal\.ts/);
@@ -330,60 +484,94 @@ describe("proposal arguments", () => {
 });
 
 describe("proposal labels", () => {
-  test("labels a proposal with its tier's workflow label, design, maintenance, then its extras once each", () => {
-    expect(selectProposalLabels(sampleProposal(), { tier: 1 })).toEqual([
-      "agent:ready",
-      "type:maintenance",
-    ]);
+  test("marks a pull request proposal ready up to depth 2 unless it is ambiguous", () => {
+    const pr = { kind: "pr", ambiguous: false } as const;
+    expect(targetLabelFor(pr, 0)).toBe("agent:ready");
+    expect(targetLabelFor(pr, 2)).toBe("agent:ready");
+    expect(targetLabelFor(pr, 3)).toBe("agent:proposed");
+    expect(targetLabelFor({ kind: "pr", ambiguous: true }, 0)).toBe("agent:proposed");
+    expect(targetLabelFor({ kind: "design", ambiguous: false }, 0)).toBe("agent:proposed");
+  });
+
+  test("labels a proposal with ready or proposed, design, maintenance, then its extras once each", () => {
+    expect(selectProposalLabels(sampleProposal(), 0)).toEqual(["agent:ready", "type:maintenance"]);
     expect(
       selectProposalLabels(
-        { kind: "design", extraLabels: ["area:reviews", "type:maintenance"] },
-        { tier: 2 },
+        { kind: "design", ambiguous: false, extraLabels: ["area:reviews", "type:maintenance"] },
+        0,
       ),
     ).toEqual(["agent:proposed", "agent:design", "type:maintenance", "area:reviews"]);
   });
 });
 
-const issue = (number: number, title: string, overrides: Partial<IssueListItem> = {}) => ({
-  number,
-  title,
-  state: "OPEN" as const,
-  body: "",
-  labels: [],
-  comments: [],
-  ...overrides,
+describe("proposal depth", () => {
+  test("is 0 for a scout finding without reading any issue", () => {
+    const { client, viewed } = fakeIssues();
+    expect(resolveProposalDepth(client, sampleProposal())).toBe(0);
+    expect(viewed).toEqual([]);
+  });
+
+  test("is one more than the parent issue's marker depth, counting an unmarked issue as depth 0", () => {
+    const { client } = fakeIssues({
+      bodies: {
+        10: markerBody({ run: "records", depth: 0 }),
+        11: markerBody({ depth: 2 }),
+        12: "Plain issue.",
+      },
+    });
+
+    const followUp = (number: number) =>
+      sampleProposal({ run: undefined, parent: { type: "issue", number } });
+
+    expect(resolveProposalDepth(client, followUp(10))).toBe(1);
+    expect(resolveProposalDepth(client, followUp(11))).toBe(3);
+    expect(resolveProposalDepth(client, followUp(12))).toBe(1);
+  });
+
+  test("follows a parent pull request to the issue it closes, else counts depth 1", () => {
+    const { client, viewed } = fakeIssues({
+      bodies: {
+        20: "Adds the fix.\n\nCloses #21",
+        21: markerBody({ depth: 1 }),
+        22: "No linked issue here.",
+      },
+    });
+
+    const followUp = (number: number) =>
+      sampleProposal({ run: undefined, parent: { type: "pr", number } });
+
+    expect(resolveProposalDepth(client, followUp(20))).toBe(2);
+    expect(viewed).toEqual([20, 21]);
+    expect(resolveProposalDepth(client, followUp(22))).toBe(1);
+  });
+
+  test("fails when the parent cannot be read", () => {
+    const { client } = fakeIssues();
+    expect(() =>
+      resolveProposalDepth(
+        client,
+        sampleProposal({ run: undefined, parent: { type: "issue", number: 99 } }),
+      ),
+    ).toThrow("Not Found");
+  });
 });
 
-/** Answers issue list queries from `issuesFor` and records every query and created issue. */
-const fakeIssues = (issuesFor: (query: IssueListQuery) => IssueListItem[] = () => []) => {
-  const queries: IssueListQuery[] = [];
-  const created: Array<{ title: string; body: string; labels: readonly string[] }> = [];
-  const client = {
-    listIssues: (query: IssueListQuery) => {
-      queries.push(query);
-      return issuesFor(query);
-    },
-    createIssue: (request: { title: string; body: string; labels: readonly string[] }) => {
-      created.push(request);
-      return "https://github.com/dmprav/merit/issues/400";
-    },
-  };
-  return { client, queries, created };
-};
-
 describe("fileProposal", () => {
-  test("files a Tier 1 proposal without consulting the Tier 2 cap", () => {
+  test("files a scout finding as ready after checking its evidence, with a computed depth", () => {
     const { client, queries, created } = fakeIssues();
-    const proposal = sampleProposal();
+    const { checked, verifyEvidence } = acceptEvidence();
+    const proposal = sampleProposal({ evidence: failingTestEvidence });
 
-    expect(fileProposal(client, proposal, { dryRun: false, tier2Only: false })).toEqual({
+    expect(fileProposal(client, proposal, { dryRun: false, verifyEvidence })).toEqual({
       status: "created",
       url: "https://github.com/dmprav/merit/issues/400",
       kind: "pr",
+      depth: 0,
       tier: 1,
       targetLabel: "agent:ready",
       labels: ["agent:ready", "type:maintenance"],
     });
+    expect(checked).toEqual([proposal.evidence]);
     expect(queries).toEqual([
       { state: "open" },
       { state: "closed", label: "wontfix" },
@@ -392,57 +580,142 @@ describe("fileProposal", () => {
     expect(created).toEqual([
       {
         title: proposal.title,
-        body: renderProposalMarkdown(proposal, classifyProposalTier(proposal)),
+        body: renderProposalMarkdown(proposal, classifyProposalTier(proposal), 0),
         labels: ["agent:ready", "type:maintenance"],
       },
     ]);
   });
 
-  test("renders a dry run, with the calibration override applied, without calling GitHub", () => {
-    const { client, queries, created } = fakeIssues();
+  test("holds a follow-up three steps from its finding for the maintainer", () => {
+    const { client, created } = fakeIssues({ bodies: { 30: markerBody({ depth: 2 }) } });
+    const { verifyEvidence } = acceptEvidence();
+    const proposal = sampleProposal({ run: undefined, parent: { type: "issue", number: 30 } });
 
-    const outcome = fileProposal(client, sampleProposal(), { dryRun: true, tier2Only: true });
-
-    expect(outcome).toMatchObject({
-      status: "dry_run",
-      tier: 2,
+    expect(fileProposal(client, proposal, { dryRun: false, verifyEvidence })).toMatchObject({
+      status: "created",
+      depth: 3,
       targetLabel: "agent:proposed",
       labels: ["agent:proposed", "type:maintenance"],
-      reasons: ["calibration mode (--tier2-only)"],
     });
-    expect(outcome.status === "dry_run" ? outcome.markdown : "").toContain("tier:2 · lens:tests");
+    expect(created).toHaveLength(1);
+  });
+
+  test("files nothing when the evidence commit is not on its branch", () => {
+    const { client, queries, created } = fakeIssues();
+
+    const verifyEvidence = () => {
+      throw new Error("Evidence commit abc1234 is not reachable from origin/claude/scout-reviews.");
+    };
+
+    expect(() =>
+      fileProposal(client, sampleProposal({ evidence: failingTestEvidence }), {
+        dryRun: false,
+        verifyEvidence,
+      }),
+    ).toThrow("not reachable");
     expect(queries).toEqual([]);
     expect(created).toEqual([]);
   });
 
-  test("stops filing Tier 2 proposals once the open-proposal cap is reached", () => {
-    const { client, created } = fakeIssues((query) =>
-      query.label === "agent:proposed"
-        ? [1, 2, 3, 4, 5].map((number) => issue(number, `Proposal ${number}`))
-        : [],
-    );
+  test("renders a dry run without listing or creating issues, still checking the evidence", () => {
+    const { client, queries, created } = fakeIssues();
+    const { checked, verifyEvidence } = acceptEvidence();
 
-    expect(fileProposal(client, sampleProposal(), { dryRun: false, tier2Only: true })).toEqual({
-      status: "cap_reached",
-      openProposedCount: 5,
-      maxOpenProposals: 5,
+    const outcome = fileProposal(client, sampleProposal(), { dryRun: true, verifyEvidence });
+
+    expect(outcome).toMatchObject({
+      status: "dry_run",
+      depth: 0,
+      tier: 1,
+      targetLabel: "agent:ready",
+      labels: ["agent:ready", "type:maintenance"],
     });
+    expect(outcome.status === "dry_run" ? outcome.markdown : "").toContain(
+      "tier:1 · run:area:capabilities/reviews",
+    );
+    expect(checked).toHaveLength(1);
+    expect(queries).toEqual([]);
     expect(created).toEqual([]);
   });
 
   test("reports an existing issue with the same title instead of filing a duplicate", () => {
     const proposal = sampleProposal();
-    const { client, created } = fakeIssues((query) =>
-      query.label === "wontfix"
-        ? [issue(88, proposal.title, { state: "CLOSED", labels: ["wontfix"] })]
-        : [],
-    );
+    const { client, created } = fakeIssues({
+      issuesFor: (query) =>
+        query.label === "wontfix"
+          ? [issue(88, proposal.title, { state: "CLOSED", labels: ["wontfix"] })]
+          : [],
+    });
+    const { verifyEvidence } = acceptEvidence();
 
-    expect(fileProposal(client, proposal, { dryRun: false, tier2Only: true })).toEqual({
+    expect(fileProposal(client, proposal, { dryRun: false, verifyEvidence })).toEqual({
       status: "duplicate",
       matchedIssue: 88,
       reason: "matches existing closed issue #88 title",
     });
     expect(created).toEqual([]);
+  });
+});
+
+describe("evidence branch verification", () => {
+  const git = (cwd: string, ...args: string[]) =>
+    execFileSync("git", args, { cwd, encoding: "utf8", stdio: "pipe" }).trim();
+
+  /** A clone whose `origin` holds `claude/evidence` with one commit the clone does not have checked out. */
+  const withOrigin = (
+    run: (clone: string, evidenceCommit: string, otherCommit: string) => void,
+  ) => {
+    const root = mkdtempSync(join(tmpdir(), "merit-evidence-"));
+    try {
+      const origin = join(root, "origin");
+      const clone = join(root, "clone");
+      mkdirSync(origin);
+      git(origin, "init", "-q", "-b", "main");
+      git(origin, "config", "user.email", "scout@example.com");
+      git(origin, "config", "user.name", "Scout");
+      writeFileSync(join(origin, "a.txt"), "a");
+      git(origin, "add", ".");
+      git(origin, "commit", "-q", "-m", "base");
+      git(origin, "switch", "-q", "-c", "claude/evidence");
+      writeFileSync(join(origin, "b.txt"), "b");
+      git(origin, "add", ".");
+      git(origin, "commit", "-q", "-m", "failing test");
+      const evidenceCommit = git(origin, "rev-parse", "HEAD");
+      git(origin, "switch", "-q", "main");
+      writeFileSync(join(origin, "c.txt"), "c");
+      git(origin, "add", ".");
+      git(origin, "commit", "-q", "-m", "unrelated");
+      const otherCommit = git(origin, "rev-parse", "HEAD");
+      git(root, "clone", "-q", origin, clone);
+      run(clone, evidenceCommit, otherCommit);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  };
+
+  test("accepts a commit reachable from the fetched origin branch", () => {
+    withOrigin((clone, evidenceCommit) => {
+      expect(() =>
+        verifyEvidenceBranch(clone, { branch: "claude/evidence", commit: evidenceCommit }),
+      ).not.toThrow();
+    });
+  });
+
+  test("refuses a commit that is not on the branch, a branch that does not exist, or an unknown commit", () => {
+    withOrigin((clone, evidenceCommit, otherCommit) => {
+      expect(() =>
+        verifyEvidenceBranch(clone, { branch: "claude/evidence", commit: otherCommit }),
+      ).toThrow(/not reachable from origin\/claude\/evidence/);
+      expect(() =>
+        verifyEvidenceBranch(clone, { branch: "claude/missing", commit: evidenceCommit }),
+      ).toThrow(/not reachable from origin\/claude\/missing/);
+      expect(() =>
+        verifyEvidenceBranch(clone, { branch: "claude/evidence", commit: "0".repeat(40) }),
+      ).toThrow(/not reachable/);
+    });
+  });
+
+  test("has nothing to check for evidence without a branch and commit", () => {
+    expect(() => verifyEvidenceBranch("/nonexistent", {})).not.toThrow();
   });
 });
