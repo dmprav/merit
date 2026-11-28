@@ -273,21 +273,24 @@ None.
       passed: true,
     });
 
-    const markdown = renderReviewPacket({
-      changedFiles: [
-        { status: "modified", path: "foundation/ui/src/components/button/button.tsx" },
-      ],
-      numstat: [
-        { path: "foundation/ui/src/components/button/button.tsx", additions: 4, deletions: 2 },
-      ],
-      addedLines: [],
-      baseMigrationSql: "",
-      headMigrationSql: "",
-      screenshots: [
-        screenshot("components-button--overview", "foundation/ui/src/button/button.stories.tsx"),
-      ],
-      affectedStoryFiles: { storyFiles: 5, directStoryFiles: 2 },
-    });
+    const packet = (screenshots: ReturnType<typeof screenshot>[]) =>
+      renderReviewPacket({
+        changedFiles: [
+          { status: "modified", path: "foundation/ui/src/components/button/button.tsx" },
+        ],
+        numstat: [
+          { path: "foundation/ui/src/components/button/button.tsx", additions: 4, deletions: 2 },
+        ],
+        addedLines: [],
+        baseMigrationSql: "",
+        headMigrationSql: "",
+        screenshots,
+        affectedStoryFiles: { storyFiles: 5, directStoryFiles: 2 },
+      });
+
+    const markdown = packet([
+      screenshot("components-button--overview", "foundation/ui/src/button/button.stories.tsx"),
+    ]);
 
     expect(markdown).toContain("#### Desktop Screenshots");
     expect(markdown).toContain(
@@ -298,6 +301,27 @@ None.
     );
     expect(markdown).toContain(
       "![Components/Button — Overview](https://raw.githubusercontent.com/dmprav/merit/abc123/pr-42/components-button--overview-desktop.png)",
+    );
+
+    // The coverage line stays visible; the images sit in a collapsed disclosure after it.
+    const coverageAt = markdown.indexOf("_Showing 1 of 5");
+    const openAt = markdown.indexOf("<details>\n<summary>Show 1 desktop screenshot</summary>\n");
+    const imageAt = markdown.indexOf("![Components/Button");
+    const closeAt = markdown.indexOf("\n</details>");
+    expect(coverageAt).toBeGreaterThan(-1);
+    expect(openAt).toBeGreaterThan(coverageAt);
+    expect(imageAt).toBeGreaterThan(openAt);
+    expect(closeAt).toBeGreaterThan(imageAt);
+
+    const warned = packet([
+      screenshot("components-button--overview", "foundation/ui/src/button/button.stories.tsx"),
+      {
+        ...screenshot("components-button--disabled", "foundation/ui/src/button/button.stories.tsx"),
+        passed: false,
+      },
+    ]);
+    expect(warned).toContain(
+      "<summary>Show 2 desktop screenshots (1 with audit warnings)</summary>",
     );
 
     const variants = [
@@ -331,6 +355,7 @@ None.
       "_Showing 0 of 4 affected story files, nearest to the change first. 1 changed or imports a changed module directly._",
     );
     expect(markdown).not.toContain("![");
+    expect(markdown).not.toContain("<details>");
     expect(
       renderReviewPacket({
         changedFiles: [{ status: "modified", path: "docs/README.md" }],

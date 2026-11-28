@@ -681,6 +681,14 @@ export const describeScreenshotCoverage = (
   return `_Showing ${shown} of ${total} affected ${files}, nearest to the change first. ${reach}_`;
 };
 
+/** Labels the collapsed screenshot list so audit warnings stay visible while the images are hidden. */
+const describeScreenshotDisclosure = (screenshots: readonly PrScreenshot[]): string => {
+  const noun = screenshots.length === 1 ? "screenshot" : "screenshots";
+  const warned = screenshots.filter((shot) => !shot.passed).length;
+  const warnings = warned > 0 ? ` (${warned} with audit warnings)` : "";
+  return `Show ${screenshots.length} desktop ${noun}${warnings}`;
+};
+
 const renderUiSection = (
   changedFiles: readonly ChangedFile[],
   screenshots: readonly PrScreenshot[] = [],
@@ -716,6 +724,9 @@ const renderUiSection = (
   } else if (screenshots.length > 0) {
     lines.push("", "#### Desktop Screenshots");
   }
+  if (screenshots.length > 0) {
+    lines.push("", "<details>", `<summary>${describeScreenshotDisclosure(screenshots)}</summary>`);
+  }
   for (const shot of screenshots) {
     const label = shot.title ? `${shot.title} — ${shot.name}` : shot.storyId;
     const status = shot.passed ? "passed" : "audit warnings";
@@ -724,6 +735,9 @@ const renderUiSection = (
       `**${label}** (\`${shot.storyId}\` · ${status})`,
       `![${escapeMarkdownAlt(label)}](${shot.url})`,
     );
+  }
+  if (screenshots.length > 0) {
+    lines.push("", "</details>");
   }
   return lines;
 };

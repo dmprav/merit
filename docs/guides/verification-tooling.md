@@ -119,8 +119,9 @@ non-test file under a package's `src/`, a story, or `.storybook/`), its
 `ui-screenshots` job uses
 [`pr-screenshots.ts`](../../tooling/verification/pr-screenshots.ts) and
 `ui:verify --viewport desktop` to capture affected desktop stories, publish them
-to a single squashed orphan commit on `ci/pr-screenshots`, and embed them inline
-in the same sticky comment; `cleanup-screenshots` removes `pr-<number>/` when
+to a single squashed orphan commit on `ci/pr-screenshots`, and embed them in the
+same sticky comment behind a collapsed disclosure whose label counts screenshots
+with audit warnings; `cleanup-screenshots` removes `pr-<number>/` when
 the pull request closes.
 
 `pr-screenshots.ts select` chooses stories from the import graph in the
