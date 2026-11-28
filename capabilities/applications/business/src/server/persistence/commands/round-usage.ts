@@ -1,14 +1,10 @@
 import { and, eq } from "drizzle-orm";
 
-import type { Transaction } from "@merit/db";
+import type { RoundApplications } from "@merit/rounds/server/grant-work";
 
 import { applicationCases } from "../schema";
 
-export const roundHasApplications = async (
-  tx: Transaction,
-  organizationId: string,
-  roundId: string,
-) => {
+export const roundHasApplications: RoundApplications = async ({ tx, organizationId, roundId }) => {
   const rows = await tx
     .select({ publicId: applicationCases.id })
     .from(applicationCases)

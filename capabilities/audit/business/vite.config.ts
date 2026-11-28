@@ -1,6 +1,7 @@
 import { defineConfig } from "vite-plus";
 
 import { coverageDefaults } from "../../../tooling/verification/coverage";
+import { typecheckTask } from "../../../tooling/verification/typecheck";
 
 export default defineConfig({
   run: {
@@ -9,7 +10,7 @@ export default defineConfig({
         command: "vp test --coverage",
         cache: { input: [{ auto: true }, "!coverage/**"] },
       },
-      typecheck: "tsc --noEmit",
+      typecheck: typecheckTask,
     },
   },
   test: {

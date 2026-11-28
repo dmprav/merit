@@ -5,7 +5,9 @@ Read-only scheduled audit of Merit across seven specialized lenses. This task
 deletes `verifications/*.md` files. Its only outputs are concise, decision-ready
 proposal issues created through
 [proposal.ts](../../tooling/agents/proposal.ts) and cursor updates on pinned
-state issue `#219` via [scout.ts](../../tooling/agents/scout.ts).
+state issue `#219` via [scout.ts](../../tooling/agents/scout.ts). The one Git
+change it makes is switching a clean checkout to `scanTipSha` when
+`scout.ts context` asks for it.
 
 Start with [AGENTS.md](../../AGENTS.md) and the guide for the lens you are
 running.
@@ -29,6 +31,11 @@ scheduled runs; picks the most overdue lens from `#219` cursors) or an explicit
      `architecture`/`simplification`), `unreadVerifications`, `openIssues`, and
      `wontfixIssues` (including each maintainer rejection `reason`, when
      present).
+   - A ready run reads the working tree as `origin/main`, so `scout.ts context`
+     fails when the checkout is at another commit, has changed or untracked
+     paths, or hides tracked paths from `git status` (a sparse checkout). On a clean checkout, run the `git switch --detach <scanTipSha>` the
+     error names and retry. If the checkout has changes, stop and report them
+     without advancing any cursor rather than stashing or discarding them.
 2. **Respect the proposal cap:**
    While running in human-gated mode (`--tier2-only`), every proposal lands in
    `agent:proposed` (capped at 5 open issues). Leaving the cursor untouched on

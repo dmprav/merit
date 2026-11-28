@@ -12,7 +12,7 @@ export type ScoutPorts = {
   git: GitPort;
   issues: IssuePort;
   fallow: FallowPort;
-  /** Reads a repository-relative file from the working tree. */
+  /** Reads a repository-relative file from the working tree, which a ready run has checked is at the scan tip. */
   readFile: (repoPath: string) => string;
   now: () => Date;
   /** Reports a problem the run can continue past. */

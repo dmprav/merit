@@ -52,6 +52,9 @@ Successful builds, package tests, and static checks can reuse results through
 Source, configuration, dependency, and directory changes invalidate the affected
 task; this includes newly added files.
 
+Package typechecks always invoke TypeScript, which reuses incremental state in each
+package’s `node_modules/.cache` and tracks changes to imported workspace types.
+
 Security checks, database integration, browser checks, and tooling regression tests
 always execute when selected. Use `vp run --no-cache ready` when a fresh run of
 every check is needed, and `vp run --last-details` to inspect cache hits and misses.

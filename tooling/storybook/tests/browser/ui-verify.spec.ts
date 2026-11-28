@@ -272,6 +272,84 @@ test.describe("live Chromium checker failure detection", () => {
     }
   });
 
+  test("counts only painted focus cues on the same relative across snapshots", async ({ page }) => {
+    await page.setContent(`
+      <style>
+        button { outline: none; display: inline-flex; }
+        .transparent, .reveal { opacity: 0; }
+        .ring, button:focus-visible .indicator { outline: 2px solid blue; }
+        button:focus-visible .reveal { opacity: 1; }
+        .ring { order: 1; }
+      </style>
+      <button>Hidden ring<span class="transparent"><span class="indicator">A</span></span></button>
+      <button>Visible ring<span class="indicator">B</span></button>
+      <button>Revealed ring<span class="reveal ring">C</span></button>
+      <button data-reorder aria-label="Reordered"><span>A</span><span class="ring">B</span></button>
+      <button data-reorder aria-label="Reordered with cue"><span class="indicator">A</span><span class="ring">B</span></button>
+      <script>
+        for (const button of document.querySelectorAll('[data-reorder]')) {
+          const ring = button.lastElementChild;
+          button.addEventListener('focus', () => button.prepend(ring));
+          button.addEventListener('blur', () => button.append(ring));
+        }
+      </script>`);
+    const focus = await checkKeyboardFocusTraversal(page);
+    expect(focus.stopsChecked).toBe(5);
+    expect(focus.failures.map(({ element, reasons }) => ({ element, reasons }))).toEqual([
+      {
+        element: 'button "Hidden ringA"',
+        reasons: ["no visible focus indicator change compared to unfocused state"],
+      },
+      {
+        element: 'button "Reordered"',
+        reasons: ["no visible focus indicator change compared to unfocused state"],
+      },
+    ]);
+  });
+
+  test("checks the paint revealed by a visibility change", async ({ page }) => {
+    await page.setContent(`
+      <style>
+        button { outline: none; }
+        .indicator { display: inline-block; opacity: 0; }
+        button:focus-visible .indicator { opacity: 1; }
+        .empty-fill { background: red; width: 0; height: 0; }
+        .empty-line { width: 10px; height: 10px; text-decoration: underline transparent; }
+        button:focus-visible .line { text-decoration: underline solid blue 3px; }
+        button:focus-visible .clear-line { text-decoration-color: transparent; }
+        .spread { box-shadow: 0 0 0 4px blue; }
+        .offset { box-shadow: 3px 3px blue; }
+        .atomic { display: inline-block; }
+        .flat-text { display: block; transform: scaleZ(0); }
+        .collapsed { transform: scale(0); }
+        .scaled-wrapper { display: inline-block; scale: 0; }
+      </style>
+      <button>Empty fill<span class="indicator empty-fill"></span></button>
+      <button>Empty underline<span class="indicator empty-line"></span></button>
+      <button>Real underline<span class="indicator line">marked</span></button>
+      <button>Clear underline<span class="indicator line clear-line">marked</span></button>
+      <button>Nested underline<span class="indicator line"><em>marked</em></span></button>
+      <button>Suppressed text<span class="indicator line"><em class="flat-text">marked</em></span></button>
+      <button>Atomic inline<span class="indicator line"><em class="atomic">marked</em></span></button>
+      <button>Spread shadow<span class="indicator spread"></span></button>
+      <button>Offset shadow<span class="indicator offset"></span></button>
+      <button>Collapsed shadow<span class="indicator spread collapsed"></span></button>
+      <button>Collapsed wrapper<span class="scaled-wrapper"><span class="indicator spread"></span></span></button>
+      <button>Inline wrapper<span class="collapsed"><span class="indicator spread"></span></span></button>`);
+    const focus = await checkKeyboardFocusTraversal(page);
+    expect(focus.stopsChecked).toBe(12);
+    expect(focus.failures.map(({ element }) => element)).toEqual([
+      'button "Empty fill"',
+      'button "Empty underline"',
+      'button "Clear underlinemarked"',
+      'button "Suppressed textmarked"',
+      'button "Atomic inlinemarked"',
+      'button "Offset shadow"',
+      'button "Collapsed shadow"',
+      'button "Collapsed wrapper"',
+    ]);
+  });
+
   test("compares a focus-trapped list option with its neighbour's focus, not a blur", async ({
     newContext,
   }) => {

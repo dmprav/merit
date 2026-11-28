@@ -8,7 +8,7 @@ import {
   type ScoutRun,
   type ScoutScan,
 } from "./context.ts";
-import { type CommitSummary, type GitPort, SCAN_REF } from "./git.ts";
+import { assertCheckoutAt, type CommitSummary, type GitPort, SCAN_REF } from "./git.ts";
 import { LENS_POLICIES, MS_PER_DAY, resolveRotationTarget, selectAutoLens } from "./lenses.ts";
 import type { IssuePort, ScoutPorts } from "./ports.ts";
 import { collectUnreadVerifications } from "./repo-paths.ts";
@@ -101,7 +101,8 @@ const scanForLens = (
 
 /**
  * Builds the context a scout reads before inspecting a lens. Stops before any history or telemetry
- * work when `--lens auto` finds nothing due or the open proposal cap is reached.
+ * work when `--lens auto` finds nothing due or the open proposal cap is reached, and refuses a
+ * ready run whose checkout is not a clean copy of the scan tip.
  */
 export const buildContext = (
   ports: ScoutPorts,
@@ -129,6 +130,7 @@ export const buildContext = (
   if (isProposalCapReached(run.openProposedCount)) {
     return capReachedContext(run);
   }
+  assertCheckoutAt(ports.git, run.scanTipSha);
   return buildScoutContext(run, scanForLens(ports, run, now));
 };
 

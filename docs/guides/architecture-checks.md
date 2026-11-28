@@ -127,8 +127,9 @@ role (`business-assembly`, `business-demo`, `business-shared-persistence`,
 `business-command-persistence`, `business-query-persistence`, `business-grant-work`,
 `business-integrations`, and `business-reading`). All three must match, a leaf rule keeps `audit` isolated
 from all foreign business packages (current and newly added), and
-`upstreamDisallowedTargets` keeps upstream and sibling capabilities independent of
-downstream capabilities outside composition tests (`tests/` and `testing/`). The
+`capabilityGroups` lists capabilities in dependency order. Outside composition
+tests (`tests/` and `testing/`), a capability can import from earlier groups.
+Imports between peers or into a later group are forbidden. The
 policy also covers types, re-exports, and dynamic imports with known sources, and
 applies to unclassified server entries and newly added capabilities as well as the
 structured packages. Browser-safe dependencies retain their existing rules.
@@ -164,6 +165,11 @@ Application assembly wires these collaborators through each owner's
 `@merit/*/server/integrations` entry. Grantmaking supplies no integrations: it cannot
 relay downstream lifecycle work, and assembly cannot import an integrations entry
 from it. The architecture fixtures check these allowed and rejected directions.
+
+Grant lock contexts carry the transaction and the IDs of locked rows. Applications
+takes the round context before locking a case. Reviews takes the case context
+before locking an assignment. Round and application lifecycle contracts import
+their own lock types, so callers pass the locked resource to each collaborator.
 
 Organization `scope` exports contain read predicates. The `locks` entry lives in
 command persistence, so neither queries nor the shared scope module can import

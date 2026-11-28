@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { sql } from "drizzle-orm";
 import { assert, expect } from "vite-plus/test";
 
 import type { Database } from "@merit/db";
@@ -67,6 +68,31 @@ it("deletes an empty round while another round has an uncommitted edit", async (
     ),
   ).toEqual({ status: "ok" });
   await commit();
+});
+
+it("locks the existing round before the actor on a creation retry", async ({
+  db,
+  database,
+  locks,
+}) => {
+  const requestId = randomUUID();
+  const created = await create(db, requestId);
+  assert(created.status === "ok");
+
+  const commit = await locks.hold(async (tx) => {
+    await tx.execute(sql`SELECT id FROM funding_rounds WHERE id = ${created.publicId} FOR UPDATE`);
+    return { status: "ok" };
+  });
+  const retry = await locks.finishBlocked(create(locks.second, requestId), async () => {
+    // The retry is waiting for its round. Its actor's membership must still be free.
+    const probe = await database.client.query(
+      "SELECT id FROM memberships WHERE organization_id = $1 AND user_id = $2 FOR UPDATE NOWAIT",
+      [workspaceSlug, actor.userId],
+    );
+    expect(probe.rowCount).toBe(1);
+    await commit();
+  });
+  expect(retry).toEqual(created);
 });
 
 it("keeps round creation retries serialized", async ({ locks }) => {

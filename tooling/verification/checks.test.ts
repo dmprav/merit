@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 
 import stylelint from "stylelint";
 import { loadConfigFromFile } from "vite-plus";
@@ -9,6 +9,7 @@ import { expect, it } from "vite-plus/test";
 import { z } from "zod";
 
 import { REPO_ROOT } from "../paths.ts";
+import { typecheckTask } from "./typecheck";
 
 const lintResult = z.object({ diagnostics: z.array(z.object({ code: z.string() })) });
 
@@ -43,6 +44,36 @@ const withSource = (
     rmSync(directory, { recursive: true, force: true });
   }
 };
+
+it("rechecks imported workspace types after a cached success", () => {
+  const task = ["run", "@merit/recommendations-ai#typecheck"];
+  withSource(
+    "shared.ts",
+    "export type Shared = string;",
+    (provider) => {
+      withSource(
+        "consumer.ts",
+        "",
+        (consumer) => {
+          const specifier = relative(dirname(consumer), provider);
+          writeFileSync(
+            consumer,
+            `import type { Shared } from "${specifier}"; export const value: Shared = "ok";`,
+          );
+          const baseline = run(task);
+          expect(baseline.status, baseline.stdout + baseline.stderr).toBe(0);
+
+          writeFileSync(provider, "export type Shared = number;");
+          const result = run(task);
+          expect(result.status, result.stdout + result.stderr).toBe(1);
+          expect(result.stdout + result.stderr).toContain("TS2322");
+        },
+        "capabilities/recommendations/ai/src",
+      );
+    },
+    "foundation/money/src",
+  );
+}, 30_000);
 
 it("separates exported and local arrow functions and types without separating related constants", () => {
   withSource(
@@ -579,7 +610,12 @@ it.each([
     );
     const { workspaceUiSetup } = await import("../testing/web-config");
     expect(loaded?.config).toMatchObject({
-      run: { tasks: { test: "vp test", typecheck: "tsc --noEmit -p tsconfig.json" } },
+      run: {
+        tasks: {
+          test: "vp test",
+          typecheck: typecheckTask,
+        },
+      },
       test: {
         allowOnly: false,
         projects: [

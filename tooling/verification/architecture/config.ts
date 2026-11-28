@@ -76,16 +76,35 @@ const serverImplementation = category("server", ["pure"]);
 const workflowModule = category("workflow");
 const infrastructure = category("{server,browser}", ["pure"]);
 
-// Upstream and sibling capabilities stay independent of downstream capabilities.
-const upstreamDisallowedTargets: Record<string, string> = {
-  organizations: "{contacts,rounds,applications,reviews,recommendations,decisions,grantmaking}",
-  contacts: "{rounds,applications,reviews,recommendations,decisions,grantmaking}",
-  rounds: "{applications,reviews,recommendations,decisions,grantmaking}",
-  applications: "{reviews,recommendations,decisions,grantmaking}",
-  reviews: "{recommendations,decisions,grantmaking}",
-  recommendations: "{reviews,decisions,grantmaking}",
-  decisions: "{reviews,recommendations,grantmaking}",
-};
+// A capability can depend only on earlier groups. Peers own independent parts of grant work.
+const capabilityGroups = [
+  ["organizations"],
+  ["contacts"],
+  ["rounds"],
+  ["applications"],
+  ["reviews", "recommendations", "decisions"],
+  ["grantmaking"],
+];
+
+const directionRules = capabilityGroups.flatMap((group, index) =>
+  group.flatMap((from) => {
+    const targets = capabilityGroups
+      .slice(index)
+      .flat()
+      .filter((name) => name !== from);
+    if (targets.length === 0) {
+      return [];
+    }
+    return forbid(
+      {
+        element: { path: `capabilities/${from}/business` },
+        file: { categories: { noneOf: ["composition-test"] } },
+      },
+      { element: { path: targets.map((name) => `capabilities/${name}/business`) } },
+      "Capability server imports require an approved consumer and public entry.",
+    );
+  }),
+);
 
 // Match the consumer, public specifier, and resolved provider role. Later policies can still deny an import.
 const serverImports: DependenciesPolicy[] = [
@@ -119,6 +138,16 @@ const serverImports: DependenciesPolicy[] = [
     anyBusiness("command-persistence"),
     "@merit/organizations/locks",
     business("organizations", "command-persistence"),
+  ),
+  permitServer(
+    business("{applications,reviews}", "command-persistence"),
+    "@merit/rounds/locks",
+    business("rounds", "command-persistence"),
+  ),
+  permitServer(
+    business("reviews", "command-persistence"),
+    "@merit/applications/locks",
+    business("applications", "command-persistence"),
   ),
   permitServer(anyBusiness("commands"), "@merit/*/locks", anyBusiness("command-persistence")),
   permitServer(
@@ -283,16 +312,7 @@ const policies = [
     { element: { type: "business", path: "!capabilities/audit/business" } },
     "Capability server imports require an approved consumer and public entry.",
   ),
-  ...Object.entries(upstreamDisallowedTargets).map(([from, disallowed]) =>
-    forbid(
-      {
-        element: { path: `capabilities/${from}/business` },
-        file: { categories: { noneOf: ["composition-test"] } },
-      },
-      { element: { path: `capabilities/${disallowed}/business` } },
-      "Capability server imports require an approved consumer and public entry.",
-    ),
-  ),
+  ...directionRules,
   forbid(
     { element: { type: "foundation" } },
     { element: { type: ["ai", "business", "web", "interface", "app"] } },
@@ -374,6 +394,16 @@ const policies = [
       `Business ${role} cannot depend on this source role.`,
     ),
   ),
+  {
+    from: business("{rounds,applications}", "grant-work"),
+    dependency: { kind: "type", source: "./persistence/commands/locks" },
+    allow: {
+      to: {
+        element: { path: "{{ from.element.path }}" },
+        ...category("business-command-persistence"),
+      },
+    },
+  },
   forbid(
     {
       element: { path: "capabilities/organizations/business" },
