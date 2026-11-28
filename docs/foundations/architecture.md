@@ -129,10 +129,11 @@ boundary; a granted scope or successful tool call does not establish that a
 person individually reviewed its content.
 
 Define who approves, what they approve, and how that approval is
-established according to the action's consequences. Future publication and funding
-decisions require those rules before implementation; their
-[workflow design](../workflows/committee-decisions.md) remains separate from
-current editable recommendations.
+established according to the action's consequences. A committee decides outside
+Merit. A program manager [records its decision](../workflows/record-decisions.md),
+and a funding outcome commits the amount against the round budget. The manager's
+recommendation remains a proposal. [Committee preparation and publication](../workflows/committee-decisions.md)
+remain future work.
 
 The [current access behavior](#data-and-access-boundaries) describes authentication,
 delegated access, and edits that save directly today.
@@ -201,7 +202,7 @@ Public entries separate browser-safe definitions from server operations; narrow
 schema and scope exports support cross-capability joins without transferring
 ownership of writes.
 
-Rounds, applications, reviews, recommendations, grantmaking, contacts, and organizations
+Rounds, applications, reviews, recommendations, decisions, grantmaking, contacts, and organizations
 make these roles explicit with `domain/`, `api/`, and `server/`.
 Their browser-safe APIs define service interfaces independently of the server
 implementations. Commands and queries have separate handlers and persistence;
@@ -216,9 +217,11 @@ The [architecture checks](../guides/architecture-checks.md) enforce the common
 production roles and privileged integrations. API definitions share one pure role;
 their internal organization and test placement remain design decisions.
 
-Grant work has four state owners: Rounds owns configuration and criteria;
-Applications owns intake, material, history recording, and creation receipts; Reviews owns assessments and participation;
-Recommendations owns manager proposals and allocations. Grantmaking composes reading
+Grant work has five state owners. Rounds owns configuration and criteria.
+Applications owns intake, material, history recording, and creation receipts.
+Reviews owns assessments and participation. Recommendations owns manager proposals
+and proposed allocations. Decisions owns recorded committee decisions, their versions,
+and the funding they commit. Grantmaking composes reading
 views, history presentation, personal navigation, and examples. Its combined
 application record is a read model, not a unit saved by one general-purpose command.
 
@@ -229,15 +232,19 @@ flowchart TD
     assembly --> applications[Applications]
     assembly --> reviews[Reviews]
     assembly --> recommendations[Recommendations]
+    assembly --> decisions[Decisions]
     grants --> rounds
     grants --> applications
     grants --> reviews
     grants --> recommendations
+    grants --> decisions
     applications --> rounds
     reviews --> applications
     reviews --> rounds
     recommendations --> applications
     recommendations --> rounds
+    decisions --> applications
+    decisions --> rounds
 ```
 
 Arrows show package dependencies. Lifecycle collaborators supplied by assembly use

@@ -134,20 +134,23 @@ Current integrations have distinct responsibilities:
 | Grantmaking demo seeding              | Grant-work and contact demo seeding through `@merit/*/server/demo`, excluding `organizations/server/demo`.          |
 | Audit recording and history           | Write-owning commands record through `@merit/audit/server/record`; queries read through `@merit/audit/server/read`. |
 
-Organizations, Applications, Rounds, Reviews, and Recommendations record audit
-events in the same transaction as the command. Grantmaking, Organizations, and
+Organizations, Applications, Rounds, Reviews, Recommendations, and Decisions record
+audit events in the same transaction as the command. Grantmaking, Organizations, and
 Reviews authorize history reads through their queries. The
 [audit guide](../../capabilities/audit/business/README.md) explains the recording contract.
 
-The four grant-work owners have explicit downstream dependencies. Applications can
-read Rounds; Reviews and Recommendations can read Applications and Rounds. Neither
-Applications nor Rounds can import review or recommendation implementation. Reviews
-and Recommendations remain independent of each other. Grantmaking composition reads
-all four through owned schema, scope, readers, history, and encoding exports.
-Reviews and Recommendations each implement their part of Applications’ type-only
-`@merit/applications/server/grant-work` contract, and Applications and Reviews each
-implement their part of the Contacts contract, so the rules about their records stay
-with their owners. Application assembly wires these through each owner's
+Applications can read Rounds. Reviews, Recommendations, and Decisions can each
+read Applications and Rounds. Those three capabilities remain independent of one
+another, and Applications and Rounds cannot import their implementations.
+Grantmaking composes reads across all five owners through their public exports.
+
+Reviews, Recommendations, and Decisions each implement their part of the type-only
+`@merit/applications/server/grant-work` contract. Applications uses Decisions to
+block deletion once an application has a decision and to block withdrawal while its
+current decision commits funding. Decisions also implements the commitment check in
+`@merit/rounds/server/grant-work` so Rounds can reject a budget below the committed
+total. Applications and Reviews each implement their part of the Contacts contract.
+Application assembly wires these collaborators through each owner's
 `@merit/*/server/integrations` entry. Grantmaking supplies no integrations: it cannot
 relay downstream lifecycle work, and assembly cannot import an integrations entry
 from it. The architecture fixtures check these allowed and rejected directions.
