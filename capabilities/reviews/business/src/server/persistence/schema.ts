@@ -268,6 +268,8 @@ export const aiReviews = pgTable(
   {
     id: uuidPk(),
     organizationId: text("organization_id").notNull(),
+    // The identity of one run, so a retry of the same run returns its saved review.
+    runId: uuid("run_id").notNull(),
     caseId: text("case_id").notNull(),
     applicationVersion: integer("application_version").notNull(),
     roundId: text("round_id").notNull(),
@@ -301,6 +303,7 @@ export const aiReviews = pgTable(
       columns: [t.roundId, t.criteriaVersion],
       foreignColumns: [criteriaVersions.roundPublicId, criteriaVersions.version],
     }),
+    unique("ai_reviews_run_key").on(t.organizationId, t.runId),
     index("ai_reviews_case_idx").on(t.organizationId, t.caseId, t.recordedAt.desc()),
     index("ai_reviews_round_idx").on(t.organizationId, t.roundId),
     index("ai_reviews_application_idx").on(t.caseId, t.applicationVersion),

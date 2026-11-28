@@ -544,10 +544,22 @@ it("previews an AI review run with its external effect and cites saved AI review
   ]);
   expect(ops.reviews.runAiReview).not.toHaveBeenCalled();
 
+  // The approved action carries its run's identity, which the model never supplies.
+  const runId = preview.input.runId;
+  expect(runId).toMatch(/^[0-9a-f-]{36}$/);
+  expect((await catalog.list()).find((tool) => tool.name === "run_ai_review")).toMatchObject({
+    inputSchema: { properties: { applicationId: { type: "string" } } },
+  });
+  const listed = (await catalog.list()).find((tool) => tool.name === "run_ai_review");
+  expect(listed?.inputSchema.properties).not.toHaveProperty("runId");
+  // Previewing the same input again, as a retry does, keeps the identity.
+  expect((await catalog.preview("run_ai_review", preview.input)).preview?.input.runId).toBe(runId);
+
   const executed = await catalog.execute(preview);
   expect(ops.reviews.runAiReview).toHaveBeenCalledExactlyOnceWith(actor, {
     workspaceSlug,
     publicId: applicationId,
+    runId,
   });
   expect(executed.citations).toContainEqual({
     kind: "ai_review",

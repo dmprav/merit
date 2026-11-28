@@ -144,6 +144,11 @@ export const prepareWrite = async (
 ) => {
   const ctx = { ...context, refresh };
   const preview: AssistantPreview = { name, input: { ...input }, targets: [], effects: [] };
+  if (name === "run_ai_review") {
+    // The approved action carries the identity of its run. Retrying the action repeats it, so a
+    // review that already saved is returned, never run and saved a second time.
+    preview.input.runId ??= crypto.randomUUID();
+  }
   const dependencies: AssistantDependency[] = [{ kind: requiredAccess(name) }];
   try {
     if (typeof input.applicationId === "string") {

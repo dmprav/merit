@@ -1,5 +1,5 @@
 {
-  "id": "87fdcb0c-c40f-4254-ae9b-1680dbe665c5",
+  "id": "db709cae-afa0-40e0-bc4c-420102de86fe",
   "prevId": "bd0d76b0-a79e-4c71-89f5-f9bb6305d0cf",
   "version": "7",
   "dialect": "postgresql",
@@ -3364,6 +3364,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "run_id": {
+          "name": "run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "case_id": {
           "name": "case_id",
           "type": "text",
@@ -3587,7 +3593,13 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "ai_reviews_run_key": {
+          "name": "ai_reviews_run_key",
+          "nullsNotDistinct": false,
+          "columns": ["organization_id", "run_id"]
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "ai_reviews_application_version_check": {

@@ -244,9 +244,9 @@ const dispatchCases: DispatchCase[] = [
   },
   {
     name: "run_ai_review",
-    args: address,
+    args: { ...address, runId: commandId },
     fn: (o) => o.reviews.runAiReview,
-    input: { workspaceSlug: "alder", publicId: applicationId },
+    input: { workspaceSlug: "alder", publicId: applicationId, runId: commandId },
     result: { status: "ok", review: savedAiReview },
     response: { status: "ok", applicationId, review: savedAiReview },
   },

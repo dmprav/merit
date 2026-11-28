@@ -13,6 +13,15 @@ export const aiReviewRequestSchema = z.strictObject({
 
 export type AiReviewRequest = z.infer<typeof aiReviewRequestSchema>;
 
+/**
+ * A run names itself, so a retry of the same run, after a lost response or a worker that died
+ * after saving, returns the review it saved instead of asking the provider again. Every caller
+ * generates one identity per run and reuses it only to retry that run.
+ */
+export const aiReviewRunRequestSchema = aiReviewRequestSchema.extend({ runId: z.uuid() });
+
+export type AiReviewRunRequest = z.infer<typeof aiReviewRunRequestSchema>;
+
 /** The reasons a run is refused; `available` is the absence of one. */
 export type AiReviewUnavailable = Exclude<AiReviewAvailability, "available">;
 

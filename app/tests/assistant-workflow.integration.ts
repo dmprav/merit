@@ -855,3 +855,62 @@ it(
     );
   },
 );
+
+it(
+  "returns the saved review when an approved retry follows a worker that died after saving, without a second review",
+  { timeout: 30_000 },
+  async ({ database, runtime, committee: { applicationId } }) => {
+    const provider = slowReviewer(reviewOutput, false);
+    const { command, step } = harness(runtime, async () => {}, provider.reviewer);
+    const { id, group, read } = await approvedRun(database, command, applicationId);
+    await provider.begun;
+    // The claim lapses while the run is still under way, so the conversation reports it failed.
+    await database.client.query(
+      "update assistant_conversations set state = jsonb_set(state, '{groups,0,actions,0,executing,until}', '0') where id = $1",
+      [id],
+    );
+    expect(await step(id)).toBe("progressed");
+    await vi.waitFor(
+      async () => {
+        await step(id);
+        expect((await read()).status).toBe("completed");
+      },
+      { timeout: 10_000, interval: 50 },
+    );
+    const failed = (await read()).groups[0]?.actions[0];
+    expect(failed).toMatchObject({ status: "failed", canRetry: true });
+    assert(failed);
+
+    // The run commits after all, but nothing records its outcome on the action.
+    provider.release();
+    await vi.waitFor(
+      async () =>
+        expect((await database.client.query("select id from ai_reviews")).rows).toHaveLength(1),
+      { timeout: 10_000, interval: 50 },
+    );
+    expect((await read()).groups[0]?.actions[0]?.status).toBe("failed");
+
+    expect(
+      (await command({ action: "retry", id, previewId: group.id, actionId: failed.id })).status,
+    ).toBe(202);
+    const retried = (
+      await vi.waitFor(async () => {
+        const saved = await read();
+        expect(saved.status).toBe("awaiting_approval");
+        return saved;
+      })
+    ).groups[1];
+    assert(retried);
+    await command({ action: "approve", id, previewId: retried.id });
+    await vi.waitFor(
+      async () => expect((await read()).groups[1]?.actions[0]?.status).toBe("succeeded"),
+      {
+        timeout: 10_000,
+        interval: 50,
+      },
+    );
+    // The retry carried the approved action's run identity: the saved review answered it.
+    expect(provider.review).toHaveBeenCalledOnce();
+    expect((await database.client.query("select id from ai_reviews")).rows).toHaveLength(1);
+  },
+);

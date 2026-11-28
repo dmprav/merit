@@ -49,14 +49,15 @@ const schemaOf = (definition: Definition) => {
 
 const providerDefinition = (definition: Definition) => {
   const schema = z.toJSONSchema(schemaOf(definition), { io: "input", unrepresentable: "any" });
-  const { workspaceSlug: _bound, ...properties } = schema.properties ?? {};
+  // The workspace is bound, and a run's identity is the assistant's to assign, not the model's.
+  const { workspaceSlug: _bound, runId: _identity, ...properties } = schema.properties ?? {};
   return {
     name: definition.name,
     description: definition.description,
     inputSchema: {
       ...schema,
       properties,
-      required: schema.required?.filter((name) => name !== "workspaceSlug"),
+      required: schema.required?.filter((name) => name !== "workspaceSlug" && name !== "runId"),
     },
     write: !publication[definition.name].annotations.readOnlyHint,
   };

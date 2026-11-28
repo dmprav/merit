@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { assert, expect, vi } from "vite-plus/test";
 
 import { getFundingApplicationPage } from "@merit/grantmaking/server";
@@ -55,8 +57,11 @@ const it = roundTest.extend("aiReview", async ({ db, database, rounds }, { onCle
   const application = await rounds.createApplication("Community project");
   const address = { workspaceSlug: application.workspaceSlug, applicationId: application.publicId };
 
-  const invoke = async (userId: string, name: string) =>
-    (await transport.callMcp(userId, address, name)).structuredContent as Record<string, unknown>;
+  const invoke = async (userId: string, name: string, extra: Record<string, unknown> = {}) =>
+    (await transport.callMcp(userId, { ...address, ...extra }, name)).structuredContent as Record<
+      string,
+      unknown
+    >;
 
   return { ...transport, review, captureGrantOutcome, application, address, invoke, db };
 });
@@ -86,6 +91,7 @@ it("runs and reads AI reviews through MCP as the delegated manager", async ({ ai
   const web = await a.mcpOperations.reviews.runAiReview(actor, {
     workspaceSlug: a.application.workspaceSlug,
     publicId: a.application.publicId,
+    runId: randomUUID(),
   });
   assert(web.status === "ok");
   expect(web.review.provenance).toEqual({ interface: "web" });
@@ -128,4 +134,22 @@ it("reports the availability reason and a failed run the same way as the web", a
     availability: "consent_required",
   });
   expect(a.captureGrantOutcome).not.toHaveBeenCalled();
+});
+
+it("returns the saved review when an MCP run repeats its runId, and saves a new one without it", async ({
+  aiReview: a,
+}) => {
+  const runId = randomUUID();
+  const first = await a.invoke("dana", "run_ai_review", { runId });
+  assert(first.status === "ok");
+  const again = await a.invoke("dana", "run_ai_review", { runId });
+  expect(again).toEqual(first);
+  expect(a.review).toHaveBeenCalledOnce();
+  expect(a.captureGrantOutcome).toHaveBeenCalledOnce();
+
+  const other = await a.invoke("dana", "run_ai_review");
+  assert(other.status === "ok");
+  expect(other.review).not.toEqual(first.review);
+  expect(a.review).toHaveBeenCalledTimes(2);
+  expect(((await a.invoke("dana", "read_ai_reviews")).aiReviews as unknown[]).length).toBe(2);
 });

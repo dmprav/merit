@@ -99,6 +99,12 @@ without an outcome, because the worker died or the run timed out, is reported as
 failed action and never run again automatically. Its retry asks for a fresh
 approval and never repeats an action that succeeded.
 
+Each approved `run_ai_review` carries a run identity (`runId`) that the assistant
+assigns when it previews the action and hides from the model. Retrying the action
+repeats the identity. If the review had committed before the claim lapsed, because
+the worker died after saving and before recording the outcome, the approved retry
+returns that review without calling the provider, and exactly one review exists.
+
 ## Use the endpoint
 
 Send a JSON object to `POST /api/assistant/{workspaceSlug}` with the
