@@ -4,3 +4,9 @@
   min-width: 10rem;
   max-width: calc(100vw - 32px);
 }
+
+.sectionLabel {
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-caption);
+}

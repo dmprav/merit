@@ -11,6 +11,7 @@ import {
   reviewerPage,
   reviewerTransport,
   submittedPage,
+  submittedPdfs,
   type SaveScenario,
 } from "./reviewer.story-fixtures.tsx";
 
@@ -124,6 +125,18 @@ export const ConcurrentChanges: Story = {
 };
 
 export const CriteriaReference: Story = { args: { reference: "criteria" } };
+
+const withPdfs = reviewerPage();
+withPdfs.material!.submission!.pdfs = submittedPdfs;
+export const SubmittedPdfChoices: Story = {
+  args: { initial: withPdfs },
+  play: async ({ canvas, userEvent, canvasElement }) => {
+    await userEvent.click(canvas.getByRole("button", { name: /Reference material:/ }));
+    await within(canvasElement.ownerDocument.body).findByRole("menuitem", {
+      name: "Kitchen budget.pdf",
+    });
+  },
+};
 
 export const ReportConflict: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {

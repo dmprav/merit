@@ -1,8 +1,9 @@
 import { useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 
+import type { PdfReference } from "@merit/applications-web/intake";
 import { useReferenceViewport } from "@merit/ui/reference-workspace";
 
-export type ApplicationReference = "evidence" | "reviews" | "history" | "details";
+export type ApplicationReference = "evidence" | "reviews" | "history" | "details" | PdfReference;
 
 type Tab = "evidence" | "reviews";
 

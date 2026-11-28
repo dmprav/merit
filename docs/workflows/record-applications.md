@@ -98,7 +98,17 @@ when the revision is recorded.
 Managers enter the applicant’s material in sections with headings or original
 questions and response text. Sections can be completed in any order; one section
 can contain the complete submission. Budget details can be included in the text.
-File attachments, extraction, and a structured budget editor are not available.
+The browser also accepts up to five submitted PDFs per material version, up to
+25 MB each. A manager can attach them during creation or while editing a
+submission. The public demo offers a sample proposal, budget, and revised budget.
+Enter the applicant, amount, and answers manually. A PDF is optional and does
+not satisfy the answer requirement for readiness.
+
+Choose a filename under **Submitted PDFs** in the reference switcher to read the
+document beside the work. Adding, replacing, or removing a PDF on a ready
+application follows the same revision workflow as editing submitted answers.
+Recording the revision keeps the earlier files with their material version.
+MCP can list the files for a selected version.
 An optional staff summary stays separate from submitted material and identifies
 its author. It can be added or edited while the application is incomplete and does
 not affect readiness. Application history records contact assignments and staff-summary edits.

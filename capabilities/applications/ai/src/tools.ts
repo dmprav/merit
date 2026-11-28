@@ -8,11 +8,17 @@ import {
   selectContactRequestSchema,
   type ApplicationsService,
 } from "@merit/applications/api";
-import { intakeChanges } from "@merit/applications/domain";
+import { intakeChanges, intakeContentSchema } from "@merit/applications/domain";
 import type { Actor } from "@merit/auth";
 import { publicIdSchema } from "@merit/db/identifiers";
 
 import { applicationCreatedSchema, applicationSavedSchema } from "./responses";
+
+// PDF selections are managed by the browser upload flow. Text edits preserve them.
+const textChange = intakeContentSchema
+  .omit({ pdfs: true })
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, "Choose an intake field to change.");
 
 const lifecycle = [
   [
@@ -23,7 +29,9 @@ const lifecycle = [
   [
     "save_application_revision",
     "Save edits to the open correction or revision as a draft. The existing recorded material stays current. A request to save the draft is complete after this call. Use the intakeRevision the edits were based on. Include the user's reason for the change and retain the existing explanation if none is supplied. Preserve questionId for existing sections and assign new UUIDs only to new sections.",
-    intakeChanges.saveRevision,
+    intakeChanges.saveRevision.extend({
+      draft: intakeChanges.saveRevision.shape.draft.extend({ content: textChange }),
+    }),
     "draft_saved",
   ],
   [
@@ -73,7 +81,7 @@ export const createApplicationTools = (actor: Actor, applications: ApplicationsS
       description:
         "Create partial application intake in roundId. Reuse requestId on retry. Requested amount is a decimal EUR string; blank means unknown. Assign each initial answer a questionId UUID and reuse it on retry.",
       inputSchema: createApplicationRequestSchema
-        .omit({ publicId: true })
+        .omit({ publicId: true, pdfs: true })
         .extend({ roundId: publicIdSchema }),
       outputSchema: applicationCreatedSchema,
     },
@@ -94,7 +102,7 @@ export const createApplicationTools = (actor: Actor, applications: ApplicationsS
       inputSchema: applicationReadInput.extend({
         expectedIntakeRevision: revision.optional(),
         change: z.discriminatedUnion("action", [
-          intakeChanges.saveContent,
+          intakeChanges.saveContent.extend({ content: textChange }),
           intakeChanges.details.extend({
             summary: intakeChanges.details.shape.summary.describe(
               "Replacement text for an explicitly requested staff summary edit. Review tracking belongs to review requests.",

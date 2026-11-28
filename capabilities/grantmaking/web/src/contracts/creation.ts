@@ -1,6 +1,8 @@
 import type { z } from "zod";
 
+import type { PdfUpload } from "@merit/applications-web/contracts";
 import type { createApplicationRequestSchema } from "@merit/applications/api";
+import type { ApplicationPdf } from "@merit/applications/domain";
 import type { createRoundRequestSchema } from "@merit/rounds/api";
 
 type CreationResult =
@@ -17,6 +19,7 @@ type CreationResult =
   | { status: "not_found" | "signed_out" | "unavailable" };
 
 export type CreationDraft = {
+  pdfs?: ApplicationPdf[];
   requestId: string;
   title: string;
   body: string;
@@ -34,6 +37,7 @@ export type CreatedRecord = { title: string; publicId: string };
 export type CreationData = {
   draftKey: string;
   target: CreationTarget;
+  pdfUpload?: PdfUpload;
   create: (draft: CreationDraft, materialLabel: string) => Promise<CreationResult>;
   refresh: () => Promise<void>;
   open: (record: CreatedRecord) => Promise<void>;

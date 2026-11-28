@@ -204,7 +204,10 @@ export const getFundingApplicationContent = async (
       return { status: rangeIssue ? "invalid_range" : "not_found" } as const;
     }
     const request = parsed.data;
-    if (request.section === "material" && request.materialVersion === undefined) {
+    if (
+      (request.section === "material" || request.section === "pdfs") &&
+      request.materialVersion === undefined
+    ) {
       return { status: "invalid_range" } as const;
     }
     if (

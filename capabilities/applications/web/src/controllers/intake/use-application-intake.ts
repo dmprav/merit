@@ -67,6 +67,7 @@ export const useApplicationIntake = ({
   return {
     editor: {
       ready: editing.ready,
+      pdfUpload: data.pdfUpload,
       application,
       workspaceSlug: data.workspaceSlug,
       section: editing.section,

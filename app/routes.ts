@@ -14,6 +14,7 @@ const routePath = (url: URL) => relative(repositoryRoot, fileURLToPath(url)).spl
 
 // Apps expose route locations through build-time routing exports, keeping path ownership local.
 export const routes = rootRoute("app/src/shell/root.tsx", [
+  route("/api/application-pdfs/$workspaceSlug", "app/src/routes/application-pdfs.ts"),
   route("/api/assistant/$workspaceSlug", "app/src/routes/assistant.ts"),
   physical(routePath(siteRoutes)),
   layout("administration", routePath(adminLayout), [physical(routePath(adminRoutes))]),

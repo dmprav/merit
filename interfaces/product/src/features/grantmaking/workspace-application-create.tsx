@@ -15,9 +15,11 @@ import { workspaceCreationData } from "./data/creation/workspace-data";
 export const WorkspaceApplicationCreate = ({
   workspaceSlug,
   rounds,
+  workspaceKind,
   search,
 }: {
   workspaceSlug: string;
+  workspaceKind?: "demo" | "standard";
   rounds: readonly { id: string; title: string }[];
   search: ApplicationsSearch;
 }) => {
@@ -47,6 +49,7 @@ export const WorkspaceApplicationCreate = ({
           roundTitle: round.title,
         },
         (location) => navigate({ ...location, search: returnSearch }),
+        workspaceKind,
       )
     : null;
 

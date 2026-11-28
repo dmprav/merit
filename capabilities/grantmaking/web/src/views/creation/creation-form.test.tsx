@@ -212,3 +212,54 @@ it("keeps a restored invalid creation amount until it is corrected", async () =>
   await user.click(save());
   expect(onSave).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ amount: "123.45" }));
 });
+
+it("creates an application with a title and selected PDFs after uploads finish", async () => {
+  const user = userEvent.setup();
+  const pdf = { id: crypto.randomUUID(), filename: "budget.pdf", byteLength: 128 };
+
+  let finish = () => {};
+
+  const upload = new Promise<{ status: "ok"; pdf: typeof pdf }>((resolve) => {
+    finish = () => resolve({ status: "ok", pdf });
+  });
+  const onSave = vi.fn().mockResolvedValue(null);
+  render(
+    <MessagesProvider messages={grantmakingMessages}>
+      <CreationForm
+        target={{
+          kind: "application",
+          workspaceSlug: "alder",
+          roundPublicId: "k7m2p9x4n6rt",
+          roundTitle: "Spring grants",
+        }}
+        draft={{
+          requestId: crypto.randomUUID(),
+          title: "",
+          body: "",
+          applicant: "",
+          meetingDate: "",
+          amount: "",
+        }}
+        pdfUpload={{ mode: "samples", stage: () => upload }}
+        onChange={vi.fn()}
+        onDiscard={vi.fn()}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    </MessagesProvider>,
+  );
+  const title = screen.getByRole("textbox", { name: "Project title" });
+  await user.type(title, "Community project");
+  await user.click(screen.getByRole("button", { name: "Choose a sample PDF" }));
+  await user.click(screen.getByRole("menuitem", { name: "Sample budget" }));
+  expect(screen.getByRole("button", { name: "Add application" })).toBeDisabled();
+  await user.click(title);
+  await user.keyboard("{Enter}");
+  expect(onSave).not.toHaveBeenCalled();
+  finish();
+  await screen.findByText("budget.pdf");
+  await user.click(screen.getByRole("button", { name: "Add application" }));
+  expect(onSave).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ title: "Community project", pdfs: [pdf], body: "", applicant: "" }),
+  );
+});

@@ -428,6 +428,7 @@ type ApplicationContentInput = {
   section:
     | "details"
     | "submission"
+    | "pdfs"
     | "material"
     | "evidence"
     | "reviews"
@@ -531,6 +532,18 @@ const sectionReaders: Partial<Record<ApplicationContentInput["section"], Section
   submission: (db, caseRow) => readCurrentDetailsOrSubmission(db, caseRow, "submission"),
   material: async (db, caseRow, input) =>
     optionalResult(await readMaterialVersionRecord(db, caseRow.id, input.materialVersion ?? -1)),
+  pdfs: async (db, caseRow, input) => {
+    const [material] = await db
+      .select({ pdfs: materialVersions.pdfs })
+      .from(materialVersions)
+      .where(
+        and(
+          eq(materialVersions.caseId, caseRow.id),
+          eq(materialVersions.version, input.materialVersion ?? -1),
+        ),
+      );
+    return material ? { found: true, value: material.pdfs } : { found: false };
+  },
   evidence: (db, caseRow) => readEvidenceSection(db, caseRow),
   reviews: async (db, caseRow) => {
     const reviews = (await readReviewsByCasesMap(db, [caseRow.id])).get(caseRow.id);

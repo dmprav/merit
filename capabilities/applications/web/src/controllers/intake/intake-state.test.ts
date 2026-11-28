@@ -316,3 +316,29 @@ it("rejects draft answers without a question identity", () => {
     }),
   ).toThrow();
 });
+
+it("retains staged PDFs through local draft recovery and sends them with the working revision", () => {
+  const pdf = { id: crypto.randomUUID(), filename: "budget.pdf", byteLength: 128 };
+  const local = newIntakeDraft("content", baseline, 3);
+  local.value.pdfs = [pdf];
+  const restored = intakeStorage.parse(JSON.parse(JSON.stringify(local)));
+  if (restored.section !== "content") {
+    throw new Error("Expected a submission draft");
+  }
+
+  const working = {
+    kind: "revision" as const,
+    content: baseline.content,
+    reason: "Revised budget",
+  };
+  expect(intakeChange(restored, working, working.reason)).toEqual({
+    action: "save_revision",
+    draft: {
+      kind: "revision",
+      reason: working.reason,
+      content: { answers: baseline.content.answers, pdfs: [pdf] },
+    },
+  });
+  const latest = { ...baseline, content: { ...baseline.content, answers: [] } };
+  expect(reconcileIntake(restored, latest, 4).value).toEqual({ answers: [], pdfs: [pdf] });
+});

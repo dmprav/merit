@@ -7,6 +7,10 @@ hypothesis that an occasional external reviewer can complete the work independen
 it is not evidence of validated demand. Manager-recorded external assessments
 remain available through [web and MCP](review-applications.md).
 
+After accepting, choose a filename under **Submitted PDFs** in the reference
+switcher to read the file beside the assessment. The files come from the
+application version assigned to the reviewer.
+
 ## Invite and accept
 
 Create a review request with a workspace contact, then choose **Invite reviewer**.

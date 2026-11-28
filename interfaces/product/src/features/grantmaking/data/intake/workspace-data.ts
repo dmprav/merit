@@ -9,13 +9,18 @@ import { applicationOptions } from "../queries";
 import { selectContact } from "../server/applications/application-contact.functions";
 import { readApplicationHistory } from "../server/history.functions";
 import { editApplication } from "../server/intake/intake.functions";
+import { applicationPdfUpload } from "./pdf-upload";
 
 export const workspaceIntakeData = (
   client: QueryClient,
   workspaceSlug: string,
   publicId: string,
   state: IntakeState,
+  kind?: "demo" | "standard",
 ) => ({
+  ...(kind
+    ? { pdfUpload: applicationPdfUpload(workspaceSlug, kind, { applicationId: publicId }) }
+    : {}),
   historySource: {
     queryKey: [...grantWorkQueryKey(workspaceSlug), publicId, "history", state.revision],
     read: async (after: string | undefined, signal: AbortSignal) => {

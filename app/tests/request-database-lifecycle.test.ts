@@ -201,6 +201,21 @@ it("protects HTML behind HTTPS termination while preserving stricter route heade
   );
 });
 
+it.each([
+  ["application/pdf", "inline; filename=proposal.pdf", "'self'"],
+  ["application/pdf", "attachment", "'none'"],
+  ["text/html", "inline", "'none'"],
+])("sets frame ancestors for %s, %s to %s", async (type, disposition, ancestors) => {
+  handlerFetch.mockResolvedValueOnce(
+    new Response(null, {
+      headers: { "Content-Type": type, "Content-Disposition": disposition },
+    }),
+  );
+  const response = await fetchRequest("https://merit.example/api/application-pdfs/alder");
+  expect(response.headers.get("Content-Security-Policy")).toContain(`frame-ancestors ${ancestors}`);
+  expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+});
+
 it("omits HSTS and the HTTPS document policy for a loopback HTTP origin", async () => {
   vi.stubEnv("APP_ORIGIN", "http://localhost:3000");
   vi.resetModules();

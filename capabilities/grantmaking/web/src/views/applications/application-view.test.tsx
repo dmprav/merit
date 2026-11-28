@@ -90,6 +90,58 @@ const workspace = () =>
 const reference = () => within(screen.getByRole("group", { name: "Reference" }));
 
 describe("application workspace", () => {
+  it("keeps unsaved submitted answers when a manager switches to a PDF", async () => {
+    const user = userEvent.setup();
+    const pdf = {
+      id: "71000000-0000-4000-8000-000000000002",
+      filename: "Kitchen budget.pdf",
+      byteLength: 3140,
+    };
+    const editable = {
+      ...application,
+      intakeStatus: "in_preparation" as const,
+      submission: { ...application.submission!, pdfs: [pdf] },
+    };
+    const data = {
+      workspaceSlug: "alder",
+      draftKey: "intake-with-pdfs",
+      publicId: application.id,
+      state: { revision: 1, workingRevision: null, history: [] },
+      save: vi.fn(),
+      refresh: vi.fn(),
+      refreshCurrent: vi.fn(),
+    };
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <GrantmakingDrafts storageScope="intake-with-pdfs">
+          <ApplicationView
+            application={editable}
+            round={round}
+            intake={{ data, onDeleted: vi.fn() }}
+          />
+        </GrantmakingDrafts>
+      </QueryClientProvider>,
+      { wrapper: GrantmakingMessagesProvider },
+    );
+    await user.click(reference().getByRole("button", { name: "Edit applicant submission" }));
+    const responses = await reference().findAllByRole("textbox", { name: "Applicant’s response" });
+    const response = responses[0]!;
+    await user.clear(response);
+    await user.type(response, "Working on the budget.");
+    await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+    await user.click(await screen.findByRole("menuitem", { name: pdf.filename }));
+    expect(screen.getByTitle(pdf.filename)).toHaveAttribute(
+      "src",
+      `/api/application-pdfs/alder?id=${pdf.id}&applicationId=${application.id}`,
+    );
+    expect(response).not.toBeVisible();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Reference" })).toHaveFocus());
+    await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+    await user.click(await screen.findByRole("menuitem", { name: "Applicant submission" }));
+    expect(response).toBeVisible();
+    expect(response).toHaveValue("Working on the budget.");
+  });
+
   it("opens the requested review or full list when leaving a criteria inspection", async () => {
     const user = userEvent.setup();
     render(<ApplicationView round={round} application={application} />, {

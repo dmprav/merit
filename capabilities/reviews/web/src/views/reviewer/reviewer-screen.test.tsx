@@ -11,6 +11,7 @@ import {
   reviewerPage,
   reviewerTransport,
   submittedPage,
+  submittedPdfs,
   type SaveScenario,
 } from "./reviewer.story-fixtures.tsx";
 
@@ -64,6 +65,32 @@ it("shows the private draft while a reviewer is writing", async () => {
     ),
   ).toBeVisible();
   expect(screen.queryByRole("link", { name: "Ask a question by email" })).not.toBeInTheDocument();
+});
+
+it("keeps the assigned PDF viewer and assessment mounted across reference choices", async () => {
+  const page = reviewerPage();
+  page.material!.submission!.pdfs = submittedPdfs;
+  const { user } = renderReviewer(page);
+  const assessment = screen.getByRole("textbox", { name: "Overall reasoning" });
+
+  const choose = async (name: string) => {
+    await user.click(screen.getByRole("button", { name: /Reference material:/ }));
+    await user.click(await screen.findByRole("menuitem", { name }));
+    await waitFor(() => expect(screen.getByRole("group", { name: "Reference" })).toHaveFocus());
+  };
+
+  await choose("Kitchen budget.pdf");
+  const frame = screen.getByTitle("Kitchen budget.pdf");
+  expect(frame).toBeVisible();
+  expect(frame).toHaveAttribute(
+    "src",
+    `/api/application-pdfs/alder?id=${submittedPdfs[1]!.id}&assignmentId=${page.assignment.id}`,
+  );
+  await choose("Assessment criteria");
+  expect(frame).not.toBeVisible();
+  await choose("Kitchen budget.pdf");
+  expect(screen.getByTitle("Kitchen budget.pdf")).toBe(frame);
+  expect(screen.getByRole("textbox", { name: "Overall reasoning" })).toBe(assessment);
 });
 
 it("shows no date or placeholder in the Writing header when no response is due", () => {

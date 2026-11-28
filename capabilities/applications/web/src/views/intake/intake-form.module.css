@@ -3,6 +3,11 @@
   gap: var(--space-4);
 }
 
+/* Leave room for the last control’s focus ring above the sticky submission actions. */
+.fields[data-submission] {
+  padding-block-end: var(--space-2);
+}
+
 .section {
   min-width: 0;
   display: grid;

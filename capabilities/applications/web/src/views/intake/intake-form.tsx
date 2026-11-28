@@ -42,6 +42,7 @@ import { ApplicationDetails } from "./application-details";
 import styles from "./intake-form.module.css";
 import { intakeError } from "./messages";
 import { SubmissionAnswers } from "./submission-answers";
+import { SubmittedPdfField } from "./submitted-pdf-field";
 
 type EditorProps = { editor: ApplicationIntakeController["editor"]; onClose: () => void };
 
@@ -109,6 +110,7 @@ const retainedDraftText = (draft: IntakeDraft, reason: string, noContactLabel: s
         draft.value.answers
           .map((answer) => [answer.question, answer.response].filter(Boolean).join("\n"))
           .join("\n\n"),
+        ...(draft.value.pdfs ?? []).map((pdf) => pdf.filename),
       );
       break;
     case "details":
@@ -173,6 +175,29 @@ const IntakeConflictNotice = ({ editor }: { editor: EditorProps["editor"] }) => 
   );
 };
 
+const useConflictDismiss = (conflict: boolean, pending: boolean, onClose: () => void) => {
+  const frameRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = frameRef.current;
+    if (!element || !conflict) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented && !pending) {
+        event.preventDefault();
+        onClose();
+      }
+    };
+
+    element.addEventListener("keydown", handleKeyDown);
+    return () => element.removeEventListener("keydown", handleKeyDown);
+  }, [conflict, pending, onClose]);
+
+  return frameRef;
+};
+
 const EditorFrame = ({
   editor,
   onClose,
@@ -187,24 +212,7 @@ const EditorFrame = ({
   const { t } = useTranslation("applicationIntake");
   const { section, conflict, draft } = editor;
   const isRevision = Boolean(editor.workingRevision) && section !== "details";
-  const frameRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const element = frameRef.current;
-    if (!element || !conflict) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented && !editor.pending) {
-        event.preventDefault();
-        onClose();
-      }
-    };
-
-    element.addEventListener("keydown", handleKeyDown);
-    return () => element.removeEventListener("keydown", handleKeyDown);
-  }, [conflict, editor.pending, onClose]);
+  const frameRef = useConflictDismiss(conflict, editor.pending, onClose);
 
   if (
     draft &&
@@ -219,7 +227,7 @@ const EditorFrame = ({
     <div ref={frameRef}>
       <Form
         label={t(sectionLabels[section ?? "details"])}
-        submission={submission}
+        submission={disabled ? { ...submission, submit: async () => {} } : submission}
         scrollFields={false}
         submitOnModEnter
         stickyActions={section === "content"}
@@ -241,7 +249,7 @@ const EditorFrame = ({
           />
         }
       >
-        <div className={styles.fields}>
+        <div className={styles.fields} data-submission={section === "content" || undefined}>
           {conflict && <IntakeConflictNotice editor={editor} />}
           {isRevision && (
             <Text as="p" variant="caption">
@@ -307,7 +315,14 @@ const LatestValues = ({ editor }: Pick<EditorProps, "editor">) => {
           <DescriptionListItem label={t("intake.reason")}>{latest.reason}</DescriptionListItem>
         )}
       </DescriptionList>
-      {section === "content" && <SubmissionAnswers answers={content.answers} />}
+      {section === "content" && (
+        <>
+          <SubmissionAnswers answers={content.answers} />
+          {content.pdfs?.map((pdf) => (
+            <span key={pdf.id}>{pdf.filename}</span>
+          ))}
+        </>
+      )}
     </div>
   );
 };
@@ -511,16 +526,19 @@ const SavedContactValue = ({
   );
 };
 
+const submissionFormSchema = intakeContentSchema.pick({ answers: true, pdfs: true });
+
 const SubmissionForm = (props: SectionProps<"content">) => {
   const { t } = useTranslation(["applicationIntake", "common", "contacts"]);
-  const { form, submission } = useEditorForm(
-    props,
-    intakeContentSchema.pick({ answers: true }),
-    (value) => ({ ...props.draft, value }),
-  );
+  const { form, submission } = useEditorForm(props, submissionFormSchema, (value) => ({
+    ...props.draft,
+    value,
+  }));
+  const [uploading, setUploading] = useState(false);
+  const upload = props.editor.pdfUpload;
 
   return (
-    <EditorFrame {...props} submission={submission}>
+    <EditorFrame {...props} submission={submission} disabled={uploading}>
       <form.Field name="answers" mode="array">
         {(field) => (
           <>
@@ -596,6 +614,18 @@ const SubmissionForm = (props: SectionProps<"content">) => {
           </>
         )}
       </form.Field>
+      {upload && (
+        <form.Field name="pdfs">
+          {(field) => (
+            <SubmittedPdfField
+              upload={upload}
+              value={field.state.value}
+              onChange={field.handleChange}
+              onPendingChange={setUploading}
+            />
+          )}
+        </form.Field>
+      )}
     </EditorFrame>
   );
 };

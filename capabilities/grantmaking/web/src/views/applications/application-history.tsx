@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { SubmissionAnswers } from "@merit/applications-web/intake";
+import { SnapshotPdfList, SubmissionAnswers } from "@merit/applications-web/intake";
 import { materialVersionSchema } from "@merit/applications/domain";
 import { useFormat } from "@merit/i18n/format";
 import { Attribution } from "@merit/ui/attribution";
@@ -214,7 +214,13 @@ const SnapshotChanges = ({
     before.submission &&
     after.submission &&
     submissionAnswersReordered(before.submission.answers, after.submission.answers);
+  const previousPdfs = before.submission?.pdfs ?? [];
+  const currentPdfs = after.submission?.pdfs ?? [];
+  const pdfsChanged =
+    previousPdfs.length !== currentPdfs.length ||
+    previousPdfs.some((pdf, index) => pdf.id !== currentPdfs[index]?.id);
   const hasChanges =
+    pdfsChanged ||
     reordered ||
     fields.some((field) => previous[field] !== current[field]) ||
     answers.some((answer) => answer.status !== "unchanged");
@@ -246,6 +252,27 @@ const SnapshotChanges = ({
             {...labels}
           />
         ))}
+      {pdfsChanged && (
+        <section className={styles.section}>
+          <SectionHeader
+            level={3}
+            title={t("workspace.submittedPdfs")}
+            aside={<Text variant="caption">{t("history.changed")}</Text>}
+          />
+          <div className={styles.comparison}>
+            {[
+              { label: labels.fromLabel, pdfs: previousPdfs },
+              { label: labels.toLabel, pdfs: currentPdfs },
+            ].map(({ label, pdfs }) => (
+              <Stack key={label} gap={3}>
+                <Divider />
+                <Text variant="caption">{label}</Text>
+                {pdfs.length ? <SnapshotPdfList pdfs={pdfs} /> : <p>{t("history.notPresent")}</p>}
+              </Stack>
+            ))}
+          </div>
+        </section>
+      )}
       <SubmissionComparison before={before.submission} after={after.submission} labels={labels} />
     </div>
   );
@@ -491,6 +518,12 @@ export const HistoricalApplication = ({
           </DescriptionListItem>
         )}
       </DescriptionList>
+      {Boolean(value.submission?.pdfs?.length) && (
+        <section aria-label={t("workspace.submittedPdfs")}>
+          <SectionHeader level={4} title={t("workspace.submittedPdfs")} />
+          <SnapshotPdfList pdfs={value.submission?.pdfs ?? []} />
+        </section>
+      )}
       <HistoricalSummary value={value} />
       <div className={styles.answers}>
         {value.submission ? (

@@ -17,6 +17,7 @@ const emptyDraft = (): CreationDraft => ({
 });
 
 const hasInput = (draft: CreationDraft) =>
+  Boolean(draft.pdfs?.length) ||
   [draft.title, draft.body, draft.amount, draft.meetingDate, draft.applicant].some((value) =>
     value.trim(),
   );
@@ -78,6 +79,7 @@ export const useCreation = (data: CreationData, locationKey?: string) => {
     draft,
     ready,
     target,
+    pdfUpload: data.pdfUpload,
     open,
     created,
     refreshError,

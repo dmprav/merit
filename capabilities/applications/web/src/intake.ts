@@ -13,3 +13,10 @@ export {
 } from "./controllers/intake/intake-state";
 
 export { SubmissionAnswers } from "./views/intake/submission-answers";
+export {
+  pdfReferenceItems,
+  SubmittedPdfReferences,
+  SnapshotPdfList,
+  type PdfReference,
+} from "./views/intake/submitted-pdf-reference";
+export { SubmittedPdfField } from "./views/intake/submitted-pdf-field";

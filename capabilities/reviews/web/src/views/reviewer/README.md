@@ -19,8 +19,9 @@ the same frame as the manager's application overview and recommendation editor.
 On desktop the compact header stays in place while the application material and
 the assessment scroll independently, so reading never moves the fields or the
 **Submit assessment** action. The reference switcher chooses between the pinned application
-material and the assessment criteria; each keeps its reading position, and each
-shows the assigned version and any change warning. Narrow screens stack the panes
+material, the assessment criteria, and individual submitted PDFs from that assignment’s material
+version. Each keeps its reading position and shows the assigned version and any change
+warning. Opening a PDF loads it in the reference pane beside the assessment. Narrow screens stack the panes
 with links between them and keep the save status and **Submit assessment** at the bottom of
 the viewport.
 

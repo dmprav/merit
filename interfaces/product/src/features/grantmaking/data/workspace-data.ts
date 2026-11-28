@@ -28,6 +28,8 @@ import { useWorkspaceApplications } from "./workspace-applications";
 export const useWorkspaceRoundData = (workspaceSlug: string, publicId: string) => {
   const client = useQueryClient();
   const navigate = useNavigate();
+  const { workspaces } = useContext(WorkspaceNavigationContext);
+  const kind = workspaces.find((workspace) => workspace.slug === workspaceSlug)?.kind;
   const { data: current } = useSuspenseQuery(roundOptions(workspaceSlug, publicId));
   const applicationList = useWorkspaceApplications(workspaceSlug, {
     viewId: publicId,
@@ -56,18 +58,18 @@ export const useWorkspaceRoundData = (workspaceSlug: string, publicId: string) =
           roundTitle: current.round.title,
         },
         navigate,
+        kind,
       ),
     };
 
     return { status: "ok" as const, data, workspaceSlug: current.workspaceSlug };
-  }, [current, client, workspaceSlug, publicId, navigate, applicationList]);
+  }, [current, client, workspaceSlug, publicId, navigate, applicationList, kind]);
 };
 
 export const useWorkspaceApplicationData = (workspaceSlug: string, publicId: string) => {
   const { workspaces } = useContext(WorkspaceNavigationContext);
-  const inviteReviewers = workspaces.some(
-    (workspace) => workspace.slug === workspaceSlug && workspace.kind === "standard",
-  );
+  const kind = workspaces.find((workspace) => workspace.slug === workspaceSlug)?.kind;
+  const inviteReviewers = kind === "standard";
   const client = useQueryClient();
   const { mutateAsync: save } = useMutation({
     mutationFn: (input: Parameters<typeof saveRecommendation>[0]) => saveRecommendation(input),
@@ -85,7 +87,7 @@ export const useWorkspaceApplicationData = (workspaceSlug: string, publicId: str
     const data: ApplicationData = {
       ...decodeApplicationDetail(current),
       key: current.application.id,
-      intake: workspaceIntakeData(client, workspaceSlug, publicId, current.intake),
+      intake: workspaceIntakeData(client, workspaceSlug, publicId, current.intake, kind),
       reviews: workspaceReviewData(client, workspaceSlug, publicId, inviteReviewers),
       recommendation: workspaceRecommendationData(
         client,
@@ -104,7 +106,7 @@ export const useWorkspaceApplicationData = (workspaceSlug: string, publicId: str
     };
 
     return { status: "ok" as const, data, workspaceSlug: current.workspaceSlug };
-  }, [current, client, workspaceSlug, publicId, save, saveDecision, inviteReviewers]);
+  }, [current, client, workspaceSlug, publicId, save, saveDecision, inviteReviewers, kind]);
 };
 
 export const useWorkspaceRoundsData = (workspaceSlug: string, workspaceName: string) => {

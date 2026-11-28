@@ -44,11 +44,13 @@ const conflictingRequested = fromMinorUnits(2800000n);
 
 const IntakeSession = ({
   section = "metadata",
+  samplePdfs = false,
   working = false,
   conflict = false,
   onSave,
 }: {
   section?: IntakeSection;
+  samplePdfs?: boolean;
   working?: boolean;
   conflict?: boolean;
   onSave: (value: IntakeChange) => Promise<string | null>;
@@ -75,6 +77,17 @@ const IntakeSession = ({
     activity: { hasReviews: false, hasRecommendation: false, outstandingReviews: 0 },
     data: {
       draftKey: "form-preview",
+      pdfUpload: {
+        mode: samplePdfs ? "samples" : "files",
+        stage: async (source) => ({
+          status: "ok",
+          pdf: {
+            id: crypto.randomUUID(),
+            filename: typeof source === "string" ? `${source}.pdf` : source.name,
+            byteLength: 128,
+          },
+        }),
+      },
       workspaceSlug: "alder",
       publicId: application.id,
       state: {
@@ -188,6 +201,16 @@ export const PartialIntake: Story = {
 };
 export const WorkingRevision: Story = { args: { working: true, section: "content" } };
 export const ApplicantSubmission: Story = { args: { section: "content" } };
+export const SubmittedPdfs: Story = {
+  args: { section: "content", samplePdfs: true },
+  play: async ({ canvas, canvasElement }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "Choose a sample PDF" }));
+    await userEvent.click(
+      within(canvasElement.ownerDocument.body).getByRole("menuitem", { name: "Sample budget" }),
+    );
+    await expect(canvas.getByRole("button", { name: "Replace budget.pdf" })).toBeVisible();
+  },
+};
 export const NameCorrection: Story = { args: { section: "title", working: true } };
 export const StaffSummary: Story = { args: { section: "details" } };
 export const ConcurrentChanges: Story = {

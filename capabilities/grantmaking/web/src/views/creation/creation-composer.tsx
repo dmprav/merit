@@ -80,6 +80,7 @@ const CreationDialogBody = ({
       titleId={`${focusId}-title`}
       draft={draft}
       target={target}
+      pdfUpload={creation.pdfUpload}
       onChange={update}
       onClose={close}
       onDiscard={discard}

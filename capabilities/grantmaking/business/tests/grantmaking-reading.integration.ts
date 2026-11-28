@@ -5,6 +5,7 @@ import { assert, expect } from "vite-plus/test";
 import {
   createFundingApplication,
   editFundingApplication,
+  registerApplicationPdf,
   selectApplicationContact,
 } from "@merit/applications/server";
 import { changeWorkspaceContact } from "@merit/contacts/server";
@@ -66,6 +67,65 @@ it("reads authorized case context and material by application ID without round i
   expect(await getFundingApplicationContext(db, { userId: "birch-manager" }, input)).toEqual({
     status: "not_found",
   });
+});
+
+it("lists only the public PDF metadata for the requested material version", async ({ db }) => {
+  const round = await createFundingRound(db, actor, {
+    workspaceSlug,
+    requestId: randomUUID(),
+    title: "PDF intake",
+  });
+  assert(round.status === "ok");
+  const pdf = await registerApplicationPdf(
+    db,
+    actor,
+    { workspaceSlug, roundId: round.publicId },
+    {
+      filename: "Budget.pdf",
+      reference: { objectKey: "files/" + randomUUID(), byteLength: 99, sha256: "a".repeat(64) },
+      sample: false,
+    },
+  );
+  assert(pdf);
+  const created = await createFundingApplication(db, actor, {
+    workspaceSlug,
+    publicId: round.publicId,
+    title: "Title and PDF",
+    requestId: randomUUID(),
+    pdfs: [pdf],
+  });
+  assert(created.status === "ok");
+  const input = { workspaceSlug, applicationId: created.publicId, section: "pdfs" as const };
+  const changed = await editFundingApplication(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      publicId: created.publicId,
+      expectedRevision: 0,
+      change: { action: "save_content", content: { pdfs: [] } },
+    },
+    applicationWork,
+  );
+  assert(changed.status === "ok");
+  const first = await getFundingApplicationContent(db, actor, { ...input, materialVersion: 1 });
+  const second = await getFundingApplicationContent(db, actor, { ...input, materialVersion: 2 });
+  assert(first.status === "ok" && second.status === "ok");
+  expect(JSON.parse(first.content)).toEqual([
+    { id: pdf.id, filename: "Budget.pdf", byteLength: 99 },
+  ]);
+  expect(JSON.parse(second.content)).toEqual([]);
+  expect(await getFundingApplicationContent(db, actor, input)).toEqual({ status: "invalid_range" });
+  expect(await getFundingApplicationContent(db, actor, { ...input, materialVersion: 3 })).toEqual({
+    status: "not_found",
+  });
+  expect(
+    await getFundingApplicationContent(
+      db,
+      { userId: "birch-manager" },
+      { ...input, materialVersion: 1 },
+    ),
+  ).toEqual({ status: "not_found" });
 });
 
 it("reads immutable material versions without mixing in later staff interpretation", async ({

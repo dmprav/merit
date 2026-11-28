@@ -12,7 +12,9 @@ Authorize the upload on the owning resource, then pass up to 25 MiB to
 `storage.writeFile(bytes)`. The returned `FileReference` contains the server-generated
 object key, byte length, and SHA-256 digest. Persist these three values in the
 capability’s attachment record when committing the authorized business operation.
-For example, Applications could link a proposal PDF to the submission version it supports.
+Applications stages a private reference in `application_pdfs`. Saving intake binds the
+file to its application. A material version or working revision carries the file ID,
+filename, and size. Earlier material versions keep their original files.
 
 Each call creates a fresh object, including calls with identical bytes. The owner
 handles request retries and concurrent saves using its command receipt or a unique
@@ -60,7 +62,9 @@ To reclaim orphaned objects:
    The [application runtime role](../../docs/guides/deployment.md#check-runtime-privileges)
    has tenant-scoped visibility.
 3. In a read-only transaction, run `SET LOCAL row_security = off` before scanning
-   every owner's current and historical attachment references. PostgreSQL then
+   every owner's current and historical attachment references. For application PDFs,
+   include all object keys in `application_pdfs`, including staged uploads that a
+   manager can still save from a local draft. PostgreSQL then
    raises an error if row security would filter a table. If any scan fails or
    complete coverage cannot be verified, stop before deleting any objects.
 4. Keep writes paused while deleting verified unreferenced objects covered by the

@@ -8,6 +8,9 @@ import type { IntakeSaveError, IntakeState } from "@merit/applications/api";
 import type { ApplicationUsage, IntakeChange } from "@merit/applications/domain";
 import type { PageSource } from "@merit/query/contracts";
 
+import type { PdfUpload } from "./pdf-upload";
+
+export type { PdfUpload } from "./pdf-upload";
 export type { IntakeState } from "@merit/applications/api";
 
 export type IntakeSaveResult =
@@ -22,6 +25,7 @@ export type IntakeActivity = Pick<ApplicationUsage, "hasReviews" | "hasRecommend
 };
 
 export type IntakeData = {
+  pdfUpload?: PdfUpload;
   historySource?: PageSource<IntakeState["history"][number]>;
   draftKey: string;
   workspaceSlug: string;

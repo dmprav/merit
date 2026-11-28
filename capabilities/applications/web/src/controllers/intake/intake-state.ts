@@ -53,7 +53,7 @@ export const sectionValues = <S extends keyof IntakeValues>(
       projectPeriod: snapshot.content.projectPeriod ?? "",
       contactId: snapshot.contactId,
     },
-    content: { answers: snapshot.content.answers },
+    content: { answers: snapshot.content.answers, pdfs: snapshot.content.pdfs },
     details: { summary: snapshot.summary },
     reason: { reason: snapshot.reason },
   };
@@ -141,7 +141,7 @@ export const intakeChange = (
             : {}),
         }
       : draft.section === "content"
-        ? intakeContentSchema.pick({ answers: true }).parse(draft.value)
+        ? intakeContentSchema.pick({ answers: true, pdfs: true }).parse(draft.value)
         : draft.value;
   const contact =
     draft.section === "metadata" && draft.value.contactId !== undefined

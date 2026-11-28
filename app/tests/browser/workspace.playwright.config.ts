@@ -6,6 +6,7 @@ import { defineConfig } from "@playwright/test";
 
 import { browserConfig } from "@merit/test-support/browser/config";
 
+import { localFileStorage } from "../local-file-storage.ts";
 import { workspaceOrigin, workspacePort } from "./ports.ts";
 
 const host = fileURLToPath(new URL("../..", import.meta.url));
@@ -19,6 +20,7 @@ export default defineConfig(browserConfig, {
     "devtools.spec.ts",
     "team.spec.ts",
     "application-intake.spec.ts",
+    "application-pdfs.spec.ts",
     "reviews.spec.ts",
     "reviewer.spec.ts",
   ],
@@ -35,6 +37,7 @@ export default defineConfig(browserConfig, {
     reuseExistingServer: false,
     timeout: 120_000,
     env: {
+      ...localFileStorage,
       // Local identity must take precedence over configured Clerk UI/middleware.
       VITE_CLERK_PUBLISHABLE_KEY: "pk_test_Y2xlcmsuZXhhbXBsZSQ=",
     },
