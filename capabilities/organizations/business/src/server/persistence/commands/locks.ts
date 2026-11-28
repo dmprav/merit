@@ -19,10 +19,10 @@ const targetWorkspace = (tx: Transaction, address: WorkspaceAddress) => {
 };
 
 /** Grant commands lock workspace, round, case, assignment, then current authority, omitting unused rows. */
-export const lockWorkspaceRow = async (
+export const lockWorkspaceRow = async <Mode extends "share" | "update">(
   tx: Transaction,
   address: WorkspaceAddress,
-  mode: "share" | "update",
+  mode: Mode,
 ) => {
   const [organization] = await tx
     .select({ id: organizations.id, name: organizations.name, kind: organizations.kind })
@@ -30,7 +30,13 @@ export const lockWorkspaceRow = async (
     .where(targetWorkspace(tx, address))
     .for(mode, { of: organizations });
   return organization
-    ? ({ [workspaceLock]: true, tx, organizationId: organization.id, organization } as const)
+    ? ({
+        [workspaceLock]: true,
+        tx,
+        organizationId: organization.id,
+        organization,
+        workspaceMode: mode,
+      } as const)
     : null;
 };
 
@@ -43,12 +49,15 @@ export const lockGrantWorkspace = async (
   mode: "share" | "update",
 ) => {
   const workspace = await lockWorkspaceRow(tx, { slug, userId }, mode);
-  const actor = workspace && (await lockGrantActor(workspace, userId));
-  return workspace && actor ? { organization: workspace.organization, actor } : null;
+  return workspace && lockGrantActor(workspace, userId);
 };
 
 /** Acquired after resource locks, holding the actor's authority through commit. */
-export const lockGrantActor = async ({ tx, organizationId }: LockedWorkspace, userId: string) => {
+export const lockGrantActor = async <Resource extends LockedWorkspace>(
+  locked: Resource,
+  userId: string,
+) => {
+  const { tx, organizationId } = locked;
   const [actor] = await tx
     .select({ userId: appUsers.id, name: appUsers.name, email: memberships.email })
     .from(memberships)
@@ -60,5 +69,5 @@ export const lockGrantActor = async ({ tx, organizationId }: LockedWorkspace, us
       ),
     )
     .for("share", { of: [memberships, appUsers] });
-  return actor;
+  return actor ? { ...locked, actor, authorityLocked: true as const } : null;
 };

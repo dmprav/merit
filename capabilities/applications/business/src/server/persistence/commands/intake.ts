@@ -322,7 +322,7 @@ export const readRequestedAmounts = async ({ tx, organizationId, roundId }: Lock
 };
 
 export const recordIntakeCreation = async (
-  { tx, organizationId, roundId }: LockedFundingRound,
+  { tx, organizationId, roundId }: LockedFundingRound<"update">,
   application: IntakeApplication,
   actor: Actor,
   requestId: string,

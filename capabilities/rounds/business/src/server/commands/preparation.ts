@@ -51,10 +51,10 @@ export const createFundingRound = async (
       return { status: "not_found" } as const;
     }
 
-    const receipt = await readCreationReceipt(tx, workspace.organizationId, request.requestId);
+    const receipt = await readCreationReceipt(workspace, request.requestId);
     const existing = receipt && (await lockFundingRound(workspace, receipt.publicId, "update"));
-    const manager = await lockGrantActor(workspace, actor.userId);
-    if (!manager) {
+    const access = await lockGrantActor(workspace, actor.userId);
+    if (!access) {
       return { status: "not_found" } as const;
     }
     if (receipt) {
@@ -66,12 +66,11 @@ export const createFundingRound = async (
     const round = newPreparedRound(request, {
       id: await allocatePublicId(tx),
       foundation: workspace.organization.name,
-      manager,
+      manager: access.actor,
       snapshotDate: new Date().toISOString().slice(0, 10),
     });
     const publicId = await recordPreparationCreation(
-      tx,
-      workspace.organization.id,
+      access,
       round,
       actor,
       request.requestId,
@@ -128,7 +127,7 @@ export const editFundingRound = async (
       if (!manager) {
         return { status: "invalid", error: "manager_unavailable" } as const;
       }
-      updated = withRoundManager(updated, manager);
+      updated = withRoundManager(updated, manager.actor);
     }
 
     const revision = await recordPreparationChange(row, { ...result, round: updated }, actor);

@@ -1,10 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 
-import {
-  lockCaseRow,
-  readCaseWithdrawn,
-  type LockedApplicationCase,
-} from "@merit/applications/locks";
+import { lockCaseRow, type LockedApplicationCase } from "@merit/applications/locks";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 import { appUsers } from "@merit/auth/schema";
@@ -26,7 +22,10 @@ import { reviewRequests, reviewStates } from "../schema";
 
 const assignmentLock = Symbol("locked reviewer assignment");
 
-const lockAssignmentRow = async (locked: LockedApplicationCase, assignmentId: string) => {
+const lockAssignmentRow = async (
+  locked: LockedApplicationCase & { authorityLocked?: never; assignmentId?: never },
+  assignmentId: string,
+): Promise<LockedReviewerAssignment | null> => {
   const [row] = await locked.tx
     .select({ id: reviewAssignments.id })
     .from(reviewAssignments)
@@ -41,7 +40,10 @@ const lockAssignmentRow = async (locked: LockedApplicationCase, assignmentId: st
   return row ? ({ ...locked, [assignmentLock]: true, assignmentId: row.id } as const) : null;
 };
 
-export type LockedReviewerAssignment = NonNullable<Awaited<ReturnType<typeof lockAssignmentRow>>>;
+export type LockedReviewerAssignment = LockedApplicationCase & {
+  readonly [assignmentLock]: true;
+  readonly assignmentId: string;
+};
 
 const lockAssignmentResources = async (
   tx: Transaction,
@@ -90,7 +92,7 @@ export const lockReviewerAssignment = async (
     .where(and(eq(appUsers.id, userId), eq(appUsers.active, true)))
     .for("share");
   const record = user && (await readReviewerRecord(locked.tx, locked.assignmentId));
-  return record ? { locked, user, record } : null;
+  return record ? { locked: { ...locked, authorityLocked: true } as const, user, record } : null;
 };
 
 export const lockManagedReviewerAssignment = async (
@@ -103,14 +105,12 @@ export const lockManagedReviewerAssignment = async (
     userId,
     caseId: input.publicId,
   });
-  const actor = locked && (await lockGrantActor(locked, userId));
-  if (!locked || !actor) {
+  const access = locked && (await lockGrantActor(locked, userId));
+  if (!access) {
     return null;
   }
-  const record = await readReviewerRecord(locked.tx, locked.assignmentId);
-  return record
-    ? { record, actor: { ...actor, withdrawn: await readCaseWithdrawn(locked) } }
-    : null;
+  const record = await readReviewerRecord(access.tx, access.assignmentId);
+  return record ? { record, actor: { ...access.actor, withdrawn: access.withdrawn } } : null;
 };
 
 export const reviewerReceipt = async (tx: Transaction, assignmentId: string, commandId: string) =>

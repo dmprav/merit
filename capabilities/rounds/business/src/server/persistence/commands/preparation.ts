@@ -3,6 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 import type { Transaction } from "@merit/db";
+import type { LockedWorkspace } from "@merit/organizations/locks";
 
 import { encodeRound, type FundingRoundData } from "../../../domain/encoding";
 import type { FundingRound } from "../../../domain/model";
@@ -17,9 +18,10 @@ import type { lockPreparationRoundAccess } from "./locks";
 
 type PreparationState = NonNullable<Awaited<ReturnType<typeof lockPreparationRoundAccess>>>;
 
+type CreationWorkspace = LockedWorkspace & { readonly workspaceMode: "update" };
+
 export const readCreationReceipt = async (
-  tx: Transaction,
-  organizationId: string,
+  { tx, organizationId }: CreationWorkspace,
   requestId: string,
 ) => {
   const [row] = await tx
@@ -166,10 +168,8 @@ const recordRoundChange = async (
   });
 };
 
-/** The caller holds the workspace lock until the round and creation receipt commit together. */
 export const recordPreparationCreation = async (
-  tx: Transaction,
-  organizationId: string,
+  { tx, organizationId }: CreationWorkspace & { readonly authorityLocked: true },
   round: FundingRound,
   actor: Actor,
   requestId: string,
@@ -195,7 +195,7 @@ export const recordPreparationCreation = async (
   return saved.id;
 };
 
-/** The caller retains authorization and round locks; unchanged saves preserve their revision. */
+/** Unchanged saves preserve their revision. */
 export const recordPreparationChange = async (
   current: PreparationState,
   change: Omit<Extract<ReturnType<typeof prepareRoundChange>, { ok: true }>, "ok">,
@@ -226,7 +226,7 @@ export const recordPreparationChange = async (
   return revision;
 };
 
-/** The caller has checked revision and emptiness while holding workspace and round locks. */
+/** The caller has checked revision and emptiness. */
 export const recordPreparationDeletion = async (current: PreparationState, actor: Actor) => {
   await recordRoundChange(current.tx, {
     organizationId: current.organizationId,

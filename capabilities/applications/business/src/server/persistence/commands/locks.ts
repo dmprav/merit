@@ -9,12 +9,18 @@ import { applicationCases } from "../schema";
 
 const caseLock = Symbol("locked application case");
 
+export type LockedApplicationCase = LockedFundingRound & {
+  readonly [caseLock]: true;
+  readonly caseId: string;
+  readonly withdrawn: boolean;
+};
+
 export const lockCaseRow = async (
-  round: LockedFundingRound & { readonly caseId?: never },
+  round: LockedFundingRound & { readonly caseId?: never; readonly authorityLocked?: never },
   caseId: string,
-) => {
+): Promise<LockedApplicationCase | null> => {
   const [row] = await round.tx
-    .select({ id: applicationCases.id })
+    .select({ id: applicationCases.id, withdrawn: caseWithdrawn })
     .from(applicationCases)
     .where(
       and(
@@ -24,10 +30,10 @@ export const lockCaseRow = async (
       ),
     )
     .for("update");
-  return row ? ({ ...round, [caseLock]: true, caseId: row.id } as const) : null;
+  return row
+    ? ({ ...round, [caseLock]: true, caseId: row.id, withdrawn: row.withdrawn } as const)
+    : null;
 };
-
-export type LockedApplicationCase = NonNullable<Awaited<ReturnType<typeof lockCaseRow>>>;
 
 export const readCaseWithdrawn = async ({ tx, caseId }: LockedApplicationCase) => {
   const [row] = await tx
@@ -58,13 +64,6 @@ export const lockApplicationCase = async (
     );
   const round = identity && (await lockFundingRound(workspace, identity.roundId, roundMode));
   const locked = round && (await lockCaseRow(round, input.publicId));
-  const actor = locked && (await lockGrantActor(locked, userId));
-  return locked && actor
-    ? {
-        ...locked,
-        organizationKind: locked.organization.kind,
-        withdrawn: await readCaseWithdrawn(locked),
-        actor,
-      }
-    : null;
+  const access = locked && (await lockGrantActor(locked, userId));
+  return access ? { ...access, organizationKind: access.organization.kind } : null;
 };
