@@ -403,8 +403,10 @@ describe("createWorktree concurrency", () => {
 });
 
 describe("createWorktree rollback", () => {
-  test("removes the checkout, branch, and record when bootstrap fails", async () => {
+  test("keeps the branch and reports its name when bootstrap fails", async () => {
     const repo = initTempRepo();
+    const branch = "worktree/broken-install";
+    let reflog = "";
 
     await expect(
       createIn(
@@ -412,14 +414,17 @@ describe("createWorktree rollback", () => {
         { slug: "broken-install" },
         {
           execCommand: () => {
+            reflog = git(repo, ["reflog", "show", branch]);
             throw new Error("pnpm install failed");
           },
         },
       ),
-    ).rejects.toThrow(/pnpm install failed/);
+    ).rejects.toThrow(/pnpm install failed.*worktree\/broken-install/);
 
     expect(existsSync(join(repo, ".tmp/worktrees/broken-install"))).toBe(false);
-    expect(listBranch(repo, "worktree/broken-install")).toBe("");
+    expect(listBranch(repo, branch)).toContain(branch);
+    expect(reflog).toBeTruthy();
+    expect(git(repo, ["reflog", "show", branch])).toBe(reflog);
     expect(readWorktreeRegistry(repo).worktrees["broken-install"]).toBeUndefined();
   });
 
@@ -439,25 +444,51 @@ describe("createWorktree rollback", () => {
     expect(dropped).toEqual(["merit_doctor_fail"]);
     expect(existsSync(join(repo, ".tmp/worktrees/doctor-fail"))).toBe(false);
     expect(git(repo, ["worktree", "list", "--porcelain"])).not.toContain("doctor-fail");
-    expect(listBranch(repo, "worktree/doctor-fail")).toBe("");
+    expect(listBranch(repo, "worktree/doctor-fail")).toContain("worktree/doctor-fail");
     const registry = readWorktreeRegistry(repo);
     expect(registry.worktrees["doctor-fail"]).toBeUndefined();
     expect(registry.worktrees.sibling).toBeDefined();
   });
 
-  test("keeps a record for worktree:clean when rollback cannot drop the database", async () => {
+  test("consumes rollback ownership before DROP so a lost reply cannot drop a replacement", async () => {
+    const repo = initTempRepo();
+    let ownedDuringDrop: boolean | undefined;
+    const drop = vi.fn(async () => {
+      ownedDuringDrop = readWorktreeRegistry(repo).worktrees.uncertain?.databaseCreated;
+      throw new Error("DROP reply lost");
+    });
+    const database = fakeDatabase({ isReachable: async () => true, drop });
+    await expect(
+      createIn(
+        repo,
+        { slug: "uncertain", dbMode: "required", doctor: true },
+        {
+          execCommand: failDoctor,
+          database,
+        },
+      ),
+    ).rejects.toThrow(/doctor check failed.*uncertain.*inspect the database manually/);
+
+    expect(ownedDuringDrop).toBe(false);
+    expect(await cleanIn(repo, "uncertain", { database })).toMatchObject({
+      databaseDropped: false,
+    });
+    expect(drop).toHaveBeenCalledTimes(1);
+  });
+
+  test("keeps the ownership record when PostgreSQL goes offline before rollback", async () => {
     const repo = initTempRepo();
 
     await expect(
       createIn(
         repo,
-        { slug: "drop-fail", dbMode: "required", doctor: true },
+        { slug: "drop-fail", branch: "feat/rollback-offline", dbMode: "required", doctor: true },
         {
           execCommand: failDoctor,
           database: fakeDatabase({
-            isReachable: async () => true,
+            isReachable: vi.fn().mockResolvedValueOnce(true).mockResolvedValue(false),
             drop: async () => {
-              throw new Error("database is being accessed by other users");
+              throw new Error("unexpected drop while offline");
             },
           }),
         },
@@ -465,19 +496,22 @@ describe("createWorktree rollback", () => {
     ).rejects.toThrow(/doctor check failed.*could not drop database "merit_drop_fail"/);
 
     expect(existsSync(join(repo, ".tmp/worktrees/drop-fail"))).toBe(false);
-    expect(listBranch(repo, "worktree/drop-fail")).toBe("");
+    expect(listBranch(repo, "feat/rollback-offline")).toContain("feat/rollback-offline");
     const retained = readWorktreeRegistry(repo).worktrees["drop-fail"];
     expect(retained).toMatchObject({ status: "cleaning", databaseCreated: true });
     expect(retained?.ownerPid).toBeUndefined();
 
+    const offline = await cleanIn(repo, "drop-fail");
+    expect(offline).toMatchObject({ branchDeleted: false, registryRemoved: false });
     const dropped: string[] = [];
     await expect(
       cleanIn(repo, "drop-fail", { database: reachableDatabase(dropped) }),
-    ).resolves.toMatchObject({ registryRemoved: true });
+    ).resolves.toMatchObject({ branchDeleted: false, registryRemoved: true });
     expect(dropped).toEqual(["merit_drop_fail"]);
+    expect(listBranch(repo, "feat/rollback-offline")).toContain("feat/rollback-offline");
   });
 
-  test("removes a partial checkout and its new branch when git worktree add fails in a hook", async () => {
+  test("removes a partial checkout and preserves its branch when git worktree add fails in a hook", async () => {
     const repo = initTempRepo();
     const markerFile = join(makeTempDir("merit-hook-marker-"), "post-checkout-ran.txt");
     const hooksDir = join(repo, ".git", "hooks");
@@ -496,7 +530,7 @@ describe("createWorktree rollback", () => {
     expect(readFileSync(markerFile, "utf8").trim()).toBe("hook-ran");
     expect(existsSync(join(repo, ".tmp/worktrees/hook-fail"))).toBe(false);
     expect(git(repo, ["worktree", "list", "--porcelain", "-z"])).not.toContain("hook-fail");
-    expect(listBranch(repo, "worktree/hook-fail")).toBe("");
+    expect(listBranch(repo, "worktree/hook-fail")).toContain("worktree/hook-fail");
     expect(readWorktreeRegistry(repo).worktrees["hook-fail"]).toBeUndefined();
   });
 
@@ -520,7 +554,7 @@ describe("createWorktree rollback", () => {
     ).rejects.toThrow();
 
     expect(readFileSync(join(targetDir, "external.txt"), "utf8")).toBe("do not remove\n");
-    expect(listBranch(repo, "worktree/git-race")).toBe("");
+    expect(listBranch(repo, "worktree/git-race")).toContain("worktree/git-race");
     expect(readWorktreeRegistry(repo).worktrees["git-race"]).toBeUndefined();
   });
 
@@ -577,7 +611,7 @@ describe("createWorktree rollback", () => {
     await expect(failure).rejects.toThrow(/EISDIR/);
     await expect(failure).rejects.not.toThrow(/rollback preserved/);
     expect(existsSync(checkoutPath)).toBe(false);
-    expect(listBranch(repo, "worktree/token-fail")).toBe("");
+    expect(listBranch(repo, "worktree/token-fail")).toContain("worktree/token-fail");
     expect(readWorktreeRegistry(repo).worktrees["token-fail"]).toBeUndefined();
   });
 
@@ -661,11 +695,11 @@ describe("a checkout rollback cannot remove", () => {
 
     expect(cleaned).toMatchObject({
       worktreeRemoved: true,
-      branchDeleted: true,
+      branchDeleted: false,
       registryRemoved: true,
     });
     expect(existsSync(checkoutPath)).toBe(false);
-    expect(listBranch(repo, "feat/stuck-branch")).toBe("");
+    expect(listBranch(repo, "feat/stuck-branch")).toContain("feat/stuck-branch");
     expect(readWorktreeRegistry(repo).worktrees["stuck-checkout"]).toBeUndefined();
   });
 });
@@ -751,11 +785,11 @@ describe("a checkout rollback removes partially", () => {
 
     expect(cleaned).toMatchObject({
       worktreeRemoved: true,
-      branchDeleted: true,
+      branchDeleted: false,
       registryRemoved: true,
     });
     expect(existsSync(residuePath)).toBe(false);
-    expect(listBranch(repo, "feat/partial-rollback")).toBe("");
+    expect(listBranch(repo, "feat/partial-rollback")).toContain("feat/partial-rollback");
     expect(readWorktreeRegistry(repo).worktrees["partial-rollback"]).toBeUndefined();
   });
 });

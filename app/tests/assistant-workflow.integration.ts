@@ -387,6 +387,10 @@ it(
         )
       ).rows;
 
+    const stale = await command({ action: "approve", id, previewId: "superseded" });
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toEqual({ status: "conflict" });
+    expect(await open()).toEqual(waiting);
     expect(await invitationRows()).toEqual([]);
     expect(attempts).toEqual([]);
 

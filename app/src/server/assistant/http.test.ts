@@ -3,7 +3,6 @@ import { expect, it, vi } from "vite-plus/test";
 import type { Identity } from "@merit/auth";
 
 import { handleAssistantHttp } from "./http.server";
-import { watchAssistant } from "./watch.server";
 
 const origin = "https://merit.example";
 const workspace = "alder";
@@ -11,21 +10,22 @@ const id = "01h000000000";
 
 const send = (
   input: unknown,
-  headers: Record<string, string> = {},
-  identity: Identity = {
-    status: "authenticated",
-    actor: { userId: "sam" },
-  },
+  {
+    headers = {},
+    identity = { status: "authenticated", actor: { userId: "sam" } },
+    method = "POST",
+    slug = workspace,
+  }: { headers?: Record<string, string>; identity?: Identity; method?: string; slug?: string } = {},
 ) => {
-  const request = new Request(origin + "/api/assistant/alder", {
-    method: "POST",
+  const request = new Request(origin + "/api/assistant/" + slug, {
+    method,
     headers: { "Content-Type": "application/json", origin, ...headers },
-    body: JSON.stringify(input),
+    body: method === "GET" ? undefined : JSON.stringify(input),
   });
   const dispatch = vi.fn(async () => new Response(null, { status: 204 }));
   return {
     dispatch,
-    response: handleAssistantHttp(request, workspace, origin, async () => identity, dispatch),
+    response: handleAssistantHttp(request, slug, origin, async () => identity, dispatch),
   };
 };
 
@@ -47,25 +47,30 @@ it.each([
 ] satisfies [unknown, Record<string, string>, number][])(
   "rejects unauthorized or malformed requests",
   async (input, headers, status) => {
-    const { response, dispatch } = send(input, headers);
+    const { response, dispatch } = send(input, { headers });
     expect((await response).status).toBe(status);
     expect(dispatch).not.toHaveBeenCalled();
   },
 );
 
 it("keeps signed-out responses private", async () => {
-  const { response, dispatch } = send({ action: "list" }, {}, { status: "signed_out" });
+  const { response, dispatch } = send({ action: "list" }, { identity: { status: "signed_out" } });
   expect((await response).status).toBe(401);
   expect((await response).headers.get("cache-control")).toBe("private, no-store");
   expect(dispatch).not.toHaveBeenCalled();
 });
 
-it("publishes an already settled conversation once and closes the stream", async () => {
-  const open = vi.fn(async () => ({ revision: 3, status: "awaiting_approval", id }));
-  const result = await watchAssistant(open, new AbortController().signal);
-  expect(result.headers.get("Content-Type")).toBe("text/event-stream");
-  expect(await result.text()).toContain(
-    `event: conversation\ndata: {"revision":3,"status":"awaiting_approval","id":"${id}"}\n\n`,
-  );
-  expect(open).toHaveBeenCalledTimes(1);
-});
+it.each([
+  [{ method: "GET" }, 405, "method_not_allowed"],
+  [{ slug: "bad slug" }, 404, "not_found"],
+  [{ identity: { status: "unavailable" } }, 503, "unavailable"],
+] satisfies [Parameters<typeof send>[1], number, string][])(
+  "rejects %j before dispatch",
+  async (options, code, status) => {
+    const { response, dispatch } = send({ action: "list" }, options);
+    const rejected = await response;
+    expect(rejected.status).toBe(code);
+    expect(await rejected.json()).toEqual({ status });
+    expect(dispatch).not.toHaveBeenCalled();
+  },
+);

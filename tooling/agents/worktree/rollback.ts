@@ -1,20 +1,28 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { errorMessage } from "../../cli.ts";
-import { isCheckoutOfAttempt } from "./checkout-identity.ts";
-import { isCreateClaimAt, withoutOwner } from "./claims.ts";
+import {
+  currentCheckoutPath,
+  isCheckoutOfAttempt,
+  moveBackInstruction,
+  movedCheckoutPath,
+  readWorktreeGitDir,
+} from "./checkout-identity.ts";
+import { matchesCreateClaim, withoutOwner } from "./claims.ts";
 import { type WorktreeDatabase } from "./database.ts";
 import { describeExecError, type RepoGit } from "./git.ts";
-import { canonicalPath } from "./paths.ts";
-import { type RegistryLockOptions, updateRecord } from "./registry.ts";
+import {
+  consumeDatabaseOwnership,
+  type RegistryLockOptions,
+  updateRecord,
+  type WorktreeRecord,
+} from "./registry.ts";
 
 /** What a create attempt has changed so far; rollback undoes exactly these changes. */
 export type CreateProgress = {
-  /** This attempt's own `git branch` created the branch, so rollback may delete it. */
+  /** This attempt created the branch and proceeded to add its checkout. */
   branchCreated: boolean;
-  /** `git worktree add` ran, so a checkout may exist at `checkoutPath`. */
-  checkoutAttempted: boolean;
   checkoutPath: string;
   /** The added checkout's Git metadata directory, set once the attempt's token is written there. */
   gitDir?: string;
@@ -27,6 +35,7 @@ export type CheckoutRollback = {
   /** Something occupies the target that Git metadata does not tie to this attempt. */
   preserved: boolean;
   removalError?: unknown;
+  movedTo?: string;
   /** The checkout directory still exists after Git tried to remove it. */
   remains: boolean;
   /** Git deleted the remaining checkout's `.git` before failing. */
@@ -37,8 +46,6 @@ export type RegistryRollback =
   | { action: "none" | "remove" }
   | { action: "retain"; partialRemoval: boolean; databaseCreated: boolean };
 
-export type RollbackCleanup = { deleteBranch: boolean; registry: RegistryRollback };
-
 const UNTOUCHED_CHECKOUT: CheckoutRollback = {
   preserved: false,
   remains: false,
@@ -46,31 +53,26 @@ const UNTOUCHED_CHECKOUT: CheckoutRollback = {
 };
 
 /**
- * Decides what rollback does with the branch and registry record once the checkout is dealt with.
+ * Decides what happens to the registry record once rollback has dealt with the checkout.
  * A checkout Git refused to remove keeps its branch and its record, with the recorded identity,
  * so `worktree:clean` can finish the job and still reject a replacement checkout. A database
- * rollback created but could not drop also keeps the record, so `worktree:clean` can drop it.
+ * whose drop was deferred while PostgreSQL was unreachable also keeps its ownership record.
  */
-export const decideRollbackCleanup = (
-  progress: Pick<CreateProgress, "branchCreated" | "registryReserved" | "databaseCreated">,
+export const decideRegistryRollback = (
+  progress: Pick<CreateProgress, "registryReserved">,
   checkout: CheckoutRollback,
-  databaseDropped: boolean,
-): RollbackCleanup => {
-  const deleteBranch = progress.branchCreated && !checkout.remains;
-  const databaseRemains = progress.databaseCreated && !databaseDropped;
+  databasePending: boolean,
+): RegistryRollback => {
   if (!progress.registryReserved) {
-    return { deleteBranch, registry: { action: "none" } };
+    return { action: "none" };
   }
-  if (!checkout.remains && !databaseRemains) {
-    return { deleteBranch, registry: { action: "remove" } };
+  if (!checkout.remains && !databasePending) {
+    return { action: "remove" };
   }
   return {
-    deleteBranch,
-    registry: {
-      action: "retain",
-      partialRemoval: checkout.metadataRemoved,
-      databaseCreated: databaseRemains,
-    },
+    action: "retain",
+    partialRemoval: checkout.metadataRemoved,
+    databaseCreated: databasePending,
   };
 };
 
@@ -84,15 +86,16 @@ const describeRemovalError = (removalError: unknown): string =>
  */
 export const rollbackError = (
   error: unknown,
+  slug: string,
   checkoutPath: string,
   checkout: CheckoutRollback,
-  undroppedDatabase?: string,
+  databaseProblem?: string,
+  createdBranch?: string,
 ): unknown => {
   const problems = [
-    checkoutRollbackProblem(checkoutPath, checkout),
-    undroppedDatabase === undefined
-      ? undefined
-      : `rollback could not drop database "${undroppedDatabase}"; its registry record is kept so \`vp run worktree:clean\` can drop it`,
+    checkoutRollbackProblem(slug, checkoutPath, checkout),
+    createdBranch && `inspect branch "${createdBranch}" before retrying with that name`,
+    databaseProblem,
   ].filter((problem) => problem !== undefined);
   return problems.length === 0
     ? error
@@ -101,9 +104,13 @@ export const rollbackError = (
 
 /** Describes what rollback left of the checkout, or undefined when it removed the checkout. */
 const checkoutRollbackProblem = (
+  slug: string,
   checkoutPath: string,
   checkout: CheckoutRollback,
 ): string | undefined => {
+  if (checkout.movedTo) {
+    return `checkout moved to "${checkout.movedTo}". ${moveBackInstruction(checkoutPath, checkout.movedTo)} and run \`vp run worktree:clean ${slug}\``;
+  }
   if (checkout.removalError || checkout.remains) {
     const detail = checkout.removalError
       ? describeRemovalError(checkout.removalError)
@@ -143,16 +150,47 @@ const ignoreAsyncFailure = async (step: () => Promise<unknown>): Promise<void> =
   }
 };
 
-const dropCreatedDatabase = async (attempt: CreateAttempt, progress: CreateProgress) => {
+const matchesAttempt = (attempt: CreateAttempt) => (record: WorktreeRecord) =>
+  matchesCreateClaim(attempt.checkoutToken)(record) && record.databaseName === attempt.databaseName;
+
+type DatabaseRollback = "settled" | "deferred" | "inspect";
+
+const dropCreatedDatabase = async (
+  attempt: CreateAttempt,
+  progress: CreateProgress,
+  canDrop: (record: WorktreeRecord) => boolean,
+): Promise<DatabaseRollback> => {
   if (!progress.databaseCreated) {
-    return false;
+    return "settled";
   }
   try {
+    if (!(await attempt.database.isReachable())) {
+      return "deferred";
+    }
+    const owned = await consumeDatabaseOwnership(
+      attempt.git.root,
+      attempt.slug,
+      (record) => matchesAttempt(attempt)(record) && canDrop(record),
+      attempt.lockOptions,
+    );
+    if (!owned) {
+      return "inspect";
+    }
     await attempt.database.drop(attempt.databaseName);
-    return true;
+    return "settled";
   } catch {
-    return false;
+    return "inspect";
   }
+};
+
+const databaseRollbackProblem = (outcome: DatabaseRollback, name: string): string | undefined => {
+  if (outcome === "deferred") {
+    return `rollback could not drop database "${name}" while PostgreSQL was unreachable; retry with \`vp run worktree:clean\``;
+  }
+  if (outcome === "inspect") {
+    return `rollback could not confirm the drop of database "${name}"; inspect the database manually`;
+  }
+  return undefined;
 };
 
 const ownsCheckout = (attempt: CreateAttempt, progress: CreateProgress, checkoutDir: string) => {
@@ -168,14 +206,51 @@ const ownsCheckout = (attempt: CreateAttempt, progress: CreateProgress, checkout
   }
 };
 
+/** Pin the token-backed checkout while Git resolves the path passed to worktree remove. */
+const removeRegisteredCheckout = (
+  attempt: CreateAttempt,
+  checkoutPath: string,
+  gitDir: string,
+): void => {
+  const lock = join(gitDir, "locked");
+  const reason = `Merit is rolling back ${attempt.slug} (${attempt.checkoutToken})\n`;
+  // Claim Git's per-worktree lock by stable metadata path, without overwriting an existing lock.
+  writeFileSync(lock, reason, { flag: "wx" });
+  try {
+    const identity = { gitDir, checkoutToken: attempt.checkoutToken };
+    if (
+      currentCheckoutPath(identity) !== checkoutPath ||
+      readWorktreeGitDir(checkoutPath) !== gitDir
+    ) {
+      throw new Error("checkout identity changed before removal");
+    }
+    // Git requires two force flags to remove the checkout under our own lock.
+    attempt.git.run(["worktree", "remove", "--force", "--force", checkoutPath]);
+  } finally {
+    ignoreFailure(() => {
+      if (readFileSync(lock, "utf8") === reason) {
+        unlinkSync(lock);
+      }
+    });
+  }
+};
+
 /**
  * Lets Git remove its own checkout. If Git refuses (for example, a locked worktree), the checkout
  * and its registry record stay instead of the directory being deleted recursively.
  */
-const removeOwnedCheckout = (git: RepoGit, checkoutDir: string): CheckoutRollback => {
+const removeOwnedCheckout = (
+  attempt: CreateAttempt,
+  progress: CreateProgress,
+): CheckoutRollback => {
+  const checkoutDir = progress.checkoutPath;
   let removalError: unknown;
   try {
-    git.run(["worktree", "remove", "--force", checkoutDir]);
+    if (progress.gitDir) {
+      removeRegisteredCheckout(attempt, checkoutDir, progress.gitDir);
+    } else {
+      attempt.git.run(["worktree", "remove", "--force", checkoutDir]);
+    }
   } catch (error) {
     removalError = error;
   }
@@ -189,25 +264,39 @@ const removeOwnedCheckout = (git: RepoGit, checkoutDir: string): CheckoutRollbac
 };
 
 const rollBackCheckout = (attempt: CreateAttempt, progress: CreateProgress): CheckoutRollback => {
-  if (!progress.checkoutAttempted) {
+  if (!progress.branchCreated) {
     return UNTOUCHED_CHECKOUT;
   }
-  const checkoutDir = existsSync(progress.checkoutPath)
-    ? canonicalPath(progress.checkoutPath)
-    : progress.checkoutPath;
+  const checkoutDir = progress.checkoutPath;
+
+  const movedCheckout = (): CheckoutRollback | undefined => {
+    const path = movedCheckoutPath(checkoutDir, {
+      gitDir: progress.gitDir,
+      checkoutToken: attempt.checkoutToken,
+    });
+    if (path) {
+      return { ...UNTOUCHED_CHECKOUT, remains: true, movedTo: path };
+    }
+    return undefined;
+  };
+
+  const moved = movedCheckout();
+  if (moved) {
+    return moved;
+  }
   let checkout = UNTOUCHED_CHECKOUT;
   if (existsSync(checkoutDir)) {
     checkout = ownsCheckout(attempt, progress, checkoutDir)
-      ? removeOwnedCheckout(attempt.git, checkoutDir)
+      ? removeOwnedCheckout(attempt, progress)
       : { ...UNTOUCHED_CHECKOUT, preserved: true };
   }
   ignoreFailure(() => attempt.git.run(["worktree", "prune"]));
-  return checkout;
+  // Git may have moved it during removal or pruning. Observe its location at the drop decision.
+  return movedCheckout() ?? checkout;
 };
 
 const settleRegistryRecord = async (
   attempt: CreateAttempt,
-  progress: CreateProgress,
   registry: RegistryRollback,
 ): Promise<void> => {
   if (registry.action === "none") {
@@ -218,13 +307,14 @@ const settleRegistryRecord = async (
       attempt.git.root,
       attempt.slug,
       {
-        when: isCreateClaimAt(progress.checkoutPath),
+        when: matchesAttempt(attempt),
         apply: (record) =>
           registry.action === "retain"
             ? {
                 ...withoutOwner(record),
                 ...(registry.partialRemoval ? { partialRemoval: true } : {}),
-                databaseCreated: registry.databaseCreated,
+                databaseCreated: record.databaseCreated && registry.databaseCreated,
+                cleanupPolicy: "finish-rollback",
                 status: "cleaning",
               }
             : undefined,
@@ -235,7 +325,7 @@ const settleRegistryRecord = async (
 };
 
 /**
- * Undoes what a failed create attempt changed, newest first, and returns the error to report.
+ * Undoes what a failed create attempt changed and returns the error to report.
  * Each step is best effort so one failure never hides the original error.
  */
 export const rollBackCreate = async (
@@ -243,16 +333,26 @@ export const rollBackCreate = async (
   progress: CreateProgress,
   error: unknown,
 ): Promise<unknown> => {
-  const databaseDropped = await dropCreatedDatabase(attempt, progress);
-  const checkout = rollBackCheckout(attempt, progress);
-  const cleanup = decideRollbackCleanup(progress, checkout, databaseDropped);
-  // A branch that appeared after the last check may belong to another job, so delete only the
-  // branch this attempt's own `git branch` created.
-  if (cleanup.deleteBranch && attempt.git.branchExists(attempt.branch)) {
-    ignoreFailure(() => attempt.git.run(["branch", "-D", attempt.branch]));
-  }
-  await settleRegistryRecord(attempt, progress, cleanup.registry);
-  const undroppedDatabase =
-    progress.databaseCreated && !databaseDropped ? attempt.databaseName : undefined;
-  return rollbackError(error, progress.checkoutPath, checkout, undroppedDatabase);
+  let checkout = rollBackCheckout(attempt, progress);
+  const database = checkout.movedTo
+    ? "deferred"
+    : await dropCreatedDatabase(attempt, progress, (record) => {
+        // The checkout can move while PostgreSQL is probed or while waiting for the registry lock.
+        const movedTo = movedCheckoutPath(progress.checkoutPath, record);
+        if (movedTo) {
+          checkout = { ...checkout, movedTo, remains: true };
+        }
+        return !movedTo;
+      });
+  const databasePending = checkout.movedTo ? progress.databaseCreated : database === "deferred";
+  const registry = decideRegistryRollback(progress, checkout, databasePending);
+  await settleRegistryRecord(attempt, registry);
+  return rollbackError(
+    error,
+    attempt.slug,
+    progress.checkoutPath,
+    checkout,
+    checkout.movedTo ? undefined : databaseRollbackProblem(database, attempt.databaseName),
+    progress.branchCreated ? attempt.branch : undefined,
+  );
 };

@@ -51,6 +51,8 @@ const businessRoles: Record<string, [pattern: string, allowed: string]> = {
     "{domain,command-persistence,query-persistence,shared-persistence}",
   ],
   reading: ["server/read.ts", "{domain,queries,query-persistence,shared-persistence}"],
+  assistant: ["server/assistant.ts", "{domain,command-persistence,shared-persistence}"],
+  delivery: ["server/delivery.ts", "{api,commands}"],
   demo: ["server/demo.ts", "{domain,examples,command-persistence,shared-persistence}"],
   examples: ["examples/**", "{domain,api,examples}"],
 };
@@ -190,11 +192,7 @@ const serverImports: DependenciesPolicy[] = [
   permitServer(
     {
       file: {
-        path: [
-          "app/src/server/assistant/host.server.ts",
-          "app/src/server/background-work.server.ts",
-          "app/src/worker/activities.ts",
-        ],
+        path: ["app/src/server/background-work.server.ts", "app/src/worker/activities.ts"],
       },
     },
     "@merit/reviews/server",
@@ -227,7 +225,12 @@ const serverImports: DependenciesPolicy[] = [
   permitServer(
     { file: { path: "app/src/server/assistant/{host,access}.server.ts" } },
     "@merit/organizations/server/assistant",
-    { file: { path: "capabilities/organizations/business/src/server/assistant.ts" } },
+    business("organizations", "assistant"),
+  ),
+  permitServer(
+    { file: { path: "app/src/server/assistant/host.server.ts" } },
+    "@merit/reviews/server/delivery",
+    business("reviews", "delivery"),
   ),
   // Lifecycle work comes from the capability that owns the records; composition supplies none.
   permitServer(

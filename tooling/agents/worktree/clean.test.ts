@@ -1,16 +1,11 @@
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, symlinkSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { describe, expect, test, vi } from "vite-plus/test";
 
 import { DEFAULT_COMPOSE_DATABASE_URL } from "../../scripts/local-postgres.ts";
 import { type CheckoutRemovalFacts, cleanWorktree, decideCheckoutRemoval } from "./clean.ts";
-import {
-  readWorktreeRegistry,
-  registryLockPathForRepo,
-  type WorktreeRegistry,
-  writeWorktreeRegistry,
-} from "./registry.ts";
+import { readWorktreeRegistry, type WorktreeRegistry, writeWorktreeRegistry } from "./registry.ts";
 import {
   cleanIn,
   createDeferred,
@@ -34,14 +29,34 @@ useWorktreeFixtures();
 const reachable = (drop: (name: string) => Promise<void> = async () => {}) =>
   fakeDatabase({ isReachable: async () => true, drop });
 
+const createWithDatabase = (repo: string, slug: string) =>
+  createIn(repo, { slug, dbMode: "required" }, { database: reachable() });
+
 const register = (repo: string, worktrees: WorktreeRegistry["worktrees"]) => {
   writeWorktreeRegistry(repo, { version: 1, worktrees });
 };
 
 describe("cleanWorktree", () => {
+  test("preserves a database that existed before create", async () => {
+    const repo = initTempRepo();
+    const drop = vi.fn(async () => {});
+    const database = fakeDatabase({
+      isReachable: async () => true,
+      ensure: async () => ({ created: false }),
+      drop,
+    });
+    await createIn(repo, { slug: "existing", dbMode: "required" }, { database });
+    expect(readWorktreeRegistry(repo).worktrees.existing?.databaseCreated).toBe(false);
+
+    const cleaned = await cleanIn(repo, "existing", { database });
+
+    expect(drop).not.toHaveBeenCalled();
+    expect(cleaned).toMatchObject({ databaseDropped: false, registryRemoved: true });
+  });
+
   test("removes the checkout, database, branch, and registry record", async () => {
     const repo = initTempRepo();
-    const alpha = await createIn(repo, { slug: "alpha" });
+    const alpha = await createWithDatabase(repo, "alpha");
     const dropped: string[] = [];
 
     const cleaned = await cleanIn(repo, "alpha", {
@@ -64,13 +79,45 @@ describe("cleanWorktree", () => {
     expect(listIn(repo)).toEqual([]);
   });
 
+  test("leaves the database alone after --no-db even if Postgres is now reachable", async () => {
+    const repo = initTempRepo();
+    await createIn(repo, { slug: "skipped", dbMode: "skip" });
+    const drop = vi.fn(async () => {});
+
+    const result = await cleanIn(repo, "skipped", { database: reachable(drop) });
+
+    expect(result.databaseDropped).toBe(false);
+    expect(drop).not.toHaveBeenCalled();
+  });
+
+  test("a lost DROP reply cannot authorize a second drop on retry", async () => {
+    const repo = initTempRepo();
+    await createWithDatabase(repo, "uncertain");
+    const drop = vi.fn(async () => {
+      throw new Error("connection lost during DROP");
+    });
+    await expect(cleanIn(repo, "uncertain", { database: reachable(drop) })).rejects.toThrow(
+      /connection lost/,
+    );
+
+    const retried = await cleanIn(repo, "uncertain", { database: reachable(drop) });
+
+    expect(retried).toMatchObject({ databaseDropped: false, registryRemoved: true });
+    expect(drop).toHaveBeenCalledTimes(1);
+  });
+
   test("keeps the branch with --keep-branch", async () => {
     const repo = initTempRepo();
-    const beta = await createIn(repo, {
-      slug: "beta",
-      branch: "feat/beta-work",
-      dir: join(makeTempDir("merit-custom-wt-"), "beta-dir"),
-    });
+    const beta = await createIn(
+      repo,
+      {
+        dbMode: "required",
+        slug: "beta",
+        branch: "feat/beta-work",
+        dir: join(makeTempDir("merit-custom-wt-"), "beta-dir"),
+      },
+      { database: reachable() },
+    );
 
     const cleaned = await cleanIn(repo, "beta", { database: reachable() }, { keepBranch: true });
 
@@ -98,9 +145,10 @@ describe("cleanWorktree", () => {
     });
   });
 
-  test("warns instead of failing when PostgreSQL is down", async () => {
+  test("retains an owned database for a retry when PostgreSQL is down", async () => {
     const repo = initTempRepo();
-    await createIn(repo, { slug: "alpha" });
+    const branch = "feat/offline-alpha";
+    await createIn(repo, { slug: "alpha", branch, dbMode: "required" }, { database: reachable() });
 
     const { result, warnings } = await cleanWorktree(
       { primaryRepoRoot: repo, slug: "alpha", keepBranch: false },
@@ -108,6 +156,20 @@ describe("cleanWorktree", () => {
     );
 
     expect(result.databaseDropped).toBe(false);
+    expect(result.registryRemoved).toBe(false);
+    expect(result.branchDeleted).toBe(false);
+    expect(listBranch(repo, branch)).toContain(branch);
+    expect(readWorktreeRegistry(repo).worktrees.alpha).toMatchObject({
+      status: "cleaning",
+      databaseCreated: true,
+    });
+    const drop = vi.fn(async () => {});
+    expect(await cleanIn(repo, "alpha", { database: reachable(drop) })).toMatchObject({
+      branchDeleted: true,
+      databaseDropped: true,
+      registryRemoved: true,
+    });
+    expect(drop).toHaveBeenCalledExactlyOnceWith("merit_alpha");
     expect(warnings).toEqual([
       'Warning: PostgreSQL at 127.0.0.1:55432 is not reachable; skipped dropping database "merit_alpha".',
     ]);
@@ -115,7 +177,7 @@ describe("cleanWorktree", () => {
 
   test("prunes Git metadata and cleans the rest when the checkout directory is already gone", async () => {
     const repo = initTempRepo();
-    const created = await createIn(repo, { slug: "gone-dir" });
+    const created = await createWithDatabase(repo, "gone-dir");
     rmSync(created.path, { recursive: true, force: true });
     expect(git(repo, ["worktree", "list", "--porcelain"])).toContain(created.path);
     const drop = vi.fn(async () => {});
@@ -134,20 +196,43 @@ describe("cleanWorktree", () => {
     expect(readWorktreeRegistry(repo).worktrees["gone-dir"]).toBeUndefined();
   });
 
-  test("lets a clean finish what an interrupted create left behind", async () => {
-    const repo = initTempRepo();
-    await createIn(repo, { slug: "killed" });
-    interruptCreate(repo, "killed");
+  test.each([true, false])(
+    "cleans an interrupted create with recorded database ownership %s",
+    async (created) => {
+      const repo = initTempRepo();
+      const database = fakeDatabase({
+        isReachable: async () => true,
+        ensure: async () => ({ created }),
+        drop: vi.fn(),
+      });
+      await createIn(repo, { slug: "killed", dbMode: "required" }, { database });
+      interruptCreate(repo, "killed");
 
-    const cleaned = await cleanIn(repo, "killed");
+      if (created) {
+        const offline = await cleanIn(repo, "killed");
+        expect(offline).toMatchObject({
+          worktreeRemoved: true,
+          branchDeleted: false,
+          registryRemoved: false,
+        });
+      }
+      const cleaned = await cleanIn(repo, "killed", { database });
 
-    expect(cleaned).toMatchObject({ worktreeRemoved: true, registryRemoved: true });
-    expect(readWorktreeRegistry(repo).worktrees.killed).toBeUndefined();
-  });
+      expect(cleaned).toMatchObject({
+        worktreeRemoved: !created,
+        branchDeleted: false,
+        databaseDropped: created,
+        registryRemoved: true,
+      });
+      expect(listBranch(repo, "worktree/killed")).toContain("worktree/killed");
+      expect(database.drop).toHaveBeenCalledTimes(created ? 1 : 0);
+      expect(readWorktreeRegistry(repo).worktrees.killed).toBeUndefined();
+    },
+  );
 
   test("keeps a sibling registered while the clean runs", async () => {
     const repo = initTempRepo();
-    await createIn(repo, { slug: "alpha" });
+    await createWithDatabase(repo, "alpha");
 
     const cleaned = await cleanIn(repo, "alpha", {
       database: reachable(async () => {
@@ -161,6 +246,51 @@ describe("cleanWorktree", () => {
 });
 
 describe("cleanWorktree protects what it does not own", () => {
+  test.each(["same path", "old path", "no gitDir"])(
+    "preserves a tokenless record (%s)",
+    async (state) => {
+      const repo = initTempRepo();
+      const created = await createIn(repo, { slug: "legacy" });
+      const registry = readWorktreeRegistry(repo);
+      const record = registry.worktrees.legacy;
+      expect.assert(record);
+      delete record.checkoutToken;
+      if (state === "old path") {
+        record.path = join(repo, ".tmp/worktrees/old-location");
+      }
+      if (state === "no gitDir") {
+        delete record.gitDir;
+      }
+      writeWorktreeRegistry(repo, registry);
+      const drop = vi.fn(async () => {});
+
+      await expect(cleanIn(repo, "legacy", { database: reachable(drop) })).rejects.toThrow(
+        /checkout token.*merit_legacy/,
+      );
+
+      expect(drop).not.toHaveBeenCalled();
+      expect(existsSync(join(created.path, ".git"))).toBe(true);
+      expect(listBranch(repo, created.branch)).toContain(created.branch);
+      expect(readWorktreeRegistry(repo)).toEqual(registry);
+    },
+  );
+
+  test("preserves the branch of a pre-upgrade cleaning record across retries", async () => {
+    const repo = initTempRepo();
+    const created = await createWithDatabase(repo, "old-retry");
+    const registry = readWorktreeRegistry(repo);
+    const record = registry.worktrees["old-retry"];
+    expect.assert(record);
+    record.status = "cleaning";
+    writeWorktreeRegistry(repo, registry);
+
+    const offline = await cleanIn(repo, "old-retry");
+    expect(offline).toMatchObject({ branchDeleted: false, registryRemoved: false });
+    const retried = await cleanIn(repo, "old-retry", { database: reachable() });
+    expect(retried).toMatchObject({ branchDeleted: false, registryRemoved: true });
+    expect(listBranch(repo, created.branch)).toContain(created.branch);
+  });
+
   test("refuses to drop a protected database named by a tampered record", async () => {
     const repo = initTempRepo();
     const drop = vi.fn(async () => {});
@@ -168,6 +298,8 @@ describe("cleanWorktree protects what it does not own", () => {
       tampered: worktreeRecord({
         slug: "tampered",
         path: join(repo, ".tmp/worktrees/tampered"),
+        gitDir: join(repo, ".git/worktrees/tampered"),
+        checkoutToken: "recorded-token",
         branch: "main",
         databaseName: "merit",
         databaseUrl: DEFAULT_COMPOSE_DATABASE_URL,
@@ -188,6 +320,8 @@ describe("cleanWorktree protects what it does not own", () => {
       tampered: worktreeRecord({
         slug: "tampered",
         path: join(repo, ".tmp/worktrees/tampered"),
+        gitDir: join(repo, ".git/worktrees/tampered"),
+        checkoutToken: "recorded-token",
         branch: "master",
       }),
     });
@@ -205,6 +339,8 @@ describe("cleanWorktree protects what it does not own", () => {
     registry.worktrees.stale = worktreeRecord({
       slug: "stale",
       path: join(repo, ".tmp/worktrees/stale"),
+      gitDir: join(repo, ".git/worktrees/stale"),
+      checkoutToken: "recorded-token",
       branch: active.branch,
     });
     writeWorktreeRegistry(repo, registry);
@@ -236,7 +372,8 @@ describe("cleanWorktree protects what it does not own", () => {
     const unownedDir = makeTempDir("merit-unowned-dir-");
     writeFileSync(join(unownedDir, "important.txt"), "do not delete\n", "utf8");
     const drop = vi.fn(async () => {});
-    register(repo, { unowned: worktreeRecord({ slug: "unowned", path: unownedDir }) });
+    mkdirSync(join(repo, ".tmp/worktrees"), { recursive: true });
+    symlinkSync(unownedDir, join(repo, ".tmp/worktrees/unowned"), "dir");
 
     await expect(cleanIn(repo, "unowned", { database: reachable(drop) })).rejects.toThrow(
       /not a recognized Git worktree/,
@@ -317,7 +454,7 @@ describe("cleanWorktree checks the checkout's identity", () => {
   test("refuses a checkout moved away while another checkout occupies its recorded path", async () => {
     const repo = initTempRepo();
     const movedAlphaPath = join(makeTempDir("merit-moved-wt-"), "alpha-moved");
-    const alpha = await createIn(repo, { slug: "alpha" });
+    const alpha = await createWithDatabase(repo, "alpha");
     git(repo, ["worktree", "move", alpha.path, movedAlphaPath]);
     git(repo, ["worktree", "add", "-b", "feat/replacement", alpha.path, "main"]);
     writeFileSync(join(alpha.path, "replacement-marker.txt"), "preserve me\n", "utf8");
@@ -337,7 +474,7 @@ describe("cleanWorktree checks the checkout's identity", () => {
   test("refuses a moved checkout and names the command that moves it back", async () => {
     const repo = initTempRepo();
     const movedPath = join(makeTempDir("merit-moved-only-"), "alpha-moved");
-    const alpha = await createIn(repo, { slug: "alpha" });
+    const alpha = await createWithDatabase(repo, "alpha");
     git(repo, ["worktree", "move", alpha.path, movedPath]);
     const drop = vi.fn(async () => {});
 
@@ -352,7 +489,7 @@ describe("cleanWorktree checks the checkout's identity", () => {
   test("cleans a moved checkout once it is moved back", async () => {
     const repo = initTempRepo();
     const movedPath = join(makeTempDir("merit-moved-only-"), "alpha-moved");
-    const alpha = await createIn(repo, { slug: "alpha" });
+    const alpha = await createWithDatabase(repo, "alpha");
     git(repo, ["worktree", "move", alpha.path, movedPath]);
     await expect(cleanIn(repo, "alpha")).rejects.toThrow(/was moved/);
     git(repo, ["worktree", "move", movedPath, alpha.path]);
@@ -366,7 +503,7 @@ describe("cleanWorktree checks the checkout's identity", () => {
 
   test("refuses a replacement checkout that reuses the recorded path and Git metadata name", async () => {
     const repo = initTempRepo();
-    const alpha = await createIn(repo, { slug: "alpha" });
+    const alpha = await createWithDatabase(repo, "alpha");
     const recordedGitDir = readWorktreeRegistry(repo).worktrees.alpha?.gitDir;
     // Removing alpha with Git frees `.git/worktrees/alpha`, so the replacement reuses that name.
     git(repo, ["worktree", "remove", "--force", alpha.path]);
@@ -395,7 +532,7 @@ describe("cleanWorktree when Git cannot remove the checkout", () => {
 
   test("surfaces the failure, keeps the files, and releases its claim", async () => {
     const repo = initTempRepo();
-    const created = await createIn(repo, { slug: "git-fails" });
+    const created = await createWithDatabase(repo, "git-fails");
     writeFileSync(join(created.path, "work.txt"), "uncommitted\n", "utf8");
     const drop = vi.fn(async () => {});
 
@@ -428,7 +565,7 @@ describe("cleanWorktree when Git cannot remove the checkout", () => {
 
   test("records the residue when Git removed the checkout's metadata before failing", async () => {
     const repo = initTempRepo();
-    const created = await createIn(repo, { slug: "git-fails" });
+    const created = await createWithDatabase(repo, "git-fails");
     writeFileSync(join(created.path, "work.txt"), "uncommitted\n", "utf8");
 
     await failAfterRemovingMetadata(repo, created.path);
@@ -442,7 +579,7 @@ describe("cleanWorktree when Git cannot remove the checkout", () => {
 
   test("removes the recorded residue under .tmp/worktrees on a retry", async () => {
     const repo = initTempRepo();
-    const created = await createIn(repo, { slug: "git-fails" });
+    const created = await createWithDatabase(repo, "git-fails");
     await failAfterRemovingMetadata(repo, created.path);
     const drop = vi.fn(async () => {});
 
@@ -515,6 +652,23 @@ describe("cleanWorktree when deleting the branch fails", () => {
     expect(listBranch(repo, "feat/custom-gamma")).toContain("feat/custom-gamma");
   });
 
+  test("a retry after branch deletion failed leaves a replacement database alone", async () => {
+    const repo = initTempRepo();
+    await createWithDatabase(repo, "retry");
+    const drop = vi.fn(async () => {});
+    const database = reachable(drop);
+
+    await expect(cleanIn(repo, "retry", { database, execGit: failBranchDelete })).rejects.toThrow();
+    expect(drop).toHaveBeenCalledExactlyOnceWith("merit_retry");
+    const retried = await cleanIn(repo, "retry", { database });
+    expect(retried).toMatchObject({
+      databaseDropped: false,
+      branchDeleted: true,
+      registryRemoved: true,
+    });
+    expect(drop).toHaveBeenCalledTimes(1);
+  });
+
   test("deletes the recorded custom branch and record on a retry", async () => {
     const repo = initTempRepo();
     await createIn(repo, { slug: "gamma", branch: "feat/custom-gamma" });
@@ -562,7 +716,7 @@ describe("cleanWorktree concurrency", () => {
 
   test("refuses a same-slug create while it cleans", async () => {
     const repo = initTempRepo();
-    await createIn(repo, { slug: "gamma" });
+    await createWithDatabase(repo, "gamma");
     let createDuringClean: Promise<unknown> = Promise.resolve();
 
     await cleanIn(repo, "gamma", {
@@ -577,7 +731,7 @@ describe("cleanWorktree concurrency", () => {
 
   test("refuses while another live clean holds the claim", async () => {
     const repo = initTempRepo();
-    await createIn(repo, { slug: "lifecycle" });
+    await createWithDatabase(repo, "lifecycle");
     const dropStarted = createDeferred();
     const releaseDrop = createDeferred();
     const cleanA = cleanIn(repo, "lifecycle", {
@@ -614,7 +768,7 @@ describe("cleanWorktree concurrency", () => {
 
   test("re-checks its claim before dropping the database", async () => {
     const repo = initTempRepo();
-    await createIn(repo, { slug: "claim-check" });
+    await createWithDatabase(repo, "claim-check");
     const drop = vi.fn(async () => {});
 
     await expect(
@@ -646,8 +800,10 @@ describe("cleanWorktree concurrency", () => {
         repo,
         "claim-end",
         {
-          database: reachable(async () => {
-            hijackClaim(repo, "claim-end", "end-foreign-token");
+          execGit: gitWith((args) => {
+            if (isGitCommand(args, "worktree", "prune")) {
+              hijackClaim(repo, "claim-end", "end-foreign-token");
+            }
           }),
         },
         { keepBranch },
@@ -663,9 +819,9 @@ describe("cleanWorktree concurrency", () => {
 
     await expect(
       cleanIn(repo, "alpha", {
-        database: fakeDatabase({
+        execGit: gitWith((args) => {
           // A same-slug create finishes its locked section after clean's first lock.
-          isReachable: async () => {
+          if (isGitCommand(args, "worktree", "prune")) {
             git(repo, ["branch", branch, "main"]);
             register(repo, {
               alpha: worktreeRecord({
@@ -675,8 +831,7 @@ describe("cleanWorktree concurrency", () => {
                 ownerPid: process.pid,
               }),
             });
-            return false;
-          },
+          }
         }),
       }),
     ).rejects.toThrow(/refusing to delete branch "worktree\/alpha"/);
@@ -684,65 +839,12 @@ describe("cleanWorktree concurrency", () => {
     expect(readWorktreeRegistry(repo).worktrees.alpha?.status).toBe("creating");
   });
 
-  test("holds the registry lock across an unrecorded slug's database drop", async () => {
+  test("leaves an unrecorded slug's database alone", async () => {
     const repo = initTempRepo();
-    const events: string[] = [];
-    const dropStarted = createDeferred();
-    const releaseDrop = createDeferred();
-    const createReadyForLock = createDeferred();
-    let createEnteredLock = false;
-    const lockOptions = { initialDelayMs: 5, maxDelayMs: 15, timeoutMs: 5_000 };
-
-    const cleaning = cleanIn(repo, "unrecorded-race", {
-      database: reachable(async (name) => {
-        events.push(`drop:start:${name}`);
-        dropStarted.resolve();
-        await releaseDrop.promise;
-        events.push(`drop:end:${name}`);
-      }),
-      lockOptions,
-    });
-    await dropStarted.promise;
-    expect(existsSync(registryLockPathForRepo(repo))).toBe(true);
-
-    const creating = createIn(
-      repo,
-      { slug: "unrecorded-race", dbMode: "required" },
-      {
-        checkPortAvailable: async () => {
-          createEnteredLock = true;
-          return true;
-        },
-        database: fakeDatabase({
-          isReachable: async () => {
-            createReadyForLock.resolve();
-            return true;
-          },
-          ensure: async (name) => {
-            events.push(`create:db:${name}`);
-            return { created: true };
-          },
-        }),
-        lockOptions,
-      },
-    );
-    await createReadyForLock.promise;
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(createEnteredLock).toBe(false);
-
-    releaseDrop.resolve();
-    const [cleaned, created] = await Promise.all([cleaning, creating]);
-
-    expect(createEnteredLock).toBe(true);
-    expect(cleaned).toMatchObject({ databaseDropped: true, registryRemoved: false });
-    expect(created.databaseCreated).toBe(true);
-    expect(events).toEqual([
-      "drop:start:merit_unrecorded_race",
-      "drop:end:merit_unrecorded_race",
-      "create:db:merit_unrecorded_race",
-    ]);
-    expect(readWorktreeRegistry(repo).worktrees["unrecorded-race"]?.status).toBe("active");
+    const drop = vi.fn(async () => {});
+    const result = await cleanIn(repo, "unrecorded", { database: reachable(drop) });
+    expect(result).toMatchObject({ databaseDropped: false, registryRemoved: false });
+    expect(drop).not.toHaveBeenCalled();
   });
 });
 
