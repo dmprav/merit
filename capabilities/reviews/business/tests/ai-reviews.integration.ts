@@ -10,7 +10,14 @@ import { actor, workspaceSlug } from "@merit/organizations/testing/workspace";
 import type { AiReviewerRequest } from "@merit/reviews/domain";
 import { readApplicationAiReviews } from "@merit/reviews/server";
 
-import { aiReviewTest as it, questionId, criteria, stub, validReply } from "./ai-review-test";
+import {
+  aiReviewTest as it,
+  questionId,
+  criteria,
+  manyCriteria,
+  stub,
+  validReply,
+} from "./ai-review-test";
 
 it("saves a verified run with its basis, provenance, audit event and analytics outcome", async ({
   db,
@@ -88,27 +95,63 @@ it("saves a verified run with its basis, provenance, audit event and analytics o
   expect(read.reviews.map(({ id }) => id)).toEqual([second.review.id, result.review.id]);
 });
 
-it("reviews a round with no criteria as a whole application, and an application with no answers", async ({
-  aiReviewSetup,
-}) => {
-  const { run } = await aiReviewSetup({ withCriteria: false });
-  const result = await run(
-    stub((request) => ({
-      ...validReply(request),
-      criteria: [
+/** A reply that covers the whole application and quotes only its title. */
+const wholeApplicationReply = (request: AiReviewerRequest) => ({
+  ...validReply(request),
+  criteria: [
+    {
+      criterionId: null,
+      claims: [
         {
-          criterionId: null,
-          claims: [],
-          gaps: ["No criteria."],
-          strengths: [],
-          weaknesses: [],
-          concerns: [],
+          text: "The project is named.",
+          citations: [{ source: "title", quote: "Workshop Saturdays" }],
         },
       ],
-    })).reviewer,
-  );
+      gaps: ["No criteria."],
+      strengths: [],
+      weaknesses: [],
+      concerns: [],
+    },
+  ],
+});
+
+it("reviews a round with no criteria as a whole application", async ({ aiReviewSetup }) => {
+  const { run } = await aiReviewSetup({ withCriteria: false });
+  const { reviewer, calls } = stub(wholeApplicationReply);
+
+  const result = await run(reviewer);
+
   assert(result.status === "ok");
+  expect(calls[0]?.input.criteria).toEqual([]);
   expect(result.review.criteria).toMatchObject([{ criterionId: null, title: "Whole application" }]);
+});
+
+it("reviews an application with no submitted answers and reports the gaps", async ({
+  aiReviewSetup,
+}) => {
+  const { run, rows } = await aiReviewSetup({ answers: [] });
+  const { reviewer, calls } = stub((request) => ({
+    ...validReply(request),
+    criteria: request.input.criteria.map(({ id }) => ({
+      criterionId: id,
+      claims: [
+        { text: "The project is named.", citations: [{ source: "title", quote: "Workshop" }] },
+      ],
+      gaps: ["The application has no answers."],
+      strengths: [],
+      weaknesses: [],
+      concerns: [],
+    })),
+  }));
+
+  const result = await run(reviewer);
+
+  assert(result.status === "ok");
+  // The provider is sent the application with no answers, and the review saves.
+  expect(calls[0]?.input.application.answers).toEqual([]);
+  expect(calls[0]?.input.criteria).toHaveLength(2);
+  expect(result.review.criteria[0]?.gaps).toEqual(["The application has no answers."]);
+  expect(await rows()).toBe(1);
 });
 
 it.for([
@@ -529,3 +572,243 @@ it("stores only a position and amount that agree", async ({ aiReviewSetup, datab
   await expect(insertReview("Maybe", "5")).rejects.toMatchObject({ code: "23514" });
   await expect(insertReview("Fund", "-5")).rejects.toMatchObject({ code: "23514" });
 });
+
+it.for([
+  ["the application", { applicationVersion: 2 }],
+  // Setting the round's criteria made version 2 the current one.
+  ["the criteria", { criteriaVersion: 1 }],
+] as const)(
+  "sends nothing when %s is not at the version the caller showed",
+  async ([_name, expected], { aiReviewSetup }) => {
+    const { run, rows } = await aiReviewSetup();
+    const { reviewer } = stub();
+    const onSaved = vi.fn();
+
+    const result = await run(reviewer, { expected, onSaved });
+
+    expect(result).toEqual({ status: "conflict" });
+    expect(reviewer.review).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(await rows()).toBe(0);
+  },
+);
+
+it("runs when the versions the caller showed are the current ones, and for a caller that names none", async ({
+  aiReviewSetup,
+}) => {
+  const { run, rows } = await aiReviewSetup();
+
+  expect(
+    (await run(stub().reviewer, { expected: { applicationVersion: 1, criteriaVersion: 2 } }))
+      .status,
+  ).toBe("ok");
+  expect((await run(stub().reviewer)).status).toBe("ok");
+
+  expect(await rows()).toBe(2);
+});
+
+it("refuses a run whose application changed after it was shown, once the application has a newer version", async ({
+  aiReviewSetup,
+}) => {
+  const { run, rows, edit, applicationState } = await aiReviewSetup();
+  assert((await edit({ action: "mark_ready" })).status === "ok");
+  assert((await edit({ action: "start_revision", kind: "correction" })).status === "ok");
+  assert(
+    (
+      await edit({
+        action: "save_revision",
+        draft: {
+          kind: "correction",
+          reason: "Fix the title",
+          content: { title: "Workshop Sundays" },
+        },
+      })
+    ).status === "ok",
+  );
+  assert((await edit({ action: "publish_revision" })).status === "ok");
+  expect((await applicationState()).version).toBe(2);
+  const { reviewer } = stub();
+
+  expect(await run(reviewer, { expected: { applicationVersion: 1 } })).toEqual({
+    status: "conflict",
+  });
+  expect(reviewer.review).not.toHaveBeenCalled();
+  expect(await rows()).toBe(0);
+});
+
+it("returns the review a concurrent run with the same identity saved when this run's provider fails", async ({
+  aiReviewSetup,
+}) => {
+  const { run, rows } = await aiReviewSetup();
+  const runId = randomUUID();
+
+  let finishOther = () => {};
+
+  const otherSaved = new Promise<void>((resolve) => {
+    finishOther = resolve;
+  });
+  const failing = run(
+    stub(async () => {
+      await otherSaved;
+      throw new Error("The provider timed out.");
+    }).reviewer,
+    { runId },
+  );
+
+  const other = await run(stub().reviewer, { runId });
+  assert(other.status === "ok");
+  finishOther();
+  const result = await failing;
+
+  assert(result.status === "ok");
+  expect(result.review.id).toBe(other.review.id);
+  expect(await rows()).toBe(1);
+});
+
+it("reports a failed run when nothing was saved under its identity", async ({ aiReviewSetup }) => {
+  const { run, rows } = await aiReviewSetup();
+
+  const result = await run(
+    stub(() => Promise.reject(new Error("The provider timed out."))).reviewer,
+  );
+
+  expect(result).toEqual({ status: "failed" });
+  expect(await rows()).toBe(0);
+});
+
+it("does not look for a saved run under another application's authority when the provider fails", async ({
+  aiReviewSetup,
+}) => {
+  const { run, rows } = await aiReviewSetup();
+  const saved = await run(stub().reviewer);
+  assert(saved.status === "ok");
+
+  // The identity belongs to a saved run of this application; another caller cannot reach it.
+  const stranger = await run(
+    stub(() => Promise.reject(new Error("The provider timed out."))).reviewer,
+    { as: { userId: "rita" }, runId: randomUUID() },
+  );
+
+  expect(stranger).toEqual({ status: "not_found" });
+  expect(await rows()).toBe(1);
+});
+
+it.for([
+  [
+    "the provider answers after the stop",
+    (stop: () => void, request: AiReviewerRequest) => (stop(), validReply(request)),
+  ],
+  [
+    "the provider request is aborted by the stop",
+    (stop: () => void) => (stop(), Promise.reject(new Error("The request was aborted."))),
+  ],
+] as const)(
+  "saves nothing and reports a stopped run when %s",
+  async ([_name, answer], { aiReviewSetup }) => {
+    const { run, rows } = await aiReviewSetup();
+    const stopped = new AbortController();
+    const { reviewer, calls } = stub((request) => answer(() => stopped.abort(), request));
+    const onSaved = vi.fn();
+
+    const result = await run({ ...reviewer, signal: stopped.signal }, { onSaved });
+
+    expect(result).toEqual({ status: "stopped" });
+    // The provider request carried the run's signal, so a stop could end it.
+    expect(calls[0]?.signal).toBe(stopped.signal);
+    expect(await rows()).toBe(0);
+    expect(onSaved).not.toHaveBeenCalled();
+  },
+);
+
+it("saves a run whose signal never ended", async ({ aiReviewSetup }) => {
+  const { run, rows } = await aiReviewSetup();
+  const { reviewer } = stub();
+
+  expect((await run({ ...reviewer, signal: new AbortController().signal })).status).toBe("ok");
+  expect(await rows()).toBe(1);
+});
+
+it("stamps a run when it is inserted after the case lock, so history order is commit order", async ({
+  aiReviewSetup,
+  database,
+}) => {
+  const { run, address } = await aiReviewSetup();
+  // Another writer holds the application while the provider answers, so the save waits for it.
+  const holder = database.client;
+  const result = run(
+    stub(async (request) => {
+      await holder.query("BEGIN");
+      await holder.query("SELECT id FROM application_cases WHERE id = $1 FOR UPDATE", [
+        address.publicId,
+      ]);
+      return validReply(request);
+    }).reviewer,
+  );
+  await vi.waitFor(async () => {
+    const waiting = await holder.query<{ count: string }>(
+      "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'",
+    );
+    expect(Number(waiting.rows[0]?.count)).toBeGreaterThan(0);
+  });
+  const releasedAt = (await holder.query<{ at: string }>("SELECT clock_timestamp()::text AS at"))
+    .rows[0]?.at;
+  await holder.query("COMMIT");
+
+  assert((await result).status === "ok");
+
+  // The save began before the lock was released, but the review is stamped after it.
+  const stamped = await holder.query<{ after: boolean }>(
+    "SELECT recorded_at >= $1::timestamptz AS after FROM ai_reviews",
+    [releasedAt],
+  );
+  expect(stamped.rows).toEqual([{ after: true }]);
+});
+
+it(
+  "saves a review at the most the output allows, in batches within one transaction",
+  { timeout: 120_000 },
+  async ({ aiReviewSetup, database }) => {
+    const { run, rows } = await aiReviewSetup({ roundCriteria: manyCriteria(100) });
+    const quote = "Repair workshops with a free venue";
+
+    const claim = (index: number) => ({
+      text: `Claim ${index}`,
+      citations: Array.from({ length: 10 }, () => ({ source: questionId, quote })),
+    });
+
+    const list = Array.from({ length: 20 }, (_, index) => `Point ${index}`);
+
+    const result = await run(
+      stub((request) => ({
+        ...validReply(request),
+        criteria: request.input.criteria.map(({ id }) => ({
+          criterionId: id,
+          claims: Array.from({ length: 20 }, (_, index) => claim(index)),
+          gaps: list,
+          strengths: list,
+          weaknesses: list,
+          concerns: list,
+        })),
+        questions: list,
+      })).reviewer,
+    );
+
+    assert(result.status === "ok");
+    expect(await rows()).toBe(1);
+    const counts = await database.client.query<Record<string, string>>(
+      `SELECT (SELECT count(*) FROM ai_review_sections) AS sections,
+            (SELECT count(*) FROM ai_review_items) AS items,
+            (SELECT count(*) FROM ai_review_citations) AS citations,
+            (SELECT count(*) FROM ai_review_questions) AS questions`,
+    );
+    // 100 sections of 20 claims with 10 citations each: 140,000 citation parameters in one statement.
+    expect(counts.rows[0]).toEqual({
+      sections: "100",
+      items: "10000",
+      citations: "20000",
+      questions: "20",
+    });
+    expect(result.review.criteria).toHaveLength(100);
+    expect(result.review.criteria[99]?.claims[19]?.citations).toHaveLength(10);
+  },
+);

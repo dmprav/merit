@@ -238,6 +238,78 @@ it.each([
   expect(aiReviewOutputSchema.safeParse({ ...output, ...change }).success).toBe(false);
 });
 
+it.each([
+  ["a reasoning", (nul: string) => ({ reasoning: `Unclear${nul}` })],
+  ["a question", (nul: string) => ({ questions: [`Which venue${nul}?`] })],
+  [
+    "a gap",
+    (nul: string) => ({
+      criteria: [{ ...section(first), gaps: [`No dates${nul}`] }, section(second)],
+    }),
+  ],
+  [
+    "a strength",
+    (nul: string) => ({
+      criteria: [{ ...section(first), strengths: [`Clear${nul}`] }, section(second)],
+    }),
+  ],
+  [
+    "a weakness",
+    (nul: string) => ({
+      criteria: [{ ...section(first), weaknesses: [`Thin${nul}`] }, section(second)],
+    }),
+  ],
+  [
+    "a concern",
+    (nul: string) => ({
+      criteria: [{ ...section(first), concerns: [`Risk${nul}`] }, section(second)],
+    }),
+  ],
+  [
+    "a claim",
+    (nul: string) => ({
+      criteria: [
+        {
+          ...section(first),
+          claims: [
+            {
+              text: `Venue${nul}`,
+              citations: [{ source: questionId, quote: "The replacement venue" }],
+            },
+          ],
+        },
+        section(second),
+      ],
+    }),
+  ],
+  [
+    "a quote",
+    (nul: string) => ({
+      criteria: [
+        {
+          ...section(first),
+          claims: [
+            {
+              text: "Venue",
+              citations: [{ source: questionId, quote: `The replacement venue${nul}` }],
+            },
+          ],
+        },
+        section(second),
+      ],
+    }),
+  ],
+])(
+  "fails a reply with a NUL character in %s instead of leaving it to the database",
+  (_name, change) => {
+    expect(verifyAiReviewOutput(input, { ...output, ...change("") })).toMatchObject({ ok: true });
+    expect(verifyAiReviewOutput(input, { ...output, ...change("\u0000") })).toEqual({
+      ok: false,
+      error: "invalid_output",
+    });
+  },
+);
+
 it("bounds list items, claims, citations and quotes", () => {
   const long = "x".repeat(2001);
 

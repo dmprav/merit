@@ -26,7 +26,13 @@ export const aiReviewLimits = {
 /** Stored title of the one section a round without criteria receives. */
 export const wholeApplicationTitle = "Whole application";
 
-const text = z.string().trim().min(1).max(aiReviewLimits.itemLength);
+/** PostgreSQL text cannot hold a NUL, so a reply that carries one is rejected here, not on insert. */
+const withoutNul = (value: string) => !value.includes("\u0000");
+
+const modelText = (limit: number) =>
+  z.string().trim().min(1).max(limit).refine(withoutNul, { message: "Remove NUL characters." });
+
+const text = modelText(aiReviewLimits.itemLength);
 const list = z.array(text).max(aiReviewLimits.itemsPerList);
 
 /** The application fields sent to the model. Any other source is a submission question ID. */
@@ -37,7 +43,7 @@ export const aiCitationSourceSchema = z.union([
 
 const citationSchema = z.strictObject({
   source: aiCitationSourceSchema,
-  quote: z.string().trim().min(1).max(aiReviewLimits.quoteLength),
+  quote: modelText(aiReviewLimits.quoteLength),
 });
 
 const claimSchema = z.strictObject({
@@ -72,7 +78,7 @@ export const aiReviewOutputSchema = z
       .min(1)
       .max(101),
     questions: z.array(text).max(aiReviewLimits.questions),
-    reasoning: z.string().trim().min(1).max(aiReviewLimits.reasoningLength),
+    reasoning: modelText(aiReviewLimits.reasoningLength),
     position: assessmentPositionSchema,
     amount: moneyDataSchema,
   })
@@ -252,6 +258,11 @@ export type AiReviewerRequest = {
 export type AiReviewer = {
   readonly provider: string;
   readonly model: string;
+  /**
+   * Ends when the run this reviewer was made for is stopped. A run sends it with its request and
+   * saves nothing once it has ended. Absent for runs nobody can stop.
+   */
+  readonly signal?: AbortSignal;
   review: (request: AiReviewerRequest) => Promise<unknown>;
 };
 

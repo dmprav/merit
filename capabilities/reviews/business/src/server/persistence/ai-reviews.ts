@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { applicationCases } from "@merit/applications/schema";
@@ -101,6 +101,19 @@ type NewAiReview = {
   recordedAt?: Date;
 };
 
+/**
+ * PostgreSQL accepts at most 65,535 bind parameters in one statement. The widest row here has
+ * seven columns, so a batch of this many rows stays well within it.
+ */
+const insertBatchRows = 5000;
+
+/** Insert rows in bounded batches within the caller's transaction; one statement when they are few. */
+const insertInBatches = async <Row>(rows: Row[], insert: (batch: Row[]) => Promise<unknown>) => {
+  for (let start = 0; start < rows.length; start += insertBatchRows) {
+    await insert(rows.slice(start, start + insertBatchRows));
+  }
+};
+
 /** Sections, items, citations and questions of one run. */
 const insertContent = async (
   db: Transaction,
@@ -109,7 +122,7 @@ const insertContent = async (
   titles: string[],
   output: AiReviewOutput,
 ) => {
-  await db.insert(aiReviewSections).values(
+  await insertInBatches(
     output.criteria.map((section, ordinal) => ({
       organizationId,
       aiReviewId,
@@ -117,6 +130,7 @@ const insertContent = async (
       criterionId: section.criterionId,
       criterionTitle: titles[ordinal] ?? wholeApplicationTitle,
     })),
+    (batch) => db.insert(aiReviewSections).values(batch),
   );
   const items = output.criteria.flatMap((section, sectionOrdinal) =>
     (
@@ -138,9 +152,7 @@ const insertContent = async (
       })),
     ),
   );
-  if (items.length > 0) {
-    await db.insert(aiReviewItems).values(items);
-  }
+  await insertInBatches(items, (batch) => db.insert(aiReviewItems).values(batch));
   const citations = output.criteria.flatMap((section, sectionOrdinal) =>
     section.claims.flatMap((claim, itemOrdinal) =>
       claim.citations.map((citation, ordinal) => ({
@@ -154,16 +166,11 @@ const insertContent = async (
       })),
     ),
   );
-  if (citations.length > 0) {
-    await db.insert(aiReviewCitations).values(citations);
-  }
-  if (output.questions.length > 0) {
-    await db
-      .insert(aiReviewQuestions)
-      .values(
-        output.questions.map((text, ordinal) => ({ organizationId, aiReviewId, ordinal, text })),
-      );
-  }
+  await insertInBatches(citations, (batch) => db.insert(aiReviewCitations).values(batch));
+  await insertInBatches(
+    output.questions.map((text, ordinal) => ({ organizationId, aiReviewId, ordinal, text })),
+    (batch) => db.insert(aiReviewQuestions).values(batch),
+  );
 };
 
 /** The saved run with this identity, wherever it was saved. */
@@ -197,7 +204,9 @@ export const insertAiReview = async (db: Transaction, value: NewAiReview) => {
       runByName: value.runBy.name,
       provenanceInterface: value.provenance.interface,
       provenanceClientId: value.provenance.interface === "mcp" ? value.provenance.clientId : null,
-      ...(value.recordedAt ? { recordedAt: value.recordedAt } : {}),
+      // A live run is stamped when it is inserted, after the case lock, so history order is commit
+      // order; `now()` would be the transaction's start. A prepared example keeps its own date.
+      recordedAt: value.recordedAt ?? sql`clock_timestamp()`,
       position: output.position,
       amountMinorUnits: output.amount.minorUnits,
       amountCurrency: output.amount.currency,

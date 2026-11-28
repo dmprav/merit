@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { assert, vi } from "vite-plus/test";
 
+import { materialVersionSchema } from "@merit/applications/domain";
 import { createFundingApplication, editFundingApplication } from "@merit/applications/server";
 import { noApplicationWork } from "@merit/applications/testing";
 import { withDatabase, type DatabaseRunner } from "@merit/db";
@@ -10,6 +11,7 @@ import { fromMinorUnits } from "@merit/money";
 import { actor, workspaceSlug } from "@merit/organizations/testing/workspace";
 import type { AiReviewer, AiReviewerRequest } from "@merit/reviews/domain";
 import { runAiReview } from "@merit/reviews/server";
+import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { reviewerTest } from "./reviewer-test";
@@ -24,6 +26,14 @@ export const criteria = [
   },
   { id: "dc1f55ac-e713-51a8-8d91-f27f1c3d9959", title: "Feasibility", description: "" },
 ];
+
+/** `count` distinct criteria, for a round at the most criteria it can hold. */
+export const manyCriteria = (count: number) =>
+  Array.from({ length: count }, (_, index) => ({
+    id: randomUUID(),
+    title: `Criterion ${index + 1}`,
+    description: "",
+  }));
 
 /** A reply that verifies against whatever the model was sent. */
 export const validReply = ({ input }: AiReviewerRequest) => ({
@@ -62,13 +72,26 @@ export const stub = (review: (request: AiReviewerRequest) => unknown = validRepl
   return { reviewer, calls };
 };
 
+const version = <T>(schema: { parse: (value: number) => T }, value: number | undefined) =>
+  value === undefined ? undefined : schema.parse(value);
+
 const noRoundCommitments = async () => fromMinorUnits(0n);
 
 /** AI review scenarios: a consenting workspace, a round with criteria, one application, a manager and a reviewer. */
 export const aiReviewTest = reviewerTest.extend(
   "aiReviewSetup",
   async ({ db, database, runtimeUrl }) =>
-    async ({ withCriteria = true }: { withCriteria?: boolean } = {}) => {
+    async ({
+      withCriteria = true,
+      roundCriteria = criteria,
+      answers = [{ questionId, question: "Plan", response: "Repair workshops with a free venue." }],
+    }: {
+      withCriteria?: boolean;
+      /** The round's criteria, when it has any. */
+      roundCriteria?: typeof criteria;
+      /** The submitted answers; none reviews an application that has submitted nothing. */
+      answers?: { questionId: string; question: string; response: string }[];
+    } = {}) => {
       const round = await createFundingRound(db, actor, {
         workspaceSlug,
         requestId: randomUUID(),
@@ -83,7 +106,7 @@ export const aiReviewTest = reviewerTest.extend(
             workspaceSlug,
             publicId: round.publicId,
             expectedRevision: 0,
-            change: { section: "criteria", criteria },
+            change: { section: "criteria", criteria: roundCriteria },
           },
           noRoundCommitments,
         );
@@ -96,9 +119,7 @@ export const aiReviewTest = reviewerTest.extend(
         title: "Workshop Saturdays",
         applicant: "Repair Collective",
         requested: "18000",
-        answers: [
-          { questionId, question: "Plan", response: "Repair workshops with a free venue." },
-        ],
+        answers,
       });
       assert(application.status === "ok");
       await database.client.query(
@@ -124,6 +145,8 @@ export const aiReviewTest = reviewerTest.extend(
           runId?: string;
           publicId?: string;
           runner?: DatabaseRunner;
+          /** The versions a caller showed a person before asking for the run. */
+          expected?: { applicationVersion?: number; criteriaVersion?: number };
         } = {},
       ) =>
         runAiReview(
@@ -133,6 +156,14 @@ export const aiReviewTest = reviewerTest.extend(
             ...address,
             publicId: options.publicId ?? address.publicId,
             runId: options.runId ?? randomUUID(),
+            expectedApplicationVersion: version(
+              materialVersionSchema,
+              options.expected?.applicationVersion,
+            ),
+            expectedCriteriaVersion: version(
+              criteriaVersionSchema,
+              options.expected?.criteriaVersion,
+            ),
           },
           { reviewer, onSaved: options.onSaved },
         );

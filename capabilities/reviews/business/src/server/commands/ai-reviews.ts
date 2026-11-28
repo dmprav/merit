@@ -74,6 +74,27 @@ const readPrior = async (tx: Transaction, organizationId: string, caseId: string
     : ("none" as const);
 };
 
+/**
+ * The review this run's identity already saved, if any. Another application's run identity is not
+ * this run's to reuse.
+ */
+const readSavedRun = async (
+  tx: Transaction,
+  organizationId: string,
+  request: AiReviewRunRequest,
+) => {
+  const saved = await readAiReviewByRun(tx, organizationId, request.runId);
+  if (!saved) {
+    return undefined;
+  }
+  return saved.caseId === request.publicId
+    ? ({
+        status: "saved",
+        review: await readSavedEntry(tx, organizationId, request.publicId, saved.id),
+      } as const)
+    : ({ status: "not_found" } as const);
+};
+
 /** The permission, consent, withdrawal and provider gate, checked again when saving. */
 const openRun = async (
   tx: Transaction,
@@ -86,16 +107,10 @@ const openRun = async (
     return { status: "not_found" } as const;
   }
   // A run that already saved answers with its review, without the provider and whatever the
-  // consent is now: the record was shared under the consent that applied. Another
-  // application's run identity is not this run's to reuse.
-  const saved = await readAiReviewByRun(tx, access.organizationId, request.runId);
+  // consent is now: the record was shared under the consent that applied.
+  const saved = await readSavedRun(tx, access.organizationId, request);
   if (saved) {
-    return saved.caseId === request.publicId
-      ? ({
-          status: "saved",
-          review: await readSavedEntry(tx, access.organizationId, request.publicId, saved.id),
-        } as const)
-      : ({ status: "not_found" } as const);
+    return saved;
   }
   const availability = aiReviewAvailability({
     workspaceKind: access.organizationKind,
@@ -121,6 +136,7 @@ const askProvider = async (reviewer: AiReviewer, basis: RunBasis) => {
       instructions: aiReviewInstructions,
       input: basis.input,
       outputSchema: aiReviewOutputJsonSchema,
+      signal: reviewer.signal,
     });
     const verified = verifyAiReviewOutput(basis.input, reply);
     return verified.ok ? verified.output : undefined;
@@ -192,6 +208,54 @@ const saveRun = async (
   } as const;
 };
 
+/** What the caller was shown must be what is sent: either version having moved on refuses the run. */
+const differsFromExpected = (request: AiReviewRunRequest, basis: RunBasis) =>
+  (request.expectedApplicationVersion !== undefined &&
+    request.expectedApplicationVersion !== basis.applicationVersion) ||
+  (request.expectedCriteriaVersion !== undefined &&
+    request.expectedCriteriaVersion !== basis.criteriaVersion);
+
+/** Open the run: gate it, read what it will send, and refuse it if that is not what was approved. */
+const startRun = (
+  database: DatabaseRunner,
+  actor: Actor,
+  request: AiReviewRunRequest,
+  reviewer?: AiReviewer,
+) =>
+  database((db) =>
+    writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
+      const opened = await openRun(tx, actor, request, reviewer);
+      if (opened.status !== "open") {
+        return opened;
+      }
+      const basis = await readRunBasis(tx, opened.access.organizationId, request.publicId);
+      if (!basis) {
+        return { status: "not_found" } as const;
+      }
+      return differsFromExpected(request, basis)
+        ? ({ status: "conflict" } as const)
+        : ({ status: "ready", basis, reviewer: opened.reviewer } as const);
+    }),
+  );
+
+/**
+ * A provider that failed may still have a run saved under this identity, by a concurrent run that
+ * finished first. Look before reporting a failure, under the same authorization.
+ */
+const recheckFailedRun = (database: DatabaseRunner, actor: Actor, request: AiReviewRunRequest) =>
+  database((db) =>
+    writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
+      const access = await lockApplicationCase(tx, actor.userId, request);
+      if (!access) {
+        return { status: "not_found" } as const;
+      }
+      const saved = await readSavedRun(tx, access.organizationId, request);
+      return saved?.status === "saved"
+        ? ({ status: "ok", review: saved.review } as const)
+        : (saved ?? ({ status: "failed" } as const));
+    }),
+  );
+
 /**
  * Run an AI review and save it. The model call happens between two short transactions, never
  * inside one, and no pooled connection is held during it: each transaction checks out its own.
@@ -208,18 +272,7 @@ export const runAiReview = async (
   }
   const request = parsed.data;
 
-  const started = await database((db) =>
-    writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
-      const opened = await openRun(tx, actor, request, reviewer);
-      if (opened.status !== "open") {
-        return opened;
-      }
-      const basis = await readRunBasis(tx, opened.access.organizationId, request.publicId);
-      return basis
-        ? ({ status: "ready", basis, reviewer: opened.reviewer } as const)
-        : ({ status: "not_found" } as const);
-    }),
-  );
+  const started = await startRun(database, actor, request, reviewer);
   if (started.status === "saved") {
     return { status: "ok", review: started.review } as const;
   }
@@ -227,8 +280,12 @@ export const runAiReview = async (
     return started;
   }
   const output = await askProvider(started.reviewer, started.basis);
+  // A stopped run saves nothing, whatever the provider answered before it was told to stop.
+  if (started.reviewer.signal?.aborted) {
+    return { status: "stopped" } as const;
+  }
   if (!output) {
-    return { status: "failed" } as const;
+    return recheckFailedRun(database, actor, request);
   }
 
   return database((db) =>

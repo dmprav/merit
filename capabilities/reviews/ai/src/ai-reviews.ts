@@ -3,14 +3,24 @@ import { z } from "zod";
 import { defineActorTool } from "@merit/ai";
 import type { Actor } from "@merit/auth";
 import { publicIdSchema } from "@merit/db/identifiers";
-import { aiReviewRequestSchema, type ReviewService } from "@merit/reviews/api";
+import {
+  aiReviewRequestSchema,
+  aiReviewRunRequestSchema,
+  type ReviewService,
+} from "@merit/reviews/api";
 import { aiReviewAvailabilitySchema, aiReviewEntrySchema } from "@merit/reviews/domain";
 
 const input = aiReviewRequestSchema
   .omit({ publicId: true })
   .extend({ applicationId: publicIdSchema });
 
-const runInput = input.extend({ runId: z.uuid().optional() });
+/**
+ * `expectedApplicationVersion` and `expectedCriteriaVersion` name the material a person approved
+ * sending; a run that finds either has moved on sends nothing.
+ */
+const runInput = aiReviewRunRequestSchema
+  .omit({ publicId: true })
+  .extend({ applicationId: publicIdSchema, runId: z.uuid().optional() });
 
 const notFound = z.object({ status: z.literal("not_found") });
 
@@ -21,6 +31,8 @@ const runErrorSchema = z.union([
     availability: aiReviewAvailabilitySchema.exclude(["available"]),
   }),
   z.object({ status: z.literal("failed") }),
+  z.object({ status: z.literal("conflict") }),
+  z.object({ status: z.literal("stopped") }),
 ]);
 
 /** AI reviews are program-manager work: both tools are absent from a reviewer's catalog and refuse them. */
@@ -40,11 +52,11 @@ export const createAiReviewTools = (
         aiReview: aiReviewEntrySchema,
       }),
       description:
-        "For program managers: ask Merit AI to review an application against its round's criteria and save the result. Sends the application's current material and the round's criteria to the configured model provider, which can take up to about two minutes. Returns the saved AI review: cited evidence, gaps, strengths, weaknesses, concerns and questions for the applicant per criterion, then an overall funding position and amount. An AI review is Merit AI's interpretation of the material, never an assessment by a reviewer. It needs the workspace's AI consent, a configured provider, and an application that is not withdrawn; otherwise status is not_available with the reason. A failed run, including unverifiable citations, saves nothing and returns status failed; running again saves a new review. Optional runId (a UUID you generate) names the run: repeating a run with the same runId returns the review it already saved instead of asking the provider again, so reuse it only to retry that run after a lost response.",
+        "For program managers: ask Merit AI to review an application against its round's criteria and save the result. Sends the application's current material and the round's criteria to the configured model provider, which can take up to about two minutes. Returns the saved AI review: cited evidence, gaps, strengths, weaknesses, concerns and questions for the applicant per criterion, then an overall funding position and amount. An AI review is Merit AI's interpretation of the material, never an assessment by a reviewer. It needs the workspace's AI consent, a configured provider, and an application that is not withdrawn; otherwise status is not_available with the reason. A failed run, including unverifiable citations, saves nothing and returns status failed; running again saves a new review. Optional expectedApplicationVersion and expectedCriteriaVersion name the versions you showed the person; if either has changed, nothing is sent and the status is conflict. Optional runId (a UUID you generate) names the run: repeating a run with the same runId returns the review it already saved instead of asking the provider again, so reuse it only to retry that run after a lost response.",
     },
-    async ({ applicationId, workspaceSlug, runId }) => {
+    async ({ applicationId, runId, ...request }) => {
       const result = await reviews.runAiReview(actor, {
-        workspaceSlug,
+        ...request,
         publicId: applicationId,
         // One identity per run. Sending it again retries that run without a second review.
         runId: runId ?? crypto.randomUUID(),

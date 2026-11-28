@@ -22,7 +22,7 @@ import {
   type ReviewerDeliveryDependencies,
 } from "./commands/reviewer-delivery";
 import { saveApplicationReview } from "./commands/reviews";
-import { readApplicationAiReviews } from "./queries/ai-reviews";
+import { readApplicationAiReviewRun, readApplicationAiReviews } from "./queries/ai-reviews";
 import {
   listReviewerAssignments,
   readReviewerAssignment,
@@ -145,6 +145,7 @@ export const createReviewService = ({
   saveReview: (actor, input) => database((db) => saveApplicationReview(db, actor, input)),
   runAiReview: (actor, input) =>
     runAiReview(database, actor, input, { reviewer, onSaved: onAiReviewSaved }),
+  readAiReviewRun: (actor, input) => database((db) => readApplicationAiReviewRun(db, actor, input)),
   readAiReviews: (actor, input) => database((db) => readApplicationAiReviews(db, actor, input)),
   aiReviewProvider: reviewer ? { provider: reviewer.provider, model: reviewer.model } : null,
 });
