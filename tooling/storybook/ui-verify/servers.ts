@@ -85,7 +85,9 @@ const startManagedServer = async (
   try {
     await waitForHttpReady(`${baseUrl}${server.readinessPath}`, server.readyTimeoutMs, managed);
   } catch (error) {
-    await stop();
+    // The readiness failure is the one to report here; `stop` is the registered cleanup, so the
+    // cleanup stack logs its failure when it drains.
+    await stop().catch(() => undefined);
     throw error;
   }
   return { baseUrl, stop };

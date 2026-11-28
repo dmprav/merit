@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
@@ -7,7 +7,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import { describe, expect, it } from "vite-plus/test";
 
-import { hasProcessExited, parseProcessStat } from "../../agents/process-stat.ts";
+import { hasProcessExited, type ProcessStat, readProcessStat } from "../../agents/process-stat.ts";
 import { createCleanupStack } from "./cleanup.ts";
 import {
   allocateFreePort,
@@ -33,13 +33,40 @@ const isRunning = (pid: number): boolean => {
   if (process.platform !== "linux") {
     return true;
   }
-  const stat = parseProcessStat(readFileSync(`/proc/${pid}/stat`, { encoding: "utf8", flag: "r" }));
-  return stat !== undefined && !hasProcessExited(stat);
+  const reading = readProcessStat(pid);
+  return (
+    reading.kind === "unreadable" || (reading.kind === "read" && !hasProcessExited(reading.stat))
+  );
+};
+
+/** The processes in group `pgid`, read from `/proc`. */
+const readGroupMembers = (pgid: number): Array<{ pid: number; stat: ProcessStat }> =>
+  readdirSync("/proc").flatMap((entry) => {
+    const reading = /^\d+$/.test(entry) ? readProcessStat(entry) : undefined;
+    return reading?.kind === "read" && reading.stat.processGroup === pgid
+      ? [{ pid: Number(entry), stat: reading.stat }]
+      : [];
+  });
+
+const waitForValue = async <T>(read: () => T | undefined, description: string): Promise<T> => {
+  for (let attempt = 0; attempt < 250; attempt += 1) {
+    const value = read();
+    if (value !== undefined) {
+      return value;
+    }
+    await delay(20);
+  }
+  throw new Error(`Timed out waiting for ${description}.`);
 };
 
 const killIfRunning = (pid: number | undefined) => {
-  if (pid !== undefined && isRunning(pid)) {
+  if (pid === undefined) {
+    return;
+  }
+  try {
     process.kill(pid, "SIGKILL");
+  } catch {
+    // It already exited.
   }
 };
 
@@ -55,8 +82,8 @@ setInterval(() => {}, 1_000);
 `;
 
 // The wrapper starts the descendant in its own process group, sharing its output pipes as a
-// server started by \`vp\` does. It then exits with code 1 once the descendant's pid file exists
-// or, like a wrapper that forwards signals, exits with code 0 on SIGTERM.
+// server started by \`vp\` does. It then exits with code 1 or 0 once the descendant's pid file
+// exists or, like a wrapper that forwards signals, exits with code 0 on SIGTERM.
 const WRAPPER_SCRIPT = `
 const [descendantScript, pidFile, exit, sigterm] = process.argv.slice(1);
 require("node:child_process").spawn(process.execPath, ["-e", descendantScript, pidFile, sigterm], {
@@ -66,7 +93,8 @@ if (exit === "exits-on-sigterm") {
   process.on("SIGTERM", () => process.exit(0));
   setInterval(() => {}, 1_000);
 } else {
-  setInterval(() => require("node:fs").existsSync(pidFile) && process.exit(1), 20);
+  const code = exit === "succeeds-after-start" ? 0 : 1;
+  setInterval(() => require("node:fs").existsSync(pidFile) && process.exit(code), 20);
 }
 `;
 
@@ -76,7 +104,10 @@ const wrapperWithDescendant = (
   {
     wrapper,
     descendantIgnoresSigterm = false,
-  }: { wrapper: "fails-after-start" | "exits-on-sigterm"; descendantIgnoresSigterm?: boolean },
+  }: {
+    wrapper: "fails-after-start" | "succeeds-after-start" | "exits-on-sigterm";
+    descendantIgnoresSigterm?: boolean;
+  },
 ): string[] => [
   "-e",
   WRAPPER_SCRIPT,
@@ -176,19 +207,39 @@ describe("runCommandAsync", () => {
         descendantPid = await readDescendantPid(pidFile);
         expect(isRunning(descendantPid)).toBe(false);
       } finally {
-        killIfRunning(descendantPid);
         await runCleanups();
+        killIfRunning(descendantPid);
+      }
+    }));
+
+  it("stops a descendant that outlives its wrapper's successful exit", () =>
+    withPidFile(async (pidFile) => {
+      const { registerCleanup, runCleanups } = createCleanupStack(() => undefined);
+      let descendantPid: number | undefined;
+      try {
+        await runCommandAsync(
+          process.execPath,
+          wrapperWithDescendant(pidFile, { wrapper: "succeeds-after-start" }),
+          { cwd: process.cwd(), label: "Wrapper", registerCleanup },
+        );
+        descendantPid = await readDescendantPid(pidFile);
+        expect(isRunning(descendantPid)).toBe(false);
+      } finally {
+        await runCleanups();
+        killIfRunning(descendantPid);
       }
     }));
 });
 
 describe("stopProcessGroup", () => {
+  const unannounced = { cwd: process.cwd(), announcedUrl: "http://127.0.0.1:1/" };
+
   it("stops a server's descendants after the server exited early", () =>
     withPidFile(async (pidFile) => {
       const managed = spawnManagedProcess(
         process.execPath,
         wrapperWithDescendant(pidFile, { wrapper: "fails-after-start" }),
-        { cwd: process.cwd(), announcedUrl: "http://127.0.0.1:1/" },
+        unannounced,
       );
       let descendantPid: number | undefined;
       try {
@@ -199,6 +250,7 @@ describe("stopProcessGroup", () => {
         await stopProcessGroup(managed.child);
         expect(isRunning(descendantPid)).toBe(false);
       } finally {
+        await stopProcessGroup(managed.child, { graceMs: 100 });
         killIfRunning(descendantPid);
       }
     }));
@@ -211,7 +263,7 @@ describe("stopProcessGroup", () => {
           wrapper: "exits-on-sigterm",
           descendantIgnoresSigterm: true,
         }),
-        { cwd: process.cwd(), announcedUrl: "http://127.0.0.1:1/" },
+        unannounced,
       );
       let descendantPid: number | undefined;
       try {
@@ -220,23 +272,58 @@ describe("stopProcessGroup", () => {
         expect(managed.child.exitCode).toBe(0);
         expect(isRunning(descendantPid)).toBe(false);
       } finally {
+        await stopProcessGroup(managed.child, { graceMs: 100 });
         killIfRunning(descendantPid);
       }
     }));
 
+  it.skipIf(process.platform !== "linux")(
+    "treats a group whose only member is an unreaped zombie as stopped",
+    async () => {
+      // The inner shell starts a member that exits at once, then becomes a session leader
+      // outside the group that never reaps it, so the member stays in the group as a zombie.
+      const managed = spawnManagedProcess(
+        "sh",
+        ["-c", 'sh -c "sleep 0 & exec setsid sleep 30" & wait'],
+        unannounced,
+      );
+      const pgid = managed.child.pid!;
+      let holderPid: number | undefined;
+      try {
+        const zombie = await waitForValue(
+          () => readGroupMembers(pgid).find(({ stat }) => hasProcessExited(stat)),
+          "a zombie member",
+        );
+        holderPid = zombie.stat.parentPid;
+        const leaderExit = new Promise((resolveExit) => managed.child.once("exit", resolveExit));
+        process.kill(pgid, "SIGKILL");
+        await leaderExit;
+
+        await stopProcessGroup(managed.child, { graceMs: 100, killWaitMs: 100 });
+        expect(readGroupMembers(pgid).map(({ stat }) => stat.state)).toEqual(["Z"]);
+      } finally {
+        killIfRunning(holderPid);
+        await stopProcessGroup(managed.child, { graceMs: 100, killWaitMs: 100 }).catch(
+          () => undefined,
+        );
+      }
+    },
+  );
+
   it("does not signal a group that took the pid of an exited leader whose group emptied", async () => {
     // A process holding the pid stands in for a reused one: the recorded leader has exited, so
     // its group must have emptied before the pid was assigned again.
-    const holder = spawnManagedProcess(process.execPath, ["-e", "setInterval(() => {}, 1_000)"], {
-      cwd: process.cwd(),
-      announcedUrl: "http://127.0.0.1:1/",
-    });
+    const holder = spawnManagedProcess(
+      process.execPath,
+      ["-e", "setInterval(() => {}, 1_000)"],
+      unannounced,
+    );
     const holderPid = holder.child.pid!;
     try {
       await stopProcessGroup({ pid: holderPid, exitCode: 1, signalCode: null });
       expect(isRunning(holderPid)).toBe(true);
     } finally {
-      await stopProcessGroup(holder.child);
+      await stopProcessGroup(holder.child, { graceMs: 100 });
     }
   });
 });

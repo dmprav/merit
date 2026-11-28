@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 /** The fields of a Linux `/proc/<pid>/stat` line that tooling reads. */
 export type ProcessStat = {
   /** One letter, such as `R` running, `S` sleeping, or `Z` exited but not yet reaped. */
@@ -38,3 +40,37 @@ export const parseProcessStat = (line: string): ProcessStat | undefined => {
  * dead (`X`) entry keeps its pid and group but holds no memory, files, ports, or pipes.
  */
 export const hasProcessExited = ({ state }: ProcessStat): boolean => state === "Z" || state === "X";
+
+/** The outcome of reading a process's stat line. */
+export type ProcessStatReading =
+  | { kind: "read"; stat: ProcessStat }
+  /** The process has exited and been reaped. */
+  | { kind: "gone" }
+  /** The process may exist but its entry cannot be read or parsed. */
+  | { kind: "unreadable" };
+
+const readStatFile = (path: string): string => readFileSync(path, "utf8");
+
+/** Reads `/proc/<pid>/stat`, telling a reaped process apart from an entry that cannot be read. */
+export const readProcessStat = (
+  pid: number | string,
+  readFile: (path: string) => string = readStatFile,
+): ProcessStatReading => {
+  let line: string;
+  try {
+    line = readFile(`/proc/${pid}/stat`);
+  } catch (error) {
+    const code = error instanceof Error && "code" in error ? error.code : undefined;
+    return code === "ENOENT" || code === "ESRCH" ? { kind: "gone" } : { kind: "unreadable" };
+  }
+  const stat = parseProcessStat(line);
+  return stat ? { kind: "read", stat } : { kind: "unreadable" };
+};
+
+/**
+ * Whether the process is a member of the process group `pgid`, led by the leader of session
+ * `pgid` as a detached spawn is, that has not exited. A group's members always share its
+ * leader's session, so a member of another session belongs to an unrelated group.
+ */
+export const isLiveProcessGroupMember = (stat: ProcessStat, pgid: number): boolean =>
+  stat.processGroup === pgid && stat.session === pgid && !hasProcessExited(stat);
