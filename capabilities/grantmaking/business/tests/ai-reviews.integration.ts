@@ -121,10 +121,24 @@ const setup = async (
 
   const run = (
     reviewer: AiReviewer | undefined,
-    options: { as?: Parameters<typeof runAiReview>[1]; onSaved?: () => void } = {},
+    options: {
+      as?: Parameters<typeof runAiReview>[1];
+      onSaved?: () => void;
+      runId?: string;
+      publicId?: string;
+    } = {},
   ) =>
     runtime((rdb) =>
-      runAiReview(rdb, options.as ?? actor, address, { reviewer, onSaved: options.onSaved }),
+      runAiReview(
+        rdb,
+        options.as ?? actor,
+        {
+          ...address,
+          publicId: options.publicId ?? address.publicId,
+          runId: options.runId ?? randomUUID(),
+        },
+        { reviewer, onSaved: options.onSaved },
+      ),
     );
 
   const page = () => getFundingApplicationPage(db, actor, address);
@@ -451,6 +465,99 @@ it.for([
   },
 );
 
+it("returns the review a run already saved when its identity repeats, without the provider, consent or a second record", async ({
+  db,
+  database,
+  runtimeUrl,
+}) => {
+  const { run, rows } = await setup(db, database, runtimeUrl);
+  const runId = randomUUID();
+  const first = stub();
+  const onSaved = vi.fn();
+  const saved = await run(first.reviewer, { runId, onSaved });
+  assert(saved.status === "ok");
+
+  // A worker that died after saving, or a lost response, retries the same run.
+  await database.client.query("DELETE FROM assistant_consents");
+  const retry = stub();
+  expect(await run(retry.reviewer, { runId, onSaved })).toEqual(saved);
+  expect(retry.calls).toEqual([]);
+  expect(await rows()).toBe(1);
+  expect(onSaved).toHaveBeenCalledOnce();
+
+  // A new identity is a new run, so it still needs consent.
+  expect(await run(retry.reviewer)).toEqual({
+    status: "not_available",
+    availability: "consent_required",
+  });
+});
+
+it("refuses a run identity that belongs to another application", async ({
+  db,
+  database,
+  runtimeUrl,
+}) => {
+  const { round, run, rows } = await setup(db, database, runtimeUrl);
+  const other = await createFundingApplication(db, actor, {
+    workspaceSlug,
+    publicId: round.publicId,
+    requestId: randomUUID(),
+    title: "Another project",
+    applicant: "Another Collective",
+    requested: "1000",
+    answers: [],
+  });
+  assert(other.status === "ok");
+  const runId = randomUUID();
+  assert((await run(stub().reviewer, { runId })).status === "ok");
+
+  const intruder = stub();
+  expect(await run(intruder.reviewer, { runId, publicId: other.publicId })).toEqual({
+    status: "not_found",
+  });
+  expect(intruder.calls).toEqual([]);
+  expect(await rows()).toBe(1);
+});
+
+it("saves one review when two runs with the same identity finish together", async ({
+  db,
+  database,
+  runtimeUrl,
+}) => {
+  const { run, rows } = await setup(db, database, runtimeUrl);
+  const runId = randomUUID();
+  let arrived = 0;
+
+  let release = () => {};
+
+  const bothArrived = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  // Neither run has saved when the other asks the provider, so only the unique identity decides.
+  const together = async (request: AiReviewerRequest) => {
+    arrived += 1;
+    if (arrived === 2) {
+      release();
+    }
+    await bothArrived;
+    return validReply(request);
+  };
+
+  const onSaved = vi.fn();
+
+  const results = await Promise.all([
+    run(stub(together).reviewer, { runId, onSaved }),
+    run(stub(together).reviewer, { runId, onSaved }),
+  ]);
+
+  assert(results[0].status === "ok" && results[1].status === "ok");
+  expect(results[0].review.id).toBe(results[1].review.id);
+  expect(await rows()).toBe(1);
+  expect(onSaved).toHaveBeenCalledOnce();
+  expect(await recordedEvents(database.client, "action = 'ai_review.recorded'")).toHaveLength(1);
+});
+
 it("keeps AI reviews away from reviewer members in every read and run", async ({
   db,
   database,
@@ -623,9 +730,9 @@ it("stores only a position and amount that agree", async ({ db, database, runtim
 
   const insertReview = (position: string, amount: string) =>
     database.client.query(
-      `INSERT INTO ai_reviews (organization_id, case_id, application_version, round_id, criteria_version, provider, model,
+      `INSERT INTO ai_reviews (run_id, organization_id, case_id, application_version, round_id, criteria_version, provider, model,
          run_by_user_id, run_by_name, provenance_interface, position, amount_minor_units, amount_currency, reasoning)
-       SELECT organization_id, case_id, application_version, round_id, criteria_version, provider, model,
+       SELECT gen_random_uuid(), organization_id, case_id, application_version, round_id, criteria_version, provider, model,
          run_by_user_id, run_by_name, provenance_interface, $1, $2, 'EUR', 'Reasoning' FROM ai_reviews`,
       [position, amount],
     );

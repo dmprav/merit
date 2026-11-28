@@ -76,6 +76,35 @@ material and the round's criteria to the provider", and "Saves a new AI review".
 Results of `read_ai_reviews` are cited with the evidence kind `ai_review`, never
 as application material. Reviewer members do not receive either tool.
 
+### Slow tools run outside the conversation lock
+
+An approved `run_ai_review` can take about two minutes, so the assistant does not
+run it inside the conversation's locked transaction, as it does every other tool.
+A tool declares a slow external call in the MCP publication table
+(`slow: true`), and an approved action of it goes through three steps:
+
+1. **Claim.** A short lock records `executing` on the action, a claim that lapses
+   after the provider timeout plus a margin. A worker leaves another worker's live
+   claim alone.
+2. **Execute.** With no conversation lock and no surrounding transaction, the tool
+   runs its own short transactions around the provider call. The conversation
+   stays readable, and other writes to the application commit.
+3. **Apply.** A short lock records the outcome if the claim still stands, reports it
+   for this action alone, continues independent actions and stops dependent ones.
+
+Stop aborts the provider request. If the AI review had not been saved, nothing is
+saved and the action shows as stopped. If it had been saved, the review remains
+and the action shows as succeeded, so it offers no retry. A claim that lapses
+without an outcome, because the worker died or the run timed out, is reported as a
+failed action and never run again automatically. Its retry asks for a fresh
+approval and never repeats an action that succeeded.
+
+Each approved `run_ai_review` carries a run identity (`runId`) that the assistant
+assigns when it previews the action and hides from the model. Retrying the action
+repeats the identity. If the review had committed before the claim lapsed, because
+the worker died after saving and before recording the outcome, the approved retry
+returns that review without calling the provider, and exactly one review exists.
+
 ## Use the endpoint
 
 Send a JSON object to `POST /api/assistant/{workspaceSlug}` with the

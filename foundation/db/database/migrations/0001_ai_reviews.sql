@@ -55,6 +55,7 @@ CREATE TABLE "ai_review_sections" (
 CREATE TABLE "ai_reviews" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" text NOT NULL,
+	"run_id" uuid NOT NULL,
 	"case_id" text NOT NULL,
 	"application_version" integer NOT NULL,
 	"round_id" text NOT NULL,
@@ -70,6 +71,7 @@ CREATE TABLE "ai_reviews" (
 	"amount_minor_units" numeric(30, 0) NOT NULL,
 	"amount_currency" text NOT NULL,
 	"reasoning" text NOT NULL,
+	CONSTRAINT "ai_reviews_run_key" UNIQUE("organization_id","run_id"),
 	CONSTRAINT "ai_reviews_application_version_check" CHECK ("ai_reviews"."application_version" > 0),
 	CONSTRAINT "ai_reviews_criteria_version_check" CHECK ("ai_reviews"."criteria_version" > 0),
 	CONSTRAINT "ai_reviews_provider_check" CHECK (length(btrim("ai_reviews"."provider")) > 0),

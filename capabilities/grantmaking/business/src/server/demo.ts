@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { encodeApplicationMaterial } from "@merit/applications/domain";
 import { recordApplicationChange } from "@merit/applications/server/demo";
 import { seedExampleContacts } from "@merit/contacts/server/demo";
@@ -63,6 +65,7 @@ const seedPreparedAiReview = async (
   }
   await insertAiReview(db, {
     organizationId: options.organizationId,
+    runId: randomUUID(),
     caseId: options.caseId,
     applicationVersion: options.applicationVersion,
     roundId: options.roundId,

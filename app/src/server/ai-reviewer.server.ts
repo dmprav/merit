@@ -24,18 +24,22 @@ export const createOpenAiReviewer = (config: {
     ? {
         provider: openAiProvider,
         model: config.model,
-        review: async ({ instructions, input, outputSchema }) => {
-          const reply = await requestChatCompletion(config, {
-            max_completion_tokens: 16384,
-            response_format: {
-              type: "json_schema",
-              json_schema: { name: "ai_review", strict: true, schema: outputSchema },
+        review: async ({ instructions, input, outputSchema, signal }) => {
+          const reply = await requestChatCompletion(
+            config,
+            {
+              max_completion_tokens: 16384,
+              response_format: {
+                type: "json_schema",
+                json_schema: { name: "ai_review", strict: true, schema: outputSchema },
+              },
+              messages: [
+                { role: "system", content: instructions },
+                { role: "user", content: JSON.stringify(input) },
+              ],
             },
-            messages: [
-              { role: "system", content: instructions },
-              { role: "user", content: JSON.stringify(input) },
-            ],
-          });
+            signal,
+          );
           const [choice] = completion.parse(reply).choices;
           // The caller verifies the content; a truncated or refused reply never parses here.
           const parsed: unknown = JSON.parse(choice?.message.content ?? "");

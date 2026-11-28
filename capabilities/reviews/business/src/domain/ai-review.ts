@@ -244,6 +244,8 @@ export type AiReviewerRequest = {
   instructions: string;
   input: AiReviewInput;
   outputSchema: typeof aiReviewOutputJsonSchema;
+  /** Aborts the provider request when the run is stopped. Absent for runs nobody can stop. */
+  signal?: AbortSignal;
 };
 
 /** The model provider behind an AI review. Implementations throw on any provider failure and return the unvalidated reply. */

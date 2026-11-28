@@ -4,7 +4,7 @@ import { aiReviewEntrySchema } from "@merit/reviews/domain";
 
 import { testOperations } from "../../tests/operations";
 import { publication } from "../app/publication";
-import { createAssistantCatalog, type AssistantOperations } from "./catalog";
+import { createAssistantCatalog, isSlowTool, type AssistantOperations } from "./catalog";
 import { describeResult } from "./evidence";
 
 const actor = { userId: "manager" };
@@ -544,10 +544,22 @@ it("previews an AI review run with its external effect and cites saved AI review
   ]);
   expect(ops.reviews.runAiReview).not.toHaveBeenCalled();
 
+  // The approved action carries its run's identity, which the model never supplies.
+  const runId = preview.input.runId;
+  expect(runId).toMatch(/^[0-9a-f-]{36}$/);
+  expect((await catalog.list()).find((tool) => tool.name === "run_ai_review")).toMatchObject({
+    inputSchema: { properties: { applicationId: { type: "string" } } },
+  });
+  const listed = (await catalog.list()).find((tool) => tool.name === "run_ai_review");
+  expect(listed?.inputSchema.properties).not.toHaveProperty("runId");
+  // Previewing the same input again, as a retry does, keeps the identity.
+  expect((await catalog.preview("run_ai_review", preview.input)).preview?.input.runId).toBe(runId);
+
   const executed = await catalog.execute(preview);
   expect(ops.reviews.runAiReview).toHaveBeenCalledExactlyOnceWith(actor, {
     workspaceSlug,
     publicId: applicationId,
+    runId,
   });
   expect(executed.citations).toContainEqual({
     kind: "ai_review",
@@ -587,4 +599,8 @@ it("withholds both AI review tools from a reviewer and refuses them without call
   );
   expect(ops.reviews.readAiReviews).not.toHaveBeenCalled();
   expect(ops.reviews.runAiReview).not.toHaveBeenCalled();
+});
+
+it("declares only the AI review run as a slow external call", () => {
+  expect(Object.keys(publication).filter(isSlowTool)).toEqual(["run_ai_review"]);
 });

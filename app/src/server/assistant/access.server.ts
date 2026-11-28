@@ -62,7 +62,16 @@ export type Stored = NonNullable<Awaited<ReturnType<Store["read"]>>>;
 
 export type TurnDependencies = {
   store: Pick<Store, "getConsent" | "create" | "list" | "read" | "save" | "runLocked" | "remove">;
-  catalog: (actor: Actor, workspace: string, tx?: Database) => AssistantRuntimeCatalog;
+  /**
+   * `signal` aborts the model request of a slow tool that runs outside any transaction; it
+   * has no effect on a catalog made for a transaction.
+   */
+  catalog: (
+    actor: Actor,
+    workspace: string,
+    tx?: Database,
+    signal?: AbortSignal,
+  ) => AssistantRuntimeCatalog;
   model: AssistantModel;
 };
 
@@ -87,7 +96,8 @@ export const conversationAccess = (
 ) => {
   const { store } = deps;
 
-  const catalog = (db?: Database) => deps.catalog(actor, workspace, db);
+  const catalog = (db?: Database, signal?: AbortSignal) =>
+    deps.catalog(actor, workspace, db, signal);
 
   const read = async () => {
     const row = await store.read(actor, workspace, id);

@@ -211,7 +211,13 @@ application and criteria versions it read when it started.
 
 Calling `run_ai_review` sends the application's current material and the round's
 criteria to the provider, so confirm that the person intends it. It can take up
-to about two minutes. The result is the saved review, or:
+to about two minutes. Each run has an identity. Send `runId`, a UUID you generate,
+to name the run; the server generates one when you omit it. Repeating a run with
+the same `runId`, after a lost response for example, returns the review it already
+saved without asking the provider again, even if consent has since been turned off.
+A `runId` used for another application returns `not_found`. Reuse a `runId` only to
+retry that run: a new run, which saves another review, needs a new one. The result
+is the saved review, or:
 
 | Result                              | Meaning                                                                                                 |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------- |

@@ -81,6 +81,7 @@ export const readCurrentAiReviewBasis = async (
 
 type NewAiReview = {
   organizationId: string;
+  runId: string;
   caseId: string;
   applicationVersion: number;
   roundId: string;
@@ -160,13 +161,27 @@ const insertContent = async (
   }
 };
 
-/** Insert one run with its sections, items, citations and questions under the caller's transaction. */
+/** The saved run with this identity, wherever it was saved. */
+export const readAiReviewByRun = async (db: Transaction, organizationId: string, runId: string) => {
+  const [row] = await db
+    .select({ id: aiReviews.id, caseId: aiReviews.caseId })
+    .from(aiReviews)
+    .where(and(eq(aiReviews.organizationId, organizationId), eq(aiReviews.runId, runId)));
+  return row;
+};
+
+/**
+ * Insert one run with its sections, items, citations and questions under the caller's
+ * transaction. A run whose identity is already saved, by a concurrent duplicate, inserts nothing
+ * and answers undefined.
+ */
 export const insertAiReview = async (db: Transaction, value: NewAiReview) => {
   const { output, organizationId } = value;
   const [saved] = await db
     .insert(aiReviews)
     .values({
       organizationId,
+      runId: value.runId,
       caseId: value.caseId,
       applicationVersion: value.applicationVersion,
       roundId: value.roundId,
@@ -183,9 +198,10 @@ export const insertAiReview = async (db: Transaction, value: NewAiReview) => {
       amountCurrency: output.amount.currency,
       reasoning: output.reasoning,
     })
+    .onConflictDoNothing({ target: [aiReviews.organizationId, aiReviews.runId] })
     .returning({ id: aiReviews.id });
   if (!saved) {
-    throw new Error("The AI review was not saved.");
+    return undefined;
   }
   const aiReviewId = saved.id;
 

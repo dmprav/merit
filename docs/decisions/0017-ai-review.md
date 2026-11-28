@@ -54,6 +54,26 @@ result is saved against the application and criteria versions read before the
 call, even if the application changed meanwhile, so freshness then reports the
 change. Two runs started together both save. Saved reviews are immutable.
 
+Every run has an identity, unique within the workspace and stored with the review,
+so a retry of one run never saves a second review. A run whose identity is already
+saved for the same application returns that review without calling the provider or
+checking consent, the way a retried assessment returns the one already recorded. The
+same identity for another application is refused as not found, and two duplicates
+that finish together save one review, decided by the unique identity. The web
+generates an identity per click and reuses it only to retry that submission; MCP
+callers may send one and otherwise get a new one; the assistant assigns one to the
+action it previews, so a retry after a lost outcome finds the saved review.
+
+The assistant keeps the same rule. An approved `run_ai_review` is a slow tool, so
+the assistant claims the action under a short lock, runs it with no conversation
+lock or transaction, and applies the outcome under another short lock, instead of
+executing inside the conversation's transaction as it does for other writes.
+[Decision 0015](0015-merit-ai-assistant.md) still owns approval, Stop, partial
+failure and retry. Stop aborts the provider request; a review that committed before
+Stop stays and the action is reported as succeeded, and a claim that lapses is
+reported as a failed action that is never run again automatically. See
+[slow tools](../guides/merit-ai.md#slow-tools-run-outside-the-conversation-lock).
+
 ## Consent and availability
 
 Merit AI shares the workspace consent of the
