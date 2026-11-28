@@ -84,11 +84,29 @@ const defineStyleReader = () => {
 
   // A decoration on an empty box has no text run to draw across.
   const hasTextRun = (el: Element): boolean => {
-    const range = el.ownerDocument.createRange();
+    const view = el.ownerDocument.defaultView ?? window;
     return Array.from(el.childNodes).some((node) => {
-      if (node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim()) {
+      if (node instanceof view.Element) {
+        const style = computedStyleOf(node);
+        // Decorations cross in-flow boxes, but stop at atomic inlines and out-of-flow children.
+        return (
+          !/^(inline-(block|flex|grid|table)|none|ruby-text)$/.test(style.display) &&
+          style.position !== "absolute" &&
+          style.position !== "fixed" &&
+          style.cssFloat === "none" &&
+          style.opacity !== "0" &&
+          style.contentVisibility !== "hidden" &&
+          hasTextRun(node)
+        );
+      }
+      if (
+        node.nodeType !== Node.TEXT_NODE ||
+        !node.textContent?.trim() ||
+        computedStyleOf(el).visibility !== "visible"
+      ) {
         return false;
       }
+      const range = el.ownerDocument.createRange();
       range.selectNodeContents(node);
       const { width, height } = range.getBoundingClientRect();
       return width > 0 && height > 0;

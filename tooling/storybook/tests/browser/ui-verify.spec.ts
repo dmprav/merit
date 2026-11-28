@@ -317,17 +317,26 @@ test.describe("live Chromium checker failure detection", () => {
         .empty-line { width: 10px; height: 10px; text-decoration: underline transparent; }
         button:focus-visible .line { text-decoration: underline solid blue 3px; }
         button:focus-visible .clear-line { text-decoration-color: transparent; }
+        .spread { box-shadow: 0 0 0 4px blue; }
+        .offset { box-shadow: 3px 3px blue; }
+        .atomic { display: inline-block; }
       </style>
       <button>Empty fill<span class="indicator empty-fill"></span></button>
       <button>Empty underline<span class="indicator empty-line"></span></button>
       <button>Real underline<span class="indicator line">marked</span></button>
-      <button>Clear underline<span class="indicator line clear-line">marked</span></button>`);
+      <button>Clear underline<span class="indicator line clear-line">marked</span></button>
+      <button>Nested underline<span class="indicator line"><em>marked</em></span></button>
+      <button>Atomic inline<span class="indicator line"><em class="atomic">marked</em></span></button>
+      <button>Spread shadow<span class="indicator spread"></span></button>
+      <button>Offset shadow<span class="indicator offset"></span></button>`);
     const focus = await checkKeyboardFocusTraversal(page);
-    expect(focus.stopsChecked).toBe(4);
+    expect(focus.stopsChecked).toBe(8);
     expect(focus.failures.map(({ element }) => element)).toEqual([
       'button "Empty fill"',
       'button "Empty underline"',
       'button "Clear underlinemarked"',
+      'button "Atomic inlinemarked"',
+      'button "Offset shadow"',
     ]);
   });
 

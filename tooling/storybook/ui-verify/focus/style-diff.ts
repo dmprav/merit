@@ -26,7 +26,7 @@ export type ElementStyleSnapshot = {
 export type RelativeSnapshot = {
   nodeId: number;
   hasArea: boolean;
-  /** The decoration color when the relative has a laid-out text run of its own. */
+  /** The decoration color when the relative has a laid-out text run to decorate. */
   decorationColor?: string | undefined;
   painted: boolean;
   style: ElementStyleSnapshot;
@@ -84,7 +84,7 @@ const splitTopLevelCommas = (value: string): string[] => {
 
 const SHADOW_COLOR_PATTERN = /\b[a-z][a-z0-9-]*\([^)]*\)|#[0-9a-f]{3,8}\b|\btransparent\b/gi;
 
-const isShadowLayerVisible = (layer: string): boolean => {
+const isShadowLayerVisible = (layer: string, hasArea: boolean): boolean => {
   const colorTokens = [...layer.matchAll(SHADOW_COLOR_PATTERN)].map((match) => match[0]);
   if (colorTokens.length > 0 && colorTokens.every(isTransparentColor)) {
     return false;
@@ -96,20 +96,20 @@ const isShadowLayerVisible = (layer: string): boolean => {
     .split(/\s+/)
     .map((token) => Number.parseFloat(token))
     .filter((value) => Number.isFinite(value));
+  if (!hasArea) {
+    return spread > 0 && !layer.includes("inset");
+  }
   return offsetX !== 0 || offsetY !== 0 || blur > 0 || spread > 0;
 };
 
 /** The shadow's layers that paint something, in order. */
-const paintedShadowLayers = (boxShadow: string): string[] => {
+const paintedShadowLayers = (boxShadow: string, hasArea = true): string[] => {
   const trimmed = boxShadow.trim();
   if (!trimmed || trimmed.toLowerCase() === "none") {
     return [];
   }
-  return splitTopLevelCommas(trimmed).filter(isShadowLayerVisible);
+  return splitTopLevelCommas(trimmed).filter((layer) => isShadowLayerVisible(layer, hasArea));
 };
-
-const hasVisibleBoxShadow = (boxShadow: string): boolean =>
-  paintedShadowLayers(boxShadow).length > 0;
 
 const hasVisibleOutline = (style: ElementStyleSnapshot): boolean =>
   style.outlineStyle !== "none" &&
@@ -145,11 +145,10 @@ const hasVisibleOpacity = (opacity: string | undefined): boolean => {
   return Number.isFinite(parsed) && parsed > 0;
 };
 
-const hasVisibleBoxPaint = (style: ElementStyleSnapshot): boolean =>
+const hasVisibleBoxPaint = (style: ElementStyleSnapshot, hasArea = true): boolean =>
   hasVisibleOutline(style) ||
-  hasVisibleBoxShadow(style.boxShadow) ||
-  hasVisibleBorder(style) ||
-  hasVisibleBackground(style);
+  paintedShadowLayers(style.boxShadow, hasArea).length > 0 ||
+  (hasArea && (hasVisibleBorder(style) || hasVisibleBackground(style)));
 
 /** A rule that decides whether one kind of focus cue appeared or changed visibly. */
 type FocusCueRule = {
@@ -257,7 +256,7 @@ const compareRelatives = (
       const visible = after.painted ? after : before;
       const decorated =
         visible.decorationColor !== undefined && !isTransparentColor(visible.decorationColor);
-      return visible.hasArea && (hasVisibleBoxPaint(visible.style) || decorated)
+      return hasVisibleBoxPaint(visible.style, visible.hasArea) || decorated
         ? [`${scope}:visibility`]
         : [];
     }
