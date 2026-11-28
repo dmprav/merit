@@ -81,6 +81,9 @@ export const movedCheckoutPath = (
   return path && path !== registeredPath && existsSync(path) ? path : null;
 };
 
+export const moveBackInstruction = (original: string, moved: string): string =>
+  `If "${original}" is a symlink to "${moved}", unlink that symlink first. Move the checkout back with \`git worktree move "${moved}" "${original}"\``;
+
 export type CheckoutAttempt = {
   commonGitDir: string;
   /** The metadata directory `git worktree add` created, when it got that far. */
@@ -160,7 +163,7 @@ export const checkoutIdentityRefusal = (
   seen: CheckoutObservation,
 ): string | undefined => {
   if (seen.movedPath) {
-    return `Refusing to clean "${normalizedPath}": its registered checkout was moved to "${seen.movedPath}" and still uses this worktree's database and branch. Move it back with \`git worktree move "${seen.movedPath}" "${normalizedPath}"\` and retry.`;
+    return `Refusing to clean "${normalizedPath}": its registered checkout was moved to "${seen.movedPath}" and still uses this worktree's database and branch. ${moveBackInstruction(normalizedPath, seen.movedPath)} and retry.`;
   }
   // Residue of a removal this tool started: allow it only while no checkout metadata reappears.
   if (!seen.checkoutExists || (identity.partialRemoval && !seen.dotGitExists)) {

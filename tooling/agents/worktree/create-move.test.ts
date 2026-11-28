@@ -105,6 +105,7 @@ test.each(["doctor", "rollback"])(
       symlinkSync(moved, original, "dir");
     }
     await expect(cleanIn(repo, "alpha", { database })).rejects.toThrow(moved);
+    await expect(cleanIn(repo, "alpha", { database })).rejects.toThrow("unlink that symlink first");
     unlinkSync(original);
     git(repo, ["worktree", "move", moved, original]);
     await expect(cleanIn(repo, "alpha", { database })).resolves.toMatchObject({
@@ -204,4 +205,42 @@ test("prevents a Git move while rollback is removing its checkout", async () => 
   expect(moveRefused).toBe(true);
   expect(existsSync(original)).toBe(false);
   expect(readWorktreeRegistry(repo).worktrees.alpha).toBeUndefined();
+});
+
+test("preserves the database when a locked checkout is released and moved during prune", async () => {
+  const repo = initTempRepo();
+  const original = join(repo, ".tmp/worktrees/alpha");
+  const moved = join(makeTempDir("merit-prune-move-"), "moved");
+  const dropped: string[] = [];
+  const creating = createIn(
+    repo,
+    { slug: "alpha", dbMode: "required", doctor: true },
+    {
+      database: fakeDatabase({
+        isReachable: async () => true,
+        drop: async (name) => {
+          dropped.push(name);
+        },
+      }),
+      execCommand: (_command, args) => {
+        if (args.includes("--doctor")) {
+          git(repo, ["worktree", "lock", original]);
+          throw new Error("doctor failed");
+        }
+      },
+      execGit: gitWith((args) => {
+        if (isGitCommand(args, "worktree", "prune")) {
+          git(repo, ["worktree", "unlock", original]);
+          git(repo, ["worktree", "move", original, moved]);
+        }
+      }),
+    },
+  );
+  await expect(creating).rejects.toThrow("doctor failed");
+  expect(dropped).toEqual([]);
+  await expect(creating).rejects.toThrow(moved);
+  expect(readWorktreeRegistry(repo).worktrees.alpha).toMatchObject({
+    status: "cleaning",
+    databaseCreated: true,
+  });
 });

@@ -5,6 +5,7 @@ import { errorMessage } from "../../cli.ts";
 import {
   currentCheckoutPath,
   isCheckoutOfAttempt,
+  moveBackInstruction,
   movedCheckoutPath,
   readWorktreeGitDir,
 } from "./checkout-identity.ts";
@@ -112,7 +113,7 @@ const checkoutRollbackProblem = (
   checkout: CheckoutRollback,
 ): string | undefined => {
   if (checkout.movedTo) {
-    return `checkout moved to "${checkout.movedTo}"; move it back to "${checkoutPath}" and run \`vp run worktree:clean ${slug}\``;
+    return `checkout moved to "${checkout.movedTo}". ${moveBackInstruction(checkoutPath, checkout.movedTo)} and run \`vp run worktree:clean ${slug}\``;
   }
   if (checkout.removalError || checkout.remains) {
     const detail = checkout.removalError
@@ -262,13 +263,9 @@ const rollBackCheckout = (attempt: CreateAttempt, progress: CreateProgress): Che
       ? removeOwnedCheckout(attempt, progress)
       : { ...UNTOUCHED_CHECKOUT, preserved: true };
   }
-  // Git may have moved it between the first observation and the removal.
-  const movedDuringRemoval = movedCheckout();
-  if (movedDuringRemoval) {
-    return movedDuringRemoval;
-  }
   ignoreFailure(() => attempt.git.run(["worktree", "prune"]));
-  return checkout;
+  // Git may have moved it during removal or pruning. Observe its location at the drop decision.
+  return movedCheckout() ?? checkout;
 };
 
 const settleRegistryRecord = async (
