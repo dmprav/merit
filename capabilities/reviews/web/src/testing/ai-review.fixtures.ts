@@ -1,28 +1,26 @@
-import { getExampleRound } from "@merit/grantmaking/examples";
+import { materialVersionSchema } from "@merit/applications/domain";
 import type { AiReviewEntry } from "@merit/reviews/domain";
+import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import type { AiReviewData } from "../contracts/ai-review";
 
-const need = <T>(value: T | undefined): T => {
-  if (value === undefined) {
-    throw new Error("The example application is missing material the fixtures cite");
-  }
-  return value;
-};
-
-const round = getExampleRound();
-const application = need(round.applications[0]);
-const [connection, demand] = [need(round.criteria[0]), need(round.criteria[1])];
-const [meal, pilot] = [
-  need(application.submission?.answers[0]),
-  need(application.submission?.answers[1]),
-];
+/*
+ * The first example application ("Neighbour Table", version 1) and its round's first two criteria
+ * (criteria version 1), copied from the grantmaking example round. Reviews cannot depend on
+ * grantmaking, so the fixture repeats the identifiers and wording its citations need.
+ */
+const application = { version: materialVersionSchema.parse(1), title: "Neighbour Table" };
+const criteriaVersion = criteriaVersionSchema.parse(1);
+const connection = { id: "c71be2aa-4794-4f1d-b5b7-6e656c2fa086", title: "Community connection" };
+const demand = { id: "59a76eae-9d64-4766-b2c5-7cf48aa710bf", title: "Evidence of demand" };
+const meal = { questionId: "ea6818f9-940d-417b-b094-ed0c0d145f5b", question: "Project overview" };
+const pilot = { questionId: "31512cd2-519b-4baa-b9af-f8870df5c084", question: "Community need" };
 
 /** A saved AI review of the first example application, current against its material and criteria. */
 export const aiReviewFixture = (overrides: Partial<AiReviewEntry> = {}): AiReviewEntry => ({
   id: "a1000000-0000-4000-8000-000000000001",
   applicationVersion: application.version,
-  criteriaVersion: round.criteriaVersion,
+  criteriaVersion,
   provider: "OpenAI",
   model: "gpt-5.1",
   runBy: { userId: "dana", name: "Dana Reed" },
