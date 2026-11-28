@@ -117,6 +117,12 @@ repeats the identity. If the review had committed before the claim lapsed, becau
 the worker died after saving and before recording the outcome, the approved retry
 returns that review without calling the provider, and exactly one review exists.
 
+Two authorized requests that carry the same run identity at the same time can both
+reach the provider before either saves: the check for a saved run happens before the
+call, and the save is where the identity is enforced. The unique constraint keeps one
+saved review and both requests answer with it, but the application material may have
+been sent to the provider twice. Do not start the same run twice at once.
+
 ## Use the endpoint
 
 Send a JSON object to `POST /api/assistant/{workspaceSlug}` with the

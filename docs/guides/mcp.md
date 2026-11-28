@@ -222,7 +222,9 @@ to name the run; the server generates one when you omit it. Repeating a run with
 the same `runId`, after a lost response for example, returns the review it already
 saved without asking the provider again, even if consent has since been turned off.
 A `runId` used for another application returns `not_found`. Reuse a `runId` only to
-retry that run: a new run, which saves another review, needs a new one. The result
+retry that run: a new run, which saves another review, needs a new one. Do not send
+the same `runId` twice at once: both requests can reach the provider before either
+saves, so only one review is kept but the material may be sent twice. The result
 is the saved review in `aiReview`, or:
 
 | Result                              | Meaning                                                                                                 |

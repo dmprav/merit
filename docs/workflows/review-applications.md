@@ -133,7 +133,9 @@ new runs; saved reviews stay readable.
 
 Freshness follows the [review basis policy](#review-basis-and-freshness-policy)
 unchanged: a saved AI review is current, outdated or unknown. Managers can run
-again at any time, and an outdated review stays readable. Only program managers
+again whenever a run is available (the workspace has consented, a provider is
+configured, the application is not withdrawn, and the workspace is not the public
+demo), and an outdated review stays readable. Only program managers
 see AI reviews; reviewer members never do.
 
 ## Respond to application and criteria changes

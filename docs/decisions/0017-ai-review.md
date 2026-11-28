@@ -45,7 +45,9 @@ failure is discarded whole. Nothing partial is saved.
 Each run sends application material to a provider and takes up to about two
 minutes, so a person chooses when it happens. Nothing runs automatically on intake
 or revision. Freshness tells the manager when a saved review no longer matches the
-application, and **Run again** is always available. Automatic runs, and any rate
+application, and **Run again** is available whenever a run is: the workspace has
+consented, a provider is configured, the application is not withdrawn, and the
+workspace is not the public demo. Automatic runs, and any rate
 limit or quota, are follow-ups to consider after use shows whether they are needed.
 
 The model call happens outside any database transaction or row lock. Permission,
