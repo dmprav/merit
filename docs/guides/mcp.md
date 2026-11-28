@@ -209,8 +209,11 @@ public publication is not implemented in either interface.
 application against its round's criteria and saves the result.
 `read_ai_reviews` (`workspace:read`) returns every saved run, newest first, with
 its freshness. Both are for program managers: a reviewer member's call returns
-`not_found`. Neither tool takes revision preconditions; a run saves against the
-application and criteria versions it read when it started.
+`not_found`. `read_ai_reviews` takes no revision preconditions. A run saves against
+the application and criteria versions it read when it started. A client that showed
+a person those versions before asking for the run can send `expectedApplicationVersion`
+and `expectedCriteriaVersion`: if either has changed, the run sends nothing to the
+provider and returns `conflict`. Omit them to review whatever is current.
 
 Calling `run_ai_review` sends the application's current material and the round's
 criteria to the provider, so confirm that the person intends it. It can take up

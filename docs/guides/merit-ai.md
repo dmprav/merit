@@ -71,7 +71,7 @@ must appear in the field it names, before anything is saved. Any provider error,
 timeout, malformed reply or unverifiable citation saves nothing.
 
 The assistant offers `run_ai_review` as a write. Its preview names the application
-and version, the provider and model, the effect "Sends this application's current
+and criteria versions, the provider and model, the effect "Sends this application's current
 material and the round's criteria to the provider", and "Saves a new AI review".
 Results of `read_ai_reviews` are cited with the evidence kind `ai_review`, never
 as application material. Reviewer members do not receive either tool.
@@ -92,12 +92,19 @@ A tool declares a slow external call in the MCP publication table
 3. **Apply.** A short lock records the outcome if the claim still stands, reports it
    for this action alone, continues independent actions and stops dependent ones.
 
-Stop aborts the provider request. If the AI review had not been saved, nothing is
-saved and the action shows as stopped. If it had been saved, the review remains
-and the action shows as succeeded, so it offers no retry. A claim that lapses
-without an outcome, because the worker died or the run timed out, is reported as a
-failed action and never run again automatically. Its retry asks for a fresh
-approval and never repeats an action that succeeded.
+Stop aborts the provider request, through the workflow that cancels the worker's
+step. The run checks that it has not been stopped immediately before it saves, so a
+provider that answers after Stop still saves nothing and the action shows as
+stopped. If the review had already begun to save, it commits, the review remains
+and the action shows as succeeded, so it offers no retry. The approved material is
+what is sent: the preview binds the application and criteria versions it showed, and a
+run that finds either changed sends nothing and reports the action as stale, with a
+fresh preview to approve. A claim that lapses without an outcome, because the
+worker died or the run timed out, first looks for a review saved under the action's
+run identity. If one exists the action is recorded as succeeded with it and nothing
+is asked of the provider. Otherwise it is reported as a failed action and never run
+again automatically. Its retry asks for a fresh approval and never repeats an action
+that succeeded.
 
 Each approved `run_ai_review` carries a run identity (`runId`) that the assistant
 assigns when it previews the action and hides from the model. Retrying the action
