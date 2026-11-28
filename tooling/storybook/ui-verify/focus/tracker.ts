@@ -370,12 +370,28 @@ const defineFocusTracker = (limits: SnapshotLimits): boolean => {
   return true;
 };
 
+/** Playwright rejects an evaluation this way when a navigation destroys its document mid-call. */
+const isDocumentReplacedError = (error: unknown): boolean =>
+  error instanceof Error && error.message.includes("Execution context was destroyed");
+
 /**
- * Installs the in-page focus tracker that traversal reads each Tab stop through, returning false
- * when the page replaced its document during installation. A page that replaces its document
- * later, during traversal, loses the tracker, which traversal reports.
+ * Settles a step that runs in the page with `whenReplaced` when a navigation replaced the
+ * document during it, which is what the step reports for a document without the focus tracker.
+ * The new document has no tracker, so the next step that reads it reports the loss, as it does
+ * for a navigation that lands between steps.
  */
-export const installFocusTracker = async (page: Page): Promise<boolean> => {
+export const unlessDocumentReplaced = async <T>(step: Promise<T>, whenReplaced: T): Promise<T> => {
+  try {
+    return await step;
+  } catch (error) {
+    if (isDocumentReplacedError(error)) {
+      return whenReplaced;
+    }
+    throw error;
+  }
+};
+
+const installInPage = async (page: Page): Promise<boolean> => {
   await page.evaluate(definePaintReader);
   if (!(await page.evaluate(defineStyleReader))) {
     return false;
@@ -390,3 +406,11 @@ export const installFocusTracker = async (page: Page): Promise<boolean> => {
   await waitForRenderUpdate(page);
   return true;
 };
+
+/**
+ * Installs the in-page focus tracker that traversal reads each Tab stop through, returning false
+ * when the page replaced its document during installation, between steps or during one. A page
+ * that replaces its document later, during traversal, loses the tracker, which traversal reports.
+ */
+export const installFocusTracker = (page: Page): Promise<boolean> =>
+  unlessDocumentReplaced(installInPage(page), false);
