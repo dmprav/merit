@@ -11,7 +11,7 @@ import {
   nextAction,
   prepareDeferred,
 } from "./dispatch.server";
-import { executeSlow } from "./execution.server";
+import { executeSlow, settleStoppedClaim, stoppedClaim } from "./execution.server";
 import { beginModelRequest, endModelRequest } from "./model-request.server";
 import { observationTool } from "./observation.server";
 import type { AssistantModel } from "./openai.server";
@@ -136,10 +136,16 @@ export const advanceTurn = async (
       return "finished";
     }
   }
+  // A stopped action whose worker died holds its claim until it lapses; then a review that
+  // committed before the worker died is recorded, and nothing is run again.
+  const orphaned = stoppedClaim(conversationState.parse(row.state));
+  if (orphaned && (await settleStoppedClaim(access, row))) {
+    return "progressed";
+  }
   if (row.status !== "running") {
     // Stop ends all work except recording how an email already sent settles. No model call, no
     // new action: the step only asks where the message stands.
-    return unsettled ? "waiting" : "finished";
+    return unsettled || orphaned ? "waiting" : "finished";
   }
   return (await step(access, row, model, cancellation)) ? "progressed" : "waiting";
 };

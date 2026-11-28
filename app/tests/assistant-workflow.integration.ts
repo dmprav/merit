@@ -236,7 +236,12 @@ const harness = (runtime: Runtime, sendEmail: EmailSender, aiReviewer?: AiReview
   /** One step by a second worker, as another activity would run it. */
   const step = (id: string) => driver.turns.advance(actor, workspaceSlug, id);
 
-  return { command, step };
+  /** The worker dies: whatever it was doing reports nothing, and nothing it left behind is an error. */
+  const crash = () => {
+    ending = true;
+  };
+
+  return { command, step, crash };
 };
 
 it(
@@ -781,8 +786,47 @@ it(
   },
 );
 
+type Client = {
+  query: <T = Record<string, unknown>>(sql: string, values?: unknown[]) => Promise<{ rows: T[] }>;
+};
+
+/** A transaction that holds a row lock, and the backend that holds it. */
+const holdLock = async (client: Client, lock: string, id: string) => {
+  await client.query("begin");
+  await client.query(lock, [id]);
+  const { rows } = await client.query<{ pid: number }>("select pg_backend_pid() as pid");
+  return rows[0]?.pid;
+};
+
+/** Wait until `count` backends wait on the lock the backend `pid` holds, directly or queued behind another waiter. */
+const waitBlockedBy = (client: Client, pid: number | undefined, count: number) =>
+  vi.waitFor(
+    async () => {
+      // The runtime role's sessions are hidden from pg_stat_activity, but not from pg_locks.
+      const { rows } = await client.query<{ count: string }>(
+        `with recursive waiting(pid) as (
+           select pid from pg_locks where not granted and $1 = any(pg_blocking_pids(pid))
+           union
+           select l.pid from pg_locks l join waiting w on w.pid = any(pg_blocking_pids(l.pid)) where not l.granted
+         ) select count(distinct pid) from waiting`,
+        [pid],
+      );
+      expect(Number(rows[0]?.count)).toBe(count);
+    },
+    { timeout: 10_000, interval: 50 },
+  );
+
+const waitForReview = (client: Client) =>
+  vi.waitFor(
+    async () => expect((await client.query("select id from ai_reviews")).rows).toHaveLength(1),
+    { timeout: 10_000, interval: 50 },
+  );
+
+const lockApplication = "select id from application_cases where id = $1 for update";
+const lockConversation = "select id from assistant_conversations where id = $1 for update";
+
 it(
-  "keeps an AI review whose save was under way when Stop arrived and offers no retry that could save it twice",
+  "saves nothing and reports the action stopped when Stop arrives while the save waits for the application",
   { timeout: 30_000 },
   async ({ database, runtime, committee: { applicationId } }) => {
     const provider = slowReviewer(reviewOutput);
@@ -790,21 +834,54 @@ it(
     const { id, group, read } = await approvedRun(database, command, applicationId);
     await provider.begun;
     // The provider has answered and the run has begun to save, but the save waits for another writer.
-    await database.client.query("begin");
-    await database.client.query("select id from application_cases where id = $1 for update", [
-      applicationId,
-    ]);
+    const holder = await holdLock(database.client, lockApplication, applicationId);
     provider.release();
-    await vi.waitFor(
-      async () => {
-        const waiting = await database.client.query("select 1 from pg_locks where not granted");
-        expect(waiting.rowCount).toBeGreaterThan(0);
-      },
-      { timeout: 10_000, interval: 50 },
-    );
+    await waitBlockedBy(database.client, holder, 1);
 
     expect((await command({ action: "stop", id })).status).toBe(200);
     await database.client.query("commit");
+
+    await vi.waitFor(
+      async () =>
+        expect(
+          (
+            await database.client.query(
+              "select 1 from assistant_conversations where id = $1 and state #> '{groups,0,actions,0,executing}' is null",
+              [id],
+            )
+          ).rowCount,
+        ).toBe(1),
+      { timeout: 10_000, interval: 50 },
+    );
+    expect((await database.client.query("select id from ai_reviews")).rows).toEqual([]);
+    const [action] = (await read()).groups[0]?.actions ?? [];
+    assert(action);
+    expect(action).toMatchObject({ status: "stopped", canRetry: false });
+    expect(
+      (await command({ action: "retry", id, previewId: group.id, actionId: action.id })).status,
+    ).toBe(409);
+    expect((await database.client.query("select id from ai_reviews")).rows).toEqual([]);
+  },
+);
+
+it(
+  "keeps an AI review that committed before Stop reached the conversation, reports it succeeded and offers no retry",
+  { timeout: 30_000 },
+  async ({ database, runtime, committee: { applicationId } }) => {
+    const provider = slowReviewer(reviewOutput);
+    const { command } = harness(runtime, async () => {}, provider.reviewer);
+    const { id, group, read } = await approvedRun(database, command, applicationId);
+    await provider.begun;
+    // The conversation is held, so Stop queues for it first and the run's outcome queues behind it.
+    const holder = await holdLock(database.client, lockConversation, id);
+    const stopping = command({ action: "stop", id });
+    await waitBlockedBy(database.client, holder, 1);
+    provider.release();
+    // The review commits while Stop has not yet reached the conversation; then the outcome waits too.
+    await waitForReview(database.client);
+    await waitBlockedBy(database.client, holder, 2);
+    await database.client.query("commit");
+    expect((await stopping).status).toBe(200);
 
     await vi.waitFor(
       async () =>
@@ -812,13 +889,77 @@ it(
       { timeout: 10_000, interval: 50 },
     );
     expect((await read()).status).toBe("stopped");
-    expect((await database.client.query("select id from ai_reviews")).rows).toHaveLength(1);
     const [action] = (await read()).groups[0]?.actions ?? [];
     assert(action);
     expect(
       (await command({ action: "retry", id, previewId: group.id, actionId: action.id })).status,
     ).toBe(409);
     expect((await database.client.query("select id from ai_reviews")).rows).toHaveLength(1);
+  },
+);
+
+it(
+  "records a stopped action as succeeded when its worker died after the review committed, once its claim expires",
+  { timeout: 30_000 },
+  async ({ database, runtime, committee: { applicationId } }) => {
+    const provider = slowReviewer(reviewOutput);
+    const { command, step, crash } = harness(runtime, async () => {}, provider.reviewer);
+    const { id, group, read } = await approvedRun(database, command, applicationId);
+    await provider.begun;
+    const holder = await holdLock(database.client, lockConversation, id);
+    provider.release();
+    await waitForReview(database.client);
+    // The worker waits to record the outcome; it dies there, as its connection is lost.
+    await waitBlockedBy(database.client, holder, 1);
+    crash();
+    await database.client.query(
+      "select pg_terminate_backend(pid) from (select distinct pid from pg_locks where not granted and $1 = any(pg_blocking_pids(pid))) as blocked",
+      [holder],
+    );
+    await database.client.query("rollback");
+
+    expect((await command({ action: "stop", id })).status).toBe(200);
+    // While the claim is live another worker leaves the action alone.
+    expect(await step(id)).toBe("waiting");
+    expect((await read()).groups[0]?.actions[0]).toMatchObject({ status: "stopped" });
+
+    await database.client.query(
+      "update assistant_conversations set state = jsonb_set(state, '{groups,0,actions,0,executing,until}', '0') where id = $1",
+      [id],
+    );
+    expect(await step(id)).toBe("progressed");
+
+    const [action] = (await read()).groups[0]?.actions ?? [];
+    assert(action);
+    expect(action).toMatchObject({ status: "succeeded" });
+    expect(provider.review).toHaveBeenCalledOnce();
+    expect((await database.client.query("select id from ai_reviews")).rows).toHaveLength(1);
+    expect(
+      (await command({ action: "retry", id, previewId: group.id, actionId: action.id })).status,
+    ).toBe(409);
+  },
+);
+
+it(
+  "keeps a stopped action stopped when its worker died before the review committed",
+  { timeout: 30_000 },
+  async ({ database, runtime, committee: { applicationId } }) => {
+    const provider = slowReviewer(reviewOutput);
+    const { command, step } = harness(runtime, async () => {}, provider.reviewer);
+    const { id, read } = await approvedRun(database, command, applicationId);
+    await provider.begun;
+    expect((await command({ action: "stop", id })).status).toBe(200);
+    // The worker never reports back; its claim lapses.
+    await database.client.query(
+      "update assistant_conversations set state = jsonb_set(state, '{groups,0,actions,0,executing,until}', '0') where id = $1",
+      [id],
+    );
+    await vi.waitFor(async () => expect(await step(id)).not.toBe("waiting"), {
+      timeout: 10_000,
+      interval: 50,
+    });
+    expect((await read()).groups[0]?.actions[0]).toMatchObject({ status: "stopped" });
+    expect((await database.client.query("select id from ai_reviews")).rows).toEqual([]);
   },
 );
 

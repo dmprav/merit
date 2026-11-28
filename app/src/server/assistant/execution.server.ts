@@ -105,6 +105,40 @@ const reconcileExpired = async (
   return claim && saved ? applyOutcome(state, tools, claim, status, saved) : failNext(state);
 };
 
+/** A stopped action that still holds a claim: its worker has not reported, or died before it could. */
+export const stoppedClaim = (state: ConversationState) =>
+  state.groups
+    .flatMap((group) => group.actions)
+    .find((action) => action.status === "stopped" && action.executing);
+
+/**
+ * Settle a stopped action whose claim lapsed. The worker may have committed the review before it
+ * died, so look for it under the action's run identity: if it exists the action succeeded with
+ * it, without calling the provider; otherwise it stays stopped and the claim is released.
+ */
+export const settleStoppedClaim = async (access: Access, row: Stored) => {
+  const action = stoppedClaim(conversationState.parse(row.state));
+  const claim = action?.executing;
+  if (!action || !claim || claim.until > Date.now()) {
+    return false;
+  }
+  return Boolean(
+    await access.locked(row, async (state, tools) => {
+      const held = claimed(state, claim.id);
+      if (!held || held.action.status !== "stopped") {
+        return change(state, row.status);
+      }
+      return applyOutcome(
+        state,
+        tools,
+        claim.id,
+        row.status,
+        await tools.recover(held.action.preview),
+      );
+    }),
+  );
+};
+
 /**
  * Run the next approved slow action: claim it under a short lock, run it with no lock and no
  * surrounding transaction, then apply its outcome under another. The conversation stays readable
