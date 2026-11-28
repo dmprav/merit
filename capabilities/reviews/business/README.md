@@ -29,7 +29,7 @@ cancellations, reviewer participation transitions, and assessments are recorded 
 [Audit](../../audit/business/README.md); private drafts and email delivery attempts
 are not audited.
 
-An [AI review](../../../docs/decisions/0017-ai-review.md) is a separate immutable
+An [AI review](../../../docs/decisions/0018-ai-review.md) is a separate immutable
 record (`ai_reviews` with its sections, items, citations and questions), never an
 assessment, so it joins no review summary, status or budget total. The
 [run command](src/server/commands/ai-reviews.ts) checks `work_on_grants` through
