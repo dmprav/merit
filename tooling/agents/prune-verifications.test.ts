@@ -4,33 +4,30 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vite-plus/test";
 
 import {
-  extractVerificationFlakesLastPr,
   parsePruneCliArgs,
   RETENTION_DAYS,
-  SCOUT_STATE_ISSUE_NUMBER as PRUNE_STATE_ISSUE_NUMBER,
-  SCOUT_STATE_ISSUE_TITLE as PRUNE_STATE_ISSUE_TITLE,
   selectPrunableVerifications,
 } from "./prune-verifications.ts";
-import { SCOUT_STATE_ISSUE_NUMBER, SCOUT_STATE_ISSUE_TITLE } from "./scout/state.ts";
+import { readRecordsLastPrNumber } from "./scout/state-marker.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 describe("prune-verifications", () => {
-  test("uses only Node built-ins so the monthly workflow runs without pnpm install and shares issue #219", () => {
-    const source = readFileSync(
-      fileURLToPath(new URL("./prune-verifications.ts", import.meta.url)),
-      "utf8",
-    );
-    const specifiers = [...source.matchAll(/^\s*import\s+[\s\S]*?from\s+["']([^"']+)["'];/gm)].map(
-      (match) => match[1],
-    );
+  test("imports only Node built-ins and the import-free state marker module so the monthly workflow runs without pnpm install", () => {
+    const prune = (name: string) =>
+      readFileSync(fileURLToPath(new URL(name, import.meta.url)), "utf8");
 
+    const specifiersOf = (source: string) =>
+      [...source.matchAll(/^\s*import\s+[\s\S]*?from\s+["']([^"']+)["'];/gm)].map(
+        (match) => match[1],
+      );
+
+    const specifiers = specifiersOf(prune("./prune-verifications.ts"));
     expect(specifiers.length).toBeGreaterThan(0);
     for (const specifier of specifiers) {
-      expect(specifier).toMatch(/^node:/);
+      expect(specifier).toMatch(/^(?:node:|\.\/scout\/state-marker\.ts$)/);
     }
-    expect(PRUNE_STATE_ISSUE_NUMBER).toBe(SCOUT_STATE_ISSUE_NUMBER);
-    expect(PRUNE_STATE_ISSUE_TITLE).toBe(SCOUT_STATE_ISSUE_TITLE);
+    expect(specifiersOf(prune("./scout/state-marker.ts"))).toEqual([]);
   });
 
   test("validates CLI arguments strictly and rejects malformed values or unknown flags", () => {
@@ -61,34 +58,29 @@ describe("prune-verifications", () => {
     expect(() => parsePruneCliArgs(["--paths", "extra"])).toThrow(/Unexpected argument 'extra'/);
   });
 
-  test("extracts verification-flakes.lastPrNumber and fails closed on missing or invalid markers", () => {
-    expect(extractVerificationFlakesLastPr("no marker here")).toBeNull();
-    expect(extractVerificationFlakesLastPr("<!-- merit-scout-state: {broken -->")).toBeNull();
+  test("reads records.lastPrNumber, falling back to the old verification-flakes cursor, and fails closed", () => {
+    const marker = (state: unknown) => `<!-- merit-scout-state: ${JSON.stringify(state)} -->`;
+
+    expect(readRecordsLastPrNumber("no marker here")).toBeNull();
+    expect(readRecordsLastPrNumber("<!-- merit-scout-state: {broken -->")).toBeNull();
     expect(
-      extractVerificationFlakesLastPr(
-        '<!-- merit-scout-state: {"docs":{"lastRunAt":"2026-11-22T00:00:00Z"}} -->',
-      ),
+      readRecordsLastPrNumber(marker({ docs: { lastRunAt: "2026-11-22T00:00:00Z" } })),
     ).toBeNull();
+    for (const lastPrNumber of [0, -5, 215.5, "223"]) {
+      expect(readRecordsLastPrNumber(marker({ records: { lastPrNumber } }))).toBeNull();
+      expect(
+        readRecordsLastPrNumber(marker({ "verification-flakes": { lastPrNumber } })),
+      ).toBeNull();
+    }
+    expect(readRecordsLastPrNumber(marker({ records: { lastPrNumber: 240 } }))).toBe(240);
+    expect(readRecordsLastPrNumber(marker({ "verification-flakes": { lastPrNumber: 223 } }))).toBe(
+      223,
+    );
     expect(
-      extractVerificationFlakesLastPr(
-        '<!-- merit-scout-state: {"verification-flakes":{"lastPrNumber":0}} -->',
+      readRecordsLastPrNumber(
+        marker({ records: { lastPrNumber: 240 }, "verification-flakes": { lastPrNumber: 223 } }),
       ),
-    ).toBeNull();
-    expect(
-      extractVerificationFlakesLastPr(
-        '<!-- merit-scout-state: {"verification-flakes":{"lastPrNumber":-5}} -->',
-      ),
-    ).toBeNull();
-    expect(
-      extractVerificationFlakesLastPr(
-        '<!-- merit-scout-state: {"verification-flakes":{"lastPrNumber":215.5}} -->',
-      ),
-    ).toBeNull();
-    expect(
-      extractVerificationFlakesLastPr(
-        '<!-- merit-scout-state: {"verification-flakes":{"lastPrNumber":223,"lastRunAt":"2026-11-22T00:00:00Z"}} -->',
-      ),
-    ).toBe(223);
+    ).toBe(240);
   });
 
   test("selects only scouted verification files at or past the retention cutoff, sorted numerically", () => {

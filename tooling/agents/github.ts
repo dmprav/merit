@@ -7,19 +7,13 @@ import type { AgentLabel, IssueCommentRecord } from "../verification/agent-polic
 /** Runs `gh` with the given arguments and returns its standard output. */
 export type GhExec = (args: readonly string[]) => string;
 
-/**
- * Whose credentials `gh` uses: `ambient` keeps the environment's own `GH_TOKEN` or `gh auth` login;
- * `scout` prefers `MERIT_SCOUT_GH_TOKEN` for runners whose default token cannot write issues.
- */
-export type GhAuth = "ambient" | "scout";
-
 type ExecFile = (
   file: string,
   args: readonly string[],
-  options: { cwd: string; encoding: "utf8"; maxBuffer: number; env?: NodeJS.ProcessEnv },
+  options: { cwd: string; encoding: "utf8"; maxBuffer: number },
 ) => string;
 
-/** How a client's default `gh` runner reads the environment and spawns `gh`; tests replace both. */
+/** How a client resolves its repository from the environment and spawns `gh`; tests replace both. */
 type GhProcess = { env?: NodeJS.ProcessEnv; execFile?: ExecFile };
 
 /** Paginated REST requests ask for GitHub's largest page; `gh api --paginate` follows every page. */
@@ -28,37 +22,16 @@ const REST_PAGE_SIZE = 100;
 /** Paginated responses with long issue bodies exceed Node's 1 MiB default output buffer. */
 const GH_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
 
-export const SCOUT_GH_TOKEN_ENV = "MERIT_SCOUT_GH_TOKEN";
-
-/** Prefers `MERIT_SCOUT_GH_TOKEN` over injected integration tokens (such as Cursor's `GH_TOKEN`) when running `gh`. */
-export const resolveScoutGhEnv = (env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv => {
-  const scoutToken = env[SCOUT_GH_TOKEN_ENV]?.trim();
-  if (!scoutToken) {
-    return env;
-  }
-  return {
-    ...env,
-    GH_TOKEN: scoutToken,
-  };
-};
-
-/** Creates a `gh` runner in `repoRoot` with the requested credentials. */
+/** Creates a `gh` runner in `repoRoot` that uses the environment's own `GH_TOKEN` or `gh auth` login. */
 export const createGhExec = ({
   repoRoot,
-  auth,
-  env = process.env,
   execFile = execFileSync,
 }: {
   repoRoot: string;
-  auth: GhAuth;
-  env?: NodeJS.ProcessEnv;
   execFile?: ExecFile;
 }): GhExec => {
   const options = { cwd: repoRoot, encoding: "utf8", maxBuffer: GH_MAX_BUFFER_BYTES } as const;
-  if (auth === "ambient") {
-    return (args) => execFile("gh", args, options);
-  }
-  return (args) => execFile("gh", args, { ...options, env: resolveScoutGhEnv(env) });
+  return (args) => execFile("gh", args, options);
 };
 
 export type RepoIdentity = {
@@ -485,13 +458,10 @@ type ClientOptions = GhProcess & {
   exec?: GhExec;
 };
 
-const createClientContext = (
-  { repoRoot, repo, env, execFile, exec }: ClientOptions,
-  auth: GhAuth,
-): RestContext =>
+const createClientContext = ({ repoRoot, repo, env, execFile, exec }: ClientOptions): RestContext =>
   createRestContext(
     () => repo ?? resolveRepoIdentity(repoRoot, env),
-    exec ?? createGhExec({ repoRoot, auth, env, execFile }),
+    exec ?? createGhExec({ repoRoot, execFile }),
   );
 
 /**
@@ -502,7 +472,7 @@ const createClientContext = (
 export type GitHubRestClient = ReturnType<typeof createGitHubRestClient>;
 
 export const createGitHubRestClient = (options: ClientOptions) => {
-  const context = createClientContext(options, "ambient");
+  const context = createClientContext(options);
   return {
     ...restIssueOperations(context),
     ...restPullOperations(context),
@@ -580,15 +550,11 @@ const createRestIssue = (
   return created.html_url;
 };
 
-/**
- * Reads and files issues for scout and proposal runs through the GitHub REST API, like
- * `GitHubRestClient`, but authenticated with `MERIT_SCOUT_GH_TOKEN` when it is set so they can
- * write issues where the runner's default token cannot.
- */
+/** Reads and files issues for scout and proposal runs through the GitHub REST API. */
 export type GitHubIssueClient = ReturnType<typeof createGitHubIssueClient>;
 
 export const createGitHubIssueClient = (options: ClientOptions) => {
-  const context = createClientContext(options, "scout");
+  const context = createClientContext(options);
   return {
     /** Lists every issue in `state`, optionally only those carrying `label`; never pull requests. */
     listIssues: (query: IssueListQuery): IssueListItem[] => listIssuesOnly(context, query),

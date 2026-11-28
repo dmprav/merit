@@ -13,8 +13,6 @@ import {
   createGitHubRestClient,
   parseGitHubRemote,
   resolveRepoIdentity,
-  resolveScoutGhEnv,
-  SCOUT_GH_TOKEN_ENV,
 } from "./github.ts";
 
 const repo = { owner: "dmprav", name: "merit" };
@@ -364,83 +362,35 @@ describe("repository identity", () => {
 });
 
 describe("gh credentials", () => {
-  test("prefers MERIT_SCOUT_GH_TOKEN over injected GH_TOKEN without mutating input env", () => {
-    const baseEnv = { GH_TOKEN: "injected-integration-token", PATH: "/usr/bin" };
-    expect(resolveScoutGhEnv(baseEnv)).toBe(baseEnv);
-    expect(resolveScoutGhEnv({ ...baseEnv, [SCOUT_GH_TOKEN_ENV]: "   " })).toEqual({
-      ...baseEnv,
-      [SCOUT_GH_TOKEN_ENV]: "   ",
-    });
-
-    const withScoutToken = {
-      ...baseEnv,
-      [SCOUT_GH_TOKEN_ENV]: "  scout-token-fixture  ",
-    };
-    const resolved = resolveScoutGhEnv(withScoutToken);
-    expect(resolved.GH_TOKEN).toBe("scout-token-fixture");
-    expect(resolved.PATH).toBe("/usr/bin");
-    expect(withScoutToken.GH_TOKEN).toBe("injected-integration-token");
-  });
-
-  test("runs gh in the repository with a large output buffer and scout or ambient credentials", () => {
-    const runs: Array<{ file: string; args: readonly string[]; cwd: string; token?: string }> = [];
+  test("runs gh in the repository with a large output buffer and the environment's own credentials", () => {
+    const runs: Array<{ file: string; args: readonly string[]; cwd: string; env?: unknown }> = [];
     const buffers: number[] = [];
 
     const execFile = (
       file: string,
       args: readonly string[],
-      options: { cwd: string; maxBuffer: number; env?: NodeJS.ProcessEnv },
+      options: { cwd: string; maxBuffer: number },
     ) => {
       buffers.push(options.maxBuffer);
       runs.push({
         file,
         args,
         cwd: options.cwd,
-        ...(options.env ? { token: options.env.GH_TOKEN } : {}),
+        ...("env" in options ? { env: options.env } : {}),
       });
       return "ok";
     };
 
-    const env = { GH_TOKEN: "injected", [SCOUT_GH_TOKEN_ENV]: "scout" };
+    expect(createGhExec({ repoRoot: "/repo", execFile })(["api"])).toBe("ok");
 
-    expect(createGhExec({ repoRoot: "/repo", auth: "scout", env, execFile })(["api"])).toBe("ok");
-    createGhExec({ repoRoot: "/repo", auth: "ambient", env, execFile })(["api"]);
-
-    expect(runs).toEqual([
-      { file: "gh", args: ["api"], cwd: "/repo", token: "scout" },
-      { file: "gh", args: ["api"], cwd: "/repo" },
-    ]);
+    expect(runs).toEqual([{ file: "gh", args: ["api"], cwd: "/repo" }]);
     expect(buffers.every((bytes) => bytes > 1024 * 1024)).toBe(true);
   });
 
-  test("files issues with MERIT_SCOUT_GH_TOKEN when it is set, else with the runner's own token", () => {
-    const fixture = createFakeGhFixture({
-      html_url: "https://github.com/dmprav/merit/issues/9",
-      labels: [],
-    });
-    const runnerEnv = fixture.env({ GH_REPO: "dmprav/merit", GH_TOKEN: "runner-token" });
-
-    createGitHubIssueClient({
-      repoRoot: fixture.dir,
-      env: { ...runnerEnv, [SCOUT_GH_TOKEN_ENV]: "scout-token" },
-    }).createIssue({ title: "t", body: "b", labels: [] });
-    createGitHubIssueClient({ repoRoot: fixture.dir, env: runnerEnv }).createIssue({
-      title: "t",
-      body: "b",
-      labels: [],
-    });
-
-    expect(fixture.readCaptures().map((capture) => capture.token)).toEqual([
-      "scout-token",
-      "runner-token",
-    ]);
-  });
-
-  test("sends queue requests with the runner's own credentials even when a scout token is set", () => {
+  test("sends queue requests with the runner's own credentials", () => {
     const fixture = createFakeGhFixture("");
     vi.stubEnv("PATH", fixture.env().PATH);
     vi.stubEnv("GH_TOKEN", "runner-token");
-    vi.stubEnv(SCOUT_GH_TOKEN_ENV, "scout-token");
 
     createGitHubRestClient({ repoRoot: fixture.dir, repo }).rerunFailedJobs(9);
 
@@ -631,7 +581,8 @@ describe("GitHub issue client", () => {
     const fixture = createFakeGhFixture([
       [1, 2, 3, 4].map((number) => restIssue(number, { state: "closed", body: largeBody })),
     ]);
-    const client = createGitHubIssueClient({ repoRoot: fixture.dir, repo, env: fixture.env() });
+    vi.stubEnv("PATH", fixture.env().PATH);
+    const client = createGitHubIssueClient({ repoRoot: fixture.dir, repo });
 
     const issues = client.listIssues({ state: "closed" });
 

@@ -1,9 +1,23 @@
 import { execFileSync } from "node:child_process";
 
-import type { LensCursor } from "./state.ts";
+import type { RunCursor } from "./state.ts";
 
 /** The branch a scout run scans; its tip is the commit `advance` records. */
 export const SCAN_REF = "origin/main";
+
+/** Where a run's history starts: its cursor, or the lookback date when it has none. */
+export type HistoryQuery = {
+  cursor: RunCursor | undefined;
+  tipSha: string;
+  fallbackSinceIso: string;
+};
+
+/** Lines one commit added to and deleted from one path. */
+export type ChurnEntry = {
+  path: string;
+  additions: number;
+  deletions: number;
+};
 
 export type CommitSummary = {
   sha: string;
@@ -31,12 +45,10 @@ export type GitPort = {
   verifyCommit: (revision: string) => string;
   /** The committer date of `sha` in strict ISO 8601. */
   commitDate: (sha: string) => string;
-  /** First-parent commits after the lens cursor up to `tipSha`, oldest first. */
-  listCommitsSince: (query: {
-    cursor: LensCursor | undefined;
-    tipSha: string;
-    fallbackSinceIso: string;
-  }) => CommitSummary[];
+  /** First-parent commits after the run cursor up to `tipSha`, oldest first. */
+  listCommitsSince: (query: HistoryQuery) => CommitSummary[];
+  /** Per-path lines added and deleted by those same commits; binary files count as zero. */
+  churnSince: (query: HistoryQuery) => ChurnEntry[];
   /** Paths a commit changed relative to its first parent. */
   filesChangedIn: (sha: string) => string[];
   /** Every path tracked at `sha`. */
@@ -47,29 +59,42 @@ export type GitPort = {
   checkoutState: () => CheckoutState;
 };
 
-export const buildCommitQueryArgs = ({
+/** The revision range after a cursor commit still on the branch, else history since a date. */
+const buildHistoryRange = ({
   cursor,
   isAncestor,
   fallbackSinceIso,
   ref = SCAN_REF,
 }: {
-  cursor: LensCursor | undefined;
+  cursor: RunCursor | undefined;
   isAncestor: (sha: string) => boolean;
   fallbackSinceIso: string;
   ref?: string;
-}): string[] => {
-  if (cursor?.lastCommitSha && isAncestor(cursor.lastCommitSha)) {
-    return [
-      "log",
-      "--reverse",
-      "--first-parent",
-      "--format=%H\t%cI\t%s",
-      `${cursor.lastCommitSha}..${ref}`,
-    ];
-  }
-  const since = cursor?.lastCommitDate ?? fallbackSinceIso;
-  return ["log", "--reverse", "--first-parent", `--since=${since}`, "--format=%H\t%cI\t%s", ref];
-};
+}): string[] =>
+  cursor?.lastCommitSha && isAncestor(cursor.lastCommitSha)
+    ? [`${cursor.lastCommitSha}..${ref}`]
+    : [`--since=${cursor?.lastCommitDate ?? fallbackSinceIso}`, ref];
+
+export const buildCommitQueryArgs = (query: Parameters<typeof buildHistoryRange>[0]): string[] => [
+  "log",
+  "--reverse",
+  "--first-parent",
+  "--format=%H\t%cI\t%s",
+  ...buildHistoryRange(query),
+];
+
+/** The `git log` arguments that list per-path line counts for the same commits as `buildCommitQueryArgs`. */
+export const buildChurnQueryArgs = (query: Parameters<typeof buildHistoryRange>[0]): string[] => [
+  "-c",
+  "core.quotePath=false",
+  "log",
+  "-m",
+  "--first-parent",
+  "--no-renames",
+  "--numstat",
+  "--format=",
+  ...buildHistoryRange(query),
+];
 
 export const parseCommitLog = (raw: string): CommitSummary[] =>
   raw
@@ -80,6 +105,25 @@ export const parseCommitLog = (raw: string): CommitSummary[] =>
       const subject = rest.join("\t");
       return sha && date ? [{ sha, date, subject }] : [];
     });
+
+/** Reads `git log --numstat` lines (`<added>\t<deleted>\t<path>`); binary files report `-` and count as zero. */
+export const parseChurn = (raw: string): ChurnEntry[] =>
+  raw.split(/\r?\n/).flatMap((line): ChurnEntry[] => {
+    const [additions, deletions, ...path] = line.split("\t");
+    if (additions === undefined || deletions === undefined || path.length === 0) {
+      return [];
+    }
+    if (!/^(?:\d+|-)$/.test(additions) || !/^(?:\d+|-)$/.test(deletions)) {
+      return [];
+    }
+    return [
+      {
+        path: path.join("\t"),
+        additions: Number.parseInt(additions, 10) || 0,
+        deletions: Number.parseInt(deletions, 10) || 0,
+      },
+    ];
+  });
 
 // With `-z`, Git separates paths with NUL and leaves them unquoted, however unusual their names.
 const splitPaths = (raw: string): string[] => raw.split("\0").filter(Boolean);
@@ -160,10 +204,13 @@ export const assertCheckoutAt = (git: Pick<GitPort, "checkoutState">, scanTipSha
   );
 };
 
+/** A week of per-path line counts outgrows Node's 1 MiB default output buffer. */
+const GIT_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
+
 /** Reads history with the `git` command line in `repoRoot`. */
 export const createGitPort = (repoRoot: string): GitPort => {
   const git = (args: readonly string[]) =>
-    execFileSync("git", args, { cwd: repoRoot, encoding: "utf8" });
+    execFileSync("git", args, { cwd: repoRoot, encoding: "utf8", maxBuffer: GIT_MAX_BUFFER_BYTES });
 
   const isAncestor = (sha: string, ref: string): boolean => {
     try {
@@ -177,21 +224,19 @@ export const createGitPort = (repoRoot: string): GitPort => {
     }
   };
 
+  const withAncestry = ({ cursor, tipSha, fallbackSinceIso }: HistoryQuery) => ({
+    cursor,
+    isAncestor: (sha: string) => isAncestor(sha, tipSha),
+    fallbackSinceIso,
+    ref: tipSha,
+  });
+
   return {
     revParse: (ref) => git(["rev-parse", ref]).trim(),
     verifyCommit: (revision) => git(["rev-parse", "--verify", `${revision}^{commit}`]).trim(),
     commitDate: (sha) => git(["show", "-s", "--format=%cI", sha]).trim(),
-    listCommitsSince: ({ cursor, tipSha, fallbackSinceIso }) =>
-      parseCommitLog(
-        git(
-          buildCommitQueryArgs({
-            cursor,
-            isAncestor: (sha) => isAncestor(sha, tipSha),
-            fallbackSinceIso,
-            ref: tipSha,
-          }),
-        ),
-      ),
+    listCommitsSince: (query) => parseCommitLog(git(buildCommitQueryArgs(withAncestry(query)))),
+    churnSince: (query) => parseChurn(git(buildChurnQueryArgs(withAncestry(query)))),
     filesChangedIn: (sha) =>
       splitPaths(
         git([

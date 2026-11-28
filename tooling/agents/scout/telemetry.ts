@@ -1,5 +1,4 @@
 import { errorMessage, normalizeRepoPath } from "../../cli.ts";
-import type { RotationAxis } from "./axes.ts";
 import {
   type CloneGroupEntry,
   type EntryWeightEntry,
@@ -59,9 +58,19 @@ const capabilityLayerOf = ([
   return area === "web" || area === "ai" ? area : null;
 };
 
-/** Counts production TypeScript files per capability layer so lopsided capabilities stand out. */
+/** The capability a path belongs to, or null outside `capabilities/`. */
+const capabilityOf = (filePath: string): string | null => {
+  const [root, capability] = normalizeRepoPath(filePath).split("/");
+  return root === "capabilities" && capability ? capability : null;
+};
+
+/**
+ * Counts production TypeScript files per capability layer so lopsided capabilities stand out; with
+ * `scopedFiles`, lists only capabilities that own one of them.
+ */
 export const buildCapabilitySymmetry = (
   trackedFiles: readonly string[],
+  scopedFiles?: readonly string[],
 ): CapabilitySymmetryEntry[] => {
   const counts = new Map<string, CapabilitySymmetryEntry>();
   for (const filePath of trackedFiles.map(normalizeRepoPath)) {
@@ -81,7 +90,10 @@ export const buildCapabilitySymmetry = (
     }
     counts.set(capability, row);
   }
-  return [...counts.values()].sort((a, b) => a.capability.localeCompare(b.capability));
+  const scopedCapabilities = scopedFiles && new Set(scopedFiles.map(capabilityOf));
+  return [...counts.values()]
+    .filter((row) => !scopedCapabilities || scopedCapabilities.has(row.capability))
+    .sort((a, b) => a.capability.localeCompare(b.capability));
 };
 
 const SUPPRESSION_PATTERNS: ReadonlyArray<{ kind: string; pattern: RegExp }> = [
@@ -164,39 +176,41 @@ export type TelemetryPorts = {
   readFile: (repoPath: string) => string;
 };
 
-/** Gathers fallow health, duplication, and suppression signals, focused on the rotation axis's paths. */
+/**
+ * Gathers fallow health, duplication, and suppression signals for the paths `inScope` accepts. Layer
+ * counts name every capability with a path in scope, counted across all of its files.
+ */
 export const collectStructuralTelemetry = (
   { fallow, git, readFile }: TelemetryPorts,
   {
+    inScope,
     capabilitySymmetry,
-    axis,
+    entryWeights: wantsEntryWeights,
     trackedFiles,
     trackedPathsByIssue,
   }: {
+    inScope: (filePath: string) => boolean;
     capabilitySymmetry: boolean;
-    axis: RotationAxis | null;
+    entryWeights: boolean;
     trackedFiles: readonly string[];
     trackedPathsByIssue: ReadonlyMap<string, number[]>;
   },
 ): StructuralTelemetry => {
-  const pathPatterns = axis?.pathPatterns ?? [];
+  const scope = { inScope, trackedPathsByIssue };
   const fallowErrors: string[] = [];
   const health = readFallowReport("health", fallowErrors, () =>
-    summarizeFallowHealth({ rawHealth: fallow.health(), pathPatterns, trackedPathsByIssue }),
+    summarizeFallowHealth({ rawHealth: fallow.health(), ...scope }),
   );
   const cloneGroups = readFallowReport("dupes", fallowErrors, () =>
-    summarizeFallowDupes({ rawDupes: fallow.dupes(), pathPatterns, trackedPathsByIssue }),
+    summarizeFallowDupes({ rawDupes: fallow.dupes(), ...scope }),
   );
-  const entryWeights = axis?.telemetry?.entryWeights
+  const entryWeights = wantsEntryWeights
     ? readFallowReport("entry-weight", fallowErrors, () =>
         summarizeEntryWeights({ rawEntryWeight: fallow.entryWeight(), trackedPathsByIssue }),
       )
     : undefined;
-  const suppressions = collectSuppressionLedger(
-    readFile,
-    trackedFiles,
-    axis?.telemetry?.suppressionTopFiles ?? false,
-  );
+  const filesInScope = trackedFiles.filter(inScope);
+  const suppressions = collectSuppressionLedger(readFile, filesInScope, true);
 
   return {
     shallowClone: git.isShallow(),
@@ -206,7 +220,9 @@ export const collectStructuralTelemetry = (
     cloneGroups: cloneGroups ?? [],
     ...(entryWeights ? { entryWeights } : {}),
     suppressions,
-    ...(capabilitySymmetry ? { capabilitySymmetry: buildCapabilitySymmetry(trackedFiles) } : {}),
+    ...(capabilitySymmetry
+      ? { capabilitySymmetry: buildCapabilitySymmetry(trackedFiles, filesInScope) }
+      : {}),
     ...(fallowErrors.length > 0 ? { fallowErrors } : {}),
   };
 };

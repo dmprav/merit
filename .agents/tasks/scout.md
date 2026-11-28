@@ -1,119 +1,168 @@
 # Autonomous Maintenance Scout
 
-> **Paused.** This task is being replaced by the loop in
-> [decision 0017](../../docs/decisions/0017-autonomous-maintenance-loop.md).
-> Do not schedule or run it.
+Audits Merit when enough has changed, proves each finding with something it ran,
+and files it as an issue a work session can build from. Part of the loop in
+[decision 0017](../../docs/decisions/0017-autonomous-maintenance-loop.md); only
+Claude Code cloud sessions run it.
 
-Read-only scheduled audit of Merit across seven specialized lenses. This task
-**never** edits repository files, commits changes, opens pull requests, or
-deletes `verifications/*.md` files. Its only outputs are concise, decision-ready
-proposal issues created through
-[proposal.ts](../../tooling/agents/proposal.ts) and cursor updates on pinned
-state issue `#219` via [scout.ts](../../tooling/agents/scout.ts). The one Git
-change it makes is switching a clean checkout to `scanTipSha` when
-`scout.ts context` asks for it.
+A scout session commits nothing but failing-test evidence, never leaves a
+mutation or any other edit in place, and never opens pull requests or deletes
+`verifications/*.md`. Its outputs are issues filed through
+[proposal.ts](../../tooling/agents/proposal.ts), cursor updates on pinned state
+issue `#219` through [scout.ts](../../tooling/agents/scout.ts), and one commit per
+failing-test finding on the session's own branch. Start with
+[AGENTS.md](../../AGENTS.md).
 
-Start with [AGENTS.md](../../AGENTS.md) and the guide for the lens you are
-running.
+## Check protocol
+
+A scheduled task runs the check; it audits nothing itself.
+
+1. `git fetch origin main`.
+2. `vpx tooling/agents/scout.ts due`. It reads `origin/main` and `#219`, so the
+   checkout need not be at the scan tip.
+3. `{"status": "idle"}`: exit.
+4. `{"status": "due", "runs": [...]}`: run
+   `vpx tooling/agents/scout.ts start --run <id> [--run <id> ...]` for exactly the
+   listed runs. It records each run as in flight on `#219` in one edit, so the next
+   check does not start it again while its session works. It prints the runs it
+   started and, as `alreadyStarted`, any it found already in flight. Create one
+   cloud session with `create_session` in the same environment, with the prompt
+   `Follow .agents/tasks/scout.md run protocol for run <id>`, for each run in the
+   `runs` it printed and for no other, then exit; do not audit, file, or advance
+   anything. If `start` fails, exit without creating any session. A run whose
+   session could not be created stays in flight until `check.startedRunTimeoutHours`
+   pass, then is due again.
+
+`check.maxRunsInFlight` limits how many runs are in flight at once: `due` lists
+the due runs that fit under it, counting runs already started, and `start` refuses
+to exceed it. When more are due, `deferred` counts the rest; they wait for a later
+check. A started run is not listed by `due` until its session runs `advance`, or
+`check.startedRunTimeoutHours` pass and it is due again, which retries a crashed
+session. Both live in `SCOUT_RUN_POLICY`.
+
+`due` lists the runs in descending `metric / threshold`. Each kind has one
+threshold, tuned in `SCOUT_RUN_POLICY` in
+[runs.ts](../../tooling/agents/scout/runs.ts); this table does not restate the values.
+
+| Run kind       | Id                         | Due when                                                                     |
+| -------------- | -------------------------- | ---------------------------------------------------------------------------- |
+| `change-batch` | `change-batch`             | `changeBatch.minCommits` commits merged since its cursor                     |
+| `area`         | `area:<area>`              | `area.minChangedLines` changed lines in the area since its cursor            |
+| `mechanism`    | `mechanism:<mechanism id>` | `mechanism.minCommits` commits since its cursor touched its contract/adapter |
+| `records`      | `records`                  | `records.minRecords` `verifications/<n>.md` files newer than `lastPrNumber`  |
+
+An area is a path's first two segments under `capabilities/`, `foundation/`,
+`interfaces/`, and `tooling/`, else its first segment. Lockfiles, snapshots, images,
+migration metadata, and `verifications/**` do not count as churn. A run never
+audited measures from seven days ago.
 
 ## Run protocol
 
-Every scheduled run targets **one lens** — either `--lens auto` (recommended for
-scheduled runs; picks the most overdue lens from `#219` cursors) or an explicit
-`--lens <lens>`: `docs`, `tests`, `verification-flakes`, `architecture`,
-`simplification`, `security`, or `mcp-db`.
+You were given one run id.
 
-1. **Load deterministic context:**
-   Run `vpx tooling/agents/scout.ts context --lens auto` (or pass a specific
-   `--lens <lens>`). Inspect `status` (`"ready"`, `"idle"`, or `"cap_reached"`):
-   - If `status` is `"idle"` (`all_lenses_fresh`), exit cleanly without
-     advancing any cursor.
-   - If `status` is `"cap_reached"`, exit cleanly without advancing any cursor.
-   - When `status` is `"ready"`, record the emitted `lens`, `scanTipSha`,
-     `commits`, `changedFiles`, `matchedMechanisms`, `rotationTarget`,
-     `rotationAxis` (for `architecture`/`simplification`), `telemetry` (for
-     `architecture`/`simplification`), `unreadVerifications`, `openIssues`, and
-     `wontfixIssues` (including each maintainer rejection `reason`, when
-     present).
-   - A ready run reads the working tree as `origin/main`, so `scout.ts context`
-     fails when the checkout is at another commit, has changed or untracked
-     paths, or hides tracked paths from `git status` (a sparse checkout). On a clean checkout, run the `git switch --detach <scanTipSha>` the
-     error names and retry. If the checkout has changes, stop and report them
-     without advancing any cursor rather than stashing or discarding them.
-2. **Respect the proposal cap:**
-   While running in human-gated mode (`--tier2-only`), every proposal lands in
-   `agent:proposed` (capped at 5 open issues). Leaving the cursor untouched on
-   `cap_reached` ensures findings wait until the maintainer triages open
-   proposals.
-3. **Inspect the codebase using the emitted `lens` rules below:**
-   - Do not repeat work already covered by `openIssues` or rejected in
-     `wontfixIssues` (read `wontfixIssues[].reason` to honor maintainer taste).
-   - Respect `trackedBy` on `telemetry` hotspots and clone groups: skip files
-     already tracked by an open or `wontfix` issue unless you have a clearly
-     distinct root cause.
-   - **Worth-a-PR bar:** Every proposal goes through human triage, a full
-     implementation + review cycle, and a full CI run. **Do not file
-     micro-proposals** (a 1–2 line wording tweak, a single missing test
-     assertion, or an isolated style nit).
-   - **Bundle within the audited scope:** When a sweep uncovers multiple
-     concrete issues of the same lens (e.g., several doc/tool-description
-     mismatches in one area, or duplicate tests + missing assertions across one
-     slice), bundle them into **one cohesive proposal** worth a real PR. If a
-     sweep only turns up 1–2 trivial nits, **file zero proposals** and advance
-     the cursor.
-   - **Bounded reading budget:** On horizontal lenses (`architecture`,
-     `simplification`), read `rotationAxis.anchorDocs` plus 3–5 axis-matched
-     `telemetry` hotspots/clones or 2–3 contrasting sibling implementations in
-     full — never skim an entire layer superficially.
-   - File at most **2 high-signal proposals per run**. Prefer zero proposals
-     over low-leverage churn.
-   - Read every target file and its named precedent in full before proposing a
-     change.
-4. **Emit proposals through `proposal.ts`:**
-   Pipe one JSON object per finding into:
-   `vpx tooling/agents/proposal.ts --tier2-only`
+1. **Load context.** `vpx tooling/agents/scout.ts context --run <id>`. It fails
+   unless the checkout is clean at `scanTipSha`; run the
+   `git switch --detach <scanTipSha>` it names and retry. If the checkout has
+   changes, stop and report them without advancing the cursor. Once `context`
+   passes, move onto your session's branch at the same commit with
+   `git switch -C <session branch> <scanTipSha>`, so evidence commits land there
+   and the checkout stays at the scan tip until the first one.
+   `context` prints `run`, `scanTipSha`, `cursor`, `commits`, `changedFiles`,
+   `matchedMechanisms`, `concerns`, `openIssues`, `wontfixIssues` (with each
+   maintainer rejection `reason`), and, by run kind, `telemetry` (`area` and
+   `mechanism` runs, filtered to the target; `capabilitySymmetry` for mechanisms,
+   `entryWeights` for `app` and `interfaces/*` areas) or `unreadVerifications`
+   (`records`). `commits` and `changedFiles` cover only the target's paths for
+   `area` and `mechanism` runs.
+2. **Audit the target against `concerns`, in order.** Each concern is a checklist
+   below. The order is the weight: spend most effort on the first. Read each
+   target file and its precedent in full before claiming a problem. Respect
+   `trackedBy` on telemetry hotspots and clone groups: skip what an open or
+   `wontfix` issue already tracks unless the root cause is clearly distinct.
+3. **Prove each finding** (next section), then file it.
+4. **File through `proposal.ts`.** One JSON object per finding on stdin of
+   `vpx tooling/agents/proposal.ts` (add `--dry-run` to preview). Details below.
+5. **Advance.** After inspection, even when nothing was filed:
+   `vpx tooling/agents/scout.ts advance --run <id> --commit <scanTipSha>`. For
+   `records`, add `--pr <highest verification record pull request number read>`.
+   Do not advance when `context` or `proposal.ts` failed for an unfiled finding;
+   the run is due again once `check.startedRunTimeoutHours` pass.
 
-   > **Human-gated proposals:** Keep `--tier2-only` enabled so every
-   > substantive proposal lands in `agent:proposed` for maintainer triage before
-   > implementation.
+## Evidence rules
 
-   Choose the proposal `kind` deliberately (`proposalInputSchema` in
-   [proposal.ts](../../tooling/agents/proposal.ts)):
-   - **`"kind": "pr"` (default):** Single-PR changes, including PR 1 of a
-     clearly settled multi-PR refactor (listing PR 2..N in `brief.outOfScope`).
-     Must include a self-contained `brief` (`behavior`, `outOfScope`,
-     `precedents`, `plan`, `verification`) so
-     [implement-proposal](../skills/implement-proposal/SKILL.md) can execute
-     without interactive grilling.
-   - **`"kind": "design"`:** Systemic architectural findings that require a
-     maintainer design decision or multi-PR sequencing too large for one PR.
-     `proposal.ts` automatically attaches `agent:design` (preventing Queue
-     Worker auto-dispatch) and renders bounded `design` fields (`options` 2–3,
-     `recommendation`, `prSequence` 2–4 ordered PRs where PR 1 ships standalone,
-     `openQuestions` 1–4). Never write essays — keep every field a crisp single
-     line.
+A finding without executable evidence is not filed. A brief that cites code nobody
+ran is a hypothesis, and the builder pays for testing it.
 
-   Every JSON payload must also include:
-   - **Review summary (compact for human scanning):** `why` (≤220 chars),
-     `evidence` (≤200 chars, ≥2 concrete `file:line` citations or exact
-     telemetry metrics), `change` (1–5 single-line bullets ≤140 chars),
-     `decision` (≤200 chars, why this approach), `whyNot` (≤200 chars, main
-     alternative rejected).
-   - **Scope & flags:** explicit `paths` (avoid globs unless truly multi-file),
-     `ambiguous: true` whenever intended behavior, policy, or trade-offs are
-     unsettled. Never pass `agent:*` labels in `extraLabels`.
+- **Behavioral bug:** write a failing test at the owning layer (see the testing
+  guide), commit only that test to your session's own branch (see the run protocol), one
+  commit per finding, and push the branch. Put each failing test in its own new test
+  file, so every evidence commit cherry-picks cleanly on its own; the builder may
+  move it into the owning test file. Evidence type `failing-test` with `command` (the
+  test run), `output` (the failure excerpt), `branch`, `commit`, and `citations`
+  to the production code at fault. `proposal.ts` fetches `origin/<branch>` and
+  refuses to file unless `commit` is on it.
+- **Test gap:** apply a focused mutation to production code (see
+  [focused mutation checks](../../docs/guides/testing.md#focused-mutation-checks)),
+  run the owning tests, and confirm they still pass. Revert the mutation; leave no
+  mutation committed. Evidence type `surviving-mutation` with the command, the
+  passing output, and `file:line` of the mutated code.
+- **Anything else** (architecture, duplication, docs drift, security, query
+  shape): the output of a command you actually ran, such as `vp run architecture`,
+  `vp run code-health`, fallow, or the documented command that shows the problem,
+  with `file:line` citations. Evidence type `command`.
 
-5. **Advance the lens cursor:**
-   Only after finishing inspection — and **not** if `scout.ts context` returned
-   `status: "idle"` / `status: "cap_reached"` or `proposal.ts` returned
-   `status: "cap_reached"` for an unfiled finding — run with the **explicit**
-   emitted `lens` (never `--lens auto`) and `--target <rotationTarget>` (when
-   `rotationTarget` is non-null):
-   `vpx tooling/agents/scout.ts advance --lens <lens> --commit <scanTipSha> --target <rotationTarget>`
-   For `verification-flakes`, omit `--target` and pass
-   `--pr <highestUnreadPrNumber>` when `unreadVerifications` was non-empty.
+`output` is the relevant excerpt only (at most 1500 characters).
 
-## Lens audit protocols
+## What to file
+
+- **Bar:** there is no per-run finding cap and no fixed reading budget. File what
+  is worth a pull request: a reviewer reads the diff, so do not file
+  micro-proposals (a one-line wording tweak, a single missing assertion, an
+  isolated style nit) unless the evidence shows a real defect or a guarded
+  invariant.
+- **Bundle within the audited target.** Several findings of one concern in one
+  area, mechanism, or slice become one cohesive proposal, each with its evidence
+  cited.
+- **Do not repeat work** covered by `openIssues` or rejected in `wontfixIssues`;
+  read `reason` to honor maintainer taste. `proposal.ts` also refuses a duplicate.
+- **`kind`:** `"pr"` (default) for a change one pull request can carry, with a
+  self-contained `brief` (`behavior`, `outOfScope`, `precedents`, `plan`,
+  `verification`) a work session can build without asking anyone. `"design"` for
+  a systemic finding that needs a maintainer decision or several pull requests,
+  with bounded `design` fields (`options` 2-3, `recommendation`, `prSequence` 2-4
+  where PR 1 ships alone, `openQuestions` 1-4).
+- **Source:** `"run": "<run id>"` on every finding.
+- **Fields:** `title`, `why`, `evidence` (`type`, `command`, `output`,
+  `citations`, plus `branch` and `commit` for a failing test), `change`
+  (1-5 single-line bullets), `decision`, `whyNot`, explicit `paths`, and
+  `ambiguous: true` whenever intended behavior or a trade-off is unsettled. Keep
+  every field a crisp single line (`output` aside). Never pass `agent:*` labels in
+  `extraLabels`.
+
+`proposal.ts` labels a `pr` finding `agent:ready` when it is unambiguous, and
+`agent:proposed` otherwise (a design, an ambiguous brief, or a follow-up more than
+two steps from its finding). It records the tier, which does not decide the label.
+
+## Concern checklists
+
+### `bugs-security`
+
+Audit the target end to end across web, server, MCP, and database boundaries.
+
+1. **Behavioral bugs:** logic that contradicts the documented workflow, unhandled
+   states, off-by-one and rounding errors (money goes through `@merit/money`),
+   races between reads and writes, and error paths that swallow failures.
+2. **Authorization and RBAC:** missing or inconsistent checks
+   (`capabilities/access/`) in server actions, loaders, API routes, and MCP tools,
+   including IDOR and horizontal escalation.
+3. **Tenant and organization isolation:** queries, mutations, storage keys, and
+   cache entries that do not scope by organization, or accept caller-supplied ids
+   across tenants.
+4. **Validation and injection:** unvalidated external input, unsafe HTML, URL,
+   iframe, or redirect handling, error messages that leak internal state or
+   secrets, missing rate or size bounds.
+5. **Supply chain and CI:** unpinned GitHub Actions, broad workflow permissions,
+   unsafe secret handling.
 
 ### `architecture`
 
@@ -121,224 +170,149 @@ Read [architecture](../../docs/foundations/architecture.md),
 [mechanisms.config.ts](../../tooling/verification/architecture/mechanisms.config.ts),
 and [rule enforcement](../../docs/guides/verification-tooling.md#rule-enforcement).
 
-- **Horizontal axis scope:** `scout.ts context` rotates round-robin across six
-  Merit-specific horizontal axes (`rotationAxis.id`, `anchorDocs`,
-  `pathPatterns`, `focus`):
-  1. `capability-ownership-and-boundaries`
-  2. `web-layering-and-draft-recovery`
-  3. `interface-transport-and-routing`
-  4. `shared-ui-and-design-system-contracts`
-  5. `audit-demo-and-observability-mechanisms`
-  6. `enforcement-ladder-and-verification-gaps`
-- **Telemetry-guided reading:** Start from `rotationAxis.anchorDocs`,
-  `telemetry.topFiles`, `telemetry.cloneGroups`, `telemetry.thresholdOverrides`,
-  `telemetry.entryWeights` (on `interface-transport-and-routing`),
-  `telemetry.suppressions`, and `telemetry.capabilitySymmetry`, plus any
-  `changedFiles` matching `matchedMechanisms`.
-- **Handoff boundaries:** `architecture` owns cross-capability boundaries,
-  ownership, mechanism invariants, route/bundle architecture, and
-  enforcement-ladder rules. Leave auth/RBAC/tenant/secret bugs to `security`,
-  MCP tool contracts/SQL indexes/command transactions to `mcp-db`, and
-  boundary-preserving clone/complexity deletion to `simplification`.
-- **Guardrail:** Honor
-  [design boundaries around behavior](../../docs/foundations/architecture.md#design-boundaries-around-behavior)
-  — _"Neither implementation size nor the number of layers establishes its
-  quality."_ Never propose splitting a file purely because of LOC or density
-  metrics; every proposal must fix a real coupling, ownership, bundle,
-  invariant, or enforcement problem. Use `"kind": "design"` when the fix spans
-  multiple PRs or requires a maintainer architecture choice.
+- Ownership leaks across capabilities, `serverImports` exception creep,
+  shared-persistence leaks, and orchestration accumulating in
+  `app/src/server/services.server.ts`.
+- Views absorbing controller or domain state, save-versus-refresh drift,
+  inconsistent draft or revision-baseline recovery.
+- Eager router or bundle weight, repeated server-function adapter boilerplate,
+  route loader, redirect, and error-translation drift.
+- Feature views bypassing `@merit/ui`, `@merit/forms`, or `@merit/tables`;
+  money and date boundary inconsistencies.
+- Write-owning capabilities drifting on audit events; demo seeders diverging from
+  example builders; inconsistent `instrumentService`, `reportError`, or analytics
+  wiring.
+- Recurring prose or review rules that belong higher on the enforcement ladder
+  (lint, types, fallow, mechanisms, architecture tests), and growing `oxlint`
+  disables or fallow overrides.
+- For a `mechanism` run, check every adapter against the mechanism's `invariants`
+  and `docs`.
+- **Guardrail:** honor
+  [design boundaries around behavior](../../docs/foundations/architecture.md#design-boundaries-around-behavior):
+  "Neither implementation size nor the number of layers establishes its quality."
+  Never propose splitting a file because of line count or density metrics. Every
+  finding fixes a real coupling, ownership, bundle, invariant, or enforcement
+  problem. Use `"kind": "design"` when the fix spans several pull requests or
+  needs a maintainer architecture choice.
+
+### `tests`
+
+Read the [testing guide](../../docs/guides/testing.md) and
+[verification guide](../../docs/guides/verification.md).
+
+- **Owner feedback:** inspect merged pull requests in `commits` for review
+  comments that asked to change, move, merge, or remove tests. Each is a defect
+  pattern; scan the whole target for it.
+- **Seven dimensions**, for the target's tests across all layers side by side:
+  1. Owning layer: verified at the lowest layer that can observe it?
+  2. Overlap: repeats another layer without
+     [justification](../../docs/guides/testing.md#justify-overlapping-coverage)?
+  3. Worth testing: asserts an outcome or contract, not call counts, framework
+     behavior, discarded implementations, or restated constants?
+  4. One behavior: independent setup, so rules fail independently?
+  5. Assertion strength: would it fail if the rule broke? Prove a suspected gap
+     with a surviving mutation.
+  6. Test data: deciding values explicit; owning capability fixtures rather than
+     demo records picked by position?
+  7. Cohesion: consistent naming and fixtures, no near-duplicates differing only
+     in incidental input?
+- Include the owning package's full test command (`vp run @merit/<pkg>#test`) in
+  the brief so coverage thresholds run, plus any touched integration, component,
+  or browser suites.
+- **Guardrails:** never propose removing the only test of a guarantee, lowering
+  coverage thresholds, narrowing measured scope, adding coverage-ignore
+  directives, or skipping a test, except as `ambiguous: true` for explicit owner
+  approval ([coverage policy](../../docs/guides/testing.md#coverage-policy-changes)).
+  Do not mix test cleanup with production edits; file production bugs separately.
 
 ### `simplification`
 
 Read [coding conventions](../../docs/guides/coding-conventions.md) and
 [engineering principles](../../docs/foundations/principles.md).
 
-- **Coarse layer scope:** `scout.ts context` rotates round-robin across four
-  layers (`business-server`, `web-views-and-controllers`,
-  `interfaces-and-routes`, `foundation-and-tooling`) anchored to
-  `telemetry.cloneGroups` and `telemetry.topFiles`.
-- **What to hunt for (high leverage):**
-  1. **Cross-file production clones:** Duplicated services, queries,
-     controllers, route shells, or UI/form/table wiring highlighted by
-     `telemetry.cloneGroups` that can collapse onto an existing shared contract.
-  2. **Dead indirection:** Pass-through wrappers, single-caller abstractions,
-     or redundant adapter glue that add cognitive load without protecting a real
-     boundary.
-  3. **Tangled modules:** Oversized modules mixing unrelated responsibilities
-     that can be simplified cleanly without changing capability boundaries or
-     external behavior.
-- **Guardrail:** Never propose speculative rewrites, stylistic churn, or pure
-  LOC-driven splitting. Every simplification must measurably delete complexity
-  or duplicate code while preserving exact external behavior; hand boundary
-  redesigns to `architecture`.
+1. **Cross-file production clones** in `telemetry.cloneGroups` that can collapse
+   onto an existing shared contract.
+2. **Dead indirection:** pass-through wrappers, single-caller abstractions, and
+   adapter glue that protects no boundary.
+3. **Tangled modules** mixing unrelated responsibilities that can be simplified
+   without changing capability boundaries.
 
-### `security`
-
-Audit `rotationTarget` and recent `changedFiles` end-to-end across web, server,
-MCP, and database boundaries.
-
-- **What to hunt for (high leverage):**
-  1. **Authorization & RBAC gaps:** Missing or inconsistent permission checks
-     (`capabilities/access/`) across server actions, loaders, API routes, and
-     MCP tools — including IDOR / horizontal privilege escalation.
-  2. **Tenant & organization isolation:** Queries, mutations, file-storage
-     keys, or cache entries that fail to scope strictly by organization/tenant
-     or allow cross-tenant references via caller-supplied IDs.
-  3. **Boundary validation & injection hygiene:** Weak or unvalidated external
-     inputs, unsafe HTML/URL/iframe/redirect handling, error messages leaking
-     internal state/secrets, or missing rate/size bounds.
-  4. **Supply-chain & CI hygiene:** Unpinned GitHub Actions, overly broad
-     workflow permissions, or unsafe secret handling.
+**Guardrail:** preserve exact external behavior. No speculative rewrites,
+stylistic churn, or LOC-driven splitting; every finding must measurably delete
+complexity or duplication. Hand boundary redesigns to `architecture`.
 
 ### `mcp-db`
 
-Audit `rotationTarget` and recent `changedFiles` across MCP tools
-(`capabilities/*/ai`, `interfaces/mcp`, `app/tests/evals/mcp`) and database
-layers (`foundation/db/`, capability repositories).
+Audit MCP tools (`capabilities/*/ai`, `interfaces/mcp`, `app/tests/evals/mcp`) and
+database layers (`foundation/db/`, capability repositories).
 
-- **What to hunt for (high leverage):**
-  1. **MCP contract & eval gaps:** Missing or weak MCP evals for real tool
-     behaviors, schema/permission mismatches between MCP tools and domain
-     services, or tool contracts that make agents misuse mutations.
-  2. **Query & index performance:** N+1 query loops, unbounded `SELECT`s on
-     growing tables, or hot filter/join columns missing Drizzle indexes.
-  3. **Write integrity:** Multi-step mutations missing transactions,
-     optimistic-concurrency/revision checks, or idempotency guards.
-  4. **Guardrail:** Never propose modifying or deleting applied SQL migrations
-     under `foundation/db/database/migrations/*.sql`.
-
-### `tests`
-
-Read [testing guide](../../docs/guides/testing.md) and
-[verification guide](../../docs/guides/verification.md).
-
-- **Owner-feedback mining:** Inspect recent merged PRs from `commits` for owner
-  review comments asking to change, move, merge, or remove tests. Treat each
-  request as a defect pattern and scan the entire slice for the same pattern.
-- **Whole-slice multi-layer audit:** Audit `rotationTarget` plus up to ~2
-  recently changed slices (mapping `app/tests` back to their owning slice)
-  across all layers side-by-side against all seven dimensions of
-  [testing guide](../../docs/guides/testing.md):
-  1. **Owning layer:** verified at the lowest layer that can observe it?
-  2. **Overlap:** repeats another layer without justification in
-     [justify overlapping coverage](../../docs/guides/testing.md#justify-overlapping-coverage)?
-  3. **Worth testing:** asserts business outcome/contract, not internal call
-     counts, framework behavior, discarded implementations, or restated constants?
-  4. **One behavior:** independent setup per behavior so rules fail independently?
-  5. **Assertion strength:** would fail if the rule broke? Recommend
-     [focused mutation checks](../../docs/guides/testing.md#focused-mutation-checks)
-     for consequential rules.
-  6. **Test data:** deciding values explicit; uses owning capability fixtures
-     rather than demo records picked by position?
-  7. **Cohesion:** consistent naming/fixtures; no near-duplicates differing only
-     in incidental input?
-- **Bundle slice-wide improvements:** Combine all concrete test cleanup and
-  consequential coverage gaps found in the audited slice into **one cohesive
-  slice-level proposal**. Do not file a standalone issue for a single missing
-  assertion unless it guards a critical security or money/data-loss invariant.
-- **Guardrails:** Never propose removing the only test of a guarantee, lowering
-  coverage thresholds, narrowing measured scope, adding coverage-ignore
-  directives, or skipping a test without `ambiguous: true` and explicit owner
-  approval ([coverage policy](../../docs/guides/testing.md#coverage-policy-changes)).
-  Never mix test cleanup with production code edits; file concrete production
-  bugs as separate proposals.
-- **Brief verification:** Include the owning package's full test command
-  (`vp run @merit/<pkg>#test`) so coverage thresholds execute, plus any touched
-  integration, component, or browser suites.
+1. **Contracts and evals:** missing or weak MCP evals for real tool behavior,
+   schema or permission mismatches between tools and domain services, tool
+   contracts that invite agents to misuse mutations.
+2. **Queries and indexes:** N+1 loops, unbounded `SELECT`s on growing tables, hot
+   filter or join columns without a Drizzle index.
+3. **Write integrity:** multi-step mutations missing transactions,
+   revision checks, or idempotency guards.
+4. **Guardrail:** never propose modifying or deleting applied SQL migrations under
+   `foundation/db/database/migrations/*.sql`.
 
 ### `docs`
 
-Read [documentation guide](../../docs/guides/documentation.md) and
-[docs/README.md](../../docs/README.md).
+Read the [documentation guide](../../docs/guides/documentation.md) and
+[docs/README.md](../../docs/README.md). Check docs affected by `commits` and every
+document in the target against the code they describe. Prefer **shrinking,
+pruning, and fixing real contradictions**:
 
-- **Recent-merge impact & rotation area sweep:** Inspect docs affected by
-  recent `commits` plus every document in `rotationTarget` in full alongside
-  linked docs and the code they describe. Bias toward **shrinking, pruning, and
-  fixing real behavioral contradictions**:
-  - content superseded by a later decision, workflow, or implementation;
-  - explanations duplicated from their primary home (replace with a link);
-  - descriptions of code, commands, screens, or options that no longer exist;
-  - documents without a distinct reader task (merge into the owning page);
-  - detail that types, config, stories, or examples already explain;
-  - empty or redundant docs (propose removal + inbound link updates);
-  - user-POV feature map drift in [drive-merit/features](../skills/drive-merit/SKILL.md#feature-maps-user-pov)
-    when new routes, workflows, or primary ARIA handles change.
-- **Bundle slice-wide cleanups:** Bundle all concrete doc drift, duplication,
-  and pruning in the audited area into **one cohesive proposal**. Skip if only
-  a 1–2 line wording tweak was found unless it actively misleads callers into
-  bugs.
-- **Guardrails:** Every proposal must cite a concrete rule in
-  [documentation guide](../../docs/guides/documentation.md). Prefer removal or
-  shortening over rewriting prose. When code and docs disagree and intended
-  behavior is unclear, set `ambiguous: true` rather than guessing.
-- **Brief verification:** Include `vp run check:docs` (plus public-doc checks in
-  `interfaces/site/src/features/docs/README.md` when `interfaces/site` docs
-  change).
+- content superseded by a later decision, workflow, or implementation;
+- explanations duplicated from their primary home (replace with a link);
+- descriptions of code, commands, screens, or options that no longer exist;
+- documents without a distinct reader task (merge into the owning page);
+- detail that types, config, stories, or examples already explain;
+- empty or redundant docs (remove and update inbound links);
+- drift in the [drive-merit feature maps](../skills/drive-merit/SKILL.md#feature-maps-user-pov)
+  when routes, workflows, or primary ARIA handles change.
 
-### `verification-flakes`
+**Guardrails:** cite the rule in the documentation guide a finding breaks; prefer
+removal to rewriting; when code and docs disagree and intent is unclear, set
+`ambiguous: true`. Skip a one- or two-line wording tweak unless it misleads
+callers into bugs. Include `vp run check:docs` (and the public-doc checks in
+`interfaces/site/src/features/docs/README.md` for site docs) in the brief.
 
-Read [verification guide](../../docs/guides/verification.md) and
+### `verification`
+
+Read the [verification guide](../../docs/guides/verification.md) and
 [verification tooling](../../docs/guides/verification-tooling.md).
 
-- **Inputs:** Read every file in `unreadVerifications` (`verifications/<pr>.md`),
-  inspecting the PR description and review threads when context is needed. For
-  recurrence counting, also inspect records removed in the last 4 weeks:
+- **Inputs:** every file in `unreadVerifications`, with the pull request
+  description and review threads when context is needed. For recurrence counting,
+  also read records removed in the last 4 weeks:
   `git log --since='4 weeks ago' --diff-filter=D --format='commit %H' --name-only -- 'verifications/*.md'`
-  (read prior contents via `git show <commit>^:verifications/<pr>.md`).
+  (prior contents: `git show <commit>^:verifications/<pr>.md`).
 - **Classify and count causes:**
-  1. **Could not verify:** environment, runtime, credential, host, or unrelated
-     check blockers.
-  2. **Did not verify:** compare against
+  1. Could not verify: environment, runtime, credential, host, or unrelated check
+     blockers.
+  2. Did not verify: compare against the
      [verification guide](../../docs/guides/verification.md#verification); a skip
-     disallowed by policy is actionable even once.
-  3. **Dismissed review findings:** reviewer, request, and dismissal reason; an
-     invalid dismissal is actionable even once.
-     A cause is recurring when it appears in **≥2 records** within the 4-week
-     window. Leave harmless one-offs alone.
+     the policy disallows is actionable once.
+  3. Dismissed review findings: reviewer, request, dismissal reason; an invalid
+     dismissal is actionable once.
+
+  A cause recurs when it appears in **two or more records** inside the 4-week
+  window. Leave harmless one-offs alone.
+
 - **Fix routing:**
-  - Environment blocks a check → propose updating `.agents/install-environment.sh`
-    (Tier 2) or documenting the blocker cleanly.
-  - Agents misjudge a documented check → tighten the owning guide.
-  - CodeRabbit or Greptile repeats dismissed findings → tighten `.coderabbit.yaml`,
-    `.greptile/rules.md`, or `.greptile/files.json` (preserving parity verified
-    by `tooling/verification/docs.test.ts`).
-  - `feature-reviewer` repeats dismissed findings → tighten
-    [review.md](../skills/build-feature/review.md) (staying within its 95-line /
-    4800-byte budget) or
+  - Environment blocks a check: update `.agents/install-environment.sh` or
+    document the blocker.
+  - Agents misjudge a documented check: tighten the owning guide.
+  - CodeRabbit or Greptile repeats dismissed findings: tighten `.coderabbit.yaml`,
+    `.greptile/rules.md`, or `.greptile/files.json` (keeping the parity
+    `tooling/verification/docs.test.ts` verifies).
+  - `feature-reviewer` repeats dismissed findings: tighten
+    [review.md](../skills/build-feature/review.md) (within its 95-line, 4800-byte
+    budget) or
     [mechanisms.config.ts](../../tooling/verification/architecture/mechanisms.config.ts).
-  - Unexplained CI flake or invalid dismissal → propose a focused diagnosis/fix
-    issue citing the PRs and unchecked gap.
-- **Never delete `verifications/*.md`:** Monthly cleanup is handled
-  deterministically by `.github/workflows/prune-verifications.yml` once records
-  are older than 30 days and `prNumber <= cursor.lastPrNumber`.
-
-## Suggested schedule
-
-Run **one** recurring scheduled task **2–3 times daily** passing `--lens auto`
-with a strong reasoning model. [scout.ts](../../tooling/agents/scout.ts)
-prioritizes high-leverage engineering lenses and selects the most overdue lens
-from `#219` cursors (~17 runs/week total), exiting `idle` if every lens is
-still fresh. Each lens declares its interval, priority, rotation, telemetry, and
-verification reading in `LENS_POLICIES` in
-[lenses.ts](../../tooling/agents/scout/lenses.ts):
-
-| Lens                             | Target interval |
-| -------------------------------- | --------------- |
-| `architecture`, `simplification` | Every 2 days    |
-| `security`, `mcp-db`, `tests`    | Every 3 days    |
-| `docs`                           | Every 4 days    |
-| `verification-flakes`            | Every 5 days    |
-
-Both [scout.ts](../../tooling/agents/scout.ts) and
-[proposal.ts](../../tooling/agents/proposal.ts) read and file issues only
-through GitHub REST (`gh api`), using the issue client in
-[github.ts](../../tooling/agents/github.ts), so they run cleanly in Claude Code
-Cloud sessions using the built-in GitHub proxy with no custom secret. In cloud
-runners whose default GitHub App token lacks `issues:write` (such as Cursor
-Cloud Agents), configure a fine-grained PAT scoped to `dmprav/merit` with
-`Issues: Read and write` in the `MERIT_SCOUT_GH_TOKEN` secret — when it is set,
-the issue client passes it to `gh` as `GH_TOKEN`; otherwise `gh` keeps the
-runner's own credentials. Create the token from an account with push access to
-the repository: GitHub silently drops the labels of a new issue filed without
-it. When `proposal.ts` reports that an issue was created without its labels,
-apply the missing labels to that issue instead of filing the proposal again.
+  - An unexplained CI flake or invalid dismissal: file a focused diagnosis issue
+    citing the pull requests and the unchecked gap.
+- **Never delete `verifications/*.md`.**
+  [prune-verifications.yml](../../.github/workflows/prune-verifications.yml)
+  removes records older than 30 days once `prNumber <= records.lastPrNumber`.

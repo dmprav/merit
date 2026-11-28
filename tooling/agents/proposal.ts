@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 import { z } from "zod";
@@ -14,20 +15,12 @@ import {
   type MechanismClassification,
 } from "../verification/architecture/mechanisms.ts";
 import { createGitHubIssueClient, type GitHubIssueClient } from "./github.ts";
+import { areaForPath, hasRunIdForm } from "./scout/runs.ts";
 
-export const SCOUT_LENSES = [
-  "docs",
-  "tests",
-  "verification-flakes",
-  "architecture",
-  "simplification",
-  "security",
-  "mcp-db",
-] as const;
+/** A pull request proposal at most this many steps from a scout finding is ready for a work session. */
+export const MAX_READY_DEPTH = 2;
 
-export type ScoutLens = (typeof SCOUT_LENSES)[number];
-
-export const MAX_OPEN_PROPOSALS = 5;
+const EVIDENCE_OUTPUT_MAX_LENGTH = 1500;
 
 const TEST_FILE_PATTERN = /\.(?:test|spec|integration)\.tsx?$/;
 const TIER1_DOC_PATTERN =
@@ -52,11 +45,54 @@ const nonAgentLabelSchema = singleLine(40)
     "extraLabels cannot contain workflow-controlled agent:* labels",
   );
 
+const evidenceSchema = z
+  .object({
+    type: z.enum(["failing-test", "surviving-mutation", "command"]),
+    /** What was run, so a builder can run it again. */
+    command: singleLine(300),
+    /** The relevant excerpt of what the command printed. */
+    output: z.string().trim().min(1).max(EVIDENCE_OUTPUT_MAX_LENGTH),
+    citations: z
+      .array(singleLine(200).regex(/^[^\s:]+:\d+(?:-\d+)?$/, "must be file:line"))
+      .min(1)
+      .max(8),
+    branch: z
+      .string()
+      .max(200)
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._/-]*$/, "must be a plain branch name")
+      .refine((branch) => !branch.includes(".."), "must be a plain branch name")
+      .optional(),
+    commit: z
+      .string()
+      .regex(/^[0-9a-f]{7,40}$/, "must be a lowercase commit hash")
+      .optional(),
+  })
+  .superRefine((evidence, context) => {
+    if (evidence.type === "failing-test" && (!evidence.branch || !evidence.commit)) {
+      context.addIssue({
+        code: "custom",
+        message: "a failing-test needs the evidence branch and the commit holding the test",
+      });
+    }
+  });
+
+export type ProposalEvidence = z.output<typeof evidenceSchema>;
+
+const parentSchema = z.object({
+  type: z.enum(["issue", "pr"]),
+  number: z.number().int().positive(),
+});
+
 const baseProposalFields = {
-  lens: z.enum(SCOUT_LENSES),
+  /** The scout run that found it (depth 0); a follow-up names `parent` instead. */
+  run: z
+    .string()
+    .refine(hasRunIdForm, "must be a run id such as change-batch or area:<area>")
+    .optional(),
+  parent: parentSchema.optional(),
   title: singleLine(100),
   why: singleLine(220),
-  evidence: singleLine(200),
+  evidence: evidenceSchema,
   change: z.array(singleLine(140)).min(1).max(5),
   decision: singleLine(200),
   whyNot: singleLine(200),
@@ -93,7 +129,12 @@ export const proposalInputSchema = z.preprocess(
     raw && typeof raw === "object" && !Array.isArray(raw) && !("kind" in raw)
       ? { ...raw, kind: "pr" }
       : raw,
-  z.discriminatedUnion("kind", [prProposalSchema, designProposalSchema]),
+  z
+    .discriminatedUnion("kind", [prProposalSchema, designProposalSchema])
+    .refine(
+      (proposal) => (proposal.run === undefined) !== (proposal.parent === undefined),
+      "name exactly one source: `run` for a scout finding or `parent` for a follow-up",
+    ),
 );
 
 export type ProposalInput = z.output<typeof proposalInputSchema>;
@@ -122,29 +163,23 @@ export type DuplicateCheckResult =
   | { duplicate: true; matchedIssue: ExistingIssueSummary; reason: string }
   | { duplicate: false };
 
-export const sliceForPath = (filePath: string): string => {
-  const normalized = normalizeRepoPath(filePath);
-  const parts = normalized.split("/");
-  if (
-    (parts[0] === "capabilities" || parts[0] === "foundation" || parts[0] === "interfaces") &&
-    parts[1]
-  ) {
-    return `${parts[0]}/${parts[1]}`;
-  }
-  return parts[0] ?? ".";
-};
-
 export const isTier1DocPath = (filePath: string): boolean => {
   const normalized = normalizeRepoPath(filePath);
   return !GLOB_CHAR_PATTERN.test(normalized) && TIER1_DOC_PATTERN.test(normalized);
 };
 
-export const isProposalCapReached = (openProposedCount: number): boolean =>
-  openProposedCount >= MAX_OPEN_PROPOSALS;
-
-/** Tier 1 proposals are ready for the queue; Tier 2 proposals wait for a maintainer. */
-export const targetLabelForTier = (tier: ProposalTier) =>
-  tier === 1 ? AGENT_LABELS.ready : AGENT_LABELS.proposed;
+/**
+ * A pull request proposal near its scout finding, with nothing left to decide, is ready for a work
+ * session; designs, ambiguous proposals, and follow-ups deeper than `MAX_READY_DEPTH` wait for the
+ * maintainer.
+ */
+export const targetLabelFor = (
+  proposal: Pick<ProposalInput, "kind" | "ambiguous">,
+  depth: number,
+) =>
+  proposal.kind === "pr" && depth <= MAX_READY_DEPTH && !proposal.ambiguous
+    ? AGENT_LABELS.ready
+    : AGENT_LABELS.proposed;
 
 export const classifyProposalTier = ({
   paths,
@@ -158,7 +193,7 @@ export const classifyProposalTier = ({
   const normalizedPaths = [...new Set(paths.map(normalizeRepoPath))];
   const protectedPaths = findProtectedPaths(normalizedPaths);
   const mechanisms = classifyChangedPaths({ paths: normalizedPaths });
-  const slices = [...new Set(normalizedPaths.map(sliceForPath))].sort();
+  const slices = [...new Set(normalizedPaths.map(areaForPath))].sort();
   const hasGlobs = normalizedPaths.some((filePath) => GLOB_CHAR_PATTERN.test(filePath));
   const allTier1Docs = !hasGlobs && normalizedPaths.every(isTier1DocPath);
   const allTestsInOneSlice =
@@ -200,20 +235,6 @@ export const classifyProposalTier = ({
   };
 };
 
-export const applyTier2OnlyOverride = (
-  classification: ProposalTierClassification,
-  tier2Only: boolean,
-): ProposalTierClassification => {
-  if (!tier2Only || classification.tier === 2) {
-    return classification;
-  }
-  return {
-    ...classification,
-    tier: 2,
-    reasons: [...classification.reasons, "calibration mode (--tier2-only)"],
-  };
-};
-
 const tokenize = (value: string): Set<string> =>
   new Set(
     value
@@ -248,7 +269,6 @@ type ProposalFingerprint = {
   normalizedTitle: string;
   titleTokens: Set<string>;
   paths: Set<string>;
-  lens?: ScoutLens;
 };
 
 /** Open issues, and closed issues rejected as won't-fix or duplicate, block a matching proposal. */
@@ -276,22 +296,20 @@ const duplicateReason = (
 
   const minPathCount = Math.min(proposal.paths.size, existingPaths.length);
   const pathOverlap = minPathCount > 0 ? sharedPathCount / minPathCount : 0;
-  const sameLens = !proposal.lens || !markerMeta?.lens || markerMeta.lens === proposal.lens;
-  if (sameLens && pathOverlap >= DUPLICATE_PATH_OVERLAP && similarity >= RELATED_TITLE_SIMILARITY) {
+  if (pathOverlap >= DUPLICATE_PATH_OVERLAP && similarity >= RELATED_TITLE_SIMILARITY) {
     return `high path overlap (${Math.round(pathOverlap * 100)}%) and related title (${similarity.toFixed(2)}) with #${issue.number}`;
   }
   return null;
 };
 
 export const findDuplicateProposal = (
-  proposal: Pick<ProposalInput, "title" | "paths"> & { lens?: ScoutLens },
+  proposal: Pick<ProposalInput, "title" | "paths">,
   existingIssues: readonly ExistingIssueSummary[],
 ): DuplicateCheckResult => {
   const fingerprint: ProposalFingerprint = {
     normalizedTitle: proposal.title.trim().toLowerCase(),
     titleTokens: tokenize(proposal.title),
     paths: new Set(proposal.paths.map(normalizeRepoPath)),
-    ...(proposal.lens ? { lens: proposal.lens } : {}),
   };
   for (const issue of existingIssues.filter(blocksMatchingProposals)) {
     const reason = duplicateReason(fingerprint, issue);
@@ -344,10 +362,17 @@ const renderBriefDetails = (brief: Extract<ProposalInput, { kind: "pr" }>["brief
     ).flatMap(([heading, items]) => [`**${heading}:**`, renderBullets(items), ""]),
   );
 
-/** Summarizes the proposal's tier, kind, lens, size, slices, mechanisms, and protected paths on one line. */
+/** Names where the proposal came from: its scout run, or the issue or pull request it follows up. */
+const describeSource = (proposal: Pick<ProposalInput, "run" | "parent">): string =>
+  proposal.run !== undefined
+    ? `run:${proposal.run}`
+    : `parent:${proposal.parent?.type === "pr" ? "PR " : ""}#${proposal.parent?.number}`;
+
+/** Summarizes the proposal's tier, kind, source, depth, size, slices, mechanisms, and protected paths on one line. */
 const renderBlastRadius = (
   proposal: ProposalInput,
   classification: ProposalTierClassification,
+  depth: number,
   fileCount: number,
 ): string => {
   const mechanismSummary =
@@ -356,30 +381,71 @@ const renderBlastRadius = (
       : "none";
   const protectedNote =
     classification.protectedPaths.length > 0
-      ? ` · protected (needs \`${AGENT_LABELS.allowProtected}\`): ${classification.protectedPaths.join(", ")}`
+      ? ` · protected: ${classification.protectedPaths.join(", ")}`
       : "";
   const kindBadge = proposal.kind === "design" ? " · design" : "";
-  return `tier:${classification.tier}${kindBadge} · lens:${proposal.lens} · ~${fileCount} file(s) · slices: ${classification.slices.join(", ")} · mechanisms: ${mechanismSummary}${protectedNote}`;
+  return `tier:${classification.tier}${kindBadge} · ${describeSource(proposal)} · depth:${depth} · ~${fileCount} file(s) · slices: ${classification.slices.join(", ")} · mechanisms: ${mechanismSummary}${protectedNote}`;
+};
+
+/** A backtick fence longer than any backtick run inside `text`, so evidence cannot close it early. */
+const fenceFor = (text: string): string =>
+  "`".repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map((match) => match[0].length + 1)));
+
+/** What a builder needs to confirm the finding: the command, its output, where, and the test to pick up. */
+const renderEvidence = (evidence: ProposalEvidence): string[] => {
+  const transcript = `$ ${evidence.command}\n${evidence.output}`;
+  const fence = fenceFor(transcript);
+  const reproduction =
+    evidence.branch && evidence.commit
+      ? [
+          "",
+          `Branch \`${evidence.branch}\`, commit \`${evidence.commit}\`. Pick up the ${evidence.type === "failing-test" ? "failing test" : "evidence commit"}:`,
+          "",
+          `\`git fetch origin ${evidence.branch} && git cherry-pick ${evidence.commit}\``,
+          ...(evidence.type === "failing-test"
+            ? [
+                "",
+                "The commit adds the failing test in a new file, so it cherry-picks cleanly; move it into the owning test file if one exists.",
+              ]
+            : []),
+        ]
+      : [];
+  return [
+    `**Evidence:** ${evidence.type}`,
+    "",
+    `${fence}text`,
+    transcript,
+    fence,
+    "",
+    ...evidence.citations.map((citation) => `- \`${citation}\``),
+    ...reproduction,
+    "",
+  ];
 };
 
 export const renderProposalMarkdown = (
   proposal: ProposalInput,
   classification: ProposalTierClassification,
+  depth: number,
 ): string => {
   const normalizedPaths = [...new Set(proposal.paths.map(normalizeRepoPath))];
+  const { type, branch, commit } = proposal.evidence;
   const metadata = JSON.stringify({
     kind: proposal.kind,
-    lens: proposal.lens,
+    ...(proposal.run !== undefined ? { run: proposal.run } : { parent: proposal.parent }),
+    depth,
     tier: classification.tier,
     paths: normalizedPaths,
+    evidence: { type, ...(branch ? { branch } : {}), ...(commit ? { commit } : {}) },
   });
 
   return [
     `**${proposal.title}**`,
-    `\`${renderBlastRadius(proposal, classification, normalizedPaths.length)}\``,
+    `\`${renderBlastRadius(proposal, classification, depth, normalizedPaths.length)}\``,
     "",
     `**Why:** ${proposal.why}`,
-    `**Evidence:** ${proposal.evidence}`,
+    "",
+    ...renderEvidence(proposal.evidence),
     "**Change:**",
     ...proposal.change.map((item) => `- ${item}`),
     `**Decision / catch:** ${proposal.decision}`,
@@ -393,9 +459,6 @@ export const renderProposalMarkdown = (
     "",
   ].join("\n");
 };
-
-const countOpenProposedIssues = (client: Pick<GitHubIssueClient, "listIssues">): number =>
-  client.listIssues({ state: "open", label: AGENT_LABELS.proposed }).length;
 
 const listExistingIssues = (
   client: Pick<GitHubIssueClient, "listIssues">,
@@ -411,7 +474,58 @@ const listExistingIssues = (
   return [...byNumber.values()];
 };
 
-export type ProposalCliOptions = { file?: string; dryRun: boolean; tier2Only: boolean };
+const CLOSES_ISSUE_PATTERN = /\bclose[sd]?\s+#(\d+)/i;
+
+/** Steps from a scout finding that a marker records, or 0 for an issue no scout or work session filed. */
+const markerDepth = (body: string): number => parseProposalMarker(body)?.depth ?? 0;
+
+/**
+ * Computes a proposal's depth: 0 for a scout finding, else one more than its parent issue's, or than
+ * the first issue a parent pull request closes with `Closes #n` (depth 1 when it closes none). Reads the parent, so a
+ * parent that does not exist refuses the proposal.
+ */
+export const resolveProposalDepth = (
+  client: Pick<GitHubIssueClient, "viewIssue">,
+  { parent }: Pick<ProposalInput, "parent">,
+): number => {
+  if (!parent) {
+    return 0;
+  }
+  const { body } = client.viewIssue(parent.number);
+  if (parent.type === "issue") {
+    return markerDepth(body) + 1;
+  }
+  const closedIssue = Number.parseInt(CLOSES_ISSUE_PATTERN.exec(body)?.[1] ?? "", 10);
+  return Number.isNaN(closedIssue) ? 1 : markerDepth(client.viewIssue(closedIssue).body) + 1;
+};
+
+/**
+ * Refuses evidence whose commit is not on `origin/<branch>`, fetching the branch first, so a builder
+ * can always pick up the test the scout proved the finding with.
+ */
+export const verifyEvidenceBranch = (
+  repoRoot: string,
+  { branch, commit }: Pick<ProposalEvidence, "branch" | "commit">,
+): void => {
+  if (!branch || !commit) {
+    return;
+  }
+
+  const git = (args: readonly string[]) =>
+    execFileSync("git", args, { cwd: repoRoot, encoding: "utf8", stdio: "pipe" });
+
+  try {
+    git(["fetch", "origin", `+refs/heads/${branch}:refs/remotes/origin/${branch}`]);
+    git(["merge-base", "--is-ancestor", commit, `origin/${branch}`]);
+  } catch (error) {
+    throw new Error(
+      `Evidence commit ${commit} is not reachable from origin/${branch}. Push the evidence branch, then file again.`,
+      { cause: error },
+    );
+  }
+};
+
+export type ProposalCliOptions = { file?: string; dryRun: boolean };
 
 /** Rejects unknown flags before any GitHub call, so a misspelt `--dry-run` never files an issue. */
 export const parseProposalArgs = (args: readonly string[]): ProposalCliOptions => {
@@ -419,10 +533,8 @@ export const parseProposalArgs = (args: readonly string[]): ProposalCliOptions =
     options: {
       file: { type: "string" },
       "dry-run": { type: "boolean" },
-      "tier2-only": { type: "boolean" },
     },
-    usage:
-      "Usage: proposal.ts [--file <proposal.json>] [--dry-run] [--tier2-only] (reads stdin without --file)",
+    usage: "Usage: proposal.ts [--file <proposal.json>] [--dry-run] (reads stdin without --file)",
   });
   // Only an absent --file reads stdin; an empty one would silently read a different proposal.
   if (values.file === "") {
@@ -431,17 +543,16 @@ export const parseProposalArgs = (args: readonly string[]): ProposalCliOptions =
   return {
     ...(values.file !== undefined ? { file: values.file } : {}),
     dryRun: values["dry-run"] ?? false,
-    tier2Only: values["tier2-only"] ?? false,
   };
 };
 
-/** Labels a filed proposal: its tier's workflow label, then design, maintenance, and the scout's extras. */
+/** Labels a filed proposal: ready or proposed, then design, maintenance, and the scout's extras. */
 export const selectProposalLabels = (
-  proposal: Pick<ProposalInput, "kind" | "extraLabels">,
-  classification: Pick<ProposalTierClassification, "tier">,
+  proposal: Pick<ProposalInput, "kind" | "ambiguous" | "extraLabels">,
+  depth: number,
 ): string[] => [
   ...new Set([
-    targetLabelForTier(classification.tier),
+    targetLabelFor(proposal, depth),
     ...(proposal.kind === "design" ? [AGENT_LABELS.design] : []),
     AGENT_LABELS.maintenance,
     ...proposal.extraLabels,
@@ -452,54 +563,60 @@ export type ProposalOutcome =
   | {
       status: "dry_run";
       kind: ProposalKind;
+      depth: number;
       tier: ProposalTier;
       targetLabel: string;
       labels: string[];
       reasons: string[];
       markdown: string;
     }
-  | { status: "cap_reached"; openProposedCount: number; maxOpenProposals: number }
   | { status: "duplicate"; matchedIssue: number; reason: string }
   | {
       status: "created";
       url: string;
       kind: ProposalKind;
+      depth: number;
       tier: ProposalTier;
       targetLabel: string;
       labels: string[];
     };
 
 /**
- * Classifies and renders a proposal, then files it as an issue unless this is a dry run, a Tier 2
- * proposal would exceed the open-proposal cap, or an existing issue already covers it.
+ * Checks a proposal's evidence branch, classifies and renders it, then files it as an issue unless
+ * this is a dry run or an existing issue already covers it. Throws, filing nothing, when the
+ * evidence commit is not on its branch or the parent cannot be read.
  */
 export const fileProposal = (
-  client: Pick<GitHubIssueClient, "listIssues" | "createIssue">,
+  client: Pick<GitHubIssueClient, "listIssues" | "createIssue" | "viewIssue">,
   proposal: ProposalInput,
-  { dryRun, tier2Only }: { dryRun: boolean; tier2Only: boolean },
+  {
+    dryRun,
+    verifyEvidence,
+  }: { dryRun: boolean; verifyEvidence: (evidence: ProposalEvidence) => void },
 ): ProposalOutcome => {
-  const classification = applyTier2OnlyOverride(
-    classifyProposalTier({
-      paths: proposal.paths,
-      ambiguous: proposal.ambiguous,
-      kind: proposal.kind,
-    }),
-    tier2Only,
-  );
+  verifyEvidence(proposal.evidence);
+  const depth = resolveProposalDepth(client, proposal);
+  const classification = classifyProposalTier({
+    paths: proposal.paths,
+    ambiguous: proposal.ambiguous,
+    kind: proposal.kind,
+  });
   const { tier, reasons } = classification;
-  const targetLabel = targetLabelForTier(tier);
-  const markdown = renderProposalMarkdown(proposal, classification);
-  const labels = selectProposalLabels(proposal, classification);
+  const targetLabel = targetLabelFor(proposal, depth);
+  const markdown = renderProposalMarkdown(proposal, classification, depth);
+  const labels = selectProposalLabels(proposal, depth);
 
   if (dryRun) {
-    return { status: "dry_run", kind: proposal.kind, tier, targetLabel, labels, reasons, markdown };
-  }
-
-  if (targetLabel === AGENT_LABELS.proposed) {
-    const openProposedCount = countOpenProposedIssues(client);
-    if (isProposalCapReached(openProposedCount)) {
-      return { status: "cap_reached", openProposedCount, maxOpenProposals: MAX_OPEN_PROPOSALS };
-    }
+    return {
+      status: "dry_run",
+      kind: proposal.kind,
+      depth,
+      tier,
+      targetLabel,
+      labels,
+      reasons,
+      markdown,
+    };
   }
 
   const dup = findDuplicateProposal(proposal, listExistingIssues(client));
@@ -508,17 +625,20 @@ export const fileProposal = (
   }
 
   const url = client.createIssue({ title: proposal.title, body: markdown, labels });
-  return { status: "created", url, kind: proposal.kind, tier, targetLabel, labels };
+  return { status: "created", url, kind: proposal.kind, depth, tier, targetLabel, labels };
 };
 
 const runCli = () => {
-  const { file: filePath, dryRun, tier2Only } = parseProposalArgs(process.argv.slice(2));
+  const { file: filePath, dryRun } = parseProposalArgs(process.argv.slice(2));
 
   const rawInput = filePath ? readFileSync(filePath, "utf8") : readFileSync(0, "utf8");
   const proposal = proposalInputSchema.parse(JSON.parse(rawInput));
 
   const client = createGitHubIssueClient({ repoRoot: REPO_ROOT });
-  const outcome = fileProposal(client, proposal, { dryRun, tier2Only });
+  const outcome = fileProposal(client, proposal, {
+    dryRun,
+    verifyEvidence: (evidence) => verifyEvidenceBranch(REPO_ROOT, evidence),
+  });
   console.log(
     outcome.status === "dry_run" ? JSON.stringify(outcome, null, 2) : JSON.stringify(outcome),
   );

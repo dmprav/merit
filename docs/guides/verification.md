@@ -193,9 +193,10 @@ modules changed, and desktop screenshots of affected stories. It leaves out
 of these gets no new comment; an existing one is updated so earlier findings do
 not remain.
 
-The `verification-flakes` lens in the
-[maintenance scout](../../.agents/tasks/scout.md#verification-flakes) reads new
-records and proposes fixes for recurring blockers or dismissals; a monthly
+The `records` run of the
+[maintenance scout](../../.agents/tasks/scout.md#verification) reads new records
+once enough have accumulated and proposes fixes for recurring blockers or
+dismissals; a monthly
 [pruning workflow](../../.github/workflows/prune-verifications.yml) removes
 scouted records older than 30 days.
 

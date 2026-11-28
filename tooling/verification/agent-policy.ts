@@ -51,10 +51,17 @@ const PROPOSAL_MARKER_GLOBAL = /<!--\s*merit-proposal:\s*(\{[\s\S]*?\})\s*-->/g;
 const APPROVE_PROTECTED_MARKER_GLOBAL = /<!--\s*merit-approve-protected:\s*(\{[\s\S]*?\})\s*-->/g;
 const CATCH_ALL_PATTERN = /^\*+(?:\/\*+)*$/;
 
+/** What a filed proposal's marker records about where it came from and how it was proven. */
 export type ProposalMarkerData = {
   paths: string[];
-  lens?: string;
   kind?: string;
+  /** The scout run that found it, for a depth 0 finding. */
+  run?: string;
+  /** The issue or pull request whose work filed it, for a follow-up. */
+  parent?: { type: "issue" | "pr"; number: number };
+  /** Steps from a scout finding: 0 for the finding itself, one more per follow-up. */
+  depth?: number;
+  evidence?: { type: string; branch?: string; commit?: string };
 };
 
 export type IssueCommentRecord = {
@@ -144,18 +151,55 @@ const parseMarkerObject = (raw: string): object | null => {
   return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
 };
 
-/** Keeps a marker's non-blank string paths, normalized, and its string `lens` and `kind`. */
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const stringField = (source: Record<string, unknown>, key: string): string | undefined => {
+  const value = source[key];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+};
+
+const readParent = (value: unknown): ProposalMarkerData["parent"] =>
+  isRecord(value) &&
+  (value.type === "issue" || value.type === "pr") &&
+  typeof value.number === "number" &&
+  Number.isSafeInteger(value.number) &&
+  value.number > 0
+    ? { type: value.type, number: value.number }
+    : undefined;
+
+const readEvidence = (value: unknown): ProposalMarkerData["evidence"] => {
+  const type = isRecord(value) ? stringField(value, "type") : undefined;
+  if (!isRecord(value) || !type) {
+    return undefined;
+  }
+  const branch = stringField(value, "branch");
+  const commit = stringField(value, "commit");
+  return { type, ...(branch ? { branch } : {}), ...(commit ? { commit } : {}) };
+};
+
+/** Keeps a marker's non-blank string paths, normalized, and the provenance fields that are well formed. */
 const toPathsMarkerData = (marker: object): ProposalMarkerData => {
-  const rawPaths: unknown[] = "paths" in marker && Array.isArray(marker.paths) ? marker.paths : [];
+  const fields: Record<string, unknown> = { ...marker };
+  const rawPaths: unknown[] = Array.isArray(fields.paths) ? fields.paths : [];
   const paths = rawPaths
     .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
     .map(normalizePath);
-  const lens = "lens" in marker && typeof marker.lens === "string" ? marker.lens : undefined;
-  const kind = "kind" in marker && typeof marker.kind === "string" ? marker.kind : undefined;
+  const kind = stringField(fields, "kind");
+  const run = stringField(fields, "run");
+  const parent = readParent(fields.parent);
+  const depth =
+    typeof fields.depth === "number" && Number.isSafeInteger(fields.depth) && fields.depth >= 0
+      ? fields.depth
+      : undefined;
+  const evidence = readEvidence(fields.evidence);
   return {
     paths,
-    ...(lens ? { lens } : {}),
     ...(kind ? { kind } : {}),
+    ...(run ? { run } : {}),
+    ...(parent ? { parent } : {}),
+    ...(depth !== undefined ? { depth } : {}),
+    ...(evidence ? { evidence } : {}),
   };
 };
 

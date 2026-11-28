@@ -1,26 +1,28 @@
 import { AGENT_LABELS } from "../../verification/agent-policy.ts";
-import { isProposalCapReached, type ScoutLens } from "../proposal.ts";
-import {
-  buildScoutContext,
-  capReachedContext,
-  idleContext,
-  type ScoutContext,
-  type ScoutRun,
-  type ScoutScan,
-} from "./context.ts";
+import { buildScoutContext, type ScoutContext, type ScoutRun, type ScoutScan } from "./context.ts";
+import { computeDueRuns, countInFlight, type DueRun, historyQueryFor, isInFlight } from "./due.ts";
 import { assertCheckoutAt, type CommitSummary, type GitPort, SCAN_REF } from "./git.ts";
-import { LENS_POLICIES, MS_PER_DAY, resolveRotationTarget, selectAutoLens } from "./lenses.ts";
 import type { IssuePort, ScoutPorts } from "./ports.ts";
 import { collectUnreadVerifications } from "./repo-paths.ts";
 import {
+  isPathInTarget,
+  listAreas,
+  measuresEntryWeights,
+  resolveRunTarget,
+  SCOUT_RUN_POLICY,
+  type ScoutRunTarget,
+} from "./runs.ts";
+import { RECORDS_RUN_ID } from "./state-marker.ts";
+import {
   advanceScoutStateBody,
-  type LensCursor,
-  nextLensCursor,
+  nextRunCursor,
   parseScoutState,
+  type RunCursor,
+  type ScoutState,
   SCOUT_STATE_ISSUE_NUMBER,
   SCOUT_STATE_ISSUE_TITLE,
-  type ScoutState,
   scoutStateForReading,
+  startScoutStateBody,
 } from "./state.ts";
 import { collectStructuralTelemetry } from "./telemetry.ts";
 import {
@@ -28,9 +30,6 @@ import {
   summarizeOpenIssue,
   summarizeWontfixIssue,
 } from "./tracked-issues.ts";
-
-/** How far back a lens without a usable cursor reads history. */
-const FIRST_SCAN_LOOKBACK_DAYS = 7;
 
 const fetchScoutStateIssue = (issues: Pick<IssuePort, "viewIssue">) => {
   const issue = issues.viewIssue(SCOUT_STATE_ISSUE_NUMBER);
@@ -42,127 +41,250 @@ const fetchScoutStateIssue = (issues: Pick<IssuePort, "viewIssue">) => {
   return issue;
 };
 
-/** Resolves `--lens auto` to the most overdue lens, or to an idle context when none is due. */
-const chooseLens = (
-  requestedLens: ScoutLens | "auto",
-  state: ScoutState,
-  nowMs: number,
-): ScoutLens | ReturnType<typeof idleContext> => {
-  if (requestedLens !== "auto") {
-    return requestedLens;
-  }
-  const selection = selectAutoLens({ state, nowMs });
-  return selection.due ? selection.lens : idleContext(selection);
+const readScoutState = (ports: Pick<ScoutPorts, "issues" | "warn">) => {
+  const stateIssue = fetchScoutStateIssue(ports.issues);
+  return scoutStateForReading(parseScoutState(stateIssue.body), stateIssue.number, ports.warn);
 };
 
-const collectChangedFiles = (git: GitPort, commits: readonly CommitSummary[]): string[] =>
-  [...new Set(commits.flatMap((commit) => git.filesChangedIn(commit.sha)))].sort();
+export type DueReport =
+  | { status: "due"; scanTipSha: string; runs: DueRun[]; deferred?: number }
+  | { status: "idle"; scanTipSha: string };
 
-/** Reads what the lens inspects: history since its cursor, its rotation target, and its telemetry. */
-const scanForLens = (
+/**
+ * Lists the audits whose merged activity since their cursors reached a threshold, most overdue
+ * first, as many as the in-flight limit leaves room for. Runs that do not fit are counted as
+ * `deferred`; runs whose started session is still in flight are neither listed nor counted.
+ */
+export const buildDue = (ports: ScoutPorts): DueReport => {
+  const state = readScoutState(ports);
+  const now = ports.now();
+  const scanTipSha = ports.git.revParse(SCAN_REF);
+  const due = computeDueRuns({ git: ports.git, state, scanTipSha, now });
+  const room = Math.max(0, SCOUT_RUN_POLICY.check.maxRunsInFlight - countInFlight(state, now));
+  const runs = due.slice(0, room);
+  if (runs.length === 0) {
+    return { status: "idle", scanTipSha };
+  }
+  const deferred = due.length - runs.length;
+  return { status: "due", scanTipSha, runs, ...(deferred > 0 ? { deferred } : {}) };
+};
+
+/**
+ * Writes the state issue body that `compute` derives from the body it is given, then reads the issue
+ * back and checks `holds`. The issue has no compare-and-swap, so a concurrent writer can overwrite
+ * the edit; on a miss the change is applied once more to the fresh body, and a second miss fails.
+ * `compute` returns a null body when there is nothing to write.
+ */
+const writeStateVerified = <T>(
+  issues: IssuePort,
+  compute: (body: string, state: ScoutState) => { body: string | null; result: T },
+  holds: (state: ScoutState, result: T) => boolean,
+): T => {
+  let issue = fetchScoutStateIssue(issues);
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const read = parseScoutState(issue.body);
+    const { body, result } = compute(issue.body, read.kind === "parsed" ? read.state : {});
+    if (body === null) {
+      return result;
+    }
+    issues.editIssueBody(issue.number, body);
+    issue = fetchScoutStateIssue(issues);
+    const written = parseScoutState(issue.body);
+    if (written.kind === "parsed" && holds(written.state, result)) {
+      return result;
+    }
+  }
+  throw new Error(
+    `Scout state issue #${SCOUT_STATE_ISSUE_NUMBER} did not keep the written cursors after a retry; another writer may be overwriting it. Rerun the command.`,
+  );
+};
+
+const filtersPaths = ({ kind }: ScoutRunTarget): boolean => kind === "area" || kind === "mechanism";
+
+const collectChangedFiles = (
+  git: GitPort,
+  commits: readonly CommitSummary[],
+  target: ScoutRunTarget,
+): { commits: CommitSummary[]; changedFiles: string[] } => {
+  const kept: CommitSummary[] = [];
+  const files = new Set<string>();
+  for (const commit of commits) {
+    const inTarget = git.filesChangedIn(commit.sha).filter((file) => isPathInTarget(target, file));
+    if (inTarget.length > 0 || !filtersPaths(target)) {
+      kept.push(commit);
+      inTarget.forEach((file) => files.add(file));
+    }
+  }
+  return { commits: kept, changedFiles: [...files].sort() };
+};
+
+/** Whether telemetry is collected for the target, and which of its optional parts. */
+const telemetryPlan = (target: ScoutRunTarget) =>
+  target.kind === "area" || target.kind === "mechanism"
+    ? {
+        capabilitySymmetry: target.kind === "mechanism",
+        entryWeights: measuresEntryWeights(target),
+      }
+    : null;
+
+/** Reads what the run inspects: history since its cursor, its telemetry, and the issues it must not repeat. */
+const scanForRun = (
   ports: ScoutPorts,
-  { lens, cursor, scanTipSha }: ScoutRun,
-  now: Date,
+  { target, cursor, scanTipSha }: ScoutRun,
+  trackedFiles: readonly string[],
 ): ScoutScan => {
-  const policy = LENS_POLICIES[lens];
   const openIssues = ports.issues.listIssues({ state: "open" });
   const wontfixIssues = ports.issues.listIssues({
     state: "closed",
     label: AGENT_LABELS.wontfix,
     withComments: true,
   });
-  const fallbackSinceIso = new Date(
-    now.getTime() - FIRST_SCAN_LOOKBACK_DAYS * MS_PER_DAY,
-  ).toISOString();
-  const commits = ports.git.listCommitsSince({ cursor, tipSha: scanTipSha, fallbackSinceIso });
-  const changedFiles = collectChangedFiles(ports.git, commits);
-  const trackedFiles = ports.git.trackedFiles(scanTipSha);
-  const rotation = resolveRotationTarget(lens, trackedFiles, cursor?.lastRotationTarget);
+  const commitsSince = ports.git.listCommitsSince(historyQueryFor(cursor, scanTipSha, ports.now()));
+  const { commits, changedFiles } = collectChangedFiles(ports.git, commitsSince, target);
+  const plan = telemetryPlan(target);
 
   return {
     commits,
     changedFiles,
-    rotation,
-    telemetry: policy.telemetry
+    telemetry: plan
       ? collectStructuralTelemetry(ports, {
-          capabilitySymmetry: policy.telemetry.capabilitySymmetry,
-          axis: rotation.axis,
+          inScope: (filePath) => isPathInTarget(target, filePath),
+          ...plan,
           trackedFiles,
           trackedPathsByIssue: buildTrackedPathsIndex([...openIssues, ...wontfixIssues]),
         })
       : null,
-    unreadVerifications: policy.readsVerifications
-      ? collectUnreadVerifications(trackedFiles, cursor?.lastPrNumber)
-      : [],
+    unreadVerifications:
+      target.kind === "records"
+        ? collectUnreadVerifications(trackedFiles, cursor?.lastPrNumber)
+        : null,
     openIssues: openIssues.map(summarizeOpenIssue),
     wontfixIssues: wontfixIssues.map(summarizeWontfixIssue),
   };
 };
 
-/**
- * Builds the context a scout reads before inspecting a lens. Stops before any history or telemetry
- * work when `--lens auto` finds nothing due or the open proposal cap is reached, and refuses a
- * ready run whose checkout is not a clean copy of the scan tip.
- */
-export const buildContext = (
-  ports: ScoutPorts,
-  requestedLens: ScoutLens | "auto",
-): ScoutContext => {
-  const stateIssue = fetchScoutStateIssue(ports.issues);
-  const state = scoutStateForReading(
-    parseScoutState(stateIssue.body),
-    stateIssue.number,
-    ports.warn,
-  );
-  const now = ports.now();
-  const lens = chooseLens(requestedLens, state, now.getTime());
-  if (typeof lens !== "string") {
-    return lens;
+/** Refuses an area run whose area holds no tracked files at the scan tip. */
+const requireKnownArea = (
+  target: ScoutRunTarget,
+  runId: string,
+  trackedFiles: readonly string[],
+): void => {
+  if (target.kind === "area" && !listAreas(trackedFiles).includes(target.area)) {
+    throw new Error(
+      `Unknown area run "${runId}". Valid areas: ${listAreas(trackedFiles).sort().join(", ")}.`,
+    );
   }
+};
 
-  const run: ScoutRun = {
-    lens,
-    cursor: state[lens],
-    scanTipSha: ports.git.revParse(SCAN_REF),
-    openProposedCount: ports.issues.listIssues({ state: "open", label: AGENT_LABELS.proposed })
-      .length,
-  };
-  if (isProposalCapReached(run.openProposedCount)) {
-    return capReachedContext(run);
-  }
-  assertCheckoutAt(ports.git, run.scanTipSha);
-  return buildScoutContext(run, scanForLens(ports, run, now));
+/**
+ * Builds the context a scout session reads before auditing one run. Refuses an unknown run id before
+ * reading anything, and a run whose checkout is not a clean copy of the scan tip.
+ */
+export const buildContext = (ports: ScoutPorts, runId: string): ScoutContext => {
+  const target = resolveRunTarget(runId);
+  const state = readScoutState(ports);
+  const scanTipSha = ports.git.revParse(SCAN_REF);
+  const trackedFiles = ports.git.trackedFiles(scanTipSha);
+  requireKnownArea(target, runId, trackedFiles);
+  assertCheckoutAt(ports.git, scanTipSha);
+  const run: ScoutRun = { id: runId, target, cursor: state[runId], scanTipSha };
+  return buildScoutContext(run, scanForRun(ports, run, trackedFiles));
 };
 
 export type AdvanceOptions = {
-  lens: ScoutLens;
+  runId: string;
   commitSha: string;
-  target?: string;
   prNumber?: number;
 };
 
-/** Records a finished run's scan tip, rotation target, and pull request on the state issue. */
-export const advanceLens = (
+const sameCursor = (stored: RunCursor | undefined, expected: RunCursor): boolean =>
+  stored?.lastCommitSha === expected.lastCommitSha &&
+  stored?.lastCommitDate === expected.lastCommitDate &&
+  stored?.lastPrNumber === expected.lastPrNumber &&
+  stored?.lastRunAt === expected.lastRunAt &&
+  stored?.startedAt === expected.startedAt;
+
+/** Records a finished run's scan tip, and for `records` its pull request, on the state issue. */
+export const advanceRun = (
   ports: Pick<ScoutPorts, "git" | "issues" | "now">,
-  { lens, commitSha, target, prNumber }: AdvanceOptions,
-): { status: "advanced"; lens: ScoutLens; cursor: LensCursor } => {
-  const stateIssue = fetchScoutStateIssue(ports.issues);
-  const { body, cursor } = advanceScoutStateBody({
-    issueNumber: stateIssue.number,
-    issueBody: stateIssue.body,
-    lens,
-    nextCursor: (previous) => {
-      const resolvedSha = ports.git.verifyCommit(commitSha);
-      return nextLensCursor({
-        previous,
-        commitSha: resolvedSha,
-        commitDate: ports.git.commitDate(resolvedSha),
-        target,
-        prNumber,
-        runAt: ports.now(),
+  { runId, commitSha, prNumber }: AdvanceOptions,
+): { status: "advanced"; run: string; cursor: RunCursor } => {
+  const target = resolveRunTarget(runId);
+  if (prNumber !== undefined && runId !== RECORDS_RUN_ID) {
+    throw new Error(`--pr applies only to the "${RECORDS_RUN_ID}" run (got "${runId}").`);
+  }
+  requireKnownArea(target, runId, ports.git.trackedFiles(ports.git.revParse(SCAN_REF)));
+  const cursor = writeStateVerified(
+    ports.issues,
+    (issueBody) => {
+      const { body, cursor: next } = advanceScoutStateBody({
+        issueNumber: SCOUT_STATE_ISSUE_NUMBER,
+        issueBody,
+        runId,
+        nextCursor: (previous) => {
+          const resolvedSha = ports.git.verifyCommit(commitSha);
+          return nextRunCursor({
+            previous,
+            commitSha: resolvedSha,
+            commitDate: ports.git.commitDate(resolvedSha),
+            prNumber,
+            runAt: ports.now(),
+          });
+        },
       });
+      return { body, result: next };
     },
-  });
-  ports.issues.editIssueBody(stateIssue.number, body);
-  return { status: "advanced", lens, cursor };
+    (state, next) => sameCursor(state[runId], next),
+  );
+  return { status: "advanced", run: runId, cursor };
+};
+
+/**
+ * Records that sessions were started for `runIds` on the state issue in one edit, so the next check
+ * does not list them again until they advance or time out. Validates every run id before writing.
+ * Runs already in flight are reported as `alreadyStarted` and left alone, and a start that would
+ * put more runs in flight than the policy allows is refused. Only the returned `runs` need sessions.
+ */
+export const startRuns = (
+  ports: Pick<ScoutPorts, "git" | "issues" | "now">,
+  { runIds }: { runIds: readonly string[] },
+): { status: "started"; runs: string[]; alreadyStarted?: string[]; startedAt: string } => {
+  const unique = [...new Set(runIds)];
+  const targets = unique.map((runId) => resolveRunTarget(runId));
+  const trackedFiles = ports.git.trackedFiles(ports.git.revParse(SCAN_REF));
+  targets.forEach((target, index) => requireKnownArea(target, unique[index] ?? "", trackedFiles));
+  const startedAt = ports.now();
+  const startedAtIso = startedAt.toISOString();
+  const { maxRunsInFlight } = SCOUT_RUN_POLICY.check;
+
+  const { runs, alreadyStarted } = writeStateVerified(
+    ports.issues,
+    (issueBody, state) => {
+      const alreadyStarted = unique.filter((runId) => isInFlight(state[runId], startedAt));
+      const runs = unique.filter((runId) => !alreadyStarted.includes(runId));
+      const inFlight = countInFlight(state, startedAt);
+      if (runs.length > 0 && inFlight + runs.length > maxRunsInFlight) {
+        throw new Error(
+          `Refusing to start ${runs.length} run(s): ${inFlight} already in flight, and at most ${maxRunsInFlight} may be.`,
+        );
+      }
+      if (runs.length === 0) {
+        return { body: null, result: { runs, alreadyStarted } };
+      }
+      const { body } = startScoutStateBody({
+        issueNumber: SCOUT_STATE_ISSUE_NUMBER,
+        issueBody,
+        runIds: runs,
+        startedAt,
+      });
+      return { body, result: { runs, alreadyStarted } };
+    },
+    (state, result) => result.runs.every((runId) => state[runId]?.startedAt === startedAtIso),
+  );
+  return {
+    status: "started",
+    runs,
+    ...(alreadyStarted.length > 0 ? { alreadyStarted } : {}),
+    startedAt: startedAtIso,
+  };
 };

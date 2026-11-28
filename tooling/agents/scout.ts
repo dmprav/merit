@@ -1,86 +1,105 @@
 import { parseCliArgs, parseWholeNumber, stripLeadingSeparator } from "../cli.ts";
 import { REPO_ROOT } from "../paths.ts";
-import { SCOUT_LENSES, type ScoutLens } from "./proposal.ts";
-import { type AdvanceOptions, advanceLens, buildContext } from "./scout/commands.ts";
+import {
+  type AdvanceOptions,
+  advanceRun,
+  buildContext,
+  buildDue,
+  startRuns,
+} from "./scout/commands.ts";
 import { createScoutPorts } from "./scout/ports.ts";
-import { lensNameSchema } from "./scout/state.ts";
 
-const CONTEXT_USAGE = `Usage: scout.ts context --lens <auto|${SCOUT_LENSES.join("|")}>`;
-const ADVANCE_USAGE = `Usage: scout.ts advance --lens <${SCOUT_LENSES.join("|")}> --commit <scanTipSha> [--target <rotationTarget>] [--pr <n>]`;
+const DUE_USAGE = "Usage: scout.ts due";
+const CONTEXT_USAGE = "Usage: scout.ts context --run <run id>";
+const ADVANCE_USAGE = "Usage: scout.ts advance --run <run id> --commit <scanTipSha> [--pr <n>]";
 
-const requireLens = (lens: string | undefined, usage: string): string => {
-  if (lens === undefined) {
-    throw new Error(`Missing required --lens flag.\n${usage}`);
+const START_USAGE = "Usage: scout.ts start --run <run id> [--run <run id> ...]";
+
+const requireRun = (run: string | undefined, usage: string): string => {
+  if (!run) {
+    throw new Error(`Missing required --run flag.\n${usage}`);
   }
-  return lens;
-};
-
-/** Reads `context` arguments; `--lens auto` lets the command pick the next lens. */
-const parseContextArgs = (args: readonly string[]): ScoutLens | "auto" => {
-  const { values } = parseCliArgs(args, {
-    options: { lens: { type: "string" } },
-    usage: CONTEXT_USAGE,
-  });
-  const lens = requireLens(values.lens, CONTEXT_USAGE);
-  return lens === "auto" ? "auto" : lensNameSchema.parse(lens);
+  return run;
 };
 
 /** Validates `advance` arguments before the state issue is read or rewritten. */
 const parseAdvanceArgs = (args: readonly string[]): AdvanceOptions => {
   const { values } = parseCliArgs(args, {
     options: {
-      lens: { type: "string" },
+      run: { type: "string" },
       commit: { type: "string" },
-      target: { type: "string" },
       pr: { type: "string" },
     },
     usage: ADVANCE_USAGE,
   });
-  const lens = requireLens(values.lens, ADVANCE_USAGE);
-  if (lens === "auto") {
-    throw new Error(
-      'Cannot pass "--lens auto" to advance. Pass the explicit lens emitted by "scout.ts context".',
-    );
-  }
+  const runId = requireRun(values.run, ADVANCE_USAGE);
   if (!values.commit) {
     throw new Error(
       'Missing required --commit <scanTipSha> flag. Pass the scanTipSha emitted by "scout.ts context".',
     );
   }
-  const target = values.target?.trim();
   return {
-    lens: lensNameSchema.parse(lens),
+    runId,
     commitSha: values.commit,
-    ...(target ? { target } : {}),
     ...(values.pr !== undefined ? { prNumber: parseWholeNumber(values.pr, "--pr") } : {}),
   };
 };
 
 export type ScoutCommand =
-  | { command: "context"; lens: ScoutLens | "auto" }
+  | { command: "due" }
+  | { command: "context"; runId: string }
+  | { command: "start"; runIds: string[] }
   | { command: "advance"; options: AdvanceOptions };
 
 /** Validates a scout command line, including the `--` that `vp run` forwards, before any GitHub call. */
 export const parseScoutArgs = (args: readonly string[]): ScoutCommand => {
   const [command, ...rest] = stripLeadingSeparator(args);
+  if (command === "due") {
+    parseCliArgs(rest, { options: {}, usage: DUE_USAGE });
+    return { command };
+  }
   if (command === "context") {
-    return { command, lens: parseContextArgs(rest) };
+    const { values } = parseCliArgs(rest, {
+      options: { run: { type: "string" } },
+      usage: CONTEXT_USAGE,
+    });
+    return { command, runId: requireRun(values.run, CONTEXT_USAGE) };
+  }
+  if (command === "start") {
+    const { values } = parseCliArgs(rest, {
+      options: { run: { type: "string", multiple: true } },
+      usage: START_USAGE,
+    });
+    if (!values.run?.length) {
+      throw new Error(`Missing required --run flag.\n${START_USAGE}`);
+    }
+    return { command, runIds: values.run };
   }
   if (command === "advance") {
     return { command, options: parseAdvanceArgs(rest) };
   }
-  throw new Error(`Unknown scout command "${command ?? ""}". Expected "context" or "advance".`);
+  throw new Error(
+    `Unknown scout command "${command ?? ""}". Expected "due", "context", "start", or "advance".`,
+  );
 };
 
 const runCli = () => {
   const command = parseScoutArgs(process.argv.slice(2));
   const ports = createScoutPorts(REPO_ROOT);
 
-  if (command.command === "context") {
-    console.log(JSON.stringify(buildContext(ports, command.lens), null, 2));
+  if (command.command === "due") {
+    console.log(JSON.stringify(buildDue(ports), null, 2));
     return;
   }
-  console.log(JSON.stringify(advanceLens(ports, command.options)));
+  if (command.command === "context") {
+    console.log(JSON.stringify(buildContext(ports, command.runId), null, 2));
+    return;
+  }
+  if (command.command === "start") {
+    console.log(JSON.stringify(startRuns(ports, { runIds: command.runIds })));
+    return;
+  }
+  console.log(JSON.stringify(advanceRun(ports, command.options)));
 };
 
 if (import.meta.main) {
