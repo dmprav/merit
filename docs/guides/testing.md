@@ -195,10 +195,10 @@ without depending on demo content. Their defaults are deterministic and allocate
 fresh nested data on each call. Overrides replace whole fields; callers supply
 consistent versions, history, and related records when changing those fields.
 Keep values that determine an assertion explicit in the test.
-Other packages can import these in-memory factories from
-`@merit/grantmaking/testing/fixtures`. Route, controller, and data tests should
-construct the facts they need rather than select records by position from the demo
-scenario.
+Composition tests can import these factories from `@merit/grantmaking/testing/fixtures`.
+Capability tests and standalone stories construct their inputs from their own
+contracts. For example, a [review editor fixture](../../capabilities/reviews/web/src/testing/fixtures.ts)
+supplies the application version, review state, and round criteria.
 
 Named fixtures remain useful for stable screen states shared by component tests
 and stories. Treat shared fixture objects as immutable. Keep factories and
@@ -220,7 +220,7 @@ file. Compose scenario fixtures on top: the
 [`workspaceTest`](../../capabilities/organizations/business/tests/workspace-test.ts)
 setup, exported from `@merit/organizations/testing/workspace`, supplies two workspaces with
 explicit memberships and no grant content. Tests create the rounds, applications,
-and reviews they need. The [recommendation tests](../../capabilities/grantmaking/business/tests/recommendations.integration.ts)
+and reviews they need. The [recommendation tests](../../capabilities/recommendations/business/tests/recommendations.integration.ts)
 build one round and two applications with known allocations, revisions, and audit
 history. Use `seedExampleRounds` when the demo scenario itself is part of the
 behavior being checked.
@@ -234,9 +234,10 @@ the complete persisted suite. Application suites separate demo seeding, workspac
 access, and MCP intake, contacts, and reviews. The
 [MCP grant-work journey](../../app/tests/mcp-workflow.integration.ts) retains a
 representative complete flow; independent rules have their own setup and tests.
-The capability-owned [round fixture](../../capabilities/grantmaking/business/tests/round-test.ts),
-exported from `@merit/grantmaking/testing/rounds`, supplies explicit empty rounds
-for storage and transport checks. Application-only
+The [round fixture](../../capabilities/rounds/business/tests/round-test.ts) supplies empty
+rounds. The [application fixture](../../capabilities/applications/business/tests/application-test.ts)
+adds application creation. Grantmaking's composite fixture adds recommendations for
+storage and transport checks. Application-only
 [transport fixtures](../../app/tests/fixtures/transport-test.ts) compose real
 services and substitute the external session identity.
 

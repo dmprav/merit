@@ -2,8 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { expect, it } from "vite-plus/test";
 
-import { applicationView } from "@merit/grantmaking/api";
-import { makeApplication } from "@merit/grantmaking/testing/fixtures";
+import { makeApplication } from "@merit/applications/testing/fixtures";
 import { fromMinorUnits } from "@merit/money";
 
 import { GrantmakingMessagesProvider } from "../../testing/providers";
@@ -11,20 +10,18 @@ import { ApplicationDetails } from "./application-details";
 
 type Props = ComponentProps<typeof ApplicationDetails>;
 
-const application = applicationView(
-  makeApplication({
-    requested: fromMinorUnits(2200000n),
-    submission: {
-      version: 1,
-      organization: "Repair Collective",
-      contact: "Sam Morgan",
-      contactEmail: "sam@example.test",
-      projectPeriod: "March–August 2027",
-      submittedOn: "2027-01-20",
-      answers: [],
-    },
-  }),
-);
+const application = makeApplication({
+  requested: fromMinorUnits(2200000n),
+  submission: {
+    version: 1,
+    organization: "Repair Collective",
+    contact: "Sam Morgan",
+    contactEmail: "sam@example.test",
+    projectPeriod: "March–August 2027",
+    submittedOn: "2027-01-20",
+    answers: [],
+  },
+});
 const emptyFields = { applicant: null, contact: null, requested: null, projectPeriod: null };
 
 const renderDetails = (props: Partial<Props> = {}) =>

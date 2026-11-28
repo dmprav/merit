@@ -6,18 +6,14 @@ import type { Database } from "@merit/db";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 
 import type { ContactCommand } from "../src/api/commands";
-import type { ContactGrantWork } from "../src/server/grant-work";
 import {
   changeWorkspaceContact,
   getContactDetails,
   listContactSummaries,
   listWorkspaceContacts,
 } from "../src/server/index";
+import { noContactGrantWork as grantWork } from "./contact-test";
 
-const grantWork: ContactGrantWork = {
-  applications: { applicationLinks: async () => [] },
-  reviews: { applicationLinks: async () => [], outstandingRequests: async () => [] },
-};
 const details = { name: "Sam", email: "sam@example.test", affiliation: "Review panel" };
 
 const setup = async (db: Database) => {

@@ -3,17 +3,23 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
-import { roundView } from "@merit/grantmaking/api";
-import { getExampleRound } from "@merit/grantmaking/examples";
+import { fromMinorUnits } from "@merit/money";
 
 import {
   preparationDraft,
   type PreparationDraft,
 } from "../../controllers/preparation/preparation-state";
+import { makePreparationRound } from "../../testing/fixtures";
 import { GrantmakingMessagesProvider } from "../../testing/providers";
 import { PreparationForm } from "./preparation-form";
 
-const savedRound = roundView({ ...getExampleRound(), applications: [] });
+const savedRound = makePreparationRound({
+  budget: fromMinorUnits(6000000n),
+  criteria: [
+    { id: "20000000-0000-4000-8000-000000000001", title: "Fit" },
+    { id: "20000000-0000-4000-8000-000000000002", title: "Reach" },
+  ],
+});
 const unsetRound = { ...savedRound, budget: null };
 
 const BudgetExample = ({

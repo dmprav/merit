@@ -10,7 +10,8 @@
     "./server/read": "./src/server/read.ts",
     "./scope": "./src/server/persistence/paging.ts",
     "./schema": "./src/server/persistence/schema.ts",
-    "./api": "./src/domain/activity.ts"
+    "./api": "./src/domain/activity.ts",
+    "./testing": "./tests/audit-events.ts"
   },
   "dependencies": {
     "@merit/auth": "workspace:*",

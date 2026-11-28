@@ -11,7 +11,8 @@
     "./server/integrations": "./src/server/integrations.ts",
     "./schema": "./src/server/persistence/schema.ts",
     "./scope": "./src/server/persistence/projections.ts",
-    "./server/demo": "./src/server/demo.ts"
+    "./server/demo": "./src/server/demo.ts",
+    "./testing": "./tests/decision-test.ts"
   },
   "dependencies": {
     "@merit/applications": "workspace:*",

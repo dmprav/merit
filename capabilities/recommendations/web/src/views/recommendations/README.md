@@ -18,6 +18,6 @@ discarding return to the overview with that material still available.
 Keep amount errors beside the field and distinguish a missing allocation from
 excess precision.
 
-The [editor stories](../../../../../grantmaking/web/src/views/recommendations/recommendation-editor.stories.tsx)
+The [editor stories](./recommendation-editor.stories.tsx)
 exercise form states. The [application-view stories](../../../../../grantmaking/web/src/views/applications/application-view.stories.tsx)
 compose the full reading and editing surface.

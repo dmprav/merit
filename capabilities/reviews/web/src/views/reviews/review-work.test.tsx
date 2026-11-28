@@ -8,14 +8,15 @@ import { materialVersionSchema } from "@merit/applications/domain";
 import type { ContactsSource } from "@merit/contacts-web/contracts";
 import { ContactsProvider } from "@merit/contacts-web/provider";
 import { readDraftStorage, seedDraftStorage } from "@merit/drafts/testing";
-import { makeApplication, makeAssessment, makeRound } from "@merit/grantmaking/testing/fixtures";
 import { createQueryClient } from "@merit/query";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
+import { makeAssessment } from "@merit/reviews/testing/fixtures";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { Toasts } from "@merit/ui/toast";
 
 import type { ManagerReviewerData } from "../../contracts/reviewer";
 import type { ReviewData, ReviewProps } from "../../contracts/reviews";
+import { makeApplication, makeRound } from "../../testing/fixtures";
 import { GrantmakingMessagesProvider } from "../../testing/providers";
 import { GrantmakingDrafts } from "../../testing/providers";
 import { reviewerPage } from "../reviewer/reviewer.story-fixtures";

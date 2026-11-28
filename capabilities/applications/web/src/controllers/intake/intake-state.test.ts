@@ -1,6 +1,6 @@
 import { expect, it } from "vite-plus/test";
 
-import { makeApplication } from "@merit/grantmaking/testing/fixtures";
+import { makeApplication } from "@merit/applications/testing/fixtures";
 
 import {
   intakeChange,

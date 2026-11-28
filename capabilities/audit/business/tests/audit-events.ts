@@ -1,4 +1,6 @@
-import type { Client } from "pg";
+import type { createTestDatabase } from "@merit/test-support/test-database";
+
+type Client = Awaited<ReturnType<typeof createTestDatabase>>["client"];
 
 /** Fail at commit, after the event and business writes have both happened. */
 export const withAuditFailure = async <T>(client: Client, operation: () => Promise<T>) => {

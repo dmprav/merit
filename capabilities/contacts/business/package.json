@@ -12,7 +12,8 @@
     "./locks": "./src/server/persistence/commands/locks.ts",
     "./scope": "./src/server/persistence/scope.ts",
     "./server/grant-work": "./src/server/grant-work.ts",
-    "./server/demo": "./src/server/demo.ts"
+    "./server/demo": "./src/server/demo.ts",
+    "./testing": "./tests/contact-test.ts"
   },
   "dependencies": {
     "@merit/auth": "workspace:*",

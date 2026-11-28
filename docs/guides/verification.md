@@ -94,6 +94,7 @@ Choose checks for the part you changed:
 | Check shared browser fixtures without starting a server           | `vp run test:browser:tooling`                                         |
 | Run shared browser checks, Storybook, and application flows       | `vp run test:browser`                                                 |
 | Build the workspace                                               | `vp run -r build`                                                     |
+| Check one grant-work owner against PostgreSQL                     | `vp run @merit/decisions#test:integration` (substitute the owner)     |
 | Check database integration                                        | `vp run @merit/app#test:integration`                                  |
 | Check persisted workspace navigation without Clerk                | `vp run @merit/app#test:workspace`                                    |
 

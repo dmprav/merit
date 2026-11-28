@@ -13,7 +13,8 @@
     "./locks": "./src/server/persistence/commands/locks.ts",
     "./readers": "./src/server/persistence/queries/preparation.ts",
     "./server/grant-work": "./src/server/grant-work.ts",
-    "./server/demo": "./src/server/demo.ts"
+    "./server/demo": "./src/server/demo.ts",
+    "./testing": "./tests/round-test.ts"
   },
   "dependencies": {
     "@merit/access": "workspace:*",

@@ -165,7 +165,8 @@ const useNameEditing = ({
     } catch {
       failure = errorMessage;
     }
-    saving.current = false;
+    // Blur can arrive after Enter saves but before React removes the field.
+    saving.current = !failure;
     setPending(false);
     setError(failure);
     // A failure keeps the editor open with its draft; focus stays wherever the person has it.
@@ -199,6 +200,7 @@ const useNameEditing = ({
     onKeyDown,
     onBlur,
     open: () => {
+      saving.current = false;
       awaitingPreparation.current = Boolean(isPreparing);
       saveAtOpen.current = onSave;
       openedValue.current = value;
