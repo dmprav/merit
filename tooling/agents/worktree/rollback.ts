@@ -84,12 +84,13 @@ const describeRemovalError = (removalError: unknown): string =>
  */
 export const rollbackError = (
   error: unknown,
+  slug: string,
   checkoutPath: string,
   checkout: CheckoutRollback,
   undroppedDatabase?: string,
 ): unknown => {
   const problems = [
-    checkoutRollbackProblem(checkoutPath, checkout),
+    checkoutRollbackProblem(slug, checkoutPath, checkout),
     undroppedDatabase === undefined
       ? undefined
       : `rollback could not drop database "${undroppedDatabase}"; its registry record is kept so \`vp run worktree:clean\` can drop it`,
@@ -101,11 +102,12 @@ export const rollbackError = (
 
 /** Describes what rollback left of the checkout, or undefined when it removed the checkout. */
 const checkoutRollbackProblem = (
+  slug: string,
   checkoutPath: string,
   checkout: CheckoutRollback,
 ): string | undefined => {
   if (checkout.movedTo) {
-    return `checkout moved to "${checkout.movedTo}"; move it back to "${checkoutPath}" and retry with \`vp run worktree:clean\``;
+    return `checkout moved to "${checkout.movedTo}"; move it back to "${checkoutPath}" and run \`vp run worktree:clean ${slug}\``;
   }
   if (checkout.removalError || checkout.remains) {
     const detail = checkout.removalError
@@ -277,5 +279,5 @@ export const rollBackCreate = async (
     progress.databaseCreated && !databaseDropped && !checkout.movedTo
       ? attempt.databaseName
       : undefined;
-  return rollbackError(error, progress.checkoutPath, checkout, undroppedDatabase);
+  return rollbackError(error, attempt.slug, progress.checkoutPath, checkout, undroppedDatabase);
 };

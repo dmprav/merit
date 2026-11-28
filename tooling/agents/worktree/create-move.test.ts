@@ -3,9 +3,14 @@ import { join } from "node:path";
 
 import { expect, test } from "vite-plus/test";
 
-import { readWorktreeRegistry, writeWorktreeRegistry } from "./registry.ts";
+import {
+  readWorktreeRegistry,
+  withWorktreeRegistryLock,
+  writeWorktreeRegistry,
+} from "./registry.ts";
 import {
   cleanIn,
+  createDeferred,
   createIn,
   fakeDatabase,
   git,
@@ -31,6 +36,8 @@ test("activates and lists a checkout moved during bootstrap through a symlink", 
         if (args.includes("install")) {
           git(repo, ["worktree", "move", cwd, moved]);
           symlinkSync(moved, cwd, "dir");
+        } else if (args.includes("config")) {
+          expect(cwd).toBe(moved);
         }
       },
     },
@@ -79,6 +86,7 @@ test.each(["doctor", "rollback"])(
     await expect(creating).rejects.toThrow("doctor failed");
     expect(dropped).toEqual([]);
     await expect(creating).rejects.toThrow(moved);
+    await expect(creating).rejects.toThrow("vp run worktree:clean alpha");
     expect(readWorktreeRegistry(repo).worktrees.alpha).toMatchObject({
       status: "cleaning",
       databaseCreated: true,
@@ -120,4 +128,41 @@ test("rejects activation when another attempt holds the same slug and path", asy
     status: "creating",
     checkoutToken: "another-attempt",
   });
+});
+
+test("reports the live path when the checkout moves while activation waits for the registry", async () => {
+  const repo = initTempRepo();
+  const original = join(repo, ".tmp/worktrees/alpha");
+  const moved = join(makeTempDir("merit-activation-move-"), "moved");
+  const acquired = createDeferred();
+  const release = createDeferred();
+  let holding: Promise<void> | undefined;
+  const result = await createIn(
+    repo,
+    { slug: "alpha" },
+    {
+      execCommand: async (_command, args) => {
+        if (args.includes("config")) {
+          holding = withWorktreeRegistryLock(repo, () => {
+            acquired.resolve();
+            return release.promise;
+          });
+          await acquired.promise;
+        }
+      },
+      lockOptions: {
+        onLockHeld: () => {
+          if (existsSync(original)) {
+            try {
+              git(repo, ["worktree", "move", original, moved]);
+            } finally {
+              release.resolve();
+            }
+          }
+        },
+      },
+    },
+  );
+  await holding;
+  expect(result.path).toBe(moved);
 });

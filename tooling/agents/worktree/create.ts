@@ -329,12 +329,11 @@ const buildWorktree = async (
   await bootstrapCheckout(run);
   const warnings = await createDatabase(run, postgresReachable);
   await runDoctor(run);
-  const path = checkoutPathOf(run);
-  await updateCreating(run, (record) => ({
-    ...withoutOwner(record),
-    databaseCreated: progress.databaseCreated,
-    status: "active",
-  }));
+  let path = progress.checkoutPath;
+  await updateCreating(run, (record) => {
+    path = checkoutPathOf(run);
+    return { ...withoutOwner(record), databaseCreated: progress.databaseCreated, status: "active" };
+  });
   return {
     result: {
       slug: plan.slug,
