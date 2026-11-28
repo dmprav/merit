@@ -1,8 +1,13 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { errorMessage } from "../../cli.ts";
-import { isCheckoutOfAttempt, movedCheckoutPath } from "./checkout-identity.ts";
+import {
+  currentCheckoutPath,
+  isCheckoutOfAttempt,
+  movedCheckoutPath,
+  readWorktreeGitDir,
+} from "./checkout-identity.ts";
 import { matchesCreateClaim, withoutOwner } from "./claims.ts";
 import { type WorktreeDatabase } from "./database.ts";
 import { describeExecError, type RepoGit } from "./git.ts";
@@ -173,14 +178,51 @@ const ownsCheckout = (attempt: CreateAttempt, progress: CreateProgress, checkout
   }
 };
 
+/** Pin the token-backed checkout while Git resolves the path passed to worktree remove. */
+const removeRegisteredCheckout = (
+  attempt: CreateAttempt,
+  checkoutPath: string,
+  gitDir: string,
+): void => {
+  const lock = join(gitDir, "locked");
+  const reason = `Merit is rolling back ${attempt.slug} (${attempt.checkoutToken})\n`;
+  // Claim Git's per-worktree lock by stable metadata path, without overwriting an existing lock.
+  writeFileSync(lock, reason, { flag: "wx" });
+  try {
+    const identity = { gitDir, checkoutToken: attempt.checkoutToken };
+    if (
+      currentCheckoutPath(identity) !== checkoutPath ||
+      readWorktreeGitDir(checkoutPath) !== gitDir
+    ) {
+      throw new Error("checkout identity changed before removal");
+    }
+    // Git requires two force flags to remove the checkout under our own lock.
+    attempt.git.run(["worktree", "remove", "--force", "--force", checkoutPath]);
+  } finally {
+    ignoreFailure(() => {
+      if (readFileSync(lock, "utf8") === reason) {
+        unlinkSync(lock);
+      }
+    });
+  }
+};
+
 /**
  * Lets Git remove its own checkout. If Git refuses (for example, a locked worktree), the checkout
  * and its registry record stay instead of the directory being deleted recursively.
  */
-const removeOwnedCheckout = (git: RepoGit, checkoutDir: string): CheckoutRollback => {
+const removeOwnedCheckout = (
+  attempt: CreateAttempt,
+  progress: CreateProgress,
+): CheckoutRollback => {
+  const checkoutDir = progress.checkoutPath;
   let removalError: unknown;
   try {
-    git.run(["worktree", "remove", "--force", checkoutDir]);
+    if (progress.gitDir) {
+      removeRegisteredCheckout(attempt, checkoutDir, progress.gitDir);
+    } else {
+      attempt.git.run(["worktree", "remove", "--force", checkoutDir]);
+    }
   } catch (error) {
     removalError = error;
   }
@@ -217,7 +259,7 @@ const rollBackCheckout = (attempt: CreateAttempt, progress: CreateProgress): Che
   let checkout = UNTOUCHED_CHECKOUT;
   if (existsSync(checkoutDir)) {
     checkout = ownsCheckout(attempt, progress, checkoutDir)
-      ? removeOwnedCheckout(attempt.git, checkoutDir)
+      ? removeOwnedCheckout(attempt, progress)
       : { ...UNTOUCHED_CHECKOUT, preserved: true };
   }
   // Git may have moved it between the first observation and the removal.

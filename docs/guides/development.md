@@ -306,7 +306,10 @@ names its new path so you can move it back; it also refuses a directory that no
 longer holds the registered checkout (such as a replacement checkout at the same
 path), that contains another worktree, or that Git refuses to remove, such as a
 locked worktree. If bootstrap fails after a move, rollback keeps the moved
-checkout, branch, database, and registry record. Move the checkout back and run
+checkout, branch, database, and registry record. Rollback briefly locks the
+checkout during removal. If the process exits while holding that lock, check its
+reason with `git worktree list --verbose` and release it with
+`git worktree unlock <path>` before cleanup. Move a relocated checkout back and run
 `vp run worktree:clean <slug>` to finish cleanup. If `worktree:create` fails after creating the checkout and Git
 refuses to remove it, the checkout and its registry record stay for
 `worktree:clean <slug>` once the cause is fixed. If a `worktree:create` process

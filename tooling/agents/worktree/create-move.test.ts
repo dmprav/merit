@@ -68,8 +68,14 @@ test.each(["doctor", "rollback"])(
       {
         database,
         execGit: gitWith((args) => {
-          if (phase === "rollback" && isGitCommand(args, "worktree", "remove")) {
+          if (
+            phase === "rollback" &&
+            existsSync(original) &&
+            !existsSync(moved) &&
+            isGitCommand(args, "rev-parse", "--git-common-dir")
+          ) {
             git(repo, ["worktree", "move", original, moved]);
+            symlinkSync(moved, original, "dir");
           }
         }),
         execCommand: (_command, args, { cwd }) => {
@@ -95,7 +101,9 @@ test.each(["doctor", "rollback"])(
     expect(readWorktreeRegistry(repo).worktrees.alpha?.ownerPid).toBeUndefined();
     await expect(cleanIn(repo, "alpha", { database })).rejects.toThrow(moved);
     expect(dropped).toEqual([]);
-    symlinkSync(moved, original, "dir");
+    if (!existsSync(original)) {
+      symlinkSync(moved, original, "dir");
+    }
     await expect(cleanIn(repo, "alpha", { database })).rejects.toThrow(moved);
     unlinkSync(original);
     git(repo, ["worktree", "move", moved, original]);
@@ -165,4 +173,35 @@ test("reports the live path when the checkout moves while activation waits for t
   );
   await holding;
   expect(result.path).toBe(moved);
+});
+
+test("prevents a Git move while rollback is removing its checkout", async () => {
+  const repo = initTempRepo();
+  const original = join(repo, ".tmp/worktrees/alpha");
+  const moved = join(makeTempDir("merit-removal-move-"), "moved");
+  let moveRefused = false;
+  await expect(
+    createIn(
+      repo,
+      { slug: "alpha" },
+      {
+        execCommand: () => {
+          throw new Error("install failed");
+        },
+        execGit: gitWith((args) => {
+          if (isGitCommand(args, "worktree", "remove")) {
+            try {
+              git(repo, ["worktree", "move", original, moved]);
+              symlinkSync(moved, original, "dir");
+            } catch (error) {
+              moveRefused = String(error).includes("locked");
+            }
+          }
+        }),
+      },
+    ),
+  ).rejects.toThrow("install failed");
+  expect(moveRefused).toBe(true);
+  expect(existsSync(original)).toBe(false);
+  expect(readWorktreeRegistry(repo).worktrees.alpha).toBeUndefined();
 });
