@@ -71,6 +71,7 @@ type CleanTarget = CleanClaim & {
   /** The registered record, whose checkout identity removal must still match. */
   identity: WorktreeRecord | undefined;
   branch: string;
+  cleanupPolicy: NonNullable<WorktreeRecord["cleanupPolicy"]>;
 };
 
 type CleanRun = {
@@ -113,6 +114,11 @@ const assertUnrecordedPathFree = (
   }
 };
 
+/** Older interrupted cleanups could have originated in rollback. Their branch stays for inspection. */
+const cleanupPolicyFor = (record: WorktreeRecord | undefined): CleanTarget["cleanupPolicy"] =>
+  record?.cleanupPolicy ??
+  (record?.status === "creating" || record?.status === "cleaning" ? "keep-branch" : "standard");
+
 /** Checks what the clean may remove and marks the record `cleaning` so no other operation takes it. */
 const claimCleanup = (
   registry: WorktreeRegistry,
@@ -142,8 +148,15 @@ const claimCleanup = (
   const databaseName = record?.databaseName ?? databaseNameForSlug(slug);
   assertSafeManagedDatabaseName(databaseName);
 
+  const cleanupPolicy = cleanupPolicyFor(record);
   if (record) {
-    registry.worktrees[slug] = { ...record, status: "cleaning", cleanToken, ownerPid: process.pid };
+    registry.worktrees[slug] = {
+      ...record,
+      status: "cleaning",
+      cleanupPolicy,
+      cleanToken,
+      ownerPid: process.pid,
+    };
     writeWorktreeRegistry(git.root, registry);
   }
   return {
@@ -151,6 +164,7 @@ const claimCleanup = (
     worktreePath,
     normalizedPath,
     identity: record,
+    cleanupPolicy,
     branch: record?.branch ?? defaultBranchForSlug(slug),
     databaseName,
     databaseCreated: record?.databaseCreated ?? false,
@@ -356,6 +370,7 @@ const cleanClaimedWorktree = async (
   const worktreeRemoved = removeCheckout(run);
   const database = await dropDatabase(run);
   const branchDeleted =
+    target.cleanupPolicy === "standard" &&
     !target.databaseCreated &&
     !keepBranch &&
     !isProtectedBranch(target.branch) &&

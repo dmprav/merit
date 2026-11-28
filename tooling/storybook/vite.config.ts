@@ -31,7 +31,7 @@ export default defineConfig({
         cache: false,
       },
       build: {
-        command: "storybook build --output-dir dist",
+        command: "storybook build --output-dir dist --stats-json",
         cache: {
           input: [{ auto: true }, "!node_modules/.cache/storybook/**", "!dist/**"],
           output: ["dist/**"],

@@ -1,18 +1,23 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, test } from "vite-plus/test";
 
 import {
+  buildImporterGraph,
   buildScreenshotRawUrl,
   cleanupPrScreenshotsFromOrphanBranch,
+  collectCapturedScreenshots,
+  EVERY_STORY,
   filterSelectedDesktopTargets,
   parseCleanupArgs,
   parsePublishArgs,
   parseSelectArgs,
+  previewStatsSchema,
   publishScreenshotsToOrphanBranch,
+  resolveStatsModulePath,
   resolveStoryImportPath,
   MAX_SCREENSHOT_STORIES,
   SCREENSHOT_BRANCH,
@@ -29,69 +34,199 @@ describe("pr-screenshots", () => {
     ).toBe("capabilities/reviews/web/src/views/banner.stories.tsx");
   });
 
-  test("selects direct and sibling stories round-robin and caps total stories", () => {
-    const indexEntries = {
-      "components-button--docs": {
-        id: "components-button--docs",
-        title: "Components/Button",
-        name: "Docs",
-        type: "docs",
-        importPath: "../../foundation/ui/src/components/button/button.stories.tsx",
-      },
-      "components-button--overview": {
-        id: "components-button--overview",
-        title: "Components/Button",
-        name: "Overview",
-        type: "story",
-        importPath: "../../foundation/ui/src/components/button/button.stories.tsx",
-      },
-      "components-button--disabled": {
-        id: "components-button--disabled",
-        title: "Components/Button",
-        name: "Disabled",
-        type: "story",
-        importPath: "../../foundation/ui/src/components/button/button.stories.tsx",
-      },
-      "components-dialog--default": {
-        id: "components-dialog--default",
-        title: "Components/Dialog",
-        name: "Default",
-        type: "story",
-        importPath: "../../foundation/ui/src/components/dialog/dialog.stories.tsx",
-      },
-      "components-dialog--long": {
-        id: "components-dialog--long",
-        title: "Components/Dialog",
-        name: "Long",
-        type: "story",
-        importPath: "../../foundation/ui/src/components/dialog/dialog.stories.tsx",
-      },
-    };
-
-    const result = selectStoriesForPr({
-      changedPaths: [
-        "foundation/ui/src/components/button/button.module.css",
-        "foundation/ui/src/components/dialog/dialog.stories.tsx",
-      ],
-      indexEntries,
-      maxStories: 3,
-    });
-
-    expect(result.selected.map((s) => s.id)).toEqual([
-      "components-button--overview",
-      "components-dialog--default",
-      "components-button--disabled",
-    ]);
-    expect(result.omittedCount).toBe(1);
+  const story = (id: string, importPath: string, type = "story") => ({
+    id,
+    title: id.split("--")[0] ?? id,
+    name: id.split("--")[1] ?? id,
+    type,
+    importPath: `../../${importPath}`,
   });
 
-  test("returns empty selection when no UI or story files changed", () => {
+  const indexEntries = Object.fromEntries(
+    [
+      story("button--docs", "foundation/ui/src/button/button.stories.tsx", "docs"),
+      story("button--overview", "foundation/ui/src/button/button.stories.tsx"),
+      story("button--disabled", "foundation/ui/src/button/button.stories.tsx"),
+      story("dialog--default", "foundation/ui/src/dialog/dialog.stories.tsx"),
+      story("dialog--long", "foundation/ui/src/dialog/dialog.stories.tsx"),
+      story("editor--empty", "capabilities/grantmaking/web/src/views/editor.stories.tsx"),
+      story("history--three", "capabilities/grantmaking/web/src/views/history.stories.tsx"),
+    ].map((entry) => [entry.id, entry]),
+  );
+
+  /** A preview where the editor story renders a decisions view that uses the button. */
+  const stats = {
+    modules: [
+      {
+        name: "./../../foundation/ui/src/button/button.tsx",
+        reasons: [
+          { moduleName: "./../../foundation/ui/src/button/button.stories.tsx" },
+          { moduleName: "./../../foundation/ui/src/dialog/dialog.tsx" },
+          { moduleName: "./../../capabilities/decisions/web/src/views/decision-editor.tsx" },
+        ],
+      },
+      {
+        name: "./../../foundation/ui/src/button/button.module.css?used",
+        reasons: [{ moduleName: "./../../foundation/ui/src/button/button.tsx" }],
+      },
+      {
+        name: "./../../foundation/ui/src/dialog/dialog.tsx",
+        reasons: [{ moduleName: "./../../foundation/ui/src/dialog/dialog.stories.tsx" }],
+      },
+      {
+        name: "./../../capabilities/decisions/web/src/views/decision-editor.tsx",
+        reasons: [
+          { moduleName: "./../../capabilities/grantmaking/web/src/views/editor.stories.tsx" },
+        ],
+      },
+      {
+        name: "./../../foundation/ui/src/tokens.css",
+        reasons: [{ moduleName: "./.storybook/preview.tsx" }],
+      },
+      {
+        name: "./.storybook/preview.tsx",
+        reasons: [{ moduleName: "/virtual:/@storybook/builder-vite/project-annotations.js" }],
+      },
+      {
+        name: "./../../node_modules/.pnpm/react@19/node_modules/react/index.js",
+        reasons: [{ moduleName: "./../../foundation/ui/src/button/button.tsx" }],
+      },
+      ...[
+        "foundation/ui/src/button/button.stories.tsx",
+        "foundation/ui/src/dialog/dialog.stories.tsx",
+        "capabilities/grantmaking/web/src/views/editor.stories.tsx",
+        "capabilities/grantmaking/web/src/views/history.stories.tsx",
+      ].map((path) => ({
+        name: `./../../${path}`,
+        reasons: [{ moduleName: "/virtual:/@storybook/builder-vite/storybook-stories.js" }],
+      })),
+    ],
+  };
+  const importers = buildImporterGraph(previewStatsSchema.parse(stats));
+
+  const select = (changedPaths: string[], maxStories?: number) =>
+    selectStoriesForPr({ changedPaths, indexEntries, importers, maxStories });
+
+  test("maps preview-stats module names to repository paths", () => {
+    expect(resolveStatsModulePath("./../../foundation/ui/src/button/button.tsx")).toBe(
+      "foundation/ui/src/button/button.tsx",
+    );
+    expect(resolveStatsModulePath("./../../foundation/ui/src/a.module.css?used")).toBe(
+      "foundation/ui/src/a.module.css",
+    );
+    expect(resolveStatsModulePath("./.storybook/preview.tsx")).toBe(
+      "tooling/storybook/.storybook/preview.tsx",
+    );
+    expect(resolveStatsModulePath("/virtual:/@storybook/builder-vite/project-annotations.js")).toBe(
+      EVERY_STORY,
+    );
+    expect(resolveStatsModulePath("/virtual:/@storybook/builder-vite/storybook-stories.js")).toBe(
+      null,
+    );
+    expect(resolveStatsModulePath("\0vite/preload-helper.js")).toBe(null);
+    expect(resolveStatsModulePath("./../../node_modules/.pnpm/react/index.js")).toBe(null);
+    expect(importers.get("foundation/ui/src/button/button.tsx")).toEqual(
+      new Set([
+        "foundation/ui/src/button/button.stories.tsx",
+        "foundation/ui/src/dialog/dialog.tsx",
+        "capabilities/decisions/web/src/views/decision-editor.tsx",
+      ]),
+    );
+  });
+
+  test("ranks affected story files by import distance and takes one story per file in turn", () => {
+    const result = select(["foundation/ui/src/button/button.module.css"], 4);
+
+    // button.stories imports button.tsx (distance 2); dialog.stories and editor.stories reach it
+    // through one more module (distance 3); history.stories never imports it.
+    expect(result.selected.map((s) => s.id)).toEqual([
+      "button--overview",
+      "editor--empty",
+      "dialog--default",
+      "button--disabled",
+    ]);
+    expect(result.affected).toEqual({ storyFiles: 3, directStoryFiles: 0 });
+  });
+
+  test("puts changed story files first and counts files that import a changed module as direct", () => {
+    const result = select([
+      "capabilities/decisions/web/src/views/decision-editor.tsx",
+      "foundation/ui/src/dialog/dialog.stories.tsx",
+    ]);
+
+    expect(result.selected.map((s) => s.id)).toEqual([
+      "dialog--default",
+      "editor--empty",
+      "dialog--long",
+    ]);
+    expect(result.affected).toEqual({ storyFiles: 2, directStoryFiles: 2 });
+  });
+
+  test("puts a story beside a changed module ahead of other story files at the same distance", () => {
+    const result = select([
+      "foundation/ui/src/dialog/dialog.tsx",
+      "capabilities/decisions/web/src/views/decision-editor.tsx",
+    ]);
+
+    // Both story files import a changed module; editor.stories would sort first by path.
+    expect(result.selected.map((s) => s.id)).toEqual([
+      "dialog--default",
+      "editor--empty",
+      "dialog--long",
+    ]);
+    // A changed test or story beside a story file is not a module that story renders.
     expect(
-      selectStoriesForPr({
-        changedPaths: ["capabilities/reviews/business/src/server/index.ts", "docs/README.md"],
-        indexEntries: {},
-      }),
-    ).toEqual({ selected: [], omittedCount: 0 });
+      select([
+        "capabilities/decisions/web/src/views/decision-editor.tsx",
+        "foundation/ui/src/dialog/dialog.tsx",
+        "capabilities/grantmaking/web/src/views/history.test.tsx",
+        "capabilities/grantmaking/web/src/views/history.stories.tsx",
+      ]).selected.map((s) => s.id),
+    ).toEqual(["history--three", "dialog--default", "editor--empty", "dialog--long"]);
+  });
+
+  test("reaches every story when a module the Storybook preview imports changes", () => {
+    const result = select(["foundation/ui/src/tokens.css"], 4);
+
+    expect(result.selected.map((s) => s.storyFile)).toEqual([
+      "capabilities/grantmaking/web/src/views/editor.stories.tsx",
+      "capabilities/grantmaking/web/src/views/history.stories.tsx",
+      "foundation/ui/src/button/button.stories.tsx",
+      "foundation/ui/src/dialog/dialog.stories.tsx",
+    ]);
+    expect(result.affected).toEqual({ storyFiles: 4, directStoryFiles: 0 });
+  });
+
+  test("counts no story file as direct when the Storybook preview itself changes", () => {
+    const result = select(["tooling/storybook/.storybook/preview.tsx"], 1);
+
+    expect(result.selected.map((s) => s.id)).toEqual(["editor--empty"]);
+    expect(result.affected).toEqual({ storyFiles: 4, directStoryFiles: 0 });
+  });
+
+  test("selects a changed story file first even when the stats do not list it", () => {
+    const newStory = story("banner--default", "foundation/ui/src/banner/banner.stories.tsx");
+    const result = selectStoriesForPr({
+      changedPaths: [
+        "foundation/ui/src/banner/banner.stories.tsx",
+        "capabilities/decisions/web/src/views/decision-editor.tsx",
+      ],
+      indexEntries: { ...indexEntries, [newStory.id]: newStory },
+      importers,
+    });
+
+    expect(result.selected.map((s) => s.id)).toEqual(["banner--default", "editor--empty"]);
+    expect(result.affected).toEqual({ storyFiles: 2, directStoryFiles: 2 });
+  });
+
+  test("selects nothing for changes no story bundles, such as tests, server code, and docs", () => {
+    expect(
+      select([
+        "capabilities/decisions/web/src/views/decision-editor.test.tsx",
+        "interfaces/product/src/features/grantmaking/data/server/recommendations.functions.ts",
+        "docs/README.md",
+      ]),
+    ).toEqual({ selected: [], affected: { storyFiles: 0, directStoryFiles: 0 } });
   });
 
   test("builds commit-pinned raw.githubusercontent.com URLs", () => {
@@ -216,6 +351,72 @@ describe("pr-screenshots", () => {
     ).toEqual(["components-dialog--open", "components-button--default"]);
   });
 
+  test("pairs captured screenshots with their selected stories and skips missing captures", () => {
+    const temp = mkdtempSync(join(tmpdir(), "merit-shots-collect-"));
+    try {
+      mkdirSync(join(temp, "screenshots"));
+      writeFileSync(join(temp, "screenshots", "editor.png"), "png");
+      writeFileSync(join(temp, "screenshots", "dialog.png"), "png");
+
+      const target = (id: string, screenshot: string | null, viewport = "desktop") => ({
+        kind: "story",
+        target: id,
+        name: id,
+        viewport,
+        passed: id !== "dialog--default",
+        screenshot,
+      });
+
+      const resultsPath = join(temp, "results.json");
+      writeFileSync(
+        resultsPath,
+        JSON.stringify({
+          targets: [
+            target("dialog--default", "screenshots/dialog.png"),
+            target("dialog--default", "screenshots/dialog.png", "mobile"),
+            target("editor--empty", "screenshots/editor.png"),
+            target("button--overview", "screenshots/missing.png"),
+            target("history--three", "screenshots/dialog.png"),
+          ],
+        }),
+      );
+      // The editor and button stories import changed modules; the dialog story is one step further.
+      const result = select([
+        "capabilities/decisions/web/src/views/decision-editor.tsx",
+        "foundation/ui/src/button/button.tsx",
+      ]);
+      const selection = { storyIds: result.selected.map((s) => s.id), ...result };
+
+      const captured = (id: string, storyFile: string, filename: string, passed: boolean) => ({
+        storyId: id,
+        title: id.split("--")[0],
+        name: id.split("--")[1],
+        storyFile,
+        passed,
+        filename,
+        sourcePath: join(temp, "screenshots", filename),
+      });
+
+      // The button capture is missing, the mobile capture is not desktop, and history is unselected.
+      expect(collectCapturedScreenshots(resultsPath, selection)).toEqual([
+        captured(
+          "editor--empty",
+          "capabilities/grantmaking/web/src/views/editor.stories.tsx",
+          "editor.png",
+          true,
+        ),
+        captured(
+          "dialog--default",
+          "foundation/ui/src/dialog/dialog.stories.tsx",
+          "dialog.png",
+          false,
+        ),
+      ]);
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+  });
+
   test("fails loudly on unreachable remotes instead of misclassifying as a missing branch", () => {
     const temp = mkdtempSync(join(tmpdir(), "merit-shots-err-"));
     try {
@@ -247,34 +448,43 @@ describe("pr-screenshots", () => {
       baseRef: "origin/main",
       headRef: "HEAD",
       index: "tooling/storybook/dist/index.json",
+      stats: "tooling/storybook/dist/preview-stats.json",
       maxStories: MAX_SCREENSHOT_STORIES,
     });
     expect(
-      parseSelectArgs(["--max", "3"], { PR_BASE_SHA: "base", PR_HEAD_SHA: "head" }),
-    ).toMatchObject({ baseRef: "base", headRef: "head", maxStories: 3 });
+      parseSelectArgs(["--max", "3", "--stats", "s.json"], {
+        PR_BASE_SHA: "base",
+        PR_HEAD_SHA: "head",
+      }),
+    ).toMatchObject({ baseRef: "base", headRef: "head", stats: "s.json", maxStories: 3 });
     expect(() => parseSelectArgs(["--max", "3.5"], {})).toThrow("--max must be a whole number");
 
-    const publishArgs = ["--results", "r.json", "--out-manifest", "m.json"];
+    const publishArgs = [
+      "--results",
+      "r.json",
+      "--selection",
+      "s.json",
+      "--out-manifest",
+      "m.json",
+    ];
     expect(
-      parsePublishArgs([...publishArgs, "--story-ids", "a, b,,", "--omitted", "0"], {
-        PR_NUMBER: "12",
-        GITHUB_REPOSITORY: "dmprav/merit",
-      }),
+      parsePublishArgs(publishArgs, { PR_NUMBER: "12", GITHUB_REPOSITORY: "dmprav/merit" }),
     ).toEqual({
       prNumber: 12,
       repo: "dmprav/merit",
       results: "r.json",
-      index: "tooling/storybook/dist/index.json",
+      selection: "s.json",
       outManifest: "m.json",
-      omittedCount: 0,
-      selectedStoryIds: ["a", "b"],
     });
     expect(() => parsePublishArgs(publishArgs, { GITHUB_REPOSITORY: "dmprav/merit" })).toThrow(
       "publish requires --pr",
     );
     expect(() =>
-      parsePublishArgs([...publishArgs, "--pr", "12", "--repo", "a/b", "--omitted", "-1"], {}),
-    ).toThrow("--omitted must be a whole number of at least 0");
+      parsePublishArgs(["--results", "r.json", "--out-manifest", "m.json", "--pr", "12"], {
+        GITHUB_REPOSITORY: "dmprav/merit",
+      }),
+    ).toThrow("--selection");
+    expect(() => parsePublishArgs([...publishArgs, "--omitted", "1"], {})).toThrow();
 
     expect(parseCleanupArgs([], { PR_NUMBER: "9" })).toBe(9);
     expect(parseCleanupArgs(["--pr", "10"], { PR_NUMBER: "9" })).toBe(10);

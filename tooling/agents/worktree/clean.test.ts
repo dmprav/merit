@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, symlinkSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { describe, expect, test, vi } from "vite-plus/test";
@@ -208,13 +208,23 @@ describe("cleanWorktree", () => {
       await createIn(repo, { slug: "killed", dbMode: "required" }, { database });
       interruptCreate(repo, "killed");
 
+      if (created) {
+        const offline = await cleanIn(repo, "killed");
+        expect(offline).toMatchObject({
+          worktreeRemoved: true,
+          branchDeleted: false,
+          registryRemoved: false,
+        });
+      }
       const cleaned = await cleanIn(repo, "killed", { database });
 
       expect(cleaned).toMatchObject({
-        worktreeRemoved: true,
+        worktreeRemoved: !created,
+        branchDeleted: false,
         databaseDropped: created,
         registryRemoved: true,
       });
+      expect(listBranch(repo, "worktree/killed")).toContain("worktree/killed");
       expect(database.drop).toHaveBeenCalledTimes(created ? 1 : 0);
       expect(readWorktreeRegistry(repo).worktrees.killed).toBeUndefined();
     },
@@ -236,6 +246,51 @@ describe("cleanWorktree", () => {
 });
 
 describe("cleanWorktree protects what it does not own", () => {
+  test.each(["same path", "old path", "no gitDir"])(
+    "preserves a tokenless record (%s)",
+    async (state) => {
+      const repo = initTempRepo();
+      const created = await createIn(repo, { slug: "legacy" });
+      const registry = readWorktreeRegistry(repo);
+      const record = registry.worktrees.legacy;
+      expect.assert(record);
+      delete record.checkoutToken;
+      if (state === "old path") {
+        record.path = join(repo, ".tmp/worktrees/old-location");
+      }
+      if (state === "no gitDir") {
+        delete record.gitDir;
+      }
+      writeWorktreeRegistry(repo, registry);
+      const drop = vi.fn(async () => {});
+
+      await expect(cleanIn(repo, "legacy", { database: reachable(drop) })).rejects.toThrow(
+        /checkout token.*merit_legacy/,
+      );
+
+      expect(drop).not.toHaveBeenCalled();
+      expect(existsSync(join(created.path, ".git"))).toBe(true);
+      expect(listBranch(repo, created.branch)).toContain(created.branch);
+      expect(readWorktreeRegistry(repo)).toEqual(registry);
+    },
+  );
+
+  test("preserves the branch of a pre-upgrade cleaning record across retries", async () => {
+    const repo = initTempRepo();
+    const created = await createWithDatabase(repo, "old-retry");
+    const registry = readWorktreeRegistry(repo);
+    const record = registry.worktrees["old-retry"];
+    expect.assert(record);
+    record.status = "cleaning";
+    writeWorktreeRegistry(repo, registry);
+
+    const offline = await cleanIn(repo, "old-retry");
+    expect(offline).toMatchObject({ branchDeleted: false, registryRemoved: false });
+    const retried = await cleanIn(repo, "old-retry", { database: reachable() });
+    expect(retried).toMatchObject({ branchDeleted: false, registryRemoved: true });
+    expect(listBranch(repo, created.branch)).toContain(created.branch);
+  });
+
   test("refuses to drop a protected database named by a tampered record", async () => {
     const repo = initTempRepo();
     const drop = vi.fn(async () => {});
@@ -243,6 +298,8 @@ describe("cleanWorktree protects what it does not own", () => {
       tampered: worktreeRecord({
         slug: "tampered",
         path: join(repo, ".tmp/worktrees/tampered"),
+        gitDir: join(repo, ".git/worktrees/tampered"),
+        checkoutToken: "recorded-token",
         branch: "main",
         databaseName: "merit",
         databaseUrl: DEFAULT_COMPOSE_DATABASE_URL,
@@ -263,6 +320,8 @@ describe("cleanWorktree protects what it does not own", () => {
       tampered: worktreeRecord({
         slug: "tampered",
         path: join(repo, ".tmp/worktrees/tampered"),
+        gitDir: join(repo, ".git/worktrees/tampered"),
+        checkoutToken: "recorded-token",
         branch: "master",
       }),
     });
@@ -280,6 +339,8 @@ describe("cleanWorktree protects what it does not own", () => {
     registry.worktrees.stale = worktreeRecord({
       slug: "stale",
       path: join(repo, ".tmp/worktrees/stale"),
+      gitDir: join(repo, ".git/worktrees/stale"),
+      checkoutToken: "recorded-token",
       branch: active.branch,
     });
     writeWorktreeRegistry(repo, registry);
@@ -311,7 +372,8 @@ describe("cleanWorktree protects what it does not own", () => {
     const unownedDir = makeTempDir("merit-unowned-dir-");
     writeFileSync(join(unownedDir, "important.txt"), "do not delete\n", "utf8");
     const drop = vi.fn(async () => {});
-    register(repo, { unowned: worktreeRecord({ slug: "unowned", path: unownedDir }) });
+    mkdirSync(join(repo, ".tmp/worktrees"), { recursive: true });
+    symlinkSync(unownedDir, join(repo, ".tmp/worktrees/unowned"), "dir");
 
     await expect(cleanIn(repo, "unowned", { database: reachable(drop) })).rejects.toThrow(
       /not a recognized Git worktree/,

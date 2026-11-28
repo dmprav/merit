@@ -8,7 +8,11 @@ import { normalizeRepoPath, parseCliArgs, parseWholeNumber } from "../cli.ts";
 import { REPO_ROOT } from "../paths.ts";
 import { findProtectedPaths } from "./agent-policy.ts";
 import { classifyChangedPaths, type MatchedMechanism } from "./architecture/mechanisms.ts";
-import { prScreenshotManifestSchema, type PrScreenshot } from "./pr-screenshots.ts";
+import {
+  prScreenshotManifestSchema,
+  type AffectedStoryFiles,
+  type PrScreenshot,
+} from "./pr-screenshots.ts";
 import {
   EXEMPT_AUTHORS,
   extractRecordSections,
@@ -66,7 +70,7 @@ export type ReviewPacketInput = {
   recordContent?: string;
   recordFilePath?: string;
   screenshots?: readonly PrScreenshot[];
-  omittedScreenshotCount?: number;
+  affectedStoryFiles?: AffectedStoryFiles;
 };
 
 const isTestPath = (path: string) =>
@@ -95,6 +99,18 @@ const isUiProdPath = (path: string) =>
     /^interfaces\/(?:product|admin)\/src\//u.test(path));
 
 const isStoryPath = (path: string) => path.endsWith(".stories.tsx");
+
+/**
+ * Whether the Storybook preview may bundle a changed path, so the screenshot job should run.
+ * `pr-screenshots.ts select` then decides from the build's import graph which stories it reaches.
+ */
+export const mayAffectStorybook = (path: string) =>
+  isStoryPath(path) ||
+  path.startsWith("tooling/storybook/.storybook/") ||
+  // Story providers and fixtures under testing/ are bundled, so only test files are excluded.
+  (!/\.(?:test|spec|integration|eval)\.[cm]?[jt]sx?$/u.test(path) &&
+    !isDocsOrGeneratedPath(path) &&
+    /^(?:foundation\/[^/]+|capabilities\/[^/]+\/[^/]+|interfaces\/[^/]+)\/src\//u.test(path));
 
 const isCiOrCoverageConfigPath = (path: string) =>
   path.startsWith(".github/workflows/") ||
@@ -650,15 +666,36 @@ const renderVerificationIntegritySection = (
 
 const escapeMarkdownAlt = (text: string) => text.replaceAll("[", "(").replaceAll("]", ")");
 
+/** Says how many affected story files the screenshots cover and how directly the change reaches them. */
+export const describeScreenshotCoverage = (
+  screenshots: readonly PrScreenshot[],
+  affected: AffectedStoryFiles,
+): string => {
+  const shown = new Set(screenshots.map((shot) => shot.storyFile)).size;
+  const total = affected.storyFiles;
+  const files = total === 1 ? "story file" : "story files";
+  const reach =
+    affected.directStoryFiles === 0
+      ? "None imports a changed module directly; each reaches the change through shared code."
+      : `${affected.directStoryFiles} changed or ${affected.directStoryFiles === 1 ? "imports" : "import"} a changed module directly.`;
+  return `_Showing ${shown} of ${total} affected ${files}, nearest to the change first. ${reach}_`;
+};
+
 const renderUiSection = (
   changedFiles: readonly ChangedFile[],
   screenshots: readonly PrScreenshot[] = [],
-  omittedScreenshotCount = 0,
+  affected?: AffectedStoryFiles,
 ): string[] => {
   const paths = [...new Set(changedFiles.map((file) => file.path))];
   const uiFiles = paths.filter(isUiProdPath).sort();
   const storyFiles = paths.filter(isStoryPath).sort();
-  if (uiFiles.length === 0 && storyFiles.length === 0 && screenshots.length === 0) {
+  const affectsStories = (affected?.storyFiles ?? 0) > 0;
+  if (
+    uiFiles.length === 0 &&
+    storyFiles.length === 0 &&
+    screenshots.length === 0 &&
+    !affectsStories
+  ) {
     return [];
   }
 
@@ -669,20 +706,24 @@ const renderUiSection = (
   if (storyFiles.length > 0) {
     lines.push(`- **Stories (${storyFiles.length}):** ${formatCappedList(storyFiles)}`);
   }
-  if (screenshots.length > 0) {
+  if (affected && affectsStories) {
+    lines.push(
+      "",
+      "#### Desktop Screenshots",
+      "",
+      describeScreenshotCoverage(screenshots, affected),
+    );
+  } else if (screenshots.length > 0) {
     lines.push("", "#### Desktop Screenshots");
-    for (const shot of screenshots) {
-      const label = shot.title ? `${shot.title} — ${shot.name}` : shot.storyId;
-      const status = shot.passed ? "passed" : "audit warnings";
-      lines.push(
-        "",
-        `**${label}** (\`${shot.storyId}\` · ${status})`,
-        `![${escapeMarkdownAlt(label)}](${shot.url})`,
-      );
-    }
-    if (omittedScreenshotCount > 0) {
-      lines.push("", `_+${omittedScreenshotCount} more affected stories omitted._`);
-    }
+  }
+  for (const shot of screenshots) {
+    const label = shot.title ? `${shot.title} — ${shot.name}` : shot.storyId;
+    const status = shot.passed ? "passed" : "audit warnings";
+    lines.push(
+      "",
+      `**${label}** (\`${shot.storyId}\` · ${status})`,
+      `![${escapeMarkdownAlt(label)}](${shot.url})`,
+    );
   }
   return lines;
 };
@@ -708,11 +749,7 @@ export const renderReviewPacket = (input: ReviewPacketInput): string => {
     blocks.push(dbBlock);
   }
 
-  const uiBlock = renderUiSection(
-    input.changedFiles,
-    input.screenshots,
-    input.omittedScreenshotCount,
-  );
+  const uiBlock = renderUiSection(input.changedFiles, input.screenshots, input.affectedStoryFiles);
   if (uiBlock.length > 0) {
     blocks.push(uiBlock);
   }
@@ -983,10 +1020,10 @@ const readDatabaseSql = (hasDbChanges: boolean, mergeBase: string, headRef: stri
 const readScreenshotManifest = (manifestFlag: string | undefined) => {
   const manifestPath = manifestFlag ? resolve(REPO_ROOT, manifestFlag) : undefined;
   if (!manifestPath || !existsSync(manifestPath)) {
-    return { screenshots: [], omittedScreenshotCount: 0 };
+    return { screenshots: [], affectedStoryFiles: undefined };
   }
   const parsed = prScreenshotManifestSchema.parse(JSON.parse(readFileSync(manifestPath, "utf8")));
-  return { screenshots: parsed.screenshots, omittedScreenshotCount: parsed.omittedCount };
+  return { screenshots: parsed.screenshots, affectedStoryFiles: parsed.affected };
 };
 
 const appendGitHubFile = (name: "GITHUB_OUTPUT" | "GITHUB_STEP_SUMMARY", text: string) => {
@@ -1014,7 +1051,7 @@ const runCli = async () => {
 
   const diff = readPullRequestDiff(options.baseRef, options.headRef);
   const hasUiChanges = diff.changedFiles.some(
-    (file) => file.status !== "deleted" && (isUiProdPath(file.path) || isStoryPath(file.path)),
+    (file) => file.status !== "deleted" && mayAffectStorybook(file.path),
   );
   appendGitHubFile("GITHUB_OUTPUT", `has_ui_changes=${hasUiChanges ? "true" : "false"}\n`);
 

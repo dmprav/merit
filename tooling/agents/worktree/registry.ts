@@ -24,6 +24,8 @@ const worktreeRecordSchema = z.object({
   status: z.enum(["creating", "active", "cleaning"]).optional(),
   cleanToken: z.string().optional(),
   ownerPid: z.number().int().positive().optional(),
+  /** Keeps the cleanup decision when a claim is released and later retried. */
+  cleanupPolicy: z.enum(["standard", "keep-branch", "finish-rollback"]).optional(),
   partialRemoval: z.boolean().optional(),
 });
 

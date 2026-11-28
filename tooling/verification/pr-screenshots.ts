@@ -42,18 +42,39 @@ export const prScreenshotSchema = z.object({
   storyId: z.string().min(1),
   title: z.string(),
   name: z.string(),
+  storyFile: z.string().min(1),
   url: z.string().url(),
   passed: z.boolean(),
 });
 
+/** How many story files a change affects, and how many of those it affects directly. */
+export const affectedStoryFilesSchema = z.object({
+  storyFiles: z.number().int().nonnegative(),
+  directStoryFiles: z.number().int().nonnegative(),
+});
+
 export const prScreenshotManifestSchema = z.object({
   screenshots: z.array(prScreenshotSchema),
-  omittedCount: z.number().int().nonnegative(),
+  affected: affectedStoryFilesSchema,
 });
 
 export type PrScreenshot = z.infer<typeof prScreenshotSchema>;
 
+export type AffectedStoryFiles = z.infer<typeof affectedStoryFilesSchema>;
+
 export type PrScreenshotManifest = z.infer<typeof prScreenshotManifestSchema>;
+
+/** The module list `storybook build --stats-json` writes to `preview-stats.json`. */
+export const previewStatsSchema = z.object({
+  modules: z.array(
+    z.object({
+      name: z.string(),
+      reasons: z.array(z.object({ moduleName: z.string() })).default([]),
+    }),
+  ),
+});
+
+export type PreviewStats = z.infer<typeof previewStatsSchema>;
 
 const uiVerifySubsetSchema = z.object({
   targets: z.array(
@@ -72,35 +93,60 @@ const uiVerifySubsetSchema = z.object({
 export const resolveStoryImportPath = (importPath: string): string =>
   normalizeRepoPath(posix.normalize(posix.join(STORYBOOK_REL_DIR, importPath)));
 
-const isUiRelevantPath = (path: string) =>
-  path.endsWith(".stories.tsx") ||
-  path.startsWith("foundation/ui/src/") ||
-  /^capabilities\/[^/]+\/web\/src\//u.test(path) ||
-  /^interfaces\/(?:product|admin)\/src\//u.test(path);
+/** Stands for Storybook's project annotations: what `.storybook/preview` imports reaches every story. */
+export const EVERY_STORY = "<every story>";
 
-const parentDirectoriesWithinSrc = (filePath: string): string[] => {
-  const dirs: string[] = [];
-  let current = posix.dirname(normalizeRepoPath(filePath));
-  while (current && current !== "." && current !== "/") {
-    dirs.push(current);
-    if (current.endsWith("/src")) {
-      break;
-    }
-    const next = posix.dirname(current);
-    if (next === current) {
-      break;
-    }
-    current = next;
+/**
+ * Maps a `preview-stats.json` module name to a repository path. Returns `EVERY_STORY` for the
+ * project annotations and null for installed packages and the builder's other virtual modules.
+ */
+export const resolveStatsModulePath = (name: string): string | null => {
+  if (name.startsWith("/virtual:")) {
+    return name.endsWith("/project-annotations.js") ? EVERY_STORY : null;
   }
-  return dirs;
+  if (name.startsWith("\0") || name.includes("/node_modules/")) {
+    return null;
+  }
+  return resolveStoryImportPath(name.replace(/\?.*$/u, ""));
 };
 
-export type SelectedStory = {
-  id: string;
-  title: string;
-  name: string;
-  storyFile: string;
+/** Maps each module the Storybook preview bundles to the modules that import it. */
+export const buildImporterGraph = (stats: PreviewStats): Map<string, Set<string>> => {
+  const importers = new Map<string, Set<string>>();
+  for (const module of stats.modules) {
+    const path = resolveStatsModulePath(module.name);
+    if (!path) {
+      continue;
+    }
+    const set = importers.get(path) ?? new Set<string>();
+    importers.set(path, set);
+    for (const reason of module.reasons) {
+      const importer = resolveStatsModulePath(reason.moduleName);
+      if (importer && importer !== path) {
+        set.add(importer);
+      }
+    }
+  }
+  return importers;
 };
+
+/** What `select` prints and `publish` reads: the chosen stories and the files the change affects. */
+export const prStorySelectionSchema = z.object({
+  storyIds: z.array(z.string().min(1)),
+  selected: z.array(
+    z.object({
+      id: z.string().min(1),
+      title: z.string(),
+      name: z.string(),
+      storyFile: z.string().min(1),
+    }),
+  ),
+  affected: affectedStoryFilesSchema,
+});
+
+export type PrStorySelection = z.infer<typeof prStorySelectionSchema>;
+
+export type SelectedStory = PrStorySelection["selected"][number];
 
 /** Groups Storybook stories by the repository path of the file that defines them. */
 const groupStoriesByFile = (
@@ -119,41 +165,58 @@ const groupStoriesByFile = (
   return storiesByFile;
 };
 
-/** Story files in the nearest directory, up to the source root, that holds any story file. */
-const nearestSiblingStoryFiles = (
-  filePath: string,
-  storiesByDir: ReadonlyMap<string, readonly string[]>,
-): readonly string[] => {
-  for (const dir of parentDirectoriesWithinSrc(filePath)) {
-    const siblingStories = storiesByDir.get(dir);
-    if (siblingStories && siblingStories.length > 0) {
-      return siblingStories;
+/** Counts the import steps from each module back to the nearest changed module. */
+const importDistances = (
+  changed: readonly string[],
+  importers: ReadonlyMap<string, ReadonlySet<string>>,
+): Map<string, number> => {
+  const distance = new Map(changed.map((path) => [path, 0]));
+  let frontier = [...changed];
+  for (let steps = 1; frontier.length > 0; steps += 1) {
+    const next: string[] = [];
+    for (const path of frontier) {
+      for (const importer of importers.get(path) ?? []) {
+        if (!distance.has(importer)) {
+          distance.set(importer, steps);
+          next.push(importer);
+        }
+      }
     }
+    frontier = next;
   }
-  return [];
+  return distance;
 };
 
-/** Story files a change affects: changed story files, then story files beside changed UI sources. */
-const matchStoryFiles = (
-  uiChanged: readonly string[],
+/**
+ * Orders the story files a change reaches: nearest first, then those beside a changed module,
+ * so a component's own story is not crowded out by screens that use it, then by path.
+ */
+const rankAffectedStoryFiles = (
+  changed: readonly string[],
   storyFiles: readonly string[],
-): Set<string> => {
-  const matchedFiles = new Set(
-    uiChanged.filter((path) => path.endsWith(".stories.tsx") && storyFiles.includes(path)),
-  );
+  importers: ReadonlyMap<string, ReadonlySet<string>>,
+): Array<{ storyFile: string; distance: number }> => {
+  const distance = importDistances(changed, importers);
+  // No story imports the preview, so stories it reaches sit one step beyond the annotations.
+  const throughPreview = (distance.get(EVERY_STORY) ?? Infinity) + 1;
+  // Only modules stories render count: a changed test or story says nothing about its neighbors.
+  const rendered = changed.filter((path) => importers.has(path) && !storyFiles.includes(path));
+  const changedDirs = new Set(rendered.map((path) => posix.dirname(path)));
 
-  const storiesByDir = new Map<string, string[]>();
-  for (const storyFile of storyFiles) {
-    const dir = posix.dirname(storyFile);
-    storiesByDir.set(dir, [...(storiesByDir.get(dir) ?? []), storyFile]);
-  }
+  const beside = (storyFile: string) => (changedDirs.has(posix.dirname(storyFile)) ? 0 : 1);
 
-  for (const filePath of uiChanged.filter((path) => !path.endsWith(".stories.tsx"))) {
-    for (const storyFile of nearestSiblingStoryFiles(filePath, storiesByDir)) {
-      matchedFiles.add(storyFile);
-    }
-  }
-  return matchedFiles;
+  return storyFiles
+    .map((storyFile) => ({
+      storyFile,
+      distance: Math.min(distance.get(storyFile) ?? Infinity, throughPreview),
+    }))
+    .filter((ranked) => Number.isFinite(ranked.distance))
+    .sort(
+      (a, b) =>
+        a.distance - b.distance ||
+        beside(a.storyFile) - beside(b.storyFile) ||
+        a.storyFile.localeCompare(b.storyFile),
+    );
 };
 
 /** Takes one story from each queue in turn until `max` are taken or every queue is empty. */
@@ -172,33 +235,36 @@ const takeRoundRobin = <T>(queues: readonly T[][], max: number): T[] => {
 };
 
 /**
- * Selects affected desktop Storybook stories for changed PR paths:
- * 1. Directly changed `*.stories.tsx` files
- * 2. Stories in the same or nearest parent directory of changed UI source files
- * Round-robins across matched story files so every changed component/screen gets
- * its primary story represented before taking extra variants.
+ * Selects desktop Storybook stories for changed PR paths from the preview's import graph:
+ * a story file is affected when it changed or imports a changed module, however indirectly,
+ * and every story is affected when `.storybook/preview` does. Affected files are ranked by
+ * import distance, then whether they sit beside a changed module, then path, and stories are
+ * taken one per file in turn, so the closest
+ * screens are shown before any file contributes a second variant.
+ * "Direct" files changed themselves or import a changed module.
  */
 export const selectStoriesForPr = ({
   changedPaths,
   indexEntries,
+  importers,
   maxStories = MAX_SCREENSHOT_STORIES,
 }: {
   changedPaths: readonly string[];
   indexEntries: Readonly<Record<string, StorybookIndexEntry>>;
+  importers: ReadonlyMap<string, ReadonlySet<string>>;
   maxStories?: number;
-}): { selected: SelectedStory[]; omittedCount: number } => {
-  const normalizedChanged = [...new Set(changedPaths.map(normalizeRepoPath).filter(Boolean))];
-  const uiChanged = normalizedChanged.filter(isUiRelevantPath);
-  if (uiChanged.length === 0) {
-    return { selected: [], omittedCount: 0 };
-  }
-
+}): { selected: SelectedStory[]; affected: AffectedStoryFiles } => {
+  const changed = [...new Set(changedPaths.map(normalizeRepoPath).filter(Boolean))];
   const storiesByFile = groupStoriesByFile(indexEntries);
-  const orderedFiles = [...matchStoryFiles(uiChanged, [...storiesByFile.keys()])].sort();
-  const queues = orderedFiles.map((file) => storiesByFile.get(file) ?? []);
-  const totalAvailable = queues.reduce((sum, queue) => sum + queue.length, 0);
-  const selected = takeRoundRobin(queues, maxStories);
-  return { selected, omittedCount: Math.max(0, totalAvailable - selected.length) };
+  const ranked = rankAffectedStoryFiles(changed, [...storiesByFile.keys()], importers);
+  const queues = ranked.map(({ storyFile }) => storiesByFile.get(storyFile) ?? []);
+  return {
+    selected: takeRoundRobin(queues, maxStories),
+    affected: {
+      storyFiles: ranked.length,
+      directStoryFiles: ranked.filter(({ distance }) => distance <= 1).length,
+    },
+  };
 };
 
 export const buildScreenshotRawUrl = ({
@@ -485,9 +551,10 @@ const resolveRemoteUrl = (repoRoot: string): string => {
 };
 
 const DEFAULT_STORYBOOK_INDEX = "tooling/storybook/dist/index.json";
+const DEFAULT_PREVIEW_STATS = "tooling/storybook/dist/preview-stats.json";
 
 const SELECT_USAGE =
-  "Usage: pr-screenshots.ts select [--base <ref>] [--head <ref>] [--index <path>] [--max <count>]";
+  "Usage: pr-screenshots.ts select [--base <ref>] [--head <ref>] [--index <path>] [--stats <path>] [--max <count>]";
 
 /** Reads `select` flags strictly, falling back to the pull request refs CI sets. */
 export const parseSelectArgs = (args: readonly string[], env: NodeJS.ProcessEnv = process.env) => {
@@ -496,6 +563,7 @@ export const parseSelectArgs = (args: readonly string[], env: NodeJS.ProcessEnv 
       base: { type: "string" },
       head: { type: "string" },
       index: { type: "string" },
+      stats: { type: "string" },
       max: { type: "string" },
     },
     usage: SELECT_USAGE,
@@ -504,14 +572,16 @@ export const parseSelectArgs = (args: readonly string[], env: NodeJS.ProcessEnv 
     baseRef: values.base ?? env.PR_BASE_SHA ?? "origin/main",
     headRef: values.head ?? env.PR_HEAD_SHA ?? "HEAD",
     index: values.index ?? DEFAULT_STORYBOOK_INDEX,
+    stats: values.stats ?? DEFAULT_PREVIEW_STATS,
     maxStories:
       values.max === undefined ? MAX_SCREENSHOT_STORIES : parseWholeNumber(values.max, "--max"),
   };
 };
 
 const runSelectCli = (repoRoot: string, args: readonly string[]) => {
-  const { baseRef, headRef, index, maxStories } = parseSelectArgs(args);
+  const { baseRef, headRef, index, stats, maxStories } = parseSelectArgs(args);
   const indexPath = resolve(repoRoot, index);
+  const statsPath = resolve(repoRoot, stats);
 
   const mergeBase = runGit(repoRoot, ["merge-base", baseRef, headRef]).trim();
   const changedFiles = parseNameStatusZ(
@@ -524,15 +594,19 @@ const runSelectCli = (repoRoot: string, args: readonly string[]) => {
     ]),
   );
   const parsedIndex = storybookIndexSchema.parse(JSON.parse(readFileSync(indexPath, "utf8")));
+  const parsedStats = previewStatsSchema.parse(JSON.parse(readFileSync(statsPath, "utf8")));
   const result = selectStoriesForPr({
     changedPaths: changedFiles.filter((f) => f.status !== "deleted").map((f) => f.path),
     indexEntries: parsedIndex.entries,
+    importers: buildImporterGraph(parsedStats),
     maxStories,
   });
 
-  process.stdout.write(
-    `${JSON.stringify({ storyIds: result.selected.map((s) => s.id), ...result }, null, 2)}\n`,
-  );
+  const selection: PrStorySelection = {
+    storyIds: result.selected.map((story) => story.id),
+    ...result,
+  };
+  process.stdout.write(`${JSON.stringify(selection, null, 2)}\n`);
 };
 
 /**
@@ -578,7 +652,7 @@ const readPrNumber = (flag: string | undefined, env: NodeJS.ProcessEnv): number 
 };
 
 const PUBLISH_USAGE =
-  "Usage: pr-screenshots.ts publish --results <results.json> --out-manifest <path> [--pr <number>] [--repo <owner/name>] [--index <path>] [--story-ids <id,...>] [--omitted <count>]";
+  "Usage: pr-screenshots.ts publish --results <results.json> --selection <selection.json> --out-manifest <path> [--pr <number>] [--repo <owner/name>]";
 
 /** Reads `publish` flags strictly; the pull request and repository may come from CI's environment. */
 export const parsePublishArgs = (args: readonly string[], env: NodeJS.ProcessEnv = process.env) => {
@@ -587,105 +661,83 @@ export const parsePublishArgs = (args: readonly string[], env: NodeJS.ProcessEnv
       pr: { type: "string" },
       repo: { type: "string" },
       results: { type: "string" },
-      index: { type: "string" },
+      selection: { type: "string" },
       "out-manifest": { type: "string" },
-      omitted: { type: "string" },
-      "story-ids": { type: "string" },
     },
     usage: PUBLISH_USAGE,
   });
   const prNumber = readPrNumber(values.pr, env);
   const repo = values.repo ?? env.GITHUB_REPOSITORY ?? "";
-  const { results, "out-manifest": outManifest } = values;
-  if (!prNumber || !repo || !results || !outManifest) {
+  const { results, selection, "out-manifest": outManifest } = values;
+  if (!prNumber || !repo || !results || !selection || !outManifest) {
     throw new Error(
-      `publish requires --pr, --repo (or GITHUB_REPOSITORY), --results, and --out-manifest.\n${PUBLISH_USAGE}`,
+      `publish requires --pr, --repo (or GITHUB_REPOSITORY), --results, --selection, and --out-manifest.\n${PUBLISH_USAGE}`,
     );
   }
-  const selectedStoryIds = values["story-ids"]
-    ?.split(",")
-    .map((id) => id.trim())
-    .filter(Boolean);
-  return {
-    prNumber,
-    repo,
-    results,
-    index: values.index ?? DEFAULT_STORYBOOK_INDEX,
-    outManifest,
-    omittedCount:
-      values.omitted === undefined ? 0 : parseWholeNumber(values.omitted, "--omitted", 0),
-    selectedStoryIds,
-  };
+  return { prNumber, repo, results, selection, outManifest };
 };
 
-const runPublishCli = (repoRoot: string, args: readonly string[]) => {
-  const options = parsePublishArgs(args);
-  const { prNumber, repo, omittedCount, selectedStoryIds } = options;
-  const resultsPath = resolve(repoRoot, options.results);
-  const indexPath = resolve(repoRoot, options.index);
-  const outManifest = resolve(repoRoot, options.outManifest);
+export type CapturedScreenshot = Omit<PrScreenshot, "url"> & {
+  filename: string;
+  sourcePath: string;
+};
 
+/** Pairs each selected story's captured desktop screenshot with its selection details. */
+export const collectCapturedScreenshots = (
+  resultsPath: string,
+  selection: PrStorySelection,
+): CapturedScreenshot[] => {
   const results = uiVerifySubsetSchema.parse(JSON.parse(readFileSync(resultsPath, "utf8")));
-  const index = storybookIndexSchema.parse(JSON.parse(readFileSync(indexPath, "utf8")));
-  const resultsDir = dirname(resultsPath);
-
-  const captured: Array<{
-    storyId: string;
-    title: string;
-    name: string;
-    passed: boolean;
-    filename: string;
-    sourcePath: string;
-  }> = [];
-
-  for (const target of filterSelectedDesktopTargets(results.targets, selectedStoryIds)) {
-    if (!target.screenshot) {
+  const stories = new Map(selection.selected.map((story) => [story.id, story]));
+  const captured: CapturedScreenshot[] = [];
+  for (const target of filterSelectedDesktopTargets(results.targets, selection.storyIds)) {
+    const story = stories.get(target.target);
+    const sourcePath = target.screenshot ? resolve(dirname(resultsPath), target.screenshot) : null;
+    if (!story || !sourcePath || !existsSync(sourcePath)) {
       continue;
     }
-    const sourcePath = resolve(resultsDir, target.screenshot);
-    if (!existsSync(sourcePath)) {
-      continue;
-    }
-    const entry = index.entries[target.target];
     captured.push({
-      storyId: target.target,
-      title: entry?.title || target.target,
-      name: entry?.name || target.name,
+      storyId: story.id,
+      title: story.title || story.id,
+      name: story.name || target.name,
+      storyFile: story.storyFile,
       passed: target.passed,
       filename: basename(sourcePath),
       sourcePath,
     });
   }
+  return captured;
+};
 
+const writeManifest = (path: string, manifest: PrScreenshotManifest) =>
+  writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+const runPublishCli = (repoRoot: string, args: readonly string[]) => {
+  const options = parsePublishArgs(args);
+  const { prNumber, repo } = options;
+  const outManifest = resolve(repoRoot, options.outManifest);
+  const selection = prStorySelectionSchema.parse(
+    JSON.parse(readFileSync(resolve(repoRoot, options.selection), "utf8")),
+  );
+  const captured = collectCapturedScreenshots(resolve(repoRoot, options.results), selection);
   if (captured.length === 0) {
-    writeFileSync(
-      outManifest,
-      `${JSON.stringify({ screenshots: [], omittedCount }, null, 2)}\n`,
-      "utf8",
-    );
+    writeManifest(outManifest, { screenshots: [], affected: selection.affected });
     return;
   }
 
-  const remoteUrl = resolveRemoteUrl(repoRoot);
-  const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
   const { commitSha } = publishScreenshotsToOrphanBranch({
-    remoteUrl,
+    remoteUrl: resolveRemoteUrl(repoRoot),
     prNumber,
     files: captured.map(({ filename, sourcePath }) => ({ filename, sourcePath })),
-    token,
+    token: process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN,
   });
-
-  const manifest: PrScreenshotManifest = {
-    screenshots: captured.map((item) => ({
-      storyId: item.storyId,
-      title: item.title,
-      name: item.name,
-      passed: item.passed,
-      url: buildScreenshotRawUrl({ repo, commitSha, prNumber, filename: item.filename }),
+  writeManifest(outManifest, {
+    screenshots: captured.map(({ filename, sourcePath: _sourcePath, ...shot }) => ({
+      ...shot,
+      url: buildScreenshotRawUrl({ repo, commitSha, prNumber, filename }),
     })),
-    omittedCount,
-  };
-  writeFileSync(outManifest, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+    affected: selection.affected,
+  });
   process.stdout.write(`Published ${captured.length} desktop screenshot(s) at ${commitSha}.\n`);
 };
 

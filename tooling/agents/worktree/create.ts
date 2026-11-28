@@ -154,20 +154,19 @@ const assertTargetAndBranchFree = ({ plan, git }: CreateRun): void => {
 
 const addCheckout = ({ plan, progress, git }: CreateRun): void => {
   mkdirSync(dirname(plan.targetDir), { recursive: true });
-  // Create the branch on its own first: `git branch` refuses an existing name, so its success
-  // proves this attempt owns the branch that rollback may delete.
+  // Creating the branch separately makes Git reject a name already in use.
   git.run(["branch", plan.branch, plan.baseRef]);
   progress.branchCreated = true;
-  progress.checkoutAttempted = true;
   git.run(["worktree", "add", plan.targetDir, plan.branch]);
   progress.checkoutPath = canonicalPath(plan.targetDir);
   const gitDir = readWorktreeGitDir(progress.checkoutPath);
-  if (gitDir) {
-    writeCheckoutToken(gitDir, plan.checkoutToken);
-    // Recorded only once the token is in place: rollback then requires it, and before that it
-    // proves ownership through the checkout's branch and back-link instead.
-    progress.gitDir = gitDir;
+  if (!gitDir) {
+    throw new Error(`Could not identify the linked checkout at "${progress.checkoutPath}".`);
   }
+  writeCheckoutToken(gitDir, plan.checkoutToken);
+  // Recorded only once the token is in place: rollback then requires it, and before that it
+  // proves ownership through the checkout's branch and back-link instead.
+  progress.gitDir = gitDir;
 };
 
 const recordCreating = (run: CreateRun, registry: WorktreeRegistry, ports: WorktreePorts) => {
@@ -175,7 +174,8 @@ const recordCreating = (run: CreateRun, registry: WorktreeRegistry, ports: Workt
   registry.worktrees[plan.slug] = {
     slug: plan.slug,
     path: progress.checkoutPath,
-    ...(progress.gitDir ? { gitDir: progress.gitDir, checkoutToken: plan.checkoutToken } : {}),
+    gitDir: progress.gitDir,
+    checkoutToken: plan.checkoutToken,
     branch: plan.branch,
     baseRef: plan.baseRef,
     databaseName: plan.databaseName,
@@ -349,7 +349,6 @@ export const createWorktree = async (
     deps,
     progress: {
       branchCreated: false,
-      checkoutAttempted: false,
       checkoutPath: canonicalPath(plan.targetDir),
       registryReserved: false,
       databaseCreated: false,
