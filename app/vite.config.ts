@@ -7,6 +7,7 @@ import { defineConfig, lazyPlugins, type ViteDevServer } from "vite-plus";
 import { loadEnvLocalFiles, readPort } from "@merit/test-support/env";
 
 import { reactCompilerOptions } from "../tooling/react-compiler";
+import { typecheckTask } from "../tooling/verification/typecheck";
 import { localWorkspace } from "./local-workspace.config";
 import { routes } from "./routes";
 
@@ -44,7 +45,8 @@ const run = {
       cache: false,
     },
     worker: { command: "env MERIT_LOCAL_WORKER=1 vpx src/worker/main.ts", cache: false },
-    build: ["vp build", "tsc --noEmit"],
+    bundle: "vp build",
+    build: { ...typecheckTask, dependsOn: ["bundle"] },
     test: "vp test --config vitest.config.ts",
     preview: {
       command: `env MERIT_LOCAL_PREVIEW=1 vpx scripts/with-worker.ts vp preview --host localhost --port ${devPort} --strictPort`,

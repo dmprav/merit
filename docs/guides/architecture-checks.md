@@ -124,8 +124,9 @@ role (`business-assembly`, `business-demo`, `business-shared-persistence`,
 `business-command-persistence`, `business-query-persistence`, `business-grant-work`,
 `business-integrations`, and `business-reading`). All three must match, a leaf rule keeps `audit` isolated
 from all foreign business packages (current and newly added), and
-`upstreamDisallowedTargets` keeps upstream and sibling capabilities independent of
-downstream capabilities outside composition tests (`tests/` and `testing/`). The
+`capabilityGroups` lists capabilities in dependency order. Outside composition
+tests (`tests/` and `testing/`), a capability can import from earlier groups.
+Imports between peers or into a later group are forbidden. The
 policy also covers types, re-exports, and dynamic imports with known sources, and
 applies to unclassified server entries and newly added capabilities as well as the
 structured packages. Browser-safe dependencies retain their existing rules.
