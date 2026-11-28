@@ -13,7 +13,12 @@ import {
   readRoundCriteria,
 } from "@merit/rounds/scope";
 
-import { aiReviewSchema, wholeApplicationTitle, type AiReviewRecord } from "../../domain/ai-review";
+import {
+  aiCitationLabel,
+  aiReviewSchema,
+  wholeApplicationTitle,
+  type AiReviewRecord,
+} from "../../domain/ai-review";
 import type { AiReviewOutput } from "../../domain/ai-review";
 import type { ReviewBasis } from "../../domain/basis";
 import {
@@ -209,6 +214,47 @@ export const insertAiReview = async (db: Transaction, value: NewAiReview) => {
   return aiReviewId;
 };
 
+type SavedContent = {
+  sections: (typeof aiReviewSections.$inferSelect)[];
+  items: (typeof aiReviewItems.$inferSelect)[];
+  citations: (typeof aiReviewCitations.$inferSelect)[];
+};
+
+/** One run's sections in order, each citation labelled with its question as the version the run read worded it. */
+const savedSections = ({ sections, items, citations }: SavedContent, material: unknown) =>
+  sections
+    .toSorted((left, right) => left.ordinal - right.ordinal)
+    .map((section) => {
+      const texts = (kind: (typeof items)[number]["kind"]) =>
+        items
+          .filter((item) => item.sectionOrdinal === section.ordinal && item.kind === kind)
+          .toSorted((left, right) => left.ordinal - right.ordinal);
+
+      return {
+        criterionId: section.criterionId,
+        title: section.criterionTitle,
+        claims: texts("claim").map((claim) => ({
+          text: claim.text,
+          citations: citations
+            .filter(
+              (citation) =>
+                citation.sectionOrdinal === section.ordinal &&
+                citation.itemOrdinal === claim.ordinal,
+            )
+            .toSorted((left, right) => left.ordinal - right.ordinal)
+            .map(({ source, quote }) => ({
+              source,
+              quote,
+              label: material === undefined ? null : aiCitationLabel(material, source),
+            })),
+        })),
+        gaps: texts("gap").map((item) => item.text),
+        strengths: texts("strength").map((item) => item.text),
+        weaknesses: texts("weakness").map((item) => item.text),
+        concerns: texts("concern").map((item) => item.text),
+      };
+    });
+
 /** Every run for one application, newest first, with the criteria content each was written against. */
 export const readAiReviewRecords = async (
   db: Database,
@@ -235,40 +281,26 @@ export const readAiReviewRecords = async (
     ),
   ]);
 
+  const versions = [...new Set(rows.map((row) => row.applicationVersion))];
+  const materials = new Map(
+    await Promise.all(
+      versions.map(
+        async (version) =>
+          [version, (await readMaterialVersionRecord(db, caseId, version))?.content] as const,
+      ),
+    ),
+  );
+
   return rows.map((row) => {
+    const material = materials.get(row.applicationVersion);
+
     const mine = <T extends { aiReviewId: string }>(values: T[]) =>
       values.filter((value) => value.aiReviewId === row.id);
 
-    const myItems = mine(items);
-    const myCitations = mine(citations);
-    const criteria = mine(sections)
-      .toSorted((left, right) => left.ordinal - right.ordinal)
-      .map((section) => {
-        const texts = (kind: (typeof myItems)[number]["kind"]) =>
-          myItems
-            .filter((item) => item.sectionOrdinal === section.ordinal && item.kind === kind)
-            .toSorted((left, right) => left.ordinal - right.ordinal);
-
-        return {
-          criterionId: section.criterionId,
-          title: section.criterionTitle,
-          claims: texts("claim").map((claim) => ({
-            text: claim.text,
-            citations: myCitations
-              .filter(
-                (citation) =>
-                  citation.sectionOrdinal === section.ordinal &&
-                  citation.itemOrdinal === claim.ordinal,
-              )
-              .toSorted((left, right) => left.ordinal - right.ordinal)
-              .map(({ source, quote }) => ({ source, quote })),
-          })),
-          gaps: texts("gap").map((item) => item.text),
-          strengths: texts("strength").map((item) => item.text),
-          weaknesses: texts("weakness").map((item) => item.text),
-          concerns: texts("concern").map((item) => item.text),
-        };
-      });
+    const criteria = savedSections(
+      { sections: mine(sections), items: mine(items), citations: mine(citations) },
+      material,
+    );
     const review = aiReviewSchema.parse({
       id: row.id,
       applicationVersion: row.applicationVersion,

@@ -285,11 +285,27 @@ export const aiReviewAvailability = (facts: {
   return facts.consent ? "available" : "consent_required";
 };
 
+/** A saved citation also names the question it quotes, as worded in the version the review read. */
+const savedCitationSchema = citationSchema.extend({ label: z.string().nullable() });
+
 const sectionSchema = z.object({
   criterionId: z.uuid().nullable(),
   title: z.string().min(1),
   ...sectionContent,
+  claims: z
+    .array(
+      claimSchema.extend({
+        citations: z.array(savedCitationSchema).min(1).max(aiReviewLimits.citationsPerClaim),
+      }),
+    )
+    .max(aiReviewLimits.itemsPerList),
 });
+
+/** The question text a citation's source had in one material version; null for a field or an unknown ID. */
+export const aiCitationLabel = (materialContent: unknown, source: string): string | null =>
+  decodeApplicationMaterial(materialContent).submission?.answers.find(
+    (answer) => answer.questionId === source,
+  )?.question ?? null;
 
 export const aiReviewSchema = z.object({
   id: z.uuid(),

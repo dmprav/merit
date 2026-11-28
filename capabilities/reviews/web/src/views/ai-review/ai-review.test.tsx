@@ -17,13 +17,6 @@ import { AiReviewFeedback } from "./ai-review-feedback";
 import { AiReviewOverview } from "./ai-review-overview";
 import { useAiReviewWork } from "./use-ai-review-work";
 
-const questions = [
-  {
-    questionId: aiReviewFixture().criteria[0]!.claims[0]!.citations[0]!.source,
-    question: "Project overview",
-  },
-];
-
 const Harness = ({
   data,
   onInspectVersion,
@@ -38,7 +31,7 @@ const Harness = ({
   return (
     <>
       <AiReviewOverview work={work} onSelect={work.reading.open} />
-      <AiReviewContent work={work} questions={questions} onInspectVersion={onInspectVersion} />
+      <AiReviewContent work={work} onInspectVersion={onInspectVersion} />
       <AiReviewFeedback work={work} />
       <Toasts />
     </>
@@ -264,8 +257,49 @@ describe("AI review in full", () => {
     const demand = within(section().getByRole("region", { name: "Evidence of demand" }));
     expect(demand.getByRole("heading", { name: "Weaknesses" })).toBeVisible();
     expect(demand.getByRole("heading", { name: "Concerns" })).toBeVisible();
-    // A question the application no longer has is still named as an application question.
-    expect(demand.getByText("Quoted from Application question")).toBeVisible();
+    expect(demand.getByText("Quoted from Community need")).toBeVisible();
+  });
+
+  it("reads like a recorded assessment: outcome, basis, note, reasoning, criteria, questions, then run details", async () => {
+    await open(aiReviewDataFixture({ reviews: [outdatedAiReviewFixture()] }));
+
+    const full = section();
+    const order = [
+      full.getByText("Proposed amount: €24,000"),
+      full.getByText("Based on an earlier submission"),
+      full.getByText(/^AI review\. Merit AI's interpretation/),
+      full.getByRole("heading", { name: "Reasoning" }),
+      full.getByRole("region", { name: "Community connection" }),
+      full.getByRole("heading", { name: "Questions for the applicant" }),
+      full.getByRole("region", { name: "Run details" }),
+    ];
+    order.slice(1).forEach((element, index) => {
+      expect(
+        order[index]!.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+  });
+
+  it("lists the run details with the recorded-assessment date format and provenance wording", async () => {
+    await open(aiReviewDataFixture({ reviews: [aiReviewFixture()] }));
+
+    const details = within(section().getByRole("region", { name: "Run details" }));
+    expect(details.getByText(/^18 January 2027.*09:30 UTC$/)).toBeVisible();
+    expect(details.getByText("Interface")).toBeVisible();
+    expect(details.getByText("via Merit web")).toBeVisible();
+    expect(details.getAllByText("Version 1")).toHaveLength(2);
+  });
+
+  it("names a quoted question the saved review could not resolve as an application question", async () => {
+    const review = aiReviewFixture();
+    review.criteria[1]!.claims[0]!.citations[0]!.label = null;
+    await open(aiReviewDataFixture({ reviews: [review] }));
+
+    expect(
+      within(section().getByRole("region", { name: "Evidence of demand" })).getByText(
+        "Quoted from Application question",
+      ),
+    ).toBeVisible();
   });
 
   it("numbers the questions for the applicant", async () => {
@@ -337,7 +371,9 @@ describe("AI review in full", () => {
     expect(disclosure).toHaveAttribute("aria-expanded", "false");
     await user.click(disclosure);
     const timeline = section().getByRole("list", { name: "Earlier AI reviews" });
+    expect(within(timeline).getByText("12 January 2027 · gpt-5.1")).toBeVisible();
     expect(within(timeline).getByText("Fund with a condition")).toBeVisible();
+    expect(within(timeline).getByText("Based on an earlier submission")).toBeVisible();
     expect(within(timeline).getByText("Run by Dana Reed")).toBeVisible();
 
     await user.click(within(timeline).getByRole("button", { name: "Open" }));

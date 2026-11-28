@@ -40,8 +40,12 @@ export const aiReviewFixture = (overrides: Partial<AiReviewEntry> = {}): AiRevie
         {
           text: "A weekly shared meal gives residents a regular reason to meet over 24 weeks.",
           citations: [
-            { source: meal.questionId, quote: "weekly shared meal over 24 weeks" },
-            { source: "title", quote: application.title },
+            {
+              source: meal.questionId,
+              quote: "weekly shared meal over 24 weeks",
+              label: meal.question,
+            },
+            { source: "title", quote: application.title, label: null },
           ],
         },
       ],
@@ -56,7 +60,13 @@ export const aiReviewFixture = (overrides: Partial<AiReviewEntry> = {}): AiRevie
       claims: [
         {
           text: "The pilot's attendance figure cannot show how many different residents it reached.",
-          citations: [{ source: pilot.questionId, quote: "We did not count unique people" }],
+          citations: [
+            {
+              source: pilot.questionId,
+              quote: "We did not count unique people",
+              label: pilot.question,
+            },
+          ],
         },
       ],
       gaps: ["Unique participants and repeat attendance in the pilot are unknown."],

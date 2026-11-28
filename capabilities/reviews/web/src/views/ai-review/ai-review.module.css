@@ -26,6 +26,14 @@
   min-width: 0;
 }
 
+ol.list {
+  list-style: decimal;
+}
+
+ul.list {
+  list-style: disc;
+}
+
 .list {
   display: grid;
   gap: var(--space-2);

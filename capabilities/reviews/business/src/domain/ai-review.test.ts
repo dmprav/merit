@@ -310,7 +310,16 @@ it("ages an AI review with the same freshness policy as an assessment", () => {
     position: "Defer",
     amount: { minorUnits: "0", currency: "EUR" },
     reasoning: "Reasoning",
-    criteria: [{ ...section(first), title: "Community connection" }],
+    criteria: [
+      {
+        ...section(first),
+        title: "Community connection",
+        claims: section(first).claims.map((claim) => ({
+          ...claim,
+          citations: claim.citations.map((citation) => ({ ...citation, label: "Venue" })),
+        })),
+      },
+    ],
     questions: [],
     recordedCriteria: [{ id: first, title: "Community connection" }],
   };

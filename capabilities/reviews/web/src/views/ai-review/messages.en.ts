@@ -34,7 +34,8 @@ export const en = {
     provider: "Provider",
     runOn: "Run on",
     runBy: "Run by",
-    via: "Via",
+    via: "Interface",
+    runDetails: "Run details",
     submission: "Submission",
     criteria: "Criteria",
     version: "Version {{version}}",
@@ -63,7 +64,6 @@ export const en = {
     from: "Quoted from {{source}}",
   },
   earlier: "Earlier AI reviews",
-  earlierRun: "{{date}}, {{model}}",
   runBySummary: "Run by {{name}}",
   open: "Open",
   freshness: {

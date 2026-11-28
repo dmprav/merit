@@ -255,11 +255,7 @@ const ApplicationReferencePane = ({
                 {review.content(state.inspectHistory)}
               </div>
               {aiReview && (
-                <AiReviewContent
-                  work={aiReview}
-                  questions={application.submission?.answers ?? []}
-                  onInspectVersion={state.inspectHistory}
-                />
+                <AiReviewContent work={aiReview} onInspectVersion={state.inspectHistory} />
               )}
             </>
           ) : key === "details" ? (

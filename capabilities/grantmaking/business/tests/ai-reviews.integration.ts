@@ -211,7 +211,9 @@ it("saves a verified run with its basis, provenance, audit event and analytics o
   expect(result.review.criteria[0]?.claims).toEqual([
     {
       text: "The workshops use a free venue.",
-      citations: [{ source: questionId, quote: "Repair workshops with a free venue" }],
+      citations: [
+        { source: questionId, quote: "Repair workshops with a free venue", label: "Plan" },
+      ],
     },
   ]);
   expect(await rows()).toBe(1);
@@ -417,6 +419,51 @@ it("works outside any transaction, saves simultaneous runs, and keeps the basis 
   expect((await page())?.aiReviews[0]).toMatchObject({
     id: revised.review.id,
     freshness: "outdated",
+  });
+});
+
+it("labels each citation with the question as worded in the version the review read", async ({
+  db,
+  database,
+  runtimeUrl,
+}) => {
+  const { run, page, edit } = await setup(db, database, runtimeUrl);
+  assert((await edit({ action: "mark_ready" })).status === "ok");
+  const saved = await run(stub().reviewer);
+  assert(saved.status === "ok");
+  expect(saved.review.criteria[0]?.claims[0]?.citations[0]).toMatchObject({ label: "Plan" });
+
+  assert((await edit({ action: "start_revision", kind: "correction" })).status === "ok");
+  const draft = (await page())?.intake.workingRevision;
+  assert(draft);
+  assert(
+    (
+      await edit({
+        action: "save_revision",
+        draft: {
+          ...draft,
+          reason: "Reword the question",
+          content: {
+            answers: [
+              {
+                questionId,
+                question: "Project plan, reworded",
+                response: "Repair workshops with a free venue.",
+              },
+            ],
+          },
+        },
+      })
+    ).status === "ok",
+  );
+  assert((await edit({ action: "publish_revision" })).status === "ok");
+
+  const after = (await page())?.aiReviews[0];
+  expect(after).toMatchObject({ freshness: "outdated" });
+  // The label is the wording the review read, not the current wording.
+  expect(after?.criteria[0]?.claims[0]?.citations[0]).toMatchObject({
+    source: questionId,
+    label: "Plan",
   });
 });
 
