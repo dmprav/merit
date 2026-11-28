@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
+import { resetWorktreeDatabase } from "../agents/worktree/reset.ts";
 import { loadRepoEnvLocal } from "../env.ts";
 import { REPO_ROOT } from "../paths.ts";
 import {
@@ -100,7 +101,18 @@ export const resetLocalDatabase = async ({
     console.log(
       `Resetting local worktree database "${database.databaseName}" without stopping shared Compose services...`,
     );
-    await recreate(database.databaseName, database.adminUrl);
+
+    const replace = () => recreate(database.databaseName, database.adminUrl);
+
+    if (isLinkedWorktree) {
+      await resetWorktreeDatabase(
+        cwd instanceof URL ? fileURLToPath(cwd) : cwd,
+        database.databaseName,
+        replace,
+      );
+    } else {
+      await replace();
+    }
     for (const [command, ...args] of [
       ["vp", "run", "@merit/db#db:migrate"],
       ["vp", "run", "@merit/app#db:seed"],

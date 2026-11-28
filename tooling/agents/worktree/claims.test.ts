@@ -98,11 +98,17 @@ describe("matchesCleanClaim", () => {
     cleanToken: "mine",
     normalizedPath: alpha.path,
     databaseName: alpha.databaseName,
+    databaseCreated: alpha.databaseCreated,
   };
   const claimed = { ...alpha, status: "cleaning" as const, cleanToken: "mine" };
 
   test.each([
     { name: "the claimed record", current: claimed, matches: true },
+    {
+      name: "changed database ownership",
+      current: { ...claimed, databaseCreated: !claimed.databaseCreated },
+      matches: false,
+    },
     { name: "a removed record", current: undefined, matches: false },
     { name: "another clean's token", current: { ...claimed, cleanToken: "other" }, matches: false },
     {

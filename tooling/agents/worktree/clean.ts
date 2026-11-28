@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
+import { errorMessage } from "../../cli.ts";
 import { assertSafeManagedDatabaseName } from "../../scripts/local-postgres.ts";
 import {
   assertCheckoutIdentity,
@@ -34,6 +35,7 @@ import {
   pathsOverlap,
 } from "./paths.ts";
 import {
+  consumeDatabaseOwnership,
   readWorktreeRegistry,
   updateRecord,
   type WorktreeRecord,
@@ -69,6 +71,7 @@ type CleanTarget = CleanClaim & {
   /** The registered record, whose checkout identity removal must still match. */
   identity: WorktreeRecord | undefined;
   branch: string;
+  cleanupPolicy: NonNullable<WorktreeRecord["cleanupPolicy"]>;
 };
 
 type CleanRun = {
@@ -111,6 +114,11 @@ const assertUnrecordedPathFree = (
   }
 };
 
+/** Older interrupted cleanups could have originated in rollback. Their branch stays for inspection. */
+const cleanupPolicyFor = (record: WorktreeRecord | undefined): CleanTarget["cleanupPolicy"] =>
+  record?.cleanupPolicy ??
+  (record?.status === "creating" || record?.status === "cleaning" ? "keep-branch" : "standard");
+
 /** Checks what the clean may remove and marks the record `cleaning` so no other operation takes it. */
 const claimCleanup = (
   registry: WorktreeRegistry,
@@ -136,12 +144,19 @@ const claimCleanup = (
     ...others.map((other) => other.path),
     ...linkedCheckoutPaths(git.worktrees(), git.root),
   ]);
-  assertCheckoutIdentity(worktreePath, normalizedPath, record);
+  assertCheckoutIdentity(worktreePath, record);
   const databaseName = record?.databaseName ?? databaseNameForSlug(slug);
   assertSafeManagedDatabaseName(databaseName);
 
+  const cleanupPolicy = cleanupPolicyFor(record);
   if (record) {
-    registry.worktrees[slug] = { ...record, status: "cleaning", cleanToken, ownerPid: process.pid };
+    registry.worktrees[slug] = {
+      ...record,
+      status: "cleaning",
+      cleanupPolicy,
+      cleanToken,
+      ownerPid: process.pid,
+    };
     writeWorktreeRegistry(git.root, registry);
   }
   return {
@@ -149,8 +164,10 @@ const claimCleanup = (
     worktreePath,
     normalizedPath,
     identity: record,
+    cleanupPolicy,
     branch: record?.branch ?? defaultBranchForSlug(slug),
     databaseName,
+    databaseCreated: record?.databaseCreated ?? false,
     claimed: Boolean(record),
     cleanToken,
   };
@@ -202,7 +219,7 @@ const removeCheckout = (run: CleanRun): boolean => {
   const { target, git } = run;
   const gitWorktrees = git.worktrees();
   const commonGitDir = git.commonGitDir();
-  assertCheckoutIdentity(target.worktreePath, target.normalizedPath, target.identity);
+  assertCheckoutIdentity(target.worktreePath, target.identity);
   assertNoNestedWorktrees(target.normalizedPath, linkedCheckoutPaths(gitWorktrees, git.root));
 
   const removal = decideCheckoutRemoval({
@@ -242,6 +259,14 @@ const withRegistryLock = <T>(run: CleanRun, operation: () => Promise<T> | T): Pr
 
 const dropDatabase = async (run: CleanRun): Promise<{ dropped: boolean; warnings: string[] }> => {
   const { target, deps } = run;
+  if (!target.databaseCreated) {
+    return {
+      dropped: false,
+      warnings: [
+        `Skipped database "${target.databaseName}": the registry has no ownership record for this database.`,
+      ],
+    };
+  }
   if (!(await deps.database.isReachable())) {
     return {
       dropped: false,
@@ -250,17 +275,25 @@ const dropDatabase = async (run: CleanRun): Promise<{ dropped: boolean; warnings
       ],
     };
   }
-  const refusedDrop = `drop database "${target.databaseName}"`;
-  if (target.claimed) {
-    await withRegistryLock(run, () => assertClaimHeld(run, refusedDrop));
+  const cleared = await consumeDatabaseOwnership(
+    run.git.root,
+    target.slug,
+    (record) => matchesCleanClaim(record, target),
+    deps.lockOptions,
+  );
+  if (!cleared) {
+    throw new Error(
+      `Worktree "${target.slug}" registry record no longer matches this cleanup claim; refusing to drop database "${target.databaseName}".`,
+    );
+  }
+  target.databaseCreated = false;
+  try {
     await deps.database.drop(target.databaseName);
-  } else {
-    // An unrecorded slug has no claim to keep a same-slug create out, so hold the lock across
-    // the drop: a create cannot record the slug and create its database in the meantime.
-    await withRegistryLock(run, async () => {
-      assertClaimHeld(run, refusedDrop);
-      await deps.database.drop(target.databaseName);
-    });
+  } catch (cause) {
+    throw new Error(
+      `Could not confirm the drop of "${target.databaseName}": ${errorMessage(cause)}. Inspect the database manually before retrying cleanup.`,
+      { cause },
+    );
   }
   return { dropped: true, warnings: [] };
 };
@@ -286,19 +319,23 @@ const deleteBranch = (run: CleanRun): Promise<boolean> =>
     return true;
   });
 
-const removeRecord = async ({ target, git, deps }: CleanRun): Promise<boolean> => {
-  const removed = await updateRecord(
+/** Keeps the ownership record for an offline database and releases its claim for a retry. */
+const finishRecord = async ({ target, git, deps }: CleanRun): Promise<boolean> => {
+  const updated = await updateRecord(
     git.root,
     target.slug,
-    { when: (record) => matchesCleanClaim(record, target), apply: () => undefined },
+    {
+      when: (record) => matchesCleanClaim(record, target),
+      apply: (record) => (record.databaseCreated ? withoutCleanClaim(record) : undefined),
+    },
     deps.lockOptions,
   );
-  if (!removed) {
+  if (!updated) {
     throw new Error(
       `Worktree "${target.slug}" registry record no longer matches this cleanup claim; refusing to remove registry entry.`,
     );
   }
-  return true;
+  return !target.databaseCreated;
 };
 
 /**
@@ -333,8 +370,12 @@ const cleanClaimedWorktree = async (
   const worktreeRemoved = removeCheckout(run);
   const database = await dropDatabase(run);
   const branchDeleted =
-    !keepBranch && !isProtectedBranch(target.branch) && (await deleteBranch(run));
-  const registryRemoved = target.claimed && (await removeRecord(run));
+    target.cleanupPolicy === "standard" &&
+    !target.databaseCreated &&
+    !keepBranch &&
+    !isProtectedBranch(target.branch) &&
+    (await deleteBranch(run));
+  const registryRemoved = target.claimed && (await finishRecord(run));
   return {
     result: {
       slug: target.slug,

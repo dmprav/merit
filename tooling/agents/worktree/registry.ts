@@ -24,6 +24,8 @@ const worktreeRecordSchema = z.object({
   status: z.enum(["creating", "active", "cleaning"]).optional(),
   cleanToken: z.string().optional(),
   ownerPid: z.number().int().positive().optional(),
+  /** Keeps the cleanup decision when a claim is released and later retried. */
+  cleanupPolicy: z.enum(["standard", "keep-branch", "finish-rollback"]).optional(),
   partialRemoval: z.boolean().optional(),
 });
 
@@ -127,6 +129,26 @@ export const updateRecord = (
       }
       writeWorktreeRegistry(primaryRepoRoot, registry);
       return true;
+    },
+    lockOptions,
+  );
+
+/**
+ * Consumes creation proof before issuing DROP. A crash or lost reply cannot authorize a second
+ * drop by name after another database has taken its place.
+ */
+export const consumeDatabaseOwnership = (
+  root: string,
+  slug: string,
+  matchesClaim: RecordUpdate["when"],
+  lockOptions?: RegistryLockOptions,
+): Promise<boolean> =>
+  updateRecord(
+    root,
+    slug,
+    {
+      when: (record) => record.databaseCreated && matchesClaim(record),
+      apply: (record) => ({ ...record, databaseCreated: false }),
     },
     lockOptions,
   );

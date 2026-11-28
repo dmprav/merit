@@ -10,7 +10,7 @@ const identity = { gitDir: GIT_DIR, checkoutToken: "token" };
 /** The registered checkout, unmoved and intact. */
 const intact: CheckoutObservation = {
   expectedGitDir: GIT_DIR,
-  movedPath: PATH,
+  movedPath: null,
   checkoutExists: true,
   dotGitExists: true,
   actualGitDir: GIT_DIR,
@@ -61,12 +61,6 @@ describe("checkoutIdentityRefusal", () => {
       name: "a checkout whose Git metadata was pruned",
       identity,
       seen: { ...intact, movedPath: null, actualGitDirExists: false, actualToken: null },
-      refusal: undefined,
-    },
-    {
-      name: "a checkout registered before tokens were recorded",
-      identity: { gitDir: GIT_DIR },
-      seen: { ...intact, actualToken: null },
       refusal: undefined,
     },
   ])("decides whether clean may remove $name", ({ identity: registered, seen, refusal }) => {

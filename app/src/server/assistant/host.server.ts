@@ -7,7 +7,7 @@ import {
   deliverCommittedReviewerMessage,
   retryReviewerDelivery,
   type ReviewerDelivery,
-} from "@merit/reviews/server";
+} from "@merit/reviews/server/delivery";
 import { reportError } from "@merit/telemetry/errors";
 
 import { createApplicationServices } from "../services.server";
