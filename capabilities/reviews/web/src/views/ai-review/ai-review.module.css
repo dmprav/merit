@@ -1,8 +1,3 @@
-/* The entry runs to the panel's edges so its avatar lines up with the section label. */
-.entry {
-  margin-inline: calc(-1 * var(--space-2));
-}
-
 .content {
   display: grid;
   gap: var(--space-4);

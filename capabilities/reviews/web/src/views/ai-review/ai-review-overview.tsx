@@ -11,7 +11,6 @@ import { Text } from "@merit/ui/text";
 
 import { AiReviewBasis } from "./ai-review-basis";
 import { AiReviewSummary } from "./ai-review-summary";
-import styles from "./ai-review.module.css";
 import type { AiReviewWork } from "./use-ai-review-work";
 
 /**
@@ -34,20 +33,18 @@ export const AiReviewOverview = ({
     <PanelSection title={t("title")}>
       <Stack gap={3}>
         {latest ? (
-          <div className={styles.entry}>
-            <JudgmentChoice
-              ref={(element) => work.reading.registerTrigger(latest.id, element)}
-              onPress={() => onSelect(latest.id)}
-              author={t("author")}
-              authorIcon="assistant"
-              meta={t("entryMeta", {
-                date: calendarDate(latest.recordedAt.slice(0, 10)),
-                model: latest.model,
-              })}
-              summary={<AiReviewSummary review={latest} />}
-              basis={<AiReviewBasis review={latest} />}
-            />
-          </div>
+          <JudgmentChoice
+            ref={(element) => work.reading.registerTrigger(latest.id, element)}
+            onPress={() => onSelect(latest.id)}
+            author={t("author")}
+            authorIcon="assistant"
+            meta={t("entryMeta", {
+              date: calendarDate(latest.recordedAt.slice(0, 10)),
+              model: latest.model,
+            })}
+            summary={<AiReviewSummary review={latest} />}
+            basis={<AiReviewBasis review={latest} />}
+          />
         ) : (
           <Text as="p" variant="missing">
             {t("none")}
