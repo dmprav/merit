@@ -264,17 +264,12 @@ const savedSections = ({ sections, items, citations }: SavedContent, material: u
       };
     });
 
-/** Every run for one application, newest first, with the criteria content each was written against. */
-export const readAiReviewRecords = async (
+/** The runs of one application as saved records, each with the criteria content it was written against. */
+const loadRecords = async (
   db: Database,
-  organizationId: string,
   caseId: string,
+  rows: (typeof aiReviews.$inferSelect)[],
 ): Promise<AiReviewRecord[]> => {
-  const rows = await db
-    .select()
-    .from(aiReviews)
-    .where(and(eq(aiReviews.organizationId, organizationId), eq(aiReviews.caseId, caseId)))
-    .orderBy(desc(aiReviews.recordedAt), desc(aiReviews.id));
   if (rows.length === 0) {
     return [];
   }
@@ -333,4 +328,72 @@ export const readAiReviewRecords = async (
         criteriaMap.get(criteriaVersionKey(row.roundId, row.criteriaVersion)) ?? null,
     };
   });
+};
+
+/** Every run for one application, newest first, with the criteria content each was written against. */
+export const readAiReviewRecords = async (
+  db: Database,
+  organizationId: string,
+  caseId: string,
+): Promise<AiReviewRecord[]> =>
+  loadRecords(
+    db,
+    caseId,
+    await db
+      .select()
+      .from(aiReviews)
+      .where(and(eq(aiReviews.organizationId, organizationId), eq(aiReviews.caseId, caseId)))
+      .orderBy(desc(aiReviews.recordedAt), desc(aiReviews.id)),
+  );
+
+/** One saved run of an application by its ID, without reading the application's other runs. */
+export const readAiReviewRecord = async (
+  db: Database,
+  organizationId: string,
+  caseId: string,
+  id: string,
+): Promise<AiReviewRecord | undefined> => {
+  const rows = await db
+    .select()
+    .from(aiReviews)
+    .where(
+      and(
+        eq(aiReviews.organizationId, organizationId),
+        eq(aiReviews.caseId, caseId),
+        eq(aiReviews.id, id),
+      ),
+    );
+  return (await loadRecords(db, caseId, rows))[0];
+};
+
+/**
+ * What the newest saved run of an application was based on, for its freshness alone: one row and
+ * the criteria content it was written against, however many runs came before it.
+ */
+export const readLatestAiReviewBasis = async (
+  db: Database,
+  organizationId: string,
+  caseId: string,
+): Promise<ReviewBasis | undefined> => {
+  const [row] = await db
+    .select({
+      roundId: aiReviews.roundId,
+      applicationVersion: aiReviews.applicationVersion,
+      criteriaVersion: aiReviews.criteriaVersion,
+    })
+    .from(aiReviews)
+    .where(and(eq(aiReviews.organizationId, organizationId), eq(aiReviews.caseId, caseId)))
+    .orderBy(desc(aiReviews.recordedAt), desc(aiReviews.id))
+    .limit(1);
+  if (!row) {
+    return undefined;
+  }
+  const criteria = await readCriteriaByVersionsMap(db, [
+    { roundId: row.roundId, version: row.criteriaVersion },
+  ]);
+  return {
+    applicationVersion: materialVersionSchema.parse(row.applicationVersion),
+    criteriaVersion: criteriaVersionSchema.parse(row.criteriaVersion),
+    criteria: criteria.get(criteriaVersionKey(row.roundId, row.criteriaVersion)) ?? null,
+  };
 };

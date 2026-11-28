@@ -23,8 +23,9 @@ import {
   readAiReviewByRun,
   readAiReviewBasis,
   readAiReviewConsent,
-  readAiReviewRecords,
+  readAiReviewRecord,
   readCurrentAiReviewBasis,
+  readLatestAiReviewBasis,
 } from "../persistence/ai-reviews";
 import { readReviewCriteria } from "../persistence/commands/reviews";
 
@@ -58,8 +59,7 @@ const readSavedEntry = async (
   id: string,
 ) => {
   const current = await readCurrentAiReviewBasis(tx, organizationId, caseId);
-  const records = await readAiReviewRecords(tx, organizationId, caseId);
-  const saved = records.find((record) => record.id === id);
+  const saved = await readAiReviewRecord(tx, organizationId, caseId, id);
   if (!current || !saved) {
     throw new Error("The saved AI review could not be read.");
   }
@@ -70,7 +70,7 @@ const readSavedEntry = async (
 const readPrior = async (tx: Transaction, organizationId: string, caseId: string) => {
   const current = await readCurrentAiReviewBasis(tx, organizationId, caseId);
   return current
-    ? aiReviewPrior(await readAiReviewRecords(tx, organizationId, caseId), current)
+    ? aiReviewPrior(await readLatestAiReviewBasis(tx, organizationId, caseId), current)
     : ("none" as const);
 };
 

@@ -304,6 +304,42 @@ it("works outside any transaction, saves simultaneous runs, and keeps the basis 
   expect(read.reviews[0]).toMatchObject({ id: revised.review.id, freshness: "outdated" });
 });
 
+it("judges a new run by the freshness of the latest earlier run, however many came before", async ({
+  aiReviewSetup,
+}) => {
+  const { run, edit } = await aiReviewSetup();
+  const onSaved = vi.fn();
+
+  const prior = () => onSaved.mock.calls.map(([saved]) => (saved as { prior: string }).prior);
+
+  for (let count = 0; count < 3; count++) {
+    assert((await run(stub().reviewer, { onSaved })).status === "ok");
+  }
+  expect(prior()).toEqual(["none", "current", "current"]);
+
+  assert((await edit({ action: "mark_ready" })).status === "ok");
+  assert((await edit({ action: "start_revision", kind: "correction" })).status === "ok");
+  assert(
+    (
+      await edit({
+        action: "save_revision",
+        draft: {
+          kind: "correction",
+          reason: "Fix the title",
+          content: { title: "Workshop Sundays" },
+        },
+      })
+    ).status === "ok",
+  );
+  assert((await edit({ action: "publish_revision" })).status === "ok");
+
+  // The earlier runs read version 1; the application is now at version 2.
+  assert((await run(stub().reviewer, { onSaved })).status === "ok");
+  // The newest earlier run read version 2, whatever the older ones read.
+  assert((await run(stub().reviewer, { onSaved })).status === "ok");
+  expect(prior()).toEqual(["none", "current", "current", "outdated", "current"]);
+});
+
 it("holds no database connection while the provider works", async ({ aiReviewSetup }) => {
   const { runtime, run, rows } = await aiReviewSetup();
   let checkedOut = 0;

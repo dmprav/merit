@@ -418,12 +418,17 @@ it("ages an AI review with the same freshness policy as an assessment", () => {
     }).freshness,
   ).toBe("current");
 
-  expect(aiReviewPrior([], current)).toBe("none");
-  expect(aiReviewPrior([record], current)).toBe("current");
+  const recorded = {
+    applicationVersion: record.applicationVersion,
+    criteriaVersion: record.criteriaVersion,
+    criteria: record.recordedCriteria,
+  };
+  expect(aiReviewPrior(undefined, current)).toBe("none");
+  expect(aiReviewPrior(recorded, current)).toBe("current");
   expect(
-    aiReviewPrior([record], { ...current, applicationVersion: materialVersionSchema.parse(2) }),
+    aiReviewPrior(recorded, { ...current, applicationVersion: materialVersionSchema.parse(2) }),
   ).toBe("outdated");
-  expect(aiReviewPrior([{ ...record, recordedCriteria: null }], current)).toBe("unknown");
+  expect(aiReviewPrior({ ...recorded, criteria: null }, current)).toBe("unknown");
 });
 
 it("labels a citation with the question the version read, and nothing for a field or an unknown ID", () => {

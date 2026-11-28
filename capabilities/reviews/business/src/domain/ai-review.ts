@@ -364,9 +364,9 @@ export const aiReviewEntry = (
   return { ...review, basisComparison, freshness: reviewFreshness(basisComparison) };
 };
 
-/** What the latest earlier run was worth when a new one saved; the records are newest first. */
+/** What the latest earlier run was worth when a new one saved; `undefined` means there was none. */
 export const aiReviewPrior = (
-  records: AiReviewRecord[],
+  latest: ReviewBasis | undefined,
   current: ReviewBasis,
 ): "none" | AiReviewEntry["freshness"] =>
-  records[0] ? aiReviewEntry(records[0], current).freshness : "none";
+  latest ? reviewFreshness(compareReviewBasis(latest, current)) : "none";
