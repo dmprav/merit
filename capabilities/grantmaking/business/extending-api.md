@@ -56,7 +56,9 @@ An `ApplicationRecord` is a reading view, not an input for saving all its parts.
 
 ## Verify the boundary
 
-Run the changed owner's complete test suite and the affected composition tests.
+Run the changed owner's package tests and PostgreSQL integration tests, then the
+affected composition tests. For Decisions, use `vp run @merit/decisions#test`
+and `vp run @merit/decisions#test:integration`.
 Pure tests establish transitions and JSON contracts; integration tests establish
 permissions, lock ordering, revisions, retries, immutable history, and rollback.
 Cross-workflow scenarios remain in [grantmaking integration tests](tests) and

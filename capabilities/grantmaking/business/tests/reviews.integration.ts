@@ -19,31 +19,17 @@ import {
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
-import { assessmentEntrySchema, reviewRevisionSchema } from "@merit/reviews/domain";
+import { reviewRevisionSchema } from "@merit/reviews/domain";
 import type { ReviewChange } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { isCurrentAssessment } from "@merit/reviews/server/integrations";
+import { contact, content, unknownBasisRecord } from "@merit/reviews/testing/assessment";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
 import { roundCommitments } from "./application-work";
 import { contactWork } from "./contact-work";
-
-const contact = async (db: NodePgDatabase, name = "Sam") => {
-  const input = {
-    workspaceSlug,
-    contactId: randomUUID(),
-    action: "create" as const,
-    details: { name, email: "", affiliation: "" },
-  };
-  const result = await changeWorkspaceContact(db, actor, input, contactWork);
-
-  if (result.status !== "ok") {
-    throw new Error("Contact creation failed");
-  }
-  return result.contact;
-};
 
 const setup = async (db: NodePgDatabase) => {
   const round = await createFundingRound(db, actor, {
@@ -93,16 +79,6 @@ const setup = async (db: NodePgDatabase) => {
   };
 
   return { round, address, read, review };
-};
-
-const content = {
-  applicationVersion: materialVersionSchema.parse(1),
-  criteriaVersion: criteriaVersionSchema.parse(1),
-  date: null,
-  position: "Fund" as const,
-  amount: encodeMoney(fromMinorUnits(1800000n)),
-  reasoning: "Practical plan with a confirmed free venue.",
-  observations: [],
 };
 
 const recommendationFromAssessment = async (db: NodePgDatabase) => {
@@ -198,183 +174,6 @@ it.for(["corrected", "superseded"] as const)(
     expect(changed).toMatchObject({ status: "ok" });
     expect(await save()).toEqual({ status: "conflict" });
     expect((await read()).recommendationVersion).toBe(0);
-  },
-);
-
-it("round-trips unstated, zero, and fractional-euro amounts through assessment history", async ({
-  db,
-}) => {
-  const { read, review } = await setup(db);
-  const sam = await contact(db);
-  const id = randomUUID();
-
-  const entered = (amount: string | null) =>
-    assessmentEntrySchema.parse({ ...content, position: null, amount });
-
-  expect(
-    await review({
-      action: "record",
-      id,
-      contactId: sam.id,
-      requestId: null,
-      previousId: null,
-      content: entered(null),
-    }),
-  ).toMatchObject({ status: "ok" });
-  for (const amount of ["0", "12.30", "9999999999999999999999999999.99"]) {
-    expect(await review({ action: "edit", id, note: "", content: entered(amount) })).toMatchObject({
-      status: "ok",
-    });
-  }
-
-  const { versions } = (await read()).application.reviews.assessments[0]!;
-  expect(versions.map(({ content }) => content.amount)).toEqual([
-    null,
-    { minorUnits: "0", currency: "EUR" },
-    { minorUnits: "1230", currency: "EUR" },
-    { minorUnits: "9".repeat(30), currency: "EUR" },
-  ]);
-});
-
-it("writes only a new correction version and leaves unrelated reviews untouched", async ({
-  db,
-  database,
-}) => {
-  const { read, review } = await setup(db);
-  const sam = await contact(db);
-  const jules = await contact(db, "Jules");
-  const assessmentId = randomUUID();
-  expect(
-    await review({
-      action: "record",
-      id: assessmentId,
-      contactId: sam.id,
-      requestId: null,
-      previousId: null,
-      content,
-    }),
-  ).toEqual({ status: "ok", revision: 1 });
-  expect(
-    await review({ action: "request", id: randomUUID(), contactId: jules.id, replacesId: null }),
-  ).toEqual({ status: "ok", revision: 2 });
-  const before = await read();
-
-  await database.client.query(`
-    CREATE TABLE review_write_probe (event text NOT NULL);
-    CREATE FUNCTION record_review_write() RETURNS trigger LANGUAGE plpgsql AS $$
-    BEGIN
-      INSERT INTO review_write_probe VALUES (TG_TABLE_NAME || ':' || TG_OP);
-      RETURN NEW;
-    END $$;
-  `);
-  const tables = [
-    "review_requests",
-    "assessments",
-    "assessment_versions",
-    "application_cases",
-    "review_states",
-  ];
-  try {
-    for (const table of tables) {
-      await database.client
-        .query(`CREATE TRIGGER record_review_write BEFORE INSERT OR UPDATE ON ${table}
-        FOR EACH ROW EXECUTE FUNCTION record_review_write()`);
-    }
-    const correction: ReviewChange = {
-      action: "edit",
-      id: assessmentId,
-      note: "",
-      content: { ...content, reasoning: "Corrected transcription." },
-    };
-    expect(await review(correction)).toEqual({ status: "ok", revision: 3 });
-    const writes = await database.client.query<{ event: string }>(
-      "SELECT event FROM review_write_probe ORDER BY event",
-    );
-    expect(writes.rows.map((row) => row.event)).toEqual([
-      "assessment_versions:INSERT",
-      "review_states:INSERT",
-      "review_states:UPDATE",
-    ]);
-    const after = await read();
-    expect(after.application.reviews.requests).toEqual(before.application.reviews.requests);
-    expect(after.application.reviews.assessments[0]?.versions).toEqual([
-      ...before.application.reviews.assessments[0]!.versions,
-      expect.objectContaining({ content: correction.content }),
-    ]);
-
-    await database.client.query("TRUNCATE review_write_probe");
-    expect(await review(correction)).toEqual({ status: "ok", revision: 3 });
-    expect((await database.client.query("SELECT * FROM review_write_probe")).rows).toEqual([]);
-    expect(await read()).toEqual(after);
-  } finally {
-    for (const table of tables) {
-      await database.client.query(`DROP TRIGGER IF EXISTS record_review_write ON ${table}`);
-    }
-    await database.client.query(
-      "DROP FUNCTION record_review_write(); DROP TABLE review_write_probe",
-    );
-  }
-});
-
-it("rolls back receiving a request when recording its assessment version fails", async ({
-  db,
-  database,
-}) => {
-  const { read, review } = await setup(db);
-  const sam = await contact(db);
-  const requestId = randomUUID();
-  expect(
-    await review({ action: "request", id: requestId, contactId: sam.id, replacesId: null }),
-  ).toEqual({ status: "ok", revision: 1 });
-  const before = await read();
-  await database.client.query(`
-    CREATE FUNCTION reject_assessment_version() RETURNS trigger LANGUAGE plpgsql AS $$
-    BEGIN RAISE EXCEPTION 'Version storage unavailable'; END $$;
-    CREATE TRIGGER reject_assessment_version BEFORE INSERT ON assessment_versions
-    FOR EACH ROW EXECUTE FUNCTION reject_assessment_version();
-  `);
-  try {
-    await expect(
-      review({
-        action: "record",
-        id: randomUUID(),
-        contactId: sam.id,
-        requestId,
-        previousId: null,
-        content,
-      }),
-    ).rejects.toThrow();
-    expect(await read()).toEqual(before);
-  } finally {
-    await database.client.query(
-      "DROP TRIGGER reject_assessment_version ON assessment_versions; DROP FUNCTION reject_assessment_version()",
-    );
-  }
-});
-
-it.for(["request", "record"] as const)(
-  "retries a completed review %s with its original baseline without changing history",
-  async (action, { db }) => {
-    const { address, read } = await setup(db);
-    const sam = await contact(db);
-    const id = randomUUID();
-    const change: ReviewChange =
-      action === "request"
-        ? { action, id, contactId: sam.id, replacesId: null }
-        : { action, id, contactId: sam.id, requestId: null, previousId: null, content };
-    const request = {
-      ...address,
-      expectedRevision: reviewRevisionSchema.parse(0),
-      expectedApplicationVersion: materialVersionSchema.parse(1),
-      expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-      change,
-    };
-    const first = await saveApplicationReview(db, actor, request);
-    expect(first).toEqual({ status: "ok", revision: 1 });
-    const before = await read();
-
-    expect(await saveApplicationReview(db, actor, request)).toEqual(first);
-    expect(await read()).toEqual(before);
   },
 );
 
@@ -746,49 +545,6 @@ it.for(["expectedApplicationVersion", "expectedCriteriaVersion"] as const)(
   },
 );
 
-const unknownBasisRecord = (contactId: string) => ({
-  action: "record" as const,
-  id: randomUUID(),
-  contactId,
-  requestId: null,
-  previousId: null,
-  content: {
-    ...content,
-    applicationVersion: null,
-    criteriaVersion: null,
-    position: null,
-    amount: null,
-  },
-});
-
-it.for([
-  { denial: "another workspace's manager", as: { userId: "birch-manager" }, revoke: false },
-  { denial: "a member without grant access", as: actor, revoke: true },
-])(
-  "rejects a review save by $denial without recording it",
-  async ({ as, revoke }, { db, database }) => {
-    const { address } = await setup(db);
-    const sam = await contact(db);
-    if (revoke) {
-      await database.client.query(
-        "UPDATE memberships SET role = 'member' WHERE user_id = 'dana' AND organization_id = 'alder'",
-      );
-    }
-
-    expect(
-      await saveApplicationReview(db, as, {
-        ...address,
-        expectedRevision: reviewRevisionSchema.parse(0),
-        expectedApplicationVersion: materialVersionSchema.parse(1),
-        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-        change: unknownBasisRecord(sam.id),
-      }),
-    ).toEqual({ status: "not_found" });
-    expect((await database.client.query("SELECT id FROM assessments")).rows).toEqual([]);
-    expect((await database.client.query("SELECT 1 FROM assessment_versions")).rows).toEqual([]);
-  },
-);
-
 it("marks an assessment recorded without an application or criteria basis as unknown", async ({
   db,
 }) => {
@@ -800,45 +556,6 @@ it("marks an assessment recorded without an application or criteria basis as unk
   expect((await read()).application.assessments).toMatchObject([
     { id: change.id, status: "unknown" },
   ]);
-});
-
-it("rejects an assessment edit made against a stale review revision", async ({ db }) => {
-  const { address, read, review } = await setup(db);
-  const sam = await contact(db);
-  const change = unknownBasisRecord(sam.id);
-  expect(await review(change)).toEqual({ status: "ok", revision: 1 });
-  const before = await read();
-
-  expect(
-    await saveApplicationReview(db, actor, {
-      ...address,
-      expectedRevision: reviewRevisionSchema.parse(0),
-      expectedApplicationVersion: before.application.version,
-      expectedCriteriaVersion: before.round.criteriaVersion,
-      change: { action: "edit", id: change.id, content, note: "" },
-    }),
-  ).toEqual({ status: "conflict" });
-  expect(await read()).toEqual(before);
-});
-
-it("rejects an assessment basis naming an application version that was never recorded", async ({
-  db,
-}) => {
-  const { read, review } = await setup(db);
-  const sam = await contact(db);
-  const change = unknownBasisRecord(sam.id);
-  expect(await review(change)).toEqual({ status: "ok", revision: 1 });
-  const before = await read();
-
-  expect(
-    await review({
-      action: "edit",
-      id: change.id,
-      content: { ...content, applicationVersion: materialVersionSchema.parse(99) },
-      note: "",
-    }),
-  ).toEqual({ status: "invalid", error: "version_unavailable" });
-  expect(await read()).toEqual(before);
 });
 
 it("rejects cross-workspace contact links and preserves the authorized profile", async ({
@@ -860,100 +577,6 @@ it("rejects cross-workspace contact links and preserves the authorized profile",
   });
   assert(result.status === "ok");
   expect(JSON.parse(result.content)).toMatchObject({ contact: sam.name });
-});
-
-it("records reviews using version references without decoding application content or reading recommendations", async ({
-  db,
-}) => {
-  const { address } = await setup(db);
-  const sam = await contact(db);
-  const role = `review_state_${randomUUID().replaceAll("-", "")}`;
-  const rollback = new Error("Remove the temporary role and grants");
-  const requestId = randomUUID();
-  const assessmentId = randomUUID();
-
-  await expect(
-    db.transaction(async (tx) => {
-      await tx.execute(
-        sql.raw(
-          `CREATE ROLE ${role} NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
-        ),
-      );
-      await tx.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO ${role}`));
-      await tx.execute(
-        sql.raw(
-          `GRANT SELECT ON app_users, memberships, organizations, application_cases, criteria_versions, criteria_version_items, review_states, review_requests, review_assignments, assessments, assessment_versions, assessment_version_observations, contacts TO ${role}`,
-        ),
-      );
-      await tx.execute(
-        sql.raw(
-          `GRANT SELECT (id, organization_id, criteria_version) ON funding_rounds TO ${role}`,
-        ),
-      );
-      await tx.execute(
-        sql.raw(`GRANT SELECT (case_id, version, title) ON material_versions TO ${role}`),
-      );
-      await tx.execute(sql.raw(`GRANT UPDATE (name) ON organizations TO ${role}`));
-      // PostgreSQL requires a column UPDATE grant to take a row lock for a snapshot.
-      await tx.execute(
-        sql.raw(`GRANT UPDATE (id) ON funding_rounds, app_users, contacts TO ${role}`),
-      );
-      await tx.execute(sql.raw(`GRANT UPDATE (user_id) ON memberships TO ${role}`));
-      await tx.execute(sql.raw(`GRANT UPDATE (id) ON application_cases TO ${role}`));
-      await tx.execute(
-        sql.raw(
-          `GRANT INSERT ON assessments, assessment_versions, assessment_version_observations TO ${role}`,
-        ),
-      );
-      await tx.execute(sql.raw(`GRANT SELECT, INSERT ON audit_events TO ${role}`));
-      await tx.execute(
-        sql.raw(`GRANT INSERT, UPDATE ON review_states, review_requests TO ${role}`),
-      );
-      await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
-      const baseline = {
-        ...address,
-        expectedRevision: reviewRevisionSchema.parse(0),
-        expectedApplicationVersion: materialVersionSchema.parse(1),
-        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-      };
-
-      expect(
-        await saveApplicationReview(tx, actor, {
-          ...baseline,
-          change: { action: "request", id: requestId, contactId: sam.id, replacesId: null },
-        }),
-      ).toEqual({ status: "ok", revision: 1 });
-      expect(
-        await saveApplicationReview(tx, actor, {
-          ...baseline,
-          expectedRevision: reviewRevisionSchema.parse(1),
-          change: {
-            action: "record",
-            id: assessmentId,
-            contactId: sam.id,
-            requestId,
-            previousId: null,
-            content,
-          },
-        }),
-      ).toEqual({ status: "ok", revision: 2 });
-
-      await tx.execute(sql.raw("RESET ROLE"));
-      const page = await getFundingApplicationPage(tx, actor, address);
-
-      expect(page?.application.reviews).toMatchObject({
-        revision: 2,
-        requests: [{ id: requestId, status: "received" }],
-        assessments: [
-          { id: assessmentId, versions: [{ content, recorder: { userId: actor.userId } }] },
-        ],
-      });
-      expect(page?.application.version).toBe(1);
-      expect(page?.intake.revision).toBe(0);
-
-      throw rollback;
-    }),
-  ).rejects.toBe(rollback);
 });
 
 it("supports contacts and reviews with the documented runtime grants and immutable history", async ({

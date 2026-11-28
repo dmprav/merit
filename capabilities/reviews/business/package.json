@@ -15,8 +15,10 @@
     "./server/demo": "./src/server/demo.ts",
     "./readers": "./src/server/persistence/reviewer-records.ts",
     "./server/workflow": "./src/server/reviewer-message.workflow.ts",
+    "./testing": "./src/server/testing.ts",
     "./testing/fixtures": "./tests/fixtures.ts",
-    "./testing": "./src/server/testing.ts"
+    "./testing/reviewer": "./tests/reviewer-test.ts",
+    "./testing/assessment": "./tests/assessment-test.ts"
   },
   "dependencies": {
     "@merit/access": "workspace:*",

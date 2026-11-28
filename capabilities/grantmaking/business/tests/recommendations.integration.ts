@@ -1,12 +1,6 @@
-import { randomUUID } from "node:crypto";
-
-import { sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Client as PgClient } from "pg";
 import { assert, describe, expect } from "vite-plus/test";
 
-import { createFundingApplication, editFundingApplication } from "@merit/applications/server";
-import type { Database } from "@merit/db";
+import { editFundingApplication } from "@merit/applications/server";
 import {
   getFundingApplicationContent,
   getFundingApplicationPage,
@@ -15,197 +9,18 @@ import {
   listFundingRounds,
 } from "@merit/grantmaking/server";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
-import {
-  actor,
-  workspaceTest as grantTest,
-  workspaceSlug,
-} from "@merit/organizations/testing/workspace";
-import { encodeRecommendation, type SaveRecommendationRequest } from "@merit/recommendations/api";
-import { createRecommendationsService } from "@merit/recommendations/server";
+import { actor, workspaceSlug } from "@merit/organizations/testing/workspace";
+import { encodeRecommendation } from "@merit/recommendations/api";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
+import {
+  withRestrictedRecommendationRole,
+  recommendationRequest,
+  recommendationTest as it,
+  withRejectedRecommendationWrite,
+} from "@merit/recommendations/testing";
 import { isCurrentAssessment } from "@merit/reviews/server/integrations";
-import { createFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
-import { withAuditFailure } from "./audit-events";
-
-const recommendationRequest = (publicId: string): SaveRecommendationRequest => ({
-  workspaceSlug,
-  publicId,
-  expectedRevision: 1,
-  expectedApplicationVersion: 1,
-  recommendation: {
-    position: "Fund",
-    allocation: { currency: "EUR", minorUnits: "4000" },
-    reasoning: "Updated after checking the evidence.",
-  },
-});
-
-const createRecommendedApplication = async (
-  db: Database,
-  roundId: string,
-  title: string,
-  allocation: bigint,
-) => {
-  const created = await createFundingApplication(db, actor, {
-    workspaceSlug,
-    publicId: roundId,
-    requestId: randomUUID(),
-    title,
-    applicant: "Community group",
-    requested: "80.00",
-    answers: [
-      {
-        questionId: "a62d30ed-37a4-57ff-9c98-2d5ecaaed7bd",
-        question: "Purpose",
-        response: "Weekly community activities.",
-      },
-    ],
-  });
-  assert(created.status === "ok", "Could not create the application fixture");
-  const address = { workspaceSlug, publicId: created.publicId };
-  const ready = await editFundingApplication(
-    db,
-    actor,
-    {
-      ...address,
-      expectedRevision: 0,
-      change: { action: "mark_ready" },
-    },
-    applicationWork,
-  );
-  assert(ready.status === "ok", "Could not mark the application fixture ready");
-  const recommended = await saveFundingRecommendation(
-    db,
-    actor,
-    {
-      ...address,
-      expectedRevision: 0,
-      expectedApplicationVersion: 1,
-      recommendation: {
-        position: "Fund",
-        allocation: encodeMoney(fromMinorUnits(allocation)),
-        reasoning: "Original allocation.",
-      },
-    },
-    isCurrentAssessment,
-  );
-  assert(recommended.status === "ok", "Could not record the fixture's original recommendation");
-
-  return address;
-};
-
-type RecommendationRow = {
-  application_public_id: string;
-  revision: number;
-  actor_user_id: string | null;
-  recorded_at: Date;
-  position: string;
-  allocation_minor_units: string;
-  allocation_currency: string;
-  reasoning: string;
-  recorded_date: string | null;
-  application_version: number | null;
-  author_user_id: string | null;
-  author_name: string | null;
-  author_provenance_interface: string | null;
-  author_provenance_client_id: string | null;
-};
-
-const toEncodedRecommendation = (
-  row: Omit<
-    RecommendationRow,
-    "application_public_id" | "revision" | "actor_user_id" | "recorded_at"
-  >,
-) => ({
-  position: row.position,
-  allocation: { minorUnits: row.allocation_minor_units, currency: row.allocation_currency },
-  reasoning: row.reasoning,
-  ...(row.author_name !== null
-    ? {
-        author: {
-          ...(row.author_user_id !== null ? { userId: row.author_user_id } : {}),
-          name: row.author_name,
-          ...(row.author_provenance_interface === "web"
-            ? { provenance: { interface: "web" } }
-            : row.author_provenance_interface === "mcp" && row.author_provenance_client_id
-              ? { provenance: { interface: "mcp", clientId: row.author_provenance_client_id } }
-              : {}),
-        },
-      }
-    : {}),
-  ...(row.recorded_date !== null && row.application_version !== null
-    ? { recorded: { date: row.recorded_date, applicationVersion: row.application_version } }
-    : {}),
-});
-
-const readRecommendationVersions = async (client: PgClient, minRevision = 0) => {
-  const rows = (
-    await client.query<RecommendationRow>(
-      `SELECT case_id AS application_public_id, revision, actor_user_id, recorded_at,
-         position, allocation_minor_units, allocation_currency, reasoning,
-         recorded_date::text, material_version AS application_version,
-         author_user_id, author_name, author_provenance_interface, author_provenance_client_id
-       FROM recommendation_versions ORDER BY case_id, revision`,
-    )
-  ).rows;
-  const previousByCase = new Map<string, ReturnType<typeof toEncodedRecommendation>>();
-  const entries: {
-    application_public_id: string;
-    revision: number;
-    actor_user_id: string | null;
-    recorded_at: Date;
-    before: ReturnType<typeof toEncodedRecommendation> | null;
-    after: ReturnType<typeof toEncodedRecommendation>;
-  }[] = [];
-  for (const row of rows) {
-    const after = toEncodedRecommendation(row);
-    const before = previousByCase.get(row.application_public_id) ?? null;
-    previousByCase.set(row.application_public_id, after);
-    if (row.revision > minRevision) {
-      entries.push({
-        application_public_id: row.application_public_id,
-        revision: row.revision,
-        actor_user_id: row.actor_user_id,
-        recorded_at: row.recorded_at,
-        before,
-        after,
-      });
-    }
-  }
-  return entries;
-};
-
-const it = grantTest.extend("scenario", async ({ db, database }) => {
-  const round = await createFundingRound(db, actor, {
-    workspaceSlug,
-    requestId: randomUUID(),
-    title: "Recommendation budget",
-    budget: "100.00",
-  });
-  assert(round.status === "ok", "Could not create the funding-round fixture");
-
-  // Each application starts at version 1 with recommendation revision 1 and its audit entry.
-  const selected = await createRecommendedApplication(
-    db,
-    round.publicId,
-    "Selected application",
-    2000n,
-  );
-  const sibling = await createRecommendedApplication(
-    db,
-    round.publicId,
-    "Sibling application",
-    3000n,
-  );
-
-  return {
-    round: { workspaceSlug, publicId: round.publicId, kind: "round" as const },
-    selected,
-    sibling,
-    versions: await readRecommendationVersions(database.client),
-  };
-});
 
 describe("persisted recommendations", () => {
   it("reads the exact recommendation change and its predecessor for the selected case", async ({
@@ -243,451 +58,98 @@ describe("persisted recommendations", () => {
     expect(await readChange(3)).toMatchObject({ status: "not_found" });
   });
 
-  const competingSave = async (
-    database: { connectionString: string; client: PgClient },
-    firstRequest: SaveRecommendationRequest,
-    secondRequest: SaveRecommendationRequest,
-  ) => {
-    const options = { connectionString: database.connectionString, statement_timeout: 3000 };
-    const first = new PgClient(options);
-    const second = new PgClient(options);
-    let ready!: () => void;
-    let release!: () => void;
-    const started = new Promise<void>((resolve) => {
-      ready = resolve;
-    });
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const pending: Promise<unknown>[] = [];
-
-    try {
-      await Promise.all([first.connect(), second.connect()]);
-      const firstPid = (await first.query<{ pid: number }>("SELECT pg_backend_pid() AS pid"))
-        .rows[0]?.pid;
-      const secondPid = (await second.query<{ pid: number }>("SELECT pg_backend_pid() AS pid"))
-        .rows[0]?.pid;
-      const committed = drizzle(first).transaction(async (tx) => {
-        expect(
-          await saveFundingRecommendation(tx, actor, firstRequest, isCurrentAssessment),
-        ).toMatchObject({
-          status: "ok",
-        });
-
-        ready();
-        await held;
+  it("lists rounds with the restricted role used to save recommendations", async ({ db }) => {
+    await withRestrictedRecommendationRole(db, async (tx) => {
+      expect(await listFundingRounds(tx, actor, "alder")).toMatchObject({
+        status: "ok",
+        rounds: [expect.objectContaining({ organizationId: "alder" })],
       });
-      pending.push(committed.catch(() => undefined));
-      await Promise.race([started, committed]);
-      const competing = saveFundingRecommendation(
-        drizzle(second),
-        actor,
-        secondRequest,
-        isCurrentAssessment,
-      );
-      pending.push(competing.catch(() => undefined));
-      await expect
-        .poll(
-          async () =>
-            (
-              await database.client.query<{ blockers: number[] }>(
-                "SELECT pg_blocking_pids($1) AS blockers",
-                [secondPid],
-              )
-            ).rows[0]?.blockers,
-          { timeout: 1500 },
-        )
-        .toContain(firstPid);
-      release();
-      await committed;
-      return await competing;
-    } finally {
-      release();
-      await Promise.allSettled(pending);
-      await Promise.all([first.end(), second.end()]);
-    }
-  };
+    });
+  });
 
-  it("saves with a restricted runtime role and requires row-lock and audit privileges", async ({
+  it("rejects a recommendation based on superseded application material without changing the page or history", async ({
     db,
-    database,
     scenario,
   }) => {
     const request = recommendationRequest(scenario.selected.publicId);
-    const role = `runtime_test_${randomUUID().replaceAll("-", "")}`;
-    const rollback = new Error("Roll back the temporary runtime role and its grants");
+    const saved = await saveFundingRecommendation(db, actor, request, isCurrentAssessment);
+    assert(saved.status === "ok");
 
-    await expect(
-      db.transaction(async (tx) => {
-        // PostgreSQL roles are cluster-scoped; create and remove this role in the
-        // same rolled-back transaction, including every nested savepoint save.
-        await tx.execute(
-          sql.raw(
-            `CREATE ROLE ${role} NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
-          ),
-        );
-        await tx.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO ${role}`));
-        await tx.execute(
-          sql.raw(
-            `GRANT SELECT ON app_users, memberships, organizations, funding_rounds, application_cases, material_versions, material_drafts, criteria_versions, contacts, review_states, review_requests, assessments, assessment_versions, recommendation_versions, committee_decision_versions TO ${role}`,
-          ),
-        );
-        await tx.execute(sql.raw(`GRANT UPDATE (id) ON application_cases TO ${role}`));
-        await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
-        const permissions = await tx.execute(
-          sql`SELECT current_user AS role, rolsuper, rolcreaterole, rolcreatedb FROM pg_roles WHERE rolname = current_user`,
-        );
-
-        expect(permissions.rows[0]).toEqual({
-          role,
-          rolsuper: false,
-          rolcreaterole: false,
-          rolcreatedb: false,
-        });
-        expect(await listFundingRounds(tx, actor, "alder")).toMatchObject({
-          status: "ok",
-          rounds: [expect.objectContaining({ organizationId: "alder" })],
-        });
-        await expect(
-          saveFundingRecommendation(tx, actor, request, isCurrentAssessment),
-        ).rejects.toMatchObject({
-          cause: { code: "42501" },
-        });
-
-        await tx.execute(sql`SET LOCAL ROLE NONE`);
-        await tx.execute(
-          sql.raw(`GRANT UPDATE (id) ON funding_rounds, app_users, organizations TO ${role}`),
-        );
-        await tx.execute(sql.raw(`GRANT UPDATE (user_id) ON memberships TO ${role}`));
-        await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
-
-        await expect(
-          saveFundingRecommendation(tx, actor, request, isCurrentAssessment),
-        ).rejects.toMatchObject({
-          cause: { code: "42501", message: "permission denied for table recommendation_versions" },
-        });
-
-        await tx.execute(sql`SET LOCAL ROLE NONE`);
-        await tx.execute(sql.raw(`GRANT INSERT ON recommendation_versions TO ${role}`));
-        await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
-        await expect(
-          saveFundingRecommendation(tx, actor, request, isCurrentAssessment),
-        ).rejects.toMatchObject({
-          cause: { code: "42501", message: "permission denied for table audit_events" },
-        });
-
-        await tx.execute(sql`SET LOCAL ROLE NONE`);
-        await tx.execute(sql.raw(`GRANT SELECT, INSERT ON audit_events TO ${role}`));
-        await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
-        const result = await saveFundingRecommendation(tx, actor, request, isCurrentAssessment);
-
-        expect(result.status).toBe("ok");
-        if (result.status !== "ok") {
-          throw new Error("Expected restricted runtime save to succeed");
-        }
-        expect(result.recommendationVersion).toBe(2);
-
-        const auditPrivileges = await tx.execute(
-          sql`SELECT has_table_privilege(current_user, 'recommendation_versions', 'UPDATE') AS update, has_table_privilege(current_user, 'recommendation_versions', 'DELETE') AS delete`,
-        );
-
-        expect(auditPrivileges.rows[0]).toEqual({ update: false, delete: false });
-        expect(
-          (
-            await tx.execute(
-              sql`SELECT has_table_privilege(current_user, 'audit_events', 'UPDATE') AS update, has_table_privilege(current_user, 'audit_events', 'DELETE') AS delete`,
-            )
-          ).rows[0],
-        ).toEqual({ update: false, delete: false });
-
-        await tx.execute(sql`SET LOCAL ROLE NONE`);
-
-        expect(
-          (await tx.execute(sql`SELECT revision FROM recommendation_versions WHERE revision > 1`))
-            .rows,
-        ).toEqual([{ revision: 2 }]);
-
-        throw rollback;
-      }),
-    ).rejects.toBe(rollback);
-    expect(
-      (await database.client.query("SELECT 1 FROM pg_roles WHERE rolname = $1", [role])).rows,
-    ).toEqual([]);
-  });
-
-  it.for(["none", "administrator", "owner"])(
-    "commits the recommendation, revision and audit for %s",
-    async (administration, { db, database, scenario }) => {
-      await database.client.query("UPDATE memberships SET administration=$1 WHERE user_id='dana'", [
-        administration,
-      ]);
-      const request = recommendationRequest(scenario.selected.publicId);
-      const original = await getFundingApplicationPage(db, actor, scenario.selected);
-      assert.isNotNull(original);
-      const before = original.application.managerRecommendation;
-
-      const result = await saveFundingRecommendation(db, actor, request, isCurrentAssessment);
-
-      expect(result.status).toBe("ok");
-      if (result.status !== "ok") {
-        throw new Error("Expected successful save");
-      }
-      expect(result.recommendationVersion).toBe(2);
-
-      const recommendation = result.recommendation;
-
-      expect(recommendation.recorded).toEqual({
-        date: new Date().toISOString().slice(0, 10),
-        applicationVersion: request.expectedApplicationVersion,
-      });
-      expect(result).not.toHaveProperty("round");
-
-      const persisted = await getFundingApplicationPage(db, actor, scenario.selected);
-      assert.isNotNull(persisted);
-
-      expect(encodeMoney(result.totals.proposed).minorUnits).toBe("7000");
-      expect(encodeMoney(result.totals.remaining!).minorUnits).toBe("3000");
-      expect(encodeMoney(result.totals.proposed)).toEqual(
-        encodeMoney(persisted.round.totals.proposed),
-      );
-      expect(encodeMoney(result.totals.remaining!)).toEqual(
-        encodeMoney(persisted.round.totals.remaining!),
-      );
-      expect(persisted.application.managerRecommendation).toEqual(recommendation);
-      expect(persisted.recommendationVersion).toBe(2);
-
-      const audit = await readRecommendationVersions(database.client, 1);
-
-      expect(audit).toHaveLength(1);
-      expect(audit[0]).toMatchObject({
-        application_public_id: request.publicId,
-        revision: 2,
-        actor_user_id: "dana",
-        before: before && encodeRecommendation(before),
-        after: encodeRecommendation(recommendation),
-      });
-      expect((audit[0] ?? assert.fail("Expected audit[0]")).recorded_at).toBeInstanceOf(Date);
-      expect(
-        (
-          await database.client.query(
-            "SELECT organization_id, actor_user_id, actor_name, provenance, action, target_type, target_id, target_revision FROM audit_events WHERE target_revision=2",
-          )
-        ).rows,
-      ).toEqual([
-        {
-          organization_id: "alder",
-          actor_user_id: "dana",
-          actor_name: "Dana Reed",
-          provenance: { interface: "web" },
-          action: "recommendation.recorded",
-          target_type: "recommendation",
-          target_id: request.publicId,
-          target_revision: 2,
+    const current = (await getFundingApplicationPage(db, actor, scenario.selected))!;
+    const started = await editFundingApplication(
+      db,
+      actor,
+      {
+        ...scenario.selected,
+        expectedRevision: current.intake.revision,
+        change: { action: "start_revision", kind: "revision" },
+      },
+      applicationWork,
+    );
+    assert(started.status === "ok");
+    const drafted = await editFundingApplication(
+      db,
+      actor,
+      {
+        ...scenario.selected,
+        expectedRevision: started.revision,
+        change: {
+          action: "save_revision",
+          draft: {
+            kind: "revision",
+            reason: "Updated request",
+            content: { requested: "81.00" },
+          },
         },
-      ]);
-    },
-  );
-
-  it.for(["wrong_workspace", "wrong_identity", "revoked", "reviewer", "disabled"])(
-    "rejects %s without changing data or producing an audit",
-    async (denial, { db, database, scenario }) => {
-      const request = recommendationRequest(scenario.selected.publicId);
-      const original = await getFundingApplicationPage(db, actor, scenario.selected);
-      assert.isNotNull(original);
-      assert.isNotNull(original.application.managerRecommendation);
-      if (denial === "revoked") {
-        await database.client.query("DELETE FROM memberships WHERE user_id = 'dana'");
-      }
-      if (denial === "reviewer") {
-        await database.client.query(
-          "UPDATE memberships SET role = 'reviewer' WHERE user_id = 'dana'",
-        );
-      }
-      if (denial === "disabled") {
-        await database.client.query("UPDATE app_users SET active = false WHERE id = 'dana'");
-      }
-
-      expect(
-        await saveFundingRecommendation(
-          db,
-          denial === "wrong_identity" ? { userId: "birch-manager" } : actor,
-          denial === "wrong_workspace" ? { ...request, workspaceSlug: "birch" } : request,
-          isCurrentAssessment,
-        ),
-      ).toEqual({ status: "not_found" });
-      expect(await readRecommendationVersions(database.client)).toEqual(scenario.versions);
-      expect(
-        (await database.client.query("SELECT id FROM audit_events WHERE target_revision>1")).rows,
-      ).toEqual([]);
-
-      const row = (
-        await database.client.query<
-          { recommendation_version: number } & Omit<
-            RecommendationRow,
-            "application_public_id" | "revision" | "actor_user_id" | "recorded_at"
-          >
-        >(
-          `SELECT coalesce(r.revision, 0) AS recommendation_version,
-             r.position, r.allocation_minor_units, r.allocation_currency, r.reasoning,
-             r.recorded_date::text, r.material_version AS application_version,
-             r.author_user_id, r.author_name, r.author_provenance_interface, r.author_provenance_client_id
-           FROM application_cases c
-           LEFT JOIN recommendation_versions r ON r.case_id=c.id AND r.revision=(SELECT max(v.revision) FROM recommendation_versions v WHERE v.case_id=c.id)
-           WHERE c.id = $1`,
-          [request.publicId],
-        )
-      ).rows[0];
-
-      assert.isDefined(row);
-      expect(row.recommendation_version).toBe(1);
-      expect(toEncodedRecommendation(row)).toEqual(
-        encodeRecommendation(original.application.managerRecommendation),
-      );
-    },
-  );
-
-  it.for(["recommendation revision", "application version"] as const)(
-    "rejects a stale %s without changing the saved recommendation, revision, or history",
-    async (staleBasis, { db, scenario }) => {
-      const request = recommendationRequest(scenario.selected.publicId);
-      const saved = await saveFundingRecommendation(db, actor, request, isCurrentAssessment);
-      assert(saved.status === "ok");
-
-      if (staleBasis === "application version") {
-        const current = (await getFundingApplicationPage(db, actor, scenario.selected))!;
-        const started = await editFundingApplication(
-          db,
-          actor,
-          {
-            ...scenario.selected,
-            expectedRevision: current.intake.revision,
-            change: { action: "start_revision", kind: "revision" },
-          },
-          applicationWork,
-        );
-        assert(started.status === "ok");
-        const drafted = await editFundingApplication(
-          db,
-          actor,
-          {
-            ...scenario.selected,
-            expectedRevision: started.revision,
-            change: {
-              action: "save_revision",
-              draft: {
-                kind: "revision",
-                reason: "Updated request",
-                content: { requested: "81.00" },
-              },
-            },
-          },
-          applicationWork,
-        );
-        assert(drafted.status === "ok");
-        expect(
-          await editFundingApplication(
-            db,
-            actor,
-            {
-              ...scenario.selected,
-              expectedRevision: drafted.revision,
-              change: { action: "publish_revision" },
-            },
-            applicationWork,
-          ),
-        ).toMatchObject({ status: "ok" });
-      }
-
-      const address = { workspaceSlug: request.workspaceSlug, publicId: request.publicId };
-      const historyInput = {
-        workspaceSlug: request.workspaceSlug,
-        applicationId: request.publicId,
-        history: "recommendation" as const,
-      };
-      const before = await getFundingApplicationPage(db, actor, address);
-      const history = await listFundingApplicationHistory(db, actor, historyInput);
-      expect(before).toMatchObject({
-        application: { managerRecommendation: saved.recommendation },
-        recommendationVersion: 2,
-      });
-      expect(history).toMatchObject({ status: "ok", entries: [{ revision: 1 }, { revision: 2 }] });
-
-      const rejected = await saveFundingRecommendation(
+      },
+      applicationWork,
+    );
+    assert(drafted.status === "ok");
+    expect(
+      await editFundingApplication(
         db,
         actor,
         {
-          ...request,
-          expectedRevision:
-            staleBasis === "recommendation revision"
-              ? request.expectedRevision
-              : saved.recommendationVersion,
-          recommendation: encodeRecommendation({
-            position: "Fund with a condition",
-            allocation: fromMinorUnits(5000n),
-            reasoning: "A different proposal based on stale information.",
-          }),
+          ...scenario.selected,
+          expectedRevision: drafted.revision,
+          change: { action: "publish_revision" },
         },
-        isCurrentAssessment,
-      );
+        applicationWork,
+      ),
+    ).toMatchObject({ status: "ok" });
 
-      expect(rejected).toEqual({ status: "conflict" });
-      expect(await getFundingApplicationPage(db, actor, address)).toEqual(before);
-      expect(await listFundingApplicationHistory(db, actor, historyInput)).toEqual(history);
-    },
-  );
+    const address = { workspaceSlug: request.workspaceSlug, publicId: request.publicId };
+    const historyInput = {
+      workspaceSlug: request.workspaceSlug,
+      applicationId: request.publicId,
+      history: "recommendation" as const,
+    };
+    const before = await getFundingApplicationPage(db, actor, address);
+    const history = await listFundingApplicationHistory(db, actor, historyInput);
+    expect(before).toMatchObject({
+      application: { managerRecommendation: saved.recommendation },
+      recommendationVersion: 2,
+    });
+    expect(history).toMatchObject({ status: "ok", entries: [{ revision: 1 }, { revision: 2 }] });
 
-  it("allows proposals above the budget and reports the overspend without touching other case fields", async ({
-    db,
-    database,
-    scenario,
-  }) => {
-    const request = recommendationRequest(scenario.selected.publicId);
-    const original = await getFundingApplicationPage(db, actor, scenario.selected);
-    assert.isNotNull(original);
-    const before = original.application.managerRecommendation;
-    assert.isNotNull(before);
-    // Unrelated case columns must not break or be touched by a recommendation save.
-    await database.client.query(
-      "UPDATE application_cases SET attention = ARRAY['unrelated']::text[] WHERE organization_id = 'alder'",
-    );
-    const result = await saveFundingRecommendation(
+    const rejected = await saveFundingRecommendation(
       db,
       actor,
       {
         ...request,
+        expectedRevision: saved.recommendationVersion,
         recommendation: encodeRecommendation({
           position: "Fund with a condition",
-          allocation: fromMinorUnits(8001n),
-          reasoning: "Confirm the venue.",
+          allocation: fromMinorUnits(5000n),
+          reasoning: "A different proposal based on stale information.",
         }),
       },
       isCurrentAssessment,
     );
 
-    expect(result.status).toBe("ok");
-    if (result.status !== "ok") {
-      throw new Error("Expected compact save to succeed");
-    }
-    expect(encodeMoney(result.totals.proposed).minorUnits).toBe("11001");
-    expect(encodeMoney(result.totals.remaining!).minorUnits).toBe("-1001");
-
-    const audit = (await readRecommendationVersions(database.client, 1)).map(
-      ({ before, after }) => ({
-        before,
-        after,
-      }),
-    );
-
-    expect(audit).toEqual([
-      { before: encodeRecommendation(before), after: encodeRecommendation(result.recommendation) },
-    ]);
-    expect(
-      (
-        await database.client.query("SELECT attention FROM application_cases WHERE id = $1", [
-          request.publicId,
-        ])
-      ).rows,
-    ).toEqual([{ attention: ["unrelated"] }]);
+    expect(rejected).toEqual({ status: "conflict" });
+    expect(await getFundingApplicationPage(db, actor, address)).toEqual(before);
+    expect(await listFundingApplicationHistory(db, actor, historyInput)).toEqual(history);
   });
 
   it("returns the current budget with committed totals for subsequent editor previews", async ({
@@ -712,295 +174,25 @@ describe("persisted recommendations", () => {
     const persisted = await getFundingRoundPage(db, actor, scenario.round);
     assert.isNotNull(persisted);
 
+    expect(encodeMoney(result.totals.proposed)).toEqual(
+      encodeMoney(persisted.round.totals.proposed),
+    );
     expect(encodeMoney(result.totals.remaining!).minorUnits).toBe("-6000");
     expect(encodeMoney(result.totals.remaining!)).toEqual(
       encodeMoney(persisted.round.totals.remaining!),
     );
   });
 
-  it.for([
-    { problem: "a malformed application ID", change: { publicId: "not-a-public-id" } },
-    {
-      problem: "a funded deferral",
-      change: {
-        recommendation: {
-          position: "Defer",
-          allocation: { currency: "EUR", minorUnits: "4000" },
-          reasoning: "Updated after checking the evidence.",
-        },
-      },
-    },
-  ] satisfies { problem: string; change: Partial<SaveRecommendationRequest> }[])(
-    "rejects $problem without writing",
-    async ({ change }, { db, database, scenario }) => {
-      const events = (await database.client.query("SELECT * FROM audit_events ORDER BY id")).rows;
-
-      expect(
-        await saveFundingRecommendation(
-          db,
-          actor,
-          {
-            ...recommendationRequest(scenario.selected.publicId),
-            ...change,
-          },
-          isCurrentAssessment,
-        ),
-      ).toEqual({ status: "invalid", error: "invalid_recommendation" });
-      expect(await readRecommendationVersions(database.client)).toEqual(scenario.versions);
-      expect((await database.client.query("SELECT * FROM audit_events ORDER BY id")).rows).toEqual(
-        events,
-      );
-    },
-  );
-
-  it.for(["recommendation_versions", "audit_events"])(
-    "rolls back the recommendation if writing %s fails",
+  it.for(["recommendation_versions", "audit_events"] as const)(
+    "preserves the round page if writing %s fails",
     async (table, { db, database, scenario }) => {
       const request = recommendationRequest(scenario.selected.publicId);
       const original = await getFundingRoundPage(db, actor, scenario.round);
       assert.isNotNull(original);
-      await database.client.query(
-        `ALTER TABLE ${table} ADD CONSTRAINT reject_test_audit CHECK (false) NOT VALID`,
+      await withRejectedRecommendationWrite(database.client, table, () =>
+        saveFundingRecommendation(db, actor, request, isCurrentAssessment),
       );
-
-      try {
-        await expect(
-          saveFundingRecommendation(db, actor, request, isCurrentAssessment),
-        ).rejects.toThrow();
-        expect(await getFundingRoundPage(db, actor, scenario.round)).toEqual(original);
-        expect(await readRecommendationVersions(database.client)).toEqual(scenario.versions);
-        expect(
-          (await database.client.query("SELECT id FROM audit_events WHERE target_revision>1")).rows,
-        ).toEqual([]);
-        expect(
-          (
-            await database.client.query<{ recommendation_version: number }>(
-              "SELECT coalesce(max(revision), 0) AS recommendation_version FROM recommendation_versions WHERE case_id = $1",
-              [request.publicId],
-            )
-          ).rows[0]?.recommendation_version,
-        ).toBe(1);
-      } finally {
-        await database.client.query(`ALTER TABLE ${table} DROP CONSTRAINT reject_test_audit`);
-      }
+      expect(await getFundingRoundPage(db, actor, scenario.round)).toEqual(original);
     },
   );
-
-  it("rolls back both records when the audit write fails at commit", async ({
-    db,
-    database,
-    scenario,
-  }) => {
-    const service = createRecommendationsService({
-      database: (operation) => operation(db),
-      isCurrentAssessment,
-    });
-    const before = await getFundingApplicationPage(db, actor, scenario.selected);
-    await expect(
-      withAuditFailure(database.client, () =>
-        service.saveRecommendation(actor, recommendationRequest(scenario.selected.publicId)),
-      ),
-    ).rejects.toMatchObject({ cause: { message: "Audit recording failed" } });
-    expect(await getFundingApplicationPage(db, actor, scenario.selected)).toEqual(before);
-    expect(await readRecommendationVersions(database.client)).toEqual(scenario.versions);
-    expect(
-      (await database.client.query("SELECT id FROM audit_events WHERE target_revision>1")).rows,
-    ).toEqual([]);
-  });
-
-  it("serializes competing saves and commits exactly one version of the same recommendation", async ({
-    db,
-    database,
-    scenario,
-  }) => {
-    const request = recommendationRequest(scenario.selected.publicId);
-
-    expect(
-      await competingSave(database, request, {
-        ...request,
-        recommendation: { ...request.recommendation, reasoning: "Competing edit." },
-      }),
-    ).toEqual({ status: "conflict" });
-
-    const page = await getFundingApplicationPage(db, actor, {
-      workspaceSlug: request.workspaceSlug,
-      publicId: request.publicId,
-    });
-
-    assert.isNotNull(page);
-    expect(page.application.managerRecommendation?.reasoning).toBe(
-      request.recommendation.reasoning,
-    );
-    expect(page.recommendationVersion).toBe(2);
-    expect(await readRecommendationVersions(database.client, 1)).toHaveLength(1);
-  });
-
-  it("validates totals against the committed sibling recommendation during concurrent saves", async ({
-    db,
-    database,
-    scenario,
-  }) => {
-    const siblingBefore = await getFundingApplicationPage(db, actor, scenario.sibling);
-    assert.isNotNull(siblingBefore);
-    const first = {
-      ...recommendationRequest(scenario.selected.publicId),
-      recommendation: encodeRecommendation({
-        position: "Fund",
-        allocation: fromMinorUnits(6n * 10n ** 29n),
-        reasoning: "Individually representable allocation.",
-      }),
-    };
-    const second = { ...first, publicId: scenario.sibling.publicId };
-
-    expect(await competingSave(database, first, second)).toEqual({
-      status: "invalid",
-      error: "allocation_total_too_large",
-    });
-    expect(await readRecommendationVersions(database.client, 1)).toHaveLength(1);
-
-    const saved = await getFundingApplicationPage(db, actor, scenario.selected);
-    const siblingAfter = await getFundingApplicationPage(db, actor, scenario.sibling);
-    assert.isNotNull(saved);
-    assert.isNotNull(saved.application.managerRecommendation);
-    assert.isNotNull(siblingAfter);
-
-    expect(encodeMoney(saved.application.managerRecommendation.allocation)).toEqual(
-      first.recommendation.allocation,
-    );
-    expect(saved.recommendationVersion).toBe(2);
-    expect(siblingAfter.application.managerRecommendation).toEqual(
-      siblingBefore.application.managerRecommendation,
-    );
-    expect(siblingAfter.recommendationVersion).toBe(1);
-  });
-
-  it("rechecks revoked access after waiting for a concurrent round transaction", async ({
-    database,
-    scenario,
-  }) => {
-    const request = recommendationRequest(scenario.selected.publicId);
-    const blocker = new PgClient({ connectionString: database.connectionString });
-    const saver = new PgClient({ connectionString: database.connectionString });
-    let pending: ReturnType<typeof saveFundingRecommendation> | undefined;
-    try {
-      await Promise.all([blocker.connect(), saver.connect()]);
-      await blocker.query("BEGIN");
-      await blocker.query(
-        "SELECT id FROM funding_rounds WHERE organization_id = 'alder' FOR UPDATE",
-      );
-      const pid = (await saver.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0]
-        ?.pid;
-      pending = saveFundingRecommendation(drizzle(saver), actor, request, isCurrentAssessment);
-      let waiting = false;
-      for (let attempt = 0; attempt < 100; attempt++) {
-        const activity = (
-          await database.client.query<{ wait_event_type: string | null }>(
-            "SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1",
-            [pid],
-          )
-        ).rows[0];
-        if (activity?.wait_event_type === "Lock") {
-          waiting = true;
-          break;
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-
-      expect(waiting).toBe(true);
-
-      await database.client.query("DELETE FROM memberships WHERE user_id = 'dana'");
-      await blocker.query("COMMIT");
-
-      expect(await pending).toEqual({ status: "not_found" });
-      expect(await readRecommendationVersions(database.client)).toEqual(scenario.versions);
-    } finally {
-      await blocker.query("ROLLBACK");
-      await pending;
-      await Promise.all([blocker.end(), saver.end()]);
-    }
-  });
-
-  it("attributes a recommendation to its authenticated recorder", async ({ db, scenario }) => {
-    const request = recommendationRequest(scenario.selected.publicId);
-    const saved = await saveFundingRecommendation(db, actor, request, isCurrentAssessment);
-    assert(saved.status === "ok");
-    const author = { userId: "dana", name: "Dana Reed", provenance: { interface: "web" } };
-
-    expect(saved.recommendation.author).toEqual(author);
-    expect(
-      (await getFundingApplicationPage(db, actor, scenario.selected))?.application
-        .managerRecommendation?.author,
-    ).toEqual(author);
-  });
-
-  it("records a new revision when another manager saves an unchanged recommendation", async ({
-    db,
-    database,
-    scenario,
-  }) => {
-    const request = recommendationRequest(scenario.selected.publicId);
-    const saved = await saveFundingRecommendation(db, actor, request, isCurrentAssessment);
-    assert(saved.status === "ok");
-    await database.client.query("INSERT INTO app_users (id, name) VALUES ('pat', 'Pat Taylor')");
-    await database.client.query(
-      "INSERT INTO memberships (organization_id, user_id, role) VALUES ('alder', 'pat', 'program_manager')",
-    );
-
-    const resaved = await saveFundingRecommendation(
-      db,
-      { userId: "pat" },
-      { ...request, expectedRevision: saved.recommendationVersion },
-      isCurrentAssessment,
-    );
-
-    assert(resaved.status === "ok");
-    expect(resaved.recommendationVersion).toBe(saved.recommendationVersion + 1);
-    expect(resaved.recommendation.author).toEqual({
-      userId: "pat",
-      name: "Pat Taylor",
-      provenance: { interface: "web" },
-    });
-    expect(await readRecommendationVersions(database.client, saved.recommendationVersion)).toEqual([
-      expect.objectContaining({
-        revision: resaved.recommendationVersion,
-        actor_user_id: "pat",
-      }),
-    ]);
-    expect(
-      (
-        await database.client.query(
-          "SELECT actor_user_id, action FROM audit_events WHERE target_type = 'recommendation' AND target_revision > $1",
-          [saved.recommendationVersion],
-        )
-      ).rows,
-    ).toEqual([{ actor_user_id: "pat", action: "recommendation.recorded" }]);
-  });
-
-  it("keeps an unchanged recommendation revision and audit history", async ({
-    db,
-    database,
-    scenario,
-  }) => {
-    const request = recommendationRequest(scenario.selected.publicId);
-    const saved = await saveFundingRecommendation(db, actor, request, isCurrentAssessment);
-    assert(saved.status === "ok");
-    const before = (await database.client.query("SELECT * FROM audit_events ORDER BY id")).rows;
-    const versions = await readRecommendationVersions(database.client);
-    expect(
-      await saveFundingRecommendation(
-        db,
-        actor,
-        {
-          ...request,
-          expectedRevision: saved.recommendationVersion,
-        },
-        isCurrentAssessment,
-      ),
-    ).toEqual(saved);
-    expect((await database.client.query("SELECT * FROM audit_events ORDER BY id")).rows).toEqual(
-      before,
-    );
-    expect(await readRecommendationVersions(database.client)).toEqual(versions);
-  });
 });

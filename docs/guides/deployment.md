@@ -229,12 +229,14 @@ PostgreSQL row locks also require `UPDATE` privileges on the locked round, case,
 organization, user, and membership rows. Retain the listed identifier-column
 privileges when using narrower update grants. A lock does not itself change those
 identifiers, but the grants are actual update privileges, not lock-only permissions.
-The [recommendation tests](../../capabilities/grantmaking/business/tests/recommendations.integration.ts)
+The [recommendation tests](../../capabilities/recommendations/business/tests/recommendations.integration.ts)
 verify these locks and append-only recommendation writes. The
-[round preparation tests](../../capabilities/grantmaking/business/tests/round-preparation.integration.ts)
+[round preparation tests](../../capabilities/rounds/business/tests/round-preparation.integration.ts)
 verify creation, budget edits, history reads, deletion, and safe retries with a
-restricted role. The [ownership tests](../../capabilities/grantmaking/business/tests/grantmaking-write.integration.ts)
-verify immutable versions, review bases, and organization-scoped contact links.
+restricted role. The [applications storage tests](../../capabilities/applications/business/tests/storage.integration.ts)
+verify immutable versions and organization-scoped contact links. The
+[grantmaking write tests](../../capabilities/grantmaking/business/tests/grantmaking-write.integration.ts)
+verify that material and review bases belong to the same case.
 The
 [organization integration tests](../../capabilities/organizations/business/tests/organizations.integration.ts)
 exercise provisioning with the additional grants. Organization provisioning additionally

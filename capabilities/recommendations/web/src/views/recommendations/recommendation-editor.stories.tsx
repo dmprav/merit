@@ -17,6 +17,16 @@ type PreviewProps = Pick<ComponentProps<typeof RecommendationEditor>, "draft" | 
   ) => Promise<RecommendationFailure | null> | RecommendationFailure | null;
 };
 
+const recommendations = {
+  funded: application.managerRecommendation,
+  deferred: {
+    position: "Defer",
+    allocation: fromMinorUnits(0n),
+    reasoning: "Wait for more information.",
+  },
+  none: null,
+} as const;
+
 const EditablePreview = ({
   saved = "funded",
   draft: initialDraft,
@@ -26,15 +36,6 @@ const EditablePreview = ({
   const [draft, setDraft] = useState(initialDraft);
   const [conflict, setConflict] = useState(initialConflict);
   const [draftReset, setDraftReset] = useState(0);
-  const recommendations = {
-    funded: application.managerRecommendation,
-    deferred: {
-      position: "Defer",
-      allocation: fromMinorUnits(0n),
-      reasoning: "Wait for more information.",
-    },
-    none: null,
-  } as const;
   return (
     <RecommendationEditor
       application={{ ...application, managerRecommendation: recommendations[saved] }}
