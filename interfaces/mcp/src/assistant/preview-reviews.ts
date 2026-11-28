@@ -1,8 +1,7 @@
 import { z } from "zod";
 
 import { activeAssignment } from "./authority";
-import type { AssistantDependency, AssistantPreview } from "./contracts";
-import { fields } from "./evidence";
+import { fields, type AssistantDependency, type AssistantPreview } from "./contracts";
 import {
   applicationContent,
   bindRevision,
@@ -12,12 +11,12 @@ import {
   type PreviewContext,
 } from "./preview-records";
 
-const managerAssignmentPreview = async (
+export const managerAssignmentPreview = async (
   ctx: PreviewContext,
   preview: AssistantPreview,
-  assignmentId: string,
   applicationId: string,
 ) => {
+  const assignmentId = z.string().parse(preview.input.assignmentId);
   const { ops, actor, workspaceSlug } = ctx;
   const { input } = preview;
   const found = await ops.reviewer.forApplication(actor, {
@@ -57,77 +56,72 @@ const managerAssignmentPreview = async (
   }
 };
 
-export const assignmentPreview = async (
-  ctx: PreviewContext,
-  preview: AssistantPreview,
-  dependencies: AssistantDependency[],
-  assignmentId: string,
-) => {
-  const { ops, actor, workspaceSlug } = ctx;
-  const { input, name } = preview;
-  if (typeof input.applicationId === "string") {
-    return managerAssignmentPreview(ctx, preview, assignmentId, input.applicationId);
-  }
-  const page = await ops.reviewer.read(actor, { workspaceSlug, assignmentId });
-  if (page.status !== "ok" || page.value.assignment.workspaceSlug !== workspaceSlug) {
-    throw new PreviewProblem("not_found");
-  }
-  const { assignment, draft, material, assessment } = page.value;
-  const usesEvidence = name !== "respond_to_review";
-  if (usesEvidence && (!draft || !material)) {
-    throw new PreviewProblem("forbidden");
-  }
-  dependencies.push({
-    kind: "assignment",
-    assignmentId,
-    evidence: usesEvidence,
-    ...(activeAssignment(assignment.status) && { active: true }),
-  });
-  if (draft && usesEvidence) {
-    bindRevision(ctx, input, "expectedDraftRevision", draft.revision);
-    preview.targets.push(
-      target("reviewer_draft", assignmentId, assignment.applicationTitle, draft.revision),
-    );
-  }
-  if (name === "respond_to_review") {
-    bindRevision(ctx, input, "expectedRevision", assignment.revision);
-    if (input.action === "decline") {
+export const assignmentPreview =
+  (action: "respond" | "save_draft" | "submit") =>
+  async (ctx: PreviewContext, preview: AssistantPreview, dependencies: AssistantDependency[]) => {
+    const { ops, actor, workspaceSlug } = ctx;
+    const { input } = preview;
+    const assignmentId = z.string().parse(input.assignmentId);
+    const page = await ops.reviewer.read(actor, { workspaceSlug, assignmentId });
+    if (page.status !== "ok" || page.value.assignment.workspaceSlug !== workspaceSlug) {
+      throw new PreviewProblem("not_found");
+    }
+    const { assignment, draft, material, assessment } = page.value;
+    const usesEvidence = action !== "respond";
+    if (usesEvidence && (!draft || !material)) {
+      throw new PreviewProblem("forbidden");
+    }
+    dependencies.push({
+      kind: "assignment",
+      assignmentId,
+      evidence: usesEvidence,
+      ...(activeAssignment(assignment.status) && { active: true }),
+    });
+    if (draft && usesEvidence) {
+      bindRevision(ctx, input, "expectedDraftRevision", draft.revision);
       preview.targets.push(
-        target(
-          "review_request",
-          assignment.requestId,
-          assignment.applicationTitle,
-          `assignment revision ${assignment.revision}`,
-        ),
-      );
-      preview.effects.push(
-        "Cancel the linked review request and update the application's review revision.",
+        target("reviewer_draft", assignmentId, assignment.applicationTitle, draft.revision),
       );
     }
-  }
-  preview.targets.push(
-    target("assignment", assignmentId, assignment.applicationTitle, assignment.revision),
-  );
-  if (name === "submit_reviewer_assessment") {
+    if (action === "respond") {
+      bindRevision(ctx, input, "expectedRevision", assignment.revision);
+      if (input.action === "decline") {
+        preview.targets.push(
+          target(
+            "review_request",
+            assignment.requestId,
+            assignment.applicationTitle,
+            `assignment revision ${assignment.revision}`,
+          ),
+        );
+        preview.effects.push(
+          "Cancel the linked review request and update the application's review revision.",
+        );
+      }
+    }
     preview.targets.push(
-      target(
-        "assessment",
-        assessment?.id ?? assignmentId,
-        assignment.reviewer,
-        assessment?.versions.length ?? "new",
-      ),
+      target("assignment", assignmentId, assignment.applicationTitle, assignment.revision),
     );
-    preview.changes = {
-      assessment: draft?.content,
-      applicationVersion: assignment.applicationVersion,
-      criteriaVersion: assignment.criteriaVersion,
-      requestId: assignment.requestId,
-    };
-    preview.effects.push(
-      `Share the assessment with the manager. Send notification email to ${assignment.managerEmail} if permitted by the delivery limit.`,
-    );
-  }
-};
+    if (action === "submit") {
+      preview.targets.push(
+        target(
+          "assessment",
+          assessment?.id ?? assignmentId,
+          assignment.reviewer,
+          assessment?.versions.length ?? "new",
+        ),
+      );
+      preview.changes = {
+        assessment: draft?.content,
+        applicationVersion: assignment.applicationVersion,
+        criteriaVersion: assignment.criteriaVersion,
+        requestId: assignment.requestId,
+      };
+      preview.effects.push(
+        `Share the assessment with the manager. Send notification email to ${assignment.managerEmail} if permitted by the delivery limit.`,
+      );
+    }
+  };
 
 export const invitationPreview = async (
   ctx: PreviewContext,
@@ -229,65 +223,80 @@ const cancelledAssignment = async (
   }
 };
 
-export const reviewChanges = async (
+export const requestReviewPreview = async (
   ctx: PreviewContext,
   preview: AssistantPreview,
   applicationId: string,
 ) => {
-  const { name, input, targets } = preview;
-  switch (name) {
-    case "request_review":
-      targets.push(
-        target("review_request", z.string().parse(input.id), "New review request", "new"),
-      );
-      if (typeof input.replacesId === "string") {
-        await reviewRecordTarget(ctx, preview, applicationId, "review_request", input.replacesId);
-        await cancelledAssignment(ctx, preview, applicationId, input.replacesId);
-      }
-      break;
-    case "cancel_review_request": {
-      const id = z.string().parse(input.id);
-      await reviewRecordTarget(ctx, preview, applicationId, "review_request", id);
-      await cancelledAssignment(ctx, preview, applicationId, id);
-      break;
-    }
-    case "record_assessment":
-      targets.push(target("assessment", z.string().parse(input.id), "New assessment", "new"));
-      if (typeof input.requestId === "string") {
-        await reviewRecordTarget(ctx, preview, applicationId, "review_request", input.requestId);
-      }
-      if (typeof input.previousId === "string") {
-        await reviewRecordTarget(ctx, preview, applicationId, "assessment", input.previousId);
-      }
-      break;
-    case "correct_assessment": {
-      const version = await reviewRecordTarget(
-        ctx,
-        preview,
-        applicationId,
-        "assessment",
-        z.string().parse(input.id),
-      );
-      if (typeof version === "number") {
-        bindRevision(ctx, input, "expectedAssessmentVersion", version);
-      }
-      break;
-    }
-    case "save_recommendation": {
-      const selected = fields(input.expectedCurrentAssessment);
-      if (typeof selected.id === "string") {
-        const version = await reviewRecordTarget(
-          ctx,
-          preview,
-          applicationId,
-          "assessment",
-          selected.id,
-        );
-        if (selected.version !== version) {
-          throw new PreviewProblem("conflict");
-        }
-      }
-      break;
+  const { input, targets } = preview;
+  targets.push(target("review_request", z.string().parse(input.id), "New review request", "new"));
+  if (typeof input.replacesId === "string") {
+    await reviewRecordTarget(ctx, preview, applicationId, "review_request", input.replacesId);
+    await cancelledAssignment(ctx, preview, applicationId, input.replacesId);
+  }
+};
+
+export const cancelReviewPreview = async (
+  ctx: PreviewContext,
+  preview: AssistantPreview,
+  applicationId: string,
+) => {
+  const { input } = preview;
+  const id = z.string().parse(input.id);
+  await reviewRecordTarget(ctx, preview, applicationId, "review_request", id);
+  await cancelledAssignment(ctx, preview, applicationId, id);
+};
+
+export const recordAssessmentPreview = async (
+  ctx: PreviewContext,
+  preview: AssistantPreview,
+  applicationId: string,
+) => {
+  const { input, targets } = preview;
+  targets.push(target("assessment", z.string().parse(input.id), "New assessment", "new"));
+  if (typeof input.requestId === "string") {
+    await reviewRecordTarget(ctx, preview, applicationId, "review_request", input.requestId);
+  }
+  if (typeof input.previousId === "string") {
+    await reviewRecordTarget(ctx, preview, applicationId, "assessment", input.previousId);
+  }
+};
+
+export const correctAssessmentPreview = async (
+  ctx: PreviewContext,
+  preview: AssistantPreview,
+  applicationId: string,
+) => {
+  const { input } = preview;
+  const version = await reviewRecordTarget(
+    ctx,
+    preview,
+    applicationId,
+    "assessment",
+    z.string().parse(input.id),
+  );
+  if (typeof version === "number") {
+    bindRevision(ctx, input, "expectedAssessmentVersion", version);
+  }
+};
+
+export const recommendationPreview = async (
+  ctx: PreviewContext,
+  preview: AssistantPreview,
+  applicationId: string,
+) => {
+  const { input } = preview;
+  const selected = fields(input.expectedCurrentAssessment);
+  if (typeof selected.id === "string") {
+    const version = await reviewRecordTarget(
+      ctx,
+      preview,
+      applicationId,
+      "assessment",
+      selected.id,
+    );
+    if (selected.version !== version) {
+      throw new PreviewProblem("conflict");
     }
   }
 };

@@ -2,14 +2,14 @@ import type { McpScope } from "../contracts";
 import type { WorkspaceToolName } from "./tools";
 
 const readAnnotations = {
-  readOnlyHint: true,
+  readOnlyHint: true as const,
   destructiveHint: false,
   idempotentHint: true,
   openWorldHint: false,
 };
 
 const writeAnnotations = {
-  readOnlyHint: false,
+  readOnlyHint: false as const,
   destructiveHint: true,
   idempotentHint: true,
   openWorldHint: false,
@@ -71,7 +71,10 @@ export const publication = {
   submit_reviewer_assessment: { ...notify, scope: "reviews:write" },
   update_contact: write,
   withdraw_application: write,
-} satisfies Record<WorkspaceToolName, { scope: McpScope; annotations: typeof readAnnotations }>;
+} satisfies Record<
+  WorkspaceToolName,
+  { scope: McpScope; annotations: typeof readAnnotations | typeof writeAnnotations }
+>;
 
 export const readOnlyToolNames = Object.entries(publication)
   .filter(([, policy]) => policy.annotations.readOnlyHint)

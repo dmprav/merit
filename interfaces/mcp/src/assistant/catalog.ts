@@ -6,15 +6,17 @@ import type { Actor } from "@merit/auth";
 
 import { publication } from "../app/publication";
 import { workspaceCatalog } from "../app/tools";
-import { permitsAll, requiredAccess, workspacePermits } from "./authority";
+import { permitsAll, workspacePermits } from "./authority";
 import {
+  fields,
   receipt,
   type AssistantCatalog,
   type AssistantPreview,
   type AssistantReceipt,
 } from "./contracts";
-import { describeResult, fields } from "./evidence";
+import { describeResult } from "./evidence";
 import type { AssistantContext, AssistantOperations } from "./operations";
+import { assistantPolicy } from "./policy";
 import { prepareWrite } from "./preview";
 
 export type { AssistantOperations } from "./operations";
@@ -91,7 +93,7 @@ const resolveTool = async (
   if (!tool || publication[tool.name].annotations.readOnlyHint === write) {
     return { error: "invalid_input" } as const;
   }
-  if (!(await permitsAll(ctx, [{ kind: requiredAccess(tool.name) }]))) {
+  if (!(await permitsAll(ctx, [{ kind: assistantPolicy[tool.name].access }]))) {
     return { error: "forbidden" } as const;
   }
   if (input.workspaceSlug !== undefined && input.workspaceSlug !== workspaceSlug) {
@@ -190,7 +192,7 @@ export const createAssistantCatalog = (
         return [];
       }
       return definitions
-        .filter((tool) => workspacePermits(workspace, requiredAccess(tool.name)))
+        .filter((tool) => workspacePermits(workspace, assistantPolicy[tool.name].access))
         .map(providerDefinition);
     },
     permits,
