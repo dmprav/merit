@@ -250,8 +250,12 @@ describe("stopProcessGroup", () => {
         await stopProcessGroup(managed.child);
         expect(isRunning(descendantPid)).toBe(false);
       } finally {
-        await stopProcessGroup(managed.child, { graceMs: 100 });
-        killIfRunning(descendantPid);
+        try {
+          await stopProcessGroup(managed.child, { graceMs: 100 });
+        } finally {
+          killIfRunning(managed.child.pid);
+          killIfRunning(descendantPid);
+        }
       }
     }));
 
@@ -272,8 +276,12 @@ describe("stopProcessGroup", () => {
         expect(managed.child.exitCode).toBe(0);
         expect(isRunning(descendantPid)).toBe(false);
       } finally {
-        await stopProcessGroup(managed.child, { graceMs: 100 });
-        killIfRunning(descendantPid);
+        try {
+          await stopProcessGroup(managed.child, { graceMs: 100 });
+        } finally {
+          killIfRunning(managed.child.pid);
+          killIfRunning(descendantPid);
+        }
       }
     }));
 
@@ -323,7 +331,11 @@ describe("stopProcessGroup", () => {
       await stopProcessGroup({ pid: holderPid, exitCode: 1, signalCode: null });
       expect(isRunning(holderPid)).toBe(true);
     } finally {
-      await stopProcessGroup(holder.child, { graceMs: 100 });
+      try {
+        await stopProcessGroup(holder.child, { graceMs: 100 });
+      } finally {
+        killIfRunning(holderPid);
+      }
     }
   });
 });
