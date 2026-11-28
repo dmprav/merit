@@ -139,6 +139,16 @@ const serverImports: DependenciesPolicy[] = [
     "@merit/organizations/locks",
     business("organizations", "command-persistence"),
   ),
+  permitServer(
+    business("{applications,reviews}", "command-persistence"),
+    "@merit/rounds/locks",
+    business("rounds", "command-persistence"),
+  ),
+  permitServer(
+    business("reviews", "command-persistence"),
+    "@merit/applications/locks",
+    business("applications", "command-persistence"),
+  ),
   permitServer(anyBusiness("commands"), "@merit/*/locks", anyBusiness("command-persistence")),
   permitServer(
     anyBusiness("{commands,queries,command-persistence,integrations}"),
@@ -372,6 +382,16 @@ const policies = [
       `Business ${role} cannot depend on this source role.`,
     ),
   ),
+  {
+    from: business("{rounds,applications}", "grant-work"),
+    dependency: { kind: "type", source: "./persistence/commands/locks" },
+    allow: {
+      to: {
+        element: { path: "{{ from.element.path }}" },
+        ...category("business-command-persistence"),
+      },
+    },
+  },
   forbid(
     {
       element: { path: "capabilities/organizations/business" },

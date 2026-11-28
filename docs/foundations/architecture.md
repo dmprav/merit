@@ -251,7 +251,7 @@ flowchart TD
 ```
 
 Arrows show package dependencies. Lifecycle collaborators supplied by assembly use
-the caller's transaction and held locks: round deletion checks application usage,
+a context containing the caller's transaction and locked resource IDs. Round deletion checks application usage,
 and application deletion checks downstream work. Full intake history is composed
 under the same case lock. These contracts preserve atomicity without reverse package
 dependencies. The [grant-work ownership map](../../capabilities/grantmaking/business/README.md)

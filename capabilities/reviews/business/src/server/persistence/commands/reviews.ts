@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { materialVersionSchema } from "@merit/applications/domain";
+import type { LockedApplicationCase } from "@merit/applications/locks";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
 import type { Transaction } from "@merit/db";
 import { fundingRoundSchema } from "@merit/rounds/domain";
@@ -239,13 +240,20 @@ const recordAssessments = async (
   }
 };
 
-/** Record an accepted transition under the caller's case lock and transaction.
- * A null prior state is reserved for seeding a new case. */
-export const recordReviewChange = async (
-  db: Transaction,
-  owner: ReviewOwner,
+export const recordReviewChange = (
+  { tx, caseId, organizationId, roundId }: LockedApplicationCase,
+  previous: ReviewState,
   state: ReviewState,
-) => {
+) => writeReviewState(tx, { publicId: caseId, organizationId, roundId, reviews: previous }, state);
+
+/** Demo seeding writes the initial reviews alongside the newly inserted case. */
+export const insertDemoReviews = (
+  tx: Transaction,
+  owner: Omit<ReviewOwner, "reviews">,
+  state: ReviewState,
+) => writeReviewState(tx, { ...owner, reviews: null }, state);
+
+const writeReviewState = async (db: Transaction, owner: ReviewOwner, state: ReviewState) => {
   if (state.revision === owner.reviews?.revision) {
     return;
   }

@@ -8,7 +8,7 @@ import {
   type SelectContactRequest,
 } from "../../api/commands/application-contact";
 import { withIntakeContact } from "../../domain/intake-recording";
-import { findIntakeApplication, recordIntakeChange } from "../persistence/commands/intake";
+import { findLockedIntakeApplication, recordIntakeChange } from "../persistence/commands/intake";
 import { lockApplicationCase } from "../persistence/commands/locks";
 
 export const selectApplicationContact = async (
@@ -28,7 +28,7 @@ export const selectApplicationContact = async (
       return { status: "invalid", error: "application_withdrawn" } as const;
     }
 
-    const row = await findIntakeApplication(tx, access.organizationId, request.publicId);
+    const row = await findLockedIntakeApplication(access);
     if (!row) {
       return { status: "not_found" } as const;
     }
@@ -45,7 +45,6 @@ export const selectApplicationContact = async (
     }
 
     const revision = await recordIntakeChange(
-      tx,
       row,
       {
         application: withIntakeContact(row.application, request.contactId, contact ?? null),

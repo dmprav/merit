@@ -7,7 +7,7 @@ import {
 import type { Transaction } from "@merit/db";
 import { insertDemoDecision } from "@merit/decisions/server/demo";
 import { insertDemoRecommendation } from "@merit/recommendations/server/demo";
-import { recordReviewChange } from "@merit/reviews/server/demo";
+import { insertDemoReviews } from "@merit/reviews/server/demo";
 import { deleteDemoRounds } from "@merit/rounds/server/demo";
 
 import { type encodeApplication, decodeApplication } from "../../../domain/encoding";
@@ -38,13 +38,12 @@ export const insertExampleApplication = async (
       recordedAt: material.recordedAt,
     });
   }
-  await recordReviewChange(
+  await insertDemoReviews(
     db,
     {
       publicId: saved.id,
       organizationId: value.organizationId,
       roundId: value.roundId,
-      reviews: null,
     },
     application.reviews,
   );

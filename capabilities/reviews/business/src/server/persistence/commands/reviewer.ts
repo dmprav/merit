@@ -1,14 +1,12 @@
 import { and, eq, sql } from "drizzle-orm";
 
-import { applicationCases } from "@merit/applications/schema";
-import { caseWithdrawn } from "@merit/applications/scope";
+import { lockCaseRow, type LockedApplicationCase } from "@merit/applications/locks";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
+import { appUsers } from "@merit/auth/schema";
 import type { Database, Transaction } from "@merit/db";
-import { lockGrantActor } from "@merit/organizations/locks";
-import { organizations } from "@merit/organizations/schema";
-import { authorizedWorkspaces } from "@merit/organizations/scope";
-import { fundingRounds } from "@merit/rounds/schema";
+import { lockWorkspaceRow, lockGrantActor } from "@merit/organizations/locks";
+import { lockFundingRound } from "@merit/rounds/locks";
 
 import type { ReviewerDraft } from "../../../domain/reviewer";
 import { provenanceColumns } from "../projections";
@@ -22,12 +20,36 @@ import {
 } from "../reviewer-schema";
 import { reviewRequests, reviewStates } from "../schema";
 
-/**
- * Canonical grant-work lock hierarchy:
- * organizations -> funding_rounds -> application_cases -> review_assignments -> memberships / app_users.
- * Match grant command lock order so cancellation, submissions, and material edits serialize.
- */
-export const lockReviewerAssignment = async (tx: Transaction, id: string) => {
+const assignmentLock = Symbol("locked reviewer assignment");
+
+const lockAssignmentRow = async (
+  locked: LockedApplicationCase & { authorityLocked?: never; assignmentId?: never },
+  assignmentId: string,
+): Promise<LockedReviewerAssignment | null> => {
+  const [row] = await locked.tx
+    .select({ id: reviewAssignments.id })
+    .from(reviewAssignments)
+    .where(
+      and(
+        eq(reviewAssignments.id, assignmentId),
+        eq(reviewAssignments.caseId, locked.caseId),
+        eq(reviewAssignments.organizationId, locked.organizationId),
+      ),
+    )
+    .for("update");
+  return row ? ({ ...locked, [assignmentLock]: true, assignmentId: row.id } as const) : null;
+};
+
+export type LockedReviewerAssignment = LockedApplicationCase & {
+  readonly [assignmentLock]: true;
+  readonly assignmentId: string;
+};
+
+const lockAssignmentResources = async (
+  tx: Transaction,
+  assignmentId: string,
+  manager?: { slug: string; userId: string; caseId: string },
+) => {
   const [target] = await tx
     .select({
       organizationId: reviewAssignments.organizationId,
@@ -35,7 +57,6 @@ export const lockReviewerAssignment = async (tx: Transaction, id: string) => {
       roundId: reviewRequests.criteriaRoundPublicId,
     })
     .from(reviewAssignments)
-    .innerJoin(applicationCases, eq(applicationCases.id, reviewAssignments.caseId))
     .innerJoin(
       reviewRequests,
       and(
@@ -43,136 +64,53 @@ export const lockReviewerAssignment = async (tx: Transaction, id: string) => {
         eq(reviewRequests.id, reviewAssignments.requestId),
       ),
     )
-    .where(eq(reviewAssignments.id, id));
-  if (!target) {
-    return undefined;
+    .where(eq(reviewAssignments.id, assignmentId));
+  if (!target || (manager && manager.caseId !== target.caseId)) {
+    return null;
   }
-  await tx
-    .select({ id: organizations.id })
-    .from(organizations)
-    .where(eq(organizations.id, target.organizationId))
-    .for("share");
-  await tx
-    .select({ id: fundingRounds.id })
-    .from(fundingRounds)
-    .where(
-      and(
-        eq(fundingRounds.organizationId, target.organizationId),
-        eq(fundingRounds.id, target.roundId),
-      ),
-    )
-    .for("share");
-  await tx
-    .select({ id: applicationCases.id })
-    .from(applicationCases)
-    .where(eq(applicationCases.id, target.caseId))
-    .for("update");
-  await tx
-    .select({ id: reviewAssignments.id })
-    .from(reviewAssignments)
-    .where(eq(reviewAssignments.id, id))
-    .for("update");
-  return readReviewerRecord(tx, id);
+  const workspace = await lockWorkspaceRow(tx, manager ?? { id: target.organizationId }, "share");
+  if (workspace?.organizationId !== target.organizationId) {
+    return null;
+  }
+  const round = await lockFundingRound(workspace, target.roundId, "share");
+  const locked = round && (await lockCaseRow(round, target.caseId));
+  return locked && lockAssignmentRow(locked, assignmentId);
 };
 
-const lockManagedAssignmentRound = async (
+export const lockReviewerAssignment = async (
   tx: Transaction,
-  workspaceId: string,
-  input: { publicId: string; assignmentId: string },
-) => {
-  const [target] = await tx
-    .select({
-      roundId: reviewRequests.criteriaRoundPublicId,
-    })
-    .from(reviewAssignments)
-    .innerJoin(applicationCases, eq(applicationCases.id, reviewAssignments.caseId))
-    .innerJoin(
-      reviewRequests,
-      and(
-        eq(reviewRequests.caseId, reviewAssignments.caseId),
-        eq(reviewRequests.id, reviewAssignments.requestId),
-      ),
-    )
-    .where(
-      and(
-        eq(reviewAssignments.id, input.assignmentId),
-        eq(reviewAssignments.caseId, input.publicId),
-        eq(reviewAssignments.organizationId, workspaceId),
-      ),
-    );
-  if (!target) {
-    return false;
-  }
-  await tx
-    .select({ id: fundingRounds.id })
-    .from(fundingRounds)
-    .where(and(eq(fundingRounds.organizationId, workspaceId), eq(fundingRounds.id, target.roundId)))
-    .for("share");
-  return true;
-};
-
-const lockManagedCaseAndActor = async (
-  tx: Transaction,
+  assignmentId: string,
   userId: string,
-  workspaceId: string,
-  input: { publicId: string; assignmentId: string },
 ) => {
-  const access = authorizedWorkspaces(tx, userId, "work_on_grants");
-  const [lockedCase] = await tx
-    .select({ id: applicationCases.id, withdrawn: caseWithdrawn })
-    .from(applicationCases)
-    .innerJoin(access, eq(access.id, applicationCases.organizationId))
-    .where(
-      and(
-        eq(applicationCases.id, input.publicId),
-        eq(applicationCases.organizationId, workspaceId),
-      ),
-    )
-    .for("update", { of: applicationCases });
-  if (!lockedCase) {
+  const locked = await lockAssignmentResources(tx, assignmentId);
+  if (!locked) {
     return null;
   }
-  const [lockedAssignment] = await tx
-    .select({ id: reviewAssignments.id })
-    .from(reviewAssignments)
-    .where(
-      and(
-        eq(reviewAssignments.id, input.assignmentId),
-        eq(reviewAssignments.caseId, input.publicId),
-        eq(reviewAssignments.organizationId, workspaceId),
-      ),
-    )
-    .for("update");
-  if (!lockedAssignment) {
-    return null;
-  }
-  const actor = await lockGrantActor(tx, userId, workspaceId);
-  return actor ? { ...actor, withdrawn: lockedCase.withdrawn } : null;
+  const [user] = await locked.tx
+    .select()
+    .from(appUsers)
+    .where(and(eq(appUsers.id, userId), eq(appUsers.active, true)))
+    .for("share");
+  const record = user && (await readReviewerRecord(locked.tx, locked.assignmentId));
+  return record ? { locked: { ...locked, authorityLocked: true } as const, user, record } : null;
 };
 
-/**
- * Lock organization -> funding_rounds -> application_cases -> review_assignments -> memberships/app_users
- * in one pass for manager actions on a reviewer assignment.
- */
 export const lockManagedReviewerAssignment = async (
   tx: Transaction,
   userId: string,
   input: { workspaceSlug: string; publicId: string; assignmentId: string },
 ) => {
-  const [workspace] = await tx
-    .select({ id: organizations.id })
-    .from(organizations)
-    .where(eq(organizations.slug, input.workspaceSlug))
-    .for("share");
-  if (!workspace || !(await lockManagedAssignmentRound(tx, workspace.id, input))) {
+  const locked = await lockAssignmentResources(tx, input.assignmentId, {
+    slug: input.workspaceSlug,
+    userId,
+    caseId: input.publicId,
+  });
+  const access = locked && (await lockGrantActor(locked, userId));
+  if (!access) {
     return null;
   }
-  const actor = await lockManagedCaseAndActor(tx, userId, workspace.id, input);
-  if (!actor) {
-    return null;
-  }
-  const record = await readReviewerRecord(tx, input.assignmentId);
-  return record ? { record, actor } : null;
+  const record = await readReviewerRecord(access.tx, access.assignmentId);
+  return record ? { record, actor: { ...access.actor, withdrawn: access.withdrawn } } : null;
 };
 
 export const reviewerReceipt = async (tx: Transaction, assignmentId: string, commandId: string) =>
@@ -384,8 +322,7 @@ const writeDraftObservations = async (
 };
 
 export const writeReviewerDraft = async (
-  tx: Transaction,
-  id: string,
+  { tx, assignmentId: id }: LockedReviewerAssignment,
   changes: {
     content: ReviewerDraft;
     revision: number;

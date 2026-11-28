@@ -163,6 +163,11 @@ Application assembly wires these collaborators through each owner's
 relay downstream lifecycle work, and assembly cannot import an integrations entry
 from it. The architecture fixtures check these allowed and rejected directions.
 
+Grant lock contexts carry the transaction and the IDs of locked rows. Applications
+takes the round context before locking a case. Reviews takes the case context
+before locking an assignment. Round and application lifecycle contracts import
+their own lock types, so callers pass the locked resource to each collaborator.
+
 Organization `scope` exports contain read predicates. The `locks` entry lives in
 command persistence, so neither queries nor the shared scope module can import
 or re-export it. Public entry names alone cannot bypass this distinction: a scope

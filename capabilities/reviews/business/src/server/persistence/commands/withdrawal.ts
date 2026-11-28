@@ -1,8 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { applicationCases, materialVersions } from "@merit/applications/schema";
-import type { Actor } from "@merit/auth";
-import type { Transaction } from "@merit/db";
+import type { ApplicationReviewWork } from "@merit/applications/server/grant-work";
 
 import { reviewRequests, reviewStates } from "../schema";
 import { recordReviewRequestEvent } from "./review-request-events";
@@ -11,14 +10,11 @@ import { cancelParticipatingRequest, updateParticipatingRequest } from "./review
 /**
  * Closes every outstanding request because the application was withdrawn, records the same
  * cancellation fact a manager's cancellation does, and ends the reviewer access linked to each.
- * Received and cancelled requests, assessments, and private drafts are untouched. The caller
- * holds the case lock.
+ * Received and cancelled requests, assessments, and private drafts are untouched.
  */
-export const closeReviewsForWithdrawal = async (
-  tx: Transaction,
-  caseId: string,
-  actor: Actor,
-  name: string,
+export const closeReviewsForWithdrawal: ApplicationReviewWork["closeForWithdrawal"] = async (
+  { tx, caseId },
+  { actor, name },
 ) => {
   const outstanding = await tx
     .select()
