@@ -244,6 +244,7 @@ it("works outside any transaction, saves simultaneous runs, and keeps the basis 
     release = resolve;
   });
   const idle: number[] = [];
+  const probe: { failure?: unknown } = {};
 
   const observe = async () => {
     const open = await database.client.query<{ count: string }>(
@@ -261,8 +262,14 @@ it("works outside any transaction, saves simultaneous runs, and keeps the basis 
     // Both runs wait inside the provider call together: neither holds a lock or transaction.
     arrived += 1;
     if (arrived === 2) {
-      await observe();
-      release();
+      try {
+        await observe();
+      } catch (error) {
+        // Reported after the runs end; a failed probe must not leave the other run waiting.
+        probe.failure = error;
+      } finally {
+        release();
+      }
     }
     await bothArrived;
   };
@@ -271,6 +278,7 @@ it("works outside any transaction, saves simultaneous runs, and keeps the basis 
     run(stub(async (request) => (await changed(), validReply(request))).reviewer),
     run(stub(async (request) => (await changed(), validReply(request))).reviewer),
   ]);
+  expect(probe.failure).toBeUndefined();
   expect(results.map(({ status }) => status)).toEqual(["ok", "ok"]);
   expect(idle).toEqual([0]);
   expect(await rows()).toBe(2);
@@ -735,6 +743,44 @@ it("does not look for a saved run under another application's authority when the
   );
 
   expect(stranger).toEqual({ status: "not_found" });
+  expect(await rows()).toBe(1);
+});
+
+it("answers not found, and does not return the saved run, when the caller lost access while the provider failed", async ({
+  aiReviewSetup,
+  database,
+}) => {
+  const { run, rows } = await aiReviewSetup();
+  const runId = randomUUID();
+
+  let fail = () => {};
+
+  const providerFails = new Promise<void>((resolve) => {
+    fail = resolve;
+  });
+
+  let enter = () => {};
+
+  const entered = new Promise<void>((resolve) => {
+    enter = resolve;
+  });
+  const failing = run(
+    stub(async () => {
+      enter();
+      await providerFails;
+      throw new Error("The provider timed out.");
+    }).reviewer,
+    { runId },
+  );
+
+  // A concurrent run with this identity saves while the manager's provider call is in flight,
+  // and then the manager's role is revoked before that call fails.
+  await entered;
+  assert((await run(stub().reviewer, { runId })).status === "ok");
+  await database.client.query("UPDATE memberships SET role = 'reviewer' WHERE user_id = 'dana'");
+  fail();
+
+  expect(await failing).toEqual({ status: "not_found" });
   expect(await rows()).toBe(1);
 });
 
