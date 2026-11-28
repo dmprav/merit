@@ -21,12 +21,13 @@ import { isWithdrawn, type ApplicationUsage } from "../../domain/model";
 import type { ApplicationWork } from "../grant-work";
 import {
   findIntakeApplication,
+  findLockedIntakeApplication,
   recordIntakeCreation,
   recordIntakeChange,
   readRequestedAmounts,
 } from "../persistence/commands/intake";
 import { intakeCreationReceipt } from "../persistence/commands/intake-history";
-import { lockApplicationCase } from "../persistence/commands/locks";
+import { lockApplicationCase, type LockedApplicationCase } from "../persistence/commands/locks";
 
 const resolveIntakeContactChange = async (
   tx: Transaction,
@@ -80,21 +81,14 @@ export const createFundingApplication = async (
 
     const application = newIntakeApplication(await allocatePublicId(tx), request);
     if (application.requested !== null) {
-      const amounts = await readRequestedAmounts(tx, round.organizationId, round.id);
+      const amounts = await readRequestedAmounts(round);
       const problem = requestedTotalProblem(amounts, application);
       if (problem) {
         return { status: "invalid", error: problem } as const;
       }
     }
 
-    const publicId = await recordIntakeCreation(
-      tx,
-      round.organizationId,
-      round.id,
-      application,
-      actor,
-      request.requestId,
-    );
+    const publicId = await recordIntakeCreation(round, application, actor, request.requestId);
     // Same-round retries saw the receipt above while holding the round lock.
     // A conflict here means a different round committed this request ID first.
     if (!publicId) {
@@ -130,7 +124,7 @@ export const editFundingApplication = async (
       return { status: "not_found" } as const;
     }
 
-    const row = await findIntakeApplication(tx, access.organizationId, request.publicId);
+    const row = await findLockedIntakeApplication(access);
     if (!row) {
       return { status: "not_found" } as const;
     }
@@ -160,19 +154,18 @@ export const editFundingApplication = async (
       request.change,
       author,
       request.change.action === "delete" || request.change.action === "withdraw"
-        ? await applicationUsage(tx, work, request.publicId)
+        ? await applicationUsage(access, work)
         : { hasReviews: false, hasRecommendation: false, hasDecision: false, hasCommitment: false },
     );
     if (!result.ok) {
       return { status: "invalid", error: result.error } as const;
     }
-    const problem = await intakeTotalProblem(tx, work, row, request.change, result.application);
+    const problem = await intakeTotalProblem(access, work, request.change, result.application);
     if (problem) {
       return { status: "invalid", error: problem } as const;
     }
 
     const revision = await recordIntakeChange(
-      tx,
       row,
       {
         ...result,
@@ -183,7 +176,9 @@ export const editFundingApplication = async (
       },
       actor,
     );
-    await closeReviewsOnWithdrawal(tx, work, request, { actor, name: author.name });
+    if (request.change.action === "withdraw") {
+      await work.reviews.closeForWithdrawal(access, { actor, name: author.name });
+    }
 
     return { status: "ok", revision } as const;
   };
@@ -197,28 +192,15 @@ const intakeAuthor = (person: { userId: string; name: string | null; email: stri
   recordedAt: new Date().toISOString(),
 });
 
-// Runs under the case lock, so downstream work cannot start between the two checks.
 const applicationUsage = async (
-  tx: Transaction,
+  locked: LockedApplicationCase,
   work: ApplicationWork,
-  caseId: string,
 ): Promise<ApplicationUsage> => ({
-  hasReviews: await work.reviews.hasActivity(tx, caseId),
-  hasRecommendation: await work.recommendations.hasRecommendation(tx, caseId),
-  hasDecision: await work.decisions.hasDecision(tx, caseId),
-  hasCommitment: await work.decisions.hasCommitment(tx, caseId),
+  hasReviews: await work.reviews.hasActivity(locked),
+  hasRecommendation: await work.recommendations.hasRecommendation(locked),
+  hasDecision: await work.decisions.hasDecision(locked),
+  hasCommitment: await work.decisions.hasCommitment(locked),
 });
-
-const closeReviewsOnWithdrawal = async (
-  tx: Transaction,
-  work: ApplicationWork,
-  request: EditApplicationRequest,
-  closing: { actor: Actor; name: string },
-) => {
-  if (request.change.action === "withdraw") {
-    await work.reviews.closeForWithdrawal(tx, { ...closing, caseId: request.publicId });
-  }
-};
 
 const amountChanges = (change: EditApplicationRequest["change"]) =>
   change.action === "save_content" ||
@@ -226,9 +208,8 @@ const amountChanges = (change: EditApplicationRequest["change"]) =>
   change.action === "reinstate";
 
 const intakeTotalProblem = async (
-  tx: Transaction,
+  locked: LockedApplicationCase,
   work: ApplicationWork,
-  row: NonNullable<Awaited<ReturnType<typeof findIntakeApplication>>>,
   change: EditApplicationRequest["change"],
   application: Parameters<typeof requestedTotalProblem>[1],
 ) => {
@@ -236,15 +217,11 @@ const intakeTotalProblem = async (
     return null;
   }
 
-  const requests = await readRequestedAmounts(tx, row.organizationId, row.roundId);
+  const requests = await readRequestedAmounts(locked);
   const problem = requestedTotalProblem(requests, application);
   if (problem || change.action !== "reinstate") {
     return problem;
   }
   // A reinstated recommendation counts toward the round's proposed allocations again.
-  return work.recommendations.allocationTotalProblem(tx, {
-    organizationId: row.organizationId,
-    roundId: row.roundId,
-    caseId: row.id,
-  });
+  return work.recommendations.allocationTotalProblem(locked);
 };

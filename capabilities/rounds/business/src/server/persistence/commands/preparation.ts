@@ -3,106 +3,19 @@ import { and, eq, sql } from "drizzle-orm";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 import type { Transaction } from "@merit/db";
-import { lockGrantActor } from "@merit/organizations/locks";
-import { organizations } from "@merit/organizations/schema";
-import { authorizedWorkspaces } from "@merit/organizations/scope";
 
-import { decodeRound, encodeRound, type FundingRoundData } from "../../../domain/encoding";
+import { encodeRound, type FundingRoundData } from "../../../domain/encoding";
 import type { FundingRound } from "../../../domain/model";
 import type { prepareRoundChange } from "../../../domain/preparation";
-import { readRoundRecord } from "../projections";
 import {
   fundingRounds,
   roundCreationReceipts,
   criteriaVersions,
   criteriaVersionItems,
 } from "../schema";
+import type { lockPreparationRoundAccess } from "./locks";
 
-const readPreparationRound = async (tx: Transaction, organizationId: string, publicId: string) => {
-  const [row] = await tx
-    .select({
-      id: fundingRounds.id,
-      organizationId: fundingRounds.organizationId,
-      revision: fundingRounds.revision,
-      budgetEstablished: fundingRounds.budgetEstablished,
-    })
-    .from(fundingRounds)
-    .where(and(eq(fundingRounds.organizationId, organizationId), eq(fundingRounds.id, publicId)));
-  if (!row) {
-    return undefined;
-  }
-  const snapshot = await readRoundRecord(tx, organizationId, publicId);
-  if (!snapshot) {
-    return undefined;
-  }
-
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    revision: row.revision,
-    round: decodeRound(snapshot),
-    budgetEstablished: row.budgetEstablished,
-  };
-};
-
-export const lockPreparationRound = async (
-  tx: Transaction,
-  organizationId: string,
-  publicId: string,
-) => {
-  const [locked] = await tx
-    .select({ id: fundingRounds.id })
-    .from(fundingRounds)
-    .where(and(eq(fundingRounds.organizationId, organizationId), eq(fundingRounds.id, publicId)))
-    .for("update");
-  if (!locked) {
-    return undefined;
-  }
-
-  return readPreparationRound(tx, organizationId, publicId);
-};
-
-/**
- * Canonical grant-work lock hierarchy:
- * organizations -> funding_rounds -> application_cases -> review_assignments -> memberships / app_users.
- */
-export const lockPreparationRoundAccess = async (
-  tx: Transaction,
-  userId: string,
-  input: { workspaceSlug: string; publicId: string },
-) => {
-  const [workspace] = await tx
-    .select({ id: organizations.id, kind: organizations.kind })
-    .from(organizations)
-    .where(eq(organizations.slug, input.workspaceSlug))
-    .for("share");
-  if (!workspace) {
-    return null;
-  }
-
-  const access = authorizedWorkspaces(tx, userId, "work_on_grants", input.workspaceSlug);
-  const [lockedRound] = await tx
-    .select({ id: fundingRounds.id })
-    .from(fundingRounds)
-    .innerJoin(access, eq(access.id, fundingRounds.organizationId))
-    .where(
-      and(eq(fundingRounds.organizationId, workspace.id), eq(fundingRounds.id, input.publicId)),
-    )
-    .for("update", { of: fundingRounds });
-  if (!lockedRound) {
-    return null;
-  }
-
-  const actor = await lockGrantActor(tx, userId, workspace.id);
-  if (!actor) {
-    return null;
-  }
-
-  const round = await readPreparationRound(tx, workspace.id, input.publicId);
-  return round ? { ...round, organizationKind: workspace.kind } : null;
-};
-
-type PreparationState = NonNullable<Awaited<ReturnType<typeof lockPreparationRound>>>;
+type PreparationState = NonNullable<Awaited<ReturnType<typeof lockPreparationRoundAccess>>>;
 
 export const readCreationReceipt = async (
   tx: Transaction,
@@ -284,7 +197,6 @@ export const recordPreparationCreation = async (
 
 /** The caller retains authorization and round locks; unchanged saves preserve their revision. */
 export const recordPreparationChange = async (
-  tx: Transaction,
   current: PreparationState,
   change: Omit<Extract<ReturnType<typeof prepareRoundChange>, { ok: true }>, "ok">,
   actor: Actor,
@@ -295,12 +207,12 @@ export const recordPreparationChange = async (
 
   const snapshot = encodeRound(change.round);
   const revision = current.revision + 1;
-  await writePreparedRound(tx, current.id, {
+  await writePreparedRound(current.tx, current.id, {
     snapshot,
     managerUserId: change.round.managerUserId ?? null,
     revision,
   });
-  await recordRoundChange(tx, {
+  await recordRoundChange(current.tx, {
     organizationId: current.organizationId,
     publicId: current.id,
     revision,
@@ -315,12 +227,8 @@ export const recordPreparationChange = async (
 };
 
 /** The caller has checked revision and emptiness while holding workspace and round locks. */
-export const recordPreparationDeletion = async (
-  tx: Transaction,
-  current: PreparationState,
-  actor: Actor,
-) => {
-  await recordRoundChange(tx, {
+export const recordPreparationDeletion = async (current: PreparationState, actor: Actor) => {
+  await recordRoundChange(current.tx, {
     organizationId: current.organizationId,
     publicId: current.id,
     revision: current.revision + 1,
@@ -329,13 +237,5 @@ export const recordPreparationDeletion = async (
     action: "delete",
     before: encodeRound(current.round),
   });
-  await tx.delete(fundingRounds).where(eq(fundingRounds.id, current.id));
-};
-
-export const lockManagerCandidate = async (
-  tx: Transaction,
-  organizationId: string,
-  userId: string,
-) => {
-  return lockGrantActor(tx, userId, organizationId);
+  await current.tx.delete(fundingRounds).where(eq(fundingRounds.id, current.id));
 };

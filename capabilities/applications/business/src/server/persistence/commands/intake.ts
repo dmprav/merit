@@ -3,6 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { type Actor } from "@merit/auth";
 import type { Transaction } from "@merit/db";
 import { decodeMoney } from "@merit/money";
+import type { LockedFundingRound } from "@merit/rounds/locks";
 
 import {
   decodeIntakeApplication,
@@ -27,6 +28,7 @@ import {
   materialDraftAnswers,
 } from "../schema";
 import { recordApplicationChange } from "./intake-history";
+import type { LockedApplicationCase } from "./locks";
 
 type ApplicationData = ReturnType<typeof encodeIntakeApplication>;
 
@@ -65,7 +67,12 @@ export const findIntakeApplication = async (
   };
 };
 
-type IntakeState = NonNullable<Awaited<ReturnType<typeof findIntakeApplication>>>;
+export const findLockedIntakeApplication = async (locked: LockedApplicationCase) => {
+  const state = await findIntakeApplication(locked.tx, locked.organizationId, locked.caseId);
+  return state && { ...state, locked };
+};
+
+type LockedIntakeState = NonNullable<Awaited<ReturnType<typeof findLockedIntakeApplication>>>;
 
 // Search reads the current recorded title and applicant from the case row, so every write that
 // advances `material_version` stores them in the same statement.
@@ -282,12 +289,8 @@ const writeIntakeApplication = async (
 const deleteIntakeApplication = (db: Transaction, publicId: string) =>
   db.delete(applicationCases).where(eq(applicationCases.id, publicId));
 
-export const readRequestedAmounts = async (
-  db: Transaction,
-  organizationId: string,
-  roundId: string,
-) => {
-  const rows = await db
+export const readRequestedAmounts = async ({ tx, organizationId, roundId }: LockedFundingRound) => {
+  const rows = await tx
     .select({
       publicId: applicationCases.id,
       requestedMinorUnits: materialVersions.requestedMinorUnits,
@@ -318,11 +321,8 @@ export const readRequestedAmounts = async (
   });
 };
 
-/** The caller holds the workspace and round locks for this transaction. */
 export const recordIntakeCreation = async (
-  tx: Transaction,
-  organizationId: string,
-  roundId: string,
+  { tx, organizationId, roundId }: LockedFundingRound,
   application: IntakeApplication,
   actor: Actor,
   requestId: string,
@@ -354,15 +354,14 @@ export const recordIntakeCreation = async (
   return saved.id;
 };
 
-/** The caller retains authorization and case locks until content and history commit together. */
 export const recordIntakeChange = async (
-  tx: Transaction,
-  current: IntakeState,
+  current: LockedIntakeState,
   change: Omit<Extract<ReturnType<typeof prepareIntakeChange>, { ok: true }>, "ok" | "action"> & {
     action: Extract<ReturnType<typeof prepareIntakeChange>, { ok: true }>["action"] | "contact";
   },
   actor: Actor,
 ) => {
+  const { tx, organizationId, caseId, roundId } = current.locked;
   const before = {
     application: encodeIntakeApplication(current.application),
     workingRevision: current.workingRevision,
@@ -381,9 +380,9 @@ export const recordIntakeChange = async (
     current.application.version === change.application.version &&
     JSON.stringify(before.workingRevision) === JSON.stringify(after.workingRevision);
   await recordApplicationChange(tx, {
-    organizationId: current.organizationId,
-    publicId: current.id,
-    roundId: current.roundId,
+    organizationId,
+    publicId: caseId,
+    roundId,
     revision,
     actor,
     action: contactOnly ? "contact" : change.action,
@@ -395,9 +394,9 @@ export const recordIntakeChange = async (
         : { application: change.application, workingRevision: change.workingRevision },
   });
   if (change.action === "delete") {
-    await deleteIntakeApplication(tx, current.id);
+    await deleteIntakeApplication(tx, caseId);
   } else {
-    await writeIntakeApplication(tx, current.id, {
+    await writeIntakeApplication(tx, caseId, {
       snapshot: after.application,
       revision,
       workingRevision: change.workingRevision,

@@ -1,87 +1,70 @@
 import { and, eq } from "drizzle-orm";
 
 import type { Transaction } from "@merit/db";
-import { lockGrantActor } from "@merit/organizations/locks";
-import { organizations } from "@merit/organizations/schema";
-import { authorizedWorkspaces } from "@merit/organizations/scope";
-import { fundingRounds } from "@merit/rounds/schema";
+import { lockWorkspaceRow, lockGrantActor } from "@merit/organizations/locks";
+import { lockFundingRound, type LockedFundingRound } from "@merit/rounds/locks";
 
 import { caseWithdrawn } from "../projections";
 import { applicationCases } from "../schema";
 
-/**
- * Canonical grant-work lock hierarchy:
- * organizations -> funding_rounds -> application_cases -> review_assignments -> memberships / app_users.
- * Every grant-work transaction must acquire locks in this order to avoid deadlocks.
- */
+const caseLock = Symbol("locked application case");
+
+export const lockCaseRow = async (
+  round: LockedFundingRound & { readonly caseId?: never },
+  caseId: string,
+) => {
+  const [row] = await round.tx
+    .select({ id: applicationCases.id })
+    .from(applicationCases)
+    .where(
+      and(
+        eq(applicationCases.id, caseId),
+        eq(applicationCases.organizationId, round.organizationId),
+        eq(applicationCases.roundId, round.roundId),
+      ),
+    )
+    .for("update");
+  return row ? ({ ...round, [caseLock]: true, caseId: row.id } as const) : null;
+};
+
+export type LockedApplicationCase = NonNullable<Awaited<ReturnType<typeof lockCaseRow>>>;
+
+export const readCaseWithdrawn = async ({ tx, caseId }: LockedApplicationCase) => {
+  const [row] = await tx
+    .select({ withdrawn: caseWithdrawn })
+    .from(applicationCases)
+    .where(eq(applicationCases.id, caseId));
+  return row?.withdrawn ?? false;
+};
+
 export const lockApplicationCase = async (
-  db: Transaction,
+  tx: Transaction,
   userId: string,
   input: { workspaceSlug: string; publicId: string },
   roundMode: "share" | "update" = "share",
 ) => {
-  const [workspace] = await db
-    .select({ id: organizations.id, kind: organizations.kind })
-    .from(organizations)
-    .where(eq(organizations.slug, input.workspaceSlug))
-    .for("share");
+  const workspace = await lockWorkspaceRow(tx, { slug: input.workspaceSlug, userId }, "share");
   if (!workspace) {
     return null;
   }
-  const [identity] = await db
+  const [identity] = await tx
     .select({ roundId: applicationCases.roundId })
     .from(applicationCases)
     .where(
       and(
         eq(applicationCases.id, input.publicId),
-        eq(applicationCases.organizationId, workspace.id),
+        eq(applicationCases.organizationId, workspace.organizationId),
       ),
     );
-  if (!identity) {
-    return null;
-  }
-  await db
-    .select({ id: fundingRounds.id })
-    .from(fundingRounds)
-    .where(
-      and(eq(fundingRounds.organizationId, workspace.id), eq(fundingRounds.id, identity.roundId)),
-    )
-    .for(roundMode);
-
-  const access = authorizedWorkspaces(db, userId, "work_on_grants", input.workspaceSlug);
-  const [lockedCase] = await db
-    .select({ id: applicationCases.id, withdrawn: caseWithdrawn })
-    .from(applicationCases)
-    .innerJoin(access, eq(access.id, applicationCases.organizationId))
-    .where(
-      and(
-        eq(applicationCases.id, input.publicId),
-        eq(applicationCases.organizationId, workspace.id),
-      ),
-    )
-    .for("update", { of: applicationCases });
-
-  if (!lockedCase) {
-    return null;
-  }
-  const actor = await lockGrantActor(db, userId, workspace.id);
-  return actor
+  const round = identity && (await lockFundingRound(workspace, identity.roundId, roundMode));
+  const locked = round && (await lockCaseRow(round, input.publicId));
+  const actor = locked && (await lockGrantActor(locked, userId));
+  return locked && actor
     ? {
-        organizationId: workspace.id,
-        organizationKind: workspace.kind,
-        roundId: identity.roundId,
-        // The case lock is held, so this reading of withdrawal cannot change before commit.
-        withdrawn: lockedCase.withdrawn,
+        ...locked,
+        organizationKind: locked.organization.kind,
+        withdrawn: await readCaseWithdrawn(locked),
         actor,
       }
     : null;
-};
-
-/** Reads withdrawal for a case the caller has already locked. */
-export const readCaseWithdrawn = async (db: Transaction, caseId: string) => {
-  const [row] = await db
-    .select({ withdrawn: caseWithdrawn })
-    .from(applicationCases)
-    .where(eq(applicationCases.id, caseId));
-  return row?.withdrawn ?? false;
 };

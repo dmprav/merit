@@ -481,6 +481,30 @@ it("rejects a review request after waiting for contact archival", async () => {
   ).toEqual([]);
 });
 
+it("locks the existing round before the actor on a creation retry", async () => {
+  const input = { workspaceSlug, requestId: randomUUID(), title: "Retried round" };
+  const created = await createFundingRound(db, actor, input);
+  assert(created.status === "ok");
+
+  let retry: ReturnType<typeof createFundingRound>;
+  await first.query("BEGIN");
+  try {
+    await first.query("SELECT id FROM funding_rounds WHERE id = $1 FOR UPDATE", [created.publicId]);
+    retry = track(createFundingRound(drizzle(second), actor, input));
+    await expectBlocked();
+
+    // While the retry waits for its round, the actor's membership must still be free.
+    const probe = await first.query(
+      "SELECT id FROM memberships WHERE organization_id = $1 AND user_id = $2 FOR UPDATE NOWAIT",
+      [workspaceSlug, actor.userId],
+    );
+    expect(probe.rowCount).toBe(1);
+  } finally {
+    await first.query("ROLLBACK");
+  }
+  expect(await retry).toEqual(created);
+});
+
 it.each(["round", "application"] as const)("keeps %s creation retries serialized", async (kind) => {
   const roundId = await createRound();
   const input = { workspaceSlug, requestId: randomUUID(), title: "Retried creation" };

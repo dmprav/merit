@@ -1,4 +1,4 @@
-import { lockApplicationCase } from "@merit/applications/locks";
+import { lockApplicationCase, type LockedApplicationCase } from "@merit/applications/locks";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 import type { Database, Transaction } from "@merit/db";
@@ -18,8 +18,7 @@ import {
 } from "../persistence/commands/recommendations";
 
 export type IsCurrentAssessment = (
-  tx: Transaction,
-  caseId: string,
+  locked: LockedApplicationCase,
   expected: NonNullable<SaveRecommendationRequest["expectedCurrentAssessment"]>,
 ) => Promise<boolean>;
 
@@ -65,7 +64,7 @@ export const saveFundingRecommendation = async (
       row.recommendationVersion !== request.expectedRevision ||
       application.version !== request.expectedApplicationVersion ||
       (request.expectedCurrentAssessment &&
-        !(await isCurrentAssessment(tx, request.publicId, request.expectedCurrentAssessment)))
+        !(await isCurrentAssessment(identity, request.expectedCurrentAssessment)))
     ) {
       return { status: "conflict" } as const;
     }

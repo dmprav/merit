@@ -5,7 +5,7 @@ import { decodeApplicationMaterial } from "@merit/applications/domain";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { caseWithdrawn, readMaterialVersionRecord } from "@merit/applications/scope";
 import { appUsers } from "@merit/auth/schema";
-import type { Database, Transaction } from "@merit/db";
+import type { Database } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
 import { activeOrganization, authorizedWorkspaces } from "@merit/organizations/scope";
 import { reviewCriteriaSchema } from "@merit/rounds/domain";
@@ -126,15 +126,6 @@ export const activeReviewer = async (db: Database, userId: string) =>
       .select()
       .from(appUsers)
       .where(and(eq(appUsers.id, userId), eq(appUsers.active, true)))
-  )[0];
-
-export const lockActiveReviewer = async (tx: Transaction, userId: string) =>
-  (
-    await tx
-      .select()
-      .from(appUsers)
-      .where(and(eq(appUsers.id, userId), eq(appUsers.active, true)))
-      .for("share")
   )[0];
 
 /**

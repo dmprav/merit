@@ -34,6 +34,7 @@ import {
 } from "../../domain/reviewer";
 import { prepareReviewChange } from "../../domain/reviews";
 import {
+  type LockedReviewerAssignment,
   lockManagedReviewerAssignment,
   lockReviewerAssignment,
   reviewerReceipt,
@@ -55,7 +56,6 @@ import {
   recordReviewChange,
 } from "../persistence/commands/reviews";
 import {
-  lockActiveReviewer,
   reviewerIdentityCurrent,
   reviewerOwns,
   permittedReviewerWork,
@@ -207,20 +207,19 @@ export const respondToReview = async (
   const request = parsed.data;
   const scope = assignmentScope(actor.userId, request.assignmentId, request.workspaceSlug);
   return writeScoped(db, scope, async (tx) => {
-    const record = await lockReviewerAssignment(tx, request.assignmentId);
-    const user = await lockActiveReviewer(tx, actor.userId);
+    const access = await lockReviewerAssignment(tx, request.assignmentId, actor.userId);
     if (
-      !record ||
-      !user ||
-      !reviewerOwns(record, actor.userId) ||
+      !access ||
+      !reviewerOwns(access.record, actor.userId) ||
       !(await reviewerIdentityCurrent(tx, request.assignmentId, actor.userId))
     ) {
       return { status: "not_found" } as const;
     }
+    const { locked, user, record } = access;
     if (await reviewerReceipt(tx, request.assignmentId, request.commandId)) {
       return { status: "ok", id: request.assignmentId } as const;
     }
-    if (await readCaseWithdrawn(tx, record.assignment.caseId)) {
+    if (await readCaseWithdrawn(locked)) {
       return { status: "invalid", error: "application_withdrawn" } as const;
     }
     const assignment = record.assignment;
@@ -261,14 +260,10 @@ export const respondToReview = async (
 };
 
 /** The decision the reviewer read reports, from facts read inside the write's transaction. */
-const currentReviewerWork = async (
-  tx: Transaction,
-  record: { assignment: { id: string; caseId: string } },
-  userId: string,
-) =>
+const currentReviewerWork = async (locked: LockedReviewerAssignment, userId: string) =>
   decideReviewerWork({
-    permitted: await permittedReviewerWork(tx, record.assignment.id, userId),
-    withdrawn: await readCaseWithdrawn(tx, record.assignment.caseId),
+    permitted: await permittedReviewerWork(locked.tx, locked.assignmentId, userId),
+    withdrawn: await readCaseWithdrawn(locked),
   });
 
 export const saveReviewerDraft = async (
@@ -283,11 +278,11 @@ export const saveReviewerDraft = async (
   const request = parsed.data;
   const scope = assignmentScope(actor.userId, request.assignmentId, request.workspaceSlug);
   return writeScoped(db, scope, async (tx) => {
-    const record = await lockReviewerAssignment(tx, request.assignmentId);
-    if (!record || !(await lockActiveReviewer(tx, actor.userId))) {
+    const access = await lockReviewerAssignment(tx, request.assignmentId, actor.userId);
+    if (!access) {
       return { status: "not_found" };
     }
-    const work = await currentReviewerWork(tx, record, actor.userId);
+    const work = await currentReviewerWork(access.locked, actor.userId);
     if (!work.available) {
       return work.reason === "application_withdrawn"
         ? { status: "invalid", error: "application_withdrawn" }
@@ -304,7 +299,7 @@ export const saveReviewerDraft = async (
       return { status: "conflict" };
     }
     const revision = draft.revision + 1;
-    await writeReviewerDraft(tx, request.assignmentId, {
+    await writeReviewerDraft(access.locked, {
       content: request.draft,
       revision,
       lastCommandId: request.commandId,
@@ -333,12 +328,12 @@ export const submitReviewerAssessment = async (
   }
   const request = parsed.data;
   return writeObservedWorkspace(db, actor, request, onCommitted, async (tx, changed) => {
-    const record = await lockReviewerAssignment(tx, request.assignmentId);
-    const user = await lockActiveReviewer(tx, actor.userId);
-    if (!record || !user) {
+    const access = await lockReviewerAssignment(tx, request.assignmentId, actor.userId);
+    if (!access) {
       return { status: "not_found" };
     }
-    const work = await currentReviewerWork(tx, record, actor.userId);
+    const { user, record } = access;
+    const work = await currentReviewerWork(access.locked, actor.userId);
     if (!work.available && work.reason === "action_unavailable") {
       return { status: "not_found" };
     }
@@ -376,7 +371,7 @@ export const submitReviewerAssessment = async (
     }
     const recorder = submissionRecorder(actor, user.name ?? record.reviewer);
     const recorded = await recordOwnAssessment(
-      tx,
+      access.locked,
       record,
       row,
       round,
@@ -391,7 +386,7 @@ export const submitReviewerAssessment = async (
     if (assignment.assessmentId === null) {
       changed(assignment.organizationId, record.organizationKind);
     }
-    return completeReviewerSubmission(tx, {
+    return completeReviewerSubmission(access.locked, {
       assignment,
       draft,
       content,
@@ -476,7 +471,7 @@ const changeReviewerParticipation = async (
 };
 
 const recordOwnAssessment = async (
-  tx: Transaction,
+  locked: LockedReviewerAssignment,
   record: ReviewerRecord,
   row: NonNullable<Awaited<ReturnType<typeof readReviewState>>>,
   round: NonNullable<Awaited<ReturnType<typeof readReviewCriteria>>>,
@@ -490,6 +485,7 @@ const recordOwnAssessment = async (
   },
   note: string,
 ) => {
+  const { tx } = locked;
   const assignment = record.assignment;
   const assessmentId = assignment.assessmentId ?? assignment.id;
   const result = prepareReviewChange(
@@ -528,7 +524,7 @@ const recordOwnAssessment = async (
   }
   const version =
     result.state.assessments.find((value) => value.id === assessmentId)?.versions.length ?? 1;
-  await recordReviewChange(tx, row, result.state);
+  await recordReviewChange(locked, row.reviews, result.state);
   await recordSubmissionEvent(tx, {
     record,
     recorder,
@@ -591,7 +587,7 @@ const applyManagerAction = async (
 };
 
 const completeReviewerSubmission = async (
-  tx: Transaction,
+  locked: LockedReviewerAssignment,
   {
     assignment,
     draft,
@@ -605,7 +601,8 @@ const completeReviewerSubmission = async (
   },
 ): ReturnType<ReviewerService["submit"]> => {
   const revision = draft.revision + 1;
-  await writeReviewerDraft(tx, assignment.id, {
+  const { tx } = locked;
+  await writeReviewerDraft(locked, {
     revision,
     content: { ...draft.content, reasoning: content.reasoning, note: "" },
     lastCommandId: null,
