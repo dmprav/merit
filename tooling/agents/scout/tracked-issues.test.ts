@@ -7,7 +7,7 @@ import {
 } from "./tracked-issues.ts";
 
 const proposalBody = (paths: readonly string[]) =>
-  `<!-- merit-proposal: ${JSON.stringify({ kind: "design", lens: "architecture", paths })} -->`;
+  `<!-- merit-proposal: ${JSON.stringify({ kind: "design", run: "area:app", paths })} -->`;
 
 const trackedPaths = buildTrackedPathsIndex([
   {

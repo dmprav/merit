@@ -3,11 +3,15 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-export const SCOUT_STATE_ISSUE_NUMBER = 219;
-export const SCOUT_STATE_ISSUE_TITLE = "chore: agent scout state";
+// state-marker.ts imports nothing, so this file still runs before dependencies are installed.
+import {
+  readRecordsLastPrNumber,
+  SCOUT_STATE_ISSUE_NUMBER,
+  SCOUT_STATE_ISSUE_TITLE,
+} from "./scout/state-marker.ts";
+
 export const RETENTION_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const STATE_MARKER_PATTERN = /<!--\s*merit-scout-state:\s*(\{[\s\S]*?\})\s*-->/;
 const VERIFICATION_FILE_PATTERN = /^verifications\/(\d+)\.md$/;
 
 export type VerificationRecordEntry = {
@@ -62,35 +66,6 @@ export const parsePruneCliArgs = (args: readonly string[]): PruneCliOptions => {
     throw new Error("--ref must be a non-empty git revision.");
   }
   return { pathsOnly: values.paths ?? false, retentionDays, ref: values.ref ?? "HEAD" };
-};
-
-/** Extracts `verification-flakes.lastPrNumber` from issue #219, failing closed to `null`. */
-export const extractVerificationFlakesLastPr = (issueBody: string): number | null => {
-  const match = STATE_MARKER_PATTERN.exec(issueBody);
-  if (!match?.[1]) {
-    return null;
-  }
-  try {
-    const parsed: unknown = JSON.parse(match[1]);
-    if (!isPlainRecord(parsed)) {
-      return null;
-    }
-    const lensEntry = parsed["verification-flakes"];
-    if (!isPlainRecord(lensEntry)) {
-      return null;
-    }
-    const lastPrNumber = lensEntry.lastPrNumber;
-    if (
-      typeof lastPrNumber !== "number" ||
-      !Number.isSafeInteger(lastPrNumber) ||
-      lastPrNumber <= 0
-    ) {
-      return null;
-    }
-    return lastPrNumber;
-  } catch {
-    return null;
-  }
 };
 
 export const selectPrunableVerifications = ({
@@ -204,7 +179,7 @@ const runCli = () => {
   const { pathsOnly, retentionDays, ref } = parsePruneCliArgs(process.argv.slice(2));
 
   const issueBody = fetchScoutStateBody(repoRoot);
-  const lastScoutedPr = extractVerificationFlakesLastPr(issueBody);
+  const lastScoutedPr = readRecordsLastPrNumber(issueBody);
   const records = listTrackedVerificationRecords(repoRoot, ref);
   const prunable = selectPrunableVerifications({
     records,

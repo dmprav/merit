@@ -7,16 +7,18 @@ import {
 } from "./fallow-reports.ts";
 import { buildTrackedPathsIndex } from "./tracked-issues.ts";
 
+const everywhere = () => true;
+
 const REVIEW_WORK = "capabilities/reviews/web/src/views/reviews/editable-review-work.tsx";
 
 const trackedPathsByIssue = buildTrackedPathsIndex([
   {
     number: 240,
-    body: `<!-- merit-proposal: {"kind":"design","lens":"architecture","paths":["${REVIEW_WORK}","app/src/router.tsx"]} -->`,
+    body: `<!-- merit-proposal: {"kind":"design","run":"area:app","paths":["${REVIEW_WORK}","app/src/router.tsx"]} -->`,
   },
   {
     number: 243,
-    body: '<!-- merit-proposal: {"kind":"design","lens":"architecture","paths":["app/src"]} -->',
+    body: '<!-- merit-proposal: {"kind":"design","run":"area:app","paths":["app/src"]} -->',
   },
 ]);
 
@@ -38,28 +40,51 @@ describe("fallow health summary", () => {
         file_scores: [fileScore(fixture, { fan_out: 40, lines: 900 }), fileScore(REVIEW_WORK)],
         hotspots: [{ path: fixture, score: 99, commits: 9, trend: "heating" }],
       },
-      pathPatterns: [],
+      inScope: everywhere,
       trackedPathsByIssue,
     });
     expect(health.topFiles.map((entry) => entry.path)).toEqual([REVIEW_WORK]);
     expect(health.hotspots).toEqual([]);
   });
 
-  test("ranks axis files ahead of heavier files outside the axis and tags tracking issues", () => {
+  test("lists only files inside the audited scope and tags tracking issues", () => {
     const outside = "foundation/ui/src/table.tsx";
     const health = summarizeFallowHealth({
       rawHealth: {
         file_scores: [fileScore(outside, { fan_out: 50, lines: 900 }), fileScore(REVIEW_WORK)],
+        hotspots: [
+          { path: outside, score: 90, commits: 9, trend: "heating" },
+          { path: REVIEW_WORK, score: 10, commits: 2, trend: "stable" },
+        ],
+        threshold_overrides: [
+          { status: "active", path: outside },
+          { status: "active", path: REVIEW_WORK },
+        ],
       },
-      pathPatterns: ["capabilities/*/web/src/**"],
+      inScope: (path) => path.startsWith("capabilities/reviews/"),
       trackedPathsByIssue,
     });
-    expect(
-      health.topFiles.map(({ path, inAxis, trackedBy }) => ({ path, inAxis, trackedBy })),
-    ).toEqual([
-      { path: REVIEW_WORK, inAxis: true, trackedBy: [240] },
-      { path: outside, inAxis: false, trackedBy: [] },
+    expect(health.topFiles.map(({ path, trackedBy }) => ({ path, trackedBy }))).toEqual([
+      { path: REVIEW_WORK, trackedBy: [240] },
     ]);
+    expect(health.hotspots.map((entry) => entry.path)).toEqual([REVIEW_WORK]);
+    expect(health.thresholdOverrides.map((entry) => entry.path)).toEqual([REVIEW_WORK]);
+  });
+
+  test("ranks coupling ahead of size", () => {
+    const coupled = "foundation/ui/src/coupled.tsx";
+    const long = "foundation/ui/src/long.tsx";
+    const health = summarizeFallowHealth({
+      rawHealth: {
+        file_scores: [
+          fileScore(long, { fan_out: 1, lines: 350 }),
+          fileScore(coupled, { fan_out: 30, lines: 100 }),
+        ],
+      },
+      inScope: everywhere,
+      trackedPathsByIssue,
+    });
+    expect(health.topFiles.map((entry) => entry.path)).toEqual([coupled, long]);
   });
 
   test("rounds hotspot scores and keeps only active threshold overrides", () => {
@@ -78,7 +103,7 @@ describe("fallow health summary", () => {
           { status: "stale", path: "foundation/ui/src/old.ts" },
         ],
       },
-      pathPatterns: [],
+      inScope: everywhere,
       trackedPathsByIssue,
     });
     expect(health.hotspots).toEqual([
@@ -98,7 +123,7 @@ describe("fallow health summary", () => {
 });
 
 describe("fallow duplication summary", () => {
-  test("keeps clone groups with at least two production instances and flags axis groups", () => {
+  test("keeps clone groups with at least two production instances and one inside the audited scope", () => {
     const dupes = summarizeFallowDupes({
       rawDupes: {
         clone_groups: [
@@ -127,7 +152,7 @@ describe("fallow duplication summary", () => {
           },
         ],
       },
-      pathPatterns: ["capabilities/*/business/src/server/**"],
+      inScope: (path) => path.startsWith("capabilities/applications/"),
       trackedPathsByIssue,
     });
     expect(dupes).toEqual([
@@ -138,7 +163,6 @@ describe("fallow duplication summary", () => {
           "capabilities/applications/business/src/server/persistence/commands/intake.ts:10-24",
           "capabilities/reviews/business/src/server/persistence/commands/reviews.ts:30-44",
         ],
-        inAxis: true,
         trackedBy: [],
       },
     ]);

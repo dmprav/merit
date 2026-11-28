@@ -7,8 +7,10 @@ import { describe, expect, test } from "vite-plus/test";
 
 import {
   assertCheckoutAt,
+  buildChurnQueryArgs,
   buildCommitQueryArgs,
   createGitPort,
+  parseChurn,
   parseCommitLog,
   parseHiddenPaths,
   parseStatusPaths,
@@ -44,13 +46,45 @@ describe("scout commit query", () => {
     expect(args).not.toContain("deadbeef00..origin/main");
   });
 
-  test("falls back to the lookback date when the lens has no cursor", () => {
+  test("falls back to the lookback date when the run has no cursor", () => {
     const args = buildCommitQueryArgs({
       cursor: undefined,
       isAncestor: () => false,
       fallbackSinceIso,
     });
     expect(args).toContain("--since=2026-11-15T00:00:00Z");
+  });
+
+  test("reads churn over the same range as the commit query", () => {
+    const query = {
+      cursor: { lastCommitSha: "abcdef1234", lastRunAt: "2026-11-20T01:00:00Z" },
+      isAncestor: () => true,
+      fallbackSinceIso,
+    };
+    expect(buildChurnQueryArgs(query)).toEqual([
+      "-c",
+      "core.quotePath=false",
+      "log",
+      "-m",
+      "--first-parent",
+      "--no-renames",
+      "--numstat",
+      "--format=",
+      "abcdef1234..origin/main",
+    ]);
+    expect(buildChurnQueryArgs({ ...query, cursor: undefined, isAncestor: () => false })).toContain(
+      "--since=2026-11-15T00:00:00Z",
+    );
+  });
+
+  test("parses numstat lines, counting binary files as zero and keeping tabs in paths", () => {
+    expect(
+      parseChurn("12\t3\tapp/src/a.ts\n\n-\t-\tdocs/logo.png\n0\t7\tdocs/a\tb.md\nnot numstat\n"),
+    ).toEqual([
+      { path: "app/src/a.ts", additions: 12, deletions: 3 },
+      { path: "docs/logo.png", additions: 0, deletions: 0 },
+      { path: "docs/a\tb.md", additions: 0, deletions: 7 },
+    ]);
   });
 
   test("parses tab-separated log lines and keeps tabs inside subjects", () => {
@@ -145,6 +179,63 @@ describe("scout checkout state", () => {
         "a",
       ),
     ).toThrow('scan tip a, but the checkout is at b. Run "git switch --detach a" and retry.');
+  });
+});
+
+describe("scout churn", () => {
+  test("sums added and deleted lines per path across the commits after the cursor", () => {
+    withScratchRepo((repo, git) => {
+      const port = createGitPort(repo);
+      const base = port.revParse("HEAD");
+
+      const commit = (message: string) =>
+        git([
+          "-c",
+          "user.name=Scout",
+          "-c",
+          "user.email=scout@example.com",
+          "commit",
+          "-qm",
+          message,
+        ]);
+
+      writeFileSync(join(repo, "README.md"), "# Readme\nmore\nlines\n");
+      writeFileSync(join(repo, "docs/guides/café.md"), "# Café again\n");
+      writeFileSync(join(repo, "image.png"), Buffer.from([0, 1, 2, 3, 0]));
+      git(["add", "."]);
+      commit("one");
+      writeFileSync(join(repo, "README.md"), "# Readme\n");
+      git(["add", "."]);
+      commit("two");
+
+      const tip = port.revParse("HEAD");
+      const churn = port.churnSince({
+        cursor: { lastCommitSha: base, lastRunAt: "2026-11-20T00:00:00Z" },
+        tipSha: tip,
+        fallbackSinceIso: "2000-01-01T00:00:00Z",
+      });
+
+      const byPath = (path: string) => churn.filter((entry) => entry.path === path);
+
+      expect(byPath("README.md")).toHaveLength(2);
+      expect(byPath("README.md")).toEqual(
+        expect.arrayContaining([
+          { path: "README.md", additions: 2, deletions: 0 },
+          { path: "README.md", additions: 0, deletions: 2 },
+        ]),
+      );
+      expect(byPath("docs/guides/café.md")).toEqual([
+        { path: "docs/guides/café.md", additions: 1, deletions: 1 },
+      ]);
+      expect(byPath("image.png")).toEqual([{ path: "image.png", additions: 0, deletions: 0 }]);
+      expect(
+        port.listCommitsSince({
+          cursor: { lastCommitSha: base, lastRunAt: "2026-11-20T00:00:00Z" },
+          tipSha: tip,
+          fallbackSinceIso: "2000-01-01T00:00:00Z",
+        }),
+      ).toHaveLength(2);
+    });
   });
 });
 

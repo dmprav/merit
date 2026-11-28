@@ -1,6 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { ARCHITECTURE_AXES, type RotationAxis } from "./axes.ts";
 import {
   buildCapabilitySymmetry,
   collectStructuralTelemetry,
@@ -26,14 +25,6 @@ const readFile = (repoPath: string): string => {
 };
 
 const trackedFiles = [...Object.keys(SOURCES), "interfaces/admin/src/missing.ts"];
-
-const axisWith = (flag: "entryWeights" | "suppressionTopFiles"): RotationAxis => {
-  const axis = ARCHITECTURE_AXES.find((entry) => entry.telemetry?.[flag]);
-  if (!axis) {
-    throw new Error(`No axis asks for ${flag}.`);
-  }
-  return axis;
-};
 
 /** Fake telemetry ports that record which fallow reports run. */
 const createTelemetryPorts = (failing: readonly string[] = []) => {
@@ -71,10 +62,22 @@ const createTelemetryPorts = (failing: readonly string[] = []) => {
   return { ports, reports };
 };
 
-const collect = (ports: TelemetryPorts, axis: RotationAxis | null, capabilitySymmetry = false) =>
+const collect = (
+  ports: TelemetryPorts,
+  {
+    inScope = () => true,
+    capabilitySymmetry = false,
+    entryWeights = false,
+  }: {
+    inScope?: (filePath: string) => boolean;
+    capabilitySymmetry?: boolean;
+    entryWeights?: boolean;
+  } = {},
+) =>
   collectStructuralTelemetry(ports, {
+    inScope,
     capabilitySymmetry,
-    axis,
+    entryWeights,
     trackedFiles,
     trackedPathsByIssue: new Map(),
   });
@@ -102,6 +105,18 @@ describe("capability symmetry", () => {
       { capability: "audit", domain: 0, server: 0, web: 0, ai: 0 },
     ]);
   });
+
+  test("lists only capabilities that own a scoped file, counting all of their layers", () => {
+    const tracked = [
+      "capabilities/rounds/business/src/domain/round.ts",
+      "capabilities/rounds/web/src/views/round.tsx",
+      "capabilities/reviews/business/src/domain/review.ts",
+    ];
+    expect(
+      buildCapabilitySymmetry(tracked, ["capabilities/rounds/web/src/views/round.tsx"]),
+    ).toEqual([{ capability: "rounds", domain: 1, server: 0, web: 1, ai: 0 }]);
+    expect(buildCapabilitySymmetry(tracked, ["foundation/ui/src/button.tsx"])).toEqual([]);
+  });
 });
 
 describe("suppression ledger", () => {
@@ -127,9 +142,9 @@ describe("suppression ledger", () => {
 });
 
 describe("structural telemetry", () => {
-  test("measures entry weights for an axis that asks for them", () => {
+  test("measures entry weights when asked", () => {
     const { ports } = createTelemetryPorts();
-    expect(collect(ports, axisWith("entryWeights")).entryWeights).toEqual([
+    expect(collect(ports, { entryWeights: true }).entryWeights).toEqual([
       {
         path: "app/src/router.tsx",
         source: "tanstack-router",
@@ -141,29 +156,44 @@ describe("structural telemetry", () => {
     ]);
   });
 
-  test("skips the entry weight report for an axis that does not ask for it", () => {
+  test("skips the entry weight report when not asked", () => {
     const { ports, reports } = createTelemetryPorts();
-    expect(collect(ports, null)).not.toHaveProperty("entryWeights");
+    expect(collect(ports)).not.toHaveProperty("entryWeights");
     expect(reports).not.toContain("entryWeight");
   });
 
-  test("names suppression top files only for an axis that asks for them", () => {
+  test("always names the files with the most suppressions, limited to the audited scope", () => {
     const { ports } = createTelemetryPorts();
-    expect(collect(ports, axisWith("suppressionTopFiles")).suppressions.topFiles).toHaveLength(3);
-    expect(collect(ports, axisWith("entryWeights")).suppressions).not.toHaveProperty("topFiles");
+    expect(collect(ports).suppressions.topFiles).toHaveLength(3);
+    expect(
+      collect(ports, { inScope: (path) => path.startsWith("capabilities/") }).suppressions,
+    ).toEqual({
+      total: 3,
+      byKind: {
+        "oxlint-disable": 2,
+        "eslint-disable": 0,
+        "fallow-ignore": 0,
+        "ts-expect-error": 1,
+      },
+      topFiles: [{ path: "capabilities/rounds/web/src/a.ts", count: 3 }],
+    });
   });
 
-  test("adds capability symmetry only when the lens asks for it", () => {
+  test("adds capability symmetry only when asked", () => {
     const { ports } = createTelemetryPorts();
-    expect(collect(ports, null, true).capabilitySymmetry).toEqual([
+    expect(collect(ports, { capabilitySymmetry: true }).capabilitySymmetry).toEqual([
       { capability: "rounds", domain: 0, server: 0, web: 1, ai: 0 },
     ]);
-    expect(collect(ports, null, false)).not.toHaveProperty("capabilitySymmetry");
+    expect(collect(ports)).not.toHaveProperty("capabilitySymmetry");
+    expect(
+      collect(ports, { capabilitySymmetry: true, inScope: (path) => path.startsWith("app/") })
+        .capabilitySymmetry,
+    ).toEqual([]);
   });
 
   test("records a failed fallow report and still returns the other signals", () => {
     const { ports } = createTelemetryPorts(["health"]);
-    expect(collect(ports, null)).toMatchObject({
+    expect(collect(ports)).toMatchObject({
       shallowClone: true,
       topFiles: [],
       hotspots: [],

@@ -1,67 +1,56 @@
 import { z } from "zod";
 
-import { SCOUT_LENSES, type ScoutLens } from "../proposal.ts";
+import { hasRunIdForm } from "./runs.ts";
+import {
+  formatScoutStateBody,
+  LEGACY_RECORDS_KEY,
+  type MarkerEntries,
+  RECORDS_RUN_ID,
+  readLastPrNumber,
+  readMarker,
+} from "./state-marker.ts";
 
-export const SCOUT_STATE_ISSUE_NUMBER = 219;
-export const SCOUT_STATE_ISSUE_TITLE = "chore: agent scout state";
+export {
+  formatScoutStateBody,
+  SCOUT_STATE_ISSUE_NUMBER,
+  SCOUT_STATE_ISSUE_TITLE,
+} from "./state-marker.ts";
 
-const STATE_MARKER_PATTERN = /<!--\s*merit-scout-state:\s*(\{[\s\S]*?\})\s*-->/;
-const STATE_MARKER_PREFIX_PATTERN = /<!--\s*merit-scout-state:/;
-
-const lensCursorSchema = z.object({
+const runCursorSchema = z.object({
   lastCommitSha: z.string().min(7).optional(),
   lastCommitDate: z.string().min(10).optional(),
   lastPrNumber: z.number().int().positive().optional(),
-  lastRotationTarget: z.string().min(1).optional(),
   lastRunAt: z.string().min(10),
 });
 
-export type LensCursor = z.infer<typeof lensCursorSchema>;
+export type RunCursor = z.infer<typeof runCursorSchema>;
 
-export type ScoutState = Partial<Record<ScoutLens, LensCursor>>;
-
-export const lensNameSchema = z.enum(SCOUT_LENSES);
+/** Cursors keyed by run id: `change-batch`, `area:<area>`, `mechanism:<id>`, and `records`. */
+export type ScoutState = Record<string, RunCursor>;
 
 export type ScoutStateRead =
   | { kind: "absent" }
   | { kind: "parsed"; state: ScoutState }
   | { kind: "corrupt"; error: string };
 
-type MarkerEntries = Record<string, unknown>;
-
-type MarkerRead =
-  | { kind: "absent" }
-  | { kind: "parsed"; entries: MarkerEntries }
-  | { kind: "corrupt"; error: string };
-
-/** Reads the marker's JSON object as it is stored, before any lens cursor is validated. */
-const readMarker = (issueBody: string): MarkerRead => {
-  const match = STATE_MARKER_PATTERN.exec(issueBody);
-  if (!match?.[1]) {
-    return STATE_MARKER_PREFIX_PATTERN.test(issueBody)
-      ? { kind: "corrupt", error: "the marker is not closed by a JSON object and -->" }
-      : { kind: "absent" };
+/** Starts the `records` cursor from the old `verification-flakes` lens so read records stay read. */
+const seedRecordsCursor = (entries: MarkerEntries): RunCursor | undefined => {
+  const lastPrNumber = readLastPrNumber(entries[LEGACY_RECORDS_KEY]);
+  if (lastPrNumber === undefined) {
+    return undefined;
   }
-  let raw: unknown;
-  try {
-    raw = JSON.parse(match[1]);
-  } catch (error) {
-    return {
-      kind: "corrupt",
-      error: `invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return { kind: "corrupt", error: "the marker JSON is not an object" };
-  }
-  return { kind: "parsed", entries: { ...raw } };
+  const legacy = runCursorSchema.safeParse(entries[LEGACY_RECORDS_KEY]);
+  return {
+    lastPrNumber,
+    lastRunAt: legacy.success ? legacy.data.lastRunAt : new Date(0).toISOString(),
+  };
 };
 
 /**
  * Reads the state marker from the state issue body. A marker that is missing reads as `absent`; one
  * that is present but unreadable reads as `corrupt` so callers never mistake it for empty state.
- * Lens cursors inside a readable marker are parsed independently, so one corrupt entry is dropped
- * without wiping sibling lenses.
+ * Cursors inside a readable marker are parsed independently, so one corrupt entry is dropped
+ * without wiping its siblings, and keys that are not run ids (the old lens names) are ignored.
  */
 export const parseScoutState = (issueBody: string): ScoutStateRead => {
   const read = readMarker(issueBody);
@@ -70,11 +59,14 @@ export const parseScoutState = (issueBody: string): ScoutStateRead => {
   }
   const state: ScoutState = {};
   for (const [key, value] of Object.entries(read.entries)) {
-    const lensResult = lensNameSchema.safeParse(key);
-    const cursorResult = lensCursorSchema.safeParse(value);
-    if (lensResult.success && cursorResult.success) {
-      state[lensResult.data] = cursorResult.data;
+    const cursorResult = runCursorSchema.safeParse(value);
+    if (hasRunIdForm(key) && cursorResult.success) {
+      state[key] = cursorResult.data;
     }
+  }
+  const seeded = state[RECORDS_RUN_ID] ? undefined : seedRecordsCursor(read.entries);
+  if (seeded) {
+    state[RECORDS_RUN_ID] = seeded;
   }
   return { kind: "parsed", state };
 };
@@ -82,7 +74,7 @@ export const parseScoutState = (issueBody: string): ScoutStateRead => {
 const describeCorruptScoutState = (issueNumber: number, error: string): string =>
   `Scout state marker in issue #${issueNumber} is corrupt (${error}). ` +
   `Repair the "<!-- merit-scout-state: {...} -->" marker with \`gh issue edit ${issueNumber}\` ` +
-  "so it holds one JSON object of lens cursors, or delete the marker to reset every lens.";
+  "so it holds one JSON object of run cursors, or delete the marker to reset every run.";
 
 /** Returns the recorded cursors for read-only use, warning instead of failing when the marker is corrupt. */
 export const scoutStateForReading = (
@@ -92,80 +84,70 @@ export const scoutStateForReading = (
 ): ScoutState => {
   if (read.kind === "corrupt") {
     warn(
-      `Warning: ${describeCorruptScoutState(issueNumber, read.error)} Treating every lens as having no cursor.`,
+      `Warning: ${describeCorruptScoutState(issueNumber, read.error)} Treating every run as having no cursor.`,
     );
   }
   return read.kind === "parsed" ? read.state : {};
 };
 
-export const formatScoutStateBody = (
-  existingBody: string,
-  state: ScoutState | MarkerEntries,
-): string => {
-  const marker = `<!-- merit-scout-state: ${JSON.stringify(state)} -->`;
-  if (STATE_MARKER_PATTERN.test(existingBody)) {
-    // A function inserts the marker literally; a string would expand `$&` and similar patterns.
-    return existingBody.replace(STATE_MARKER_PATTERN, () => marker);
-  }
-  const trimmed = existingBody.trimEnd();
-  return `${trimmed}\n\n${marker}\n`;
-};
-
 /**
- * Computes the state issue body that records the next cursor for `lens`, keeping every sibling entry
- * exactly as stored, including ones lens selection ignores because they fail validation or name an
- * unknown lens. Refuses before computing the cursor when the marker is corrupt, because rewriting it
- * would erase the cursors it still holds.
+ * Computes the state issue body that records the next cursor for `runId`. Entries under run-id keys
+ * stay exactly as stored, even when they fail validation; entries under any other key, such as the
+ * old lens cursors, are dropped after seeding a missing `records` cursor from the old
+ * `verification-flakes` one. Refuses before computing the cursor when the marker is corrupt, because
+ * rewriting it would erase the cursors it still holds.
  */
 export const advanceScoutStateBody = ({
   issueNumber,
   issueBody,
-  lens,
+  runId,
   nextCursor,
 }: {
   issueNumber: number;
   issueBody: string;
-  lens: ScoutLens;
-  nextCursor: (previous: LensCursor | undefined) => LensCursor;
-}): { body: string; cursor: LensCursor } => {
+  runId: string;
+  nextCursor: (previous: RunCursor | undefined) => RunCursor;
+}): { body: string; cursor: RunCursor } => {
   const read = readMarker(issueBody);
   if (read.kind === "corrupt") {
     throw new Error(
       `Refusing to advance: ${describeCorruptScoutState(issueNumber, read.error)} Then rerun advance.`,
     );
   }
-  const entries = read.kind === "parsed" ? read.entries : {};
-  const previous = lensCursorSchema.safeParse(entries[lens]);
+  const stored = read.kind === "parsed" ? read.entries : {};
+  const entries: MarkerEntries = Object.fromEntries(
+    Object.entries(stored).filter(([key]) => hasRunIdForm(key)),
+  );
+  if (!runCursorSchema.safeParse(entries[RECORDS_RUN_ID]).success) {
+    const seeded = seedRecordsCursor(stored);
+    if (seeded) {
+      entries[RECORDS_RUN_ID] = seeded;
+    }
+  }
+  const previous = runCursorSchema.safeParse(entries[runId]);
   const cursor = nextCursor(previous.success ? previous.data : undefined);
-  return { body: formatScoutStateBody(issueBody, { ...entries, [lens]: cursor }), cursor };
+  return { body: formatScoutStateBody(issueBody, { ...entries, [runId]: cursor }), cursor };
 };
 
-/**
- * Records a finished run at `commitSha`. The pull request and rotation target carry over from the
- * previous cursor unless this run passes new ones.
- */
-export const nextLensCursor = ({
+/** Records a finished run at `commitSha`; the pull request number carries over unless this run passes a new one. */
+export const nextRunCursor = ({
   previous,
   commitSha,
   commitDate,
-  target,
   prNumber,
   runAt,
 }: {
-  previous: LensCursor | undefined;
+  previous: RunCursor | undefined;
   commitSha: string;
   commitDate: string;
-  target: string | undefined;
   prNumber: number | undefined;
   runAt: Date;
-}): LensCursor => {
+}): RunCursor => {
   const lastPrNumber = prNumber ?? previous?.lastPrNumber;
-  const lastRotationTarget = target ?? previous?.lastRotationTarget;
-  return lensCursorSchema.parse({
+  return runCursorSchema.parse({
     lastCommitSha: commitSha,
     lastCommitDate: commitDate,
     ...(lastPrNumber !== undefined ? { lastPrNumber } : {}),
-    ...(lastRotationTarget ? { lastRotationTarget } : {}),
     lastRunAt: runAt.toISOString(),
   });
 };

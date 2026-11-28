@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { z } from "zod";
 
 import { normalizeRepoPath } from "../../cli.ts";
-import { isProductionSourcePath, matchesAnyPattern } from "./repo-paths.ts";
+import { isProductionSourcePath } from "./repo-paths.ts";
 import { trackedByForPaths } from "./tracked-issues.ts";
 
 const fallowHealthSchema = z.object({
@@ -89,7 +89,6 @@ export type FileScoreEntry = {
   fanOut: number;
   functions: number;
   cyclomatic: number;
-  inAxis: boolean;
   trackedBy: number[];
 };
 
@@ -114,7 +113,6 @@ export type CloneGroupEntry = {
   lines: number;
   suggestedName?: string;
   instances: string[];
-  inAxis: boolean;
   trackedBy: number[];
 };
 
@@ -130,13 +128,11 @@ export type EntryWeightEntry = {
 type FallowHealth = z.infer<typeof fallowHealthSchema>;
 
 type FocusScope = {
-  /** The rotation axis's path globs; empty when the lens has no axis. */
-  pathPatterns: readonly string[];
+  /** Whether a repository path belongs to the audited target; reports list only such paths. */
+  inScope: (filePath: string) => boolean;
   trackedPathsByIssue: ReadonlyMap<string, number[]>;
 };
 
-/** Files listed first from the rotation axis, then filled with the heaviest files elsewhere. */
-const AXIS_TOP_FILE_COUNT = 6;
 const TOP_FILE_COUNT = 8;
 const HOTSPOT_COUNT = 6;
 const CLONE_GROUP_COUNT = 8;
@@ -150,10 +146,10 @@ const byRankDescending = (a: FileScoreEntry, b: FileScoreEntry) =>
 
 const summarizeTopFiles = (
   fileScores: FallowHealth["file_scores"],
-  { pathPatterns, trackedPathsByIssue }: FocusScope,
-): FileScoreEntry[] => {
-  const scored = fileScores
-    .filter((entry) => isProductionSourcePath(entry.path))
+  { inScope, trackedPathsByIssue }: FocusScope,
+): FileScoreEntry[] =>
+  fileScores
+    .filter((entry) => isProductionSourcePath(entry.path) && inScope(normalizeRepoPath(entry.path)))
     .map((entry) => {
       const normalized = normalizeRepoPath(entry.path);
       return {
@@ -163,21 +159,18 @@ const summarizeTopFiles = (
         fanOut: entry.fan_out,
         functions: entry.function_count,
         cyclomatic: entry.total_cyclomatic,
-        inAxis: pathPatterns.length > 0 && matchesAnyPattern(normalized, pathPatterns),
         trackedBy: trackedByForPaths([normalized], trackedPathsByIssue),
       };
-    });
-  const axisFiles = scored.filter((entry) => entry.inAxis).sort(byRankDescending);
-  const otherFiles = scored.filter((entry) => !entry.inAxis).sort(byRankDescending);
-  return [...axisFiles.slice(0, AXIS_TOP_FILE_COUNT), ...otherFiles].slice(0, TOP_FILE_COUNT);
-};
+    })
+    .sort(byRankDescending)
+    .slice(0, TOP_FILE_COUNT);
 
 const summarizeHotspots = (
   hotspots: FallowHealth["hotspots"],
-  trackedPathsByIssue: ReadonlyMap<string, number[]>,
+  { inScope, trackedPathsByIssue }: FocusScope,
 ): HotspotEntry[] =>
   hotspots
-    .filter((entry) => isProductionSourcePath(entry.path))
+    .filter((entry) => isProductionSourcePath(entry.path) && inScope(normalizeRepoPath(entry.path)))
     .sort((a, b) => b.score - a.score)
     .slice(0, HOTSPOT_COUNT)
     .map((entry) => {
@@ -193,9 +186,10 @@ const summarizeHotspots = (
 
 const summarizeThresholdOverrides = (
   overrides: FallowHealth["threshold_overrides"],
+  inScope: FocusScope["inScope"],
 ): ThresholdOverrideEntry[] =>
   overrides
-    .filter((entry) => entry.status === "active")
+    .filter((entry) => entry.status === "active" && inScope(normalizeRepoPath(entry.path)))
     .map((entry) => ({
       path: normalizeRepoPath(entry.path),
       ...(entry.function ? { function: entry.function } : {}),
@@ -207,8 +201,7 @@ const summarizeThresholdOverrides = (
 
 export const summarizeFallowHealth = ({
   rawHealth,
-  pathPatterns,
-  trackedPathsByIssue,
+  ...scope
 }: { rawHealth: unknown } & FocusScope): {
   topFiles: FileScoreEntry[];
   hotspots: HotspotEntry[];
@@ -216,44 +209,40 @@ export const summarizeFallowHealth = ({
 } => {
   const parsed = fallowHealthSchema.parse(rawHealth);
   return {
-    topFiles: summarizeTopFiles(parsed.file_scores, { pathPatterns, trackedPathsByIssue }),
-    hotspots: summarizeHotspots(parsed.hotspots, trackedPathsByIssue),
-    thresholdOverrides: summarizeThresholdOverrides(parsed.threshold_overrides),
+    topFiles: summarizeTopFiles(parsed.file_scores, scope),
+    hotspots: summarizeHotspots(parsed.hotspots, scope),
+    thresholdOverrides: summarizeThresholdOverrides(parsed.threshold_overrides, scope.inScope),
   };
 };
 
 export const summarizeFallowDupes = ({
   rawDupes,
-  pathPatterns,
+  inScope,
   trackedPathsByIssue,
 }: { rawDupes: unknown } & FocusScope): CloneGroupEntry[] => {
   const parsed = fallowDupesSchema.parse(rawDupes);
-  const groups = parsed.clone_groups
-    .map((group) => {
+  return parsed.clone_groups
+    .flatMap((group): CloneGroupEntry[] => {
       const prodInstances = group.instances.filter((inst) => isProductionSourcePath(inst.file));
-      if (prodInstances.length < 2) {
-        return null;
-      }
       const files = prodInstances.map((inst) => normalizeRepoPath(inst.file));
-      const inAxis =
-        pathPatterns.length > 0 && files.some((file) => matchesAnyPattern(file, pathPatterns));
-      return {
-        lines: group.line_count,
-        ...(group.suggested_name ? { suggestedName: group.suggested_name } : {}),
-        instances: prodInstances.map(
-          (inst) => `${normalizeRepoPath(inst.file)}:${inst.start_line}-${inst.end_line}`,
-        ),
-        inAxis,
-        trackedBy: trackedByForPaths(files, trackedPathsByIssue),
-      };
+      if (prodInstances.length < 2 || !files.some(inScope)) {
+        return [];
+      }
+      return [
+        {
+          lines: group.line_count,
+          ...(group.suggested_name ? { suggestedName: group.suggested_name } : {}),
+          instances: prodInstances.map(
+            (inst) => `${normalizeRepoPath(inst.file)}:${inst.start_line}-${inst.end_line}`,
+          ),
+          trackedBy: trackedByForPaths(files, trackedPathsByIssue),
+        },
+      ];
     })
-    .filter((entry): entry is CloneGroupEntry => entry !== null);
-
-  const axisGroups = groups.filter((entry) => entry.inAxis);
-  const otherGroups = groups.filter((entry) => !entry.inAxis);
-  return [...axisGroups, ...otherGroups].slice(0, CLONE_GROUP_COUNT);
+    .slice(0, CLONE_GROUP_COUNT);
 };
 
+/** Lists the heaviest bundle entries, which sit in `app/` however deep the audited area is, so no path filter applies. */
 export const summarizeEntryWeights = ({
   rawEntryWeight,
   trackedPathsByIssue,
@@ -262,8 +251,8 @@ export const summarizeEntryWeights = ({
   trackedPathsByIssue: ReadonlyMap<string, number[]>;
 }): EntryWeightEntry[] => {
   const parsed = fallowEntryWeightSchema.parse(rawEntryWeight);
-  return [...parsed.entry_weight.entries]
-    .sort((a, b) => b.eager_bytes - a.eager_bytes)
+  return parsed.entry_weight.entries
+    .toSorted((a, b) => b.eager_bytes - a.eager_bytes)
     .slice(0, ENTRY_WEIGHT_COUNT)
     .map((entry) => {
       const normalized = normalizeRepoPath(entry.path);
