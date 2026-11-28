@@ -69,12 +69,15 @@ the assistant claims the action under a short lock, runs it with no conversation
 lock or transaction, and applies the outcome under another short lock, instead of
 executing inside the conversation's transaction as it does for other writes.
 [Decision 0015](0015-merit-ai-assistant.md) still owns approval, Stop, partial
-failure and retry. Stop aborts the provider request, and the run checks for it
-immediately before saving, so nothing is saved after Stop; a review that began to
-save before Stop stays and the action is reported as succeeded. The approved action
+failure and retry. Stop aborts the provider request, and the run checks for it after
+the provider answers and again inside the save, immediately before the insert, so a
+Stop the worker has observed saves nothing. Stop reaches the worker asynchronously: a
+save whose last check ran before the cancellation arrived may still commit, and then
+the review stays and the action is reported as succeeded. The approved action
 binds the application and criteria versions it showed, and the run refuses with
 `conflict` when either has changed. A claim that lapses first looks for a review
-saved under the action's run identity and records it; only without one is it
+saved under the action's run identity and records it, for a stopped action too;
+only without one is a running action
 reported as a failed action, never run again automatically. See
 [slow tools](../guides/merit-ai.md#slow-tools-run-outside-the-conversation-lock).
 

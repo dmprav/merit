@@ -93,16 +93,21 @@ A tool declares a slow external call in the MCP publication table
    for this action alone, continues independent actions and stops dependent ones.
 
 Stop aborts the provider request, through the workflow that cancels the worker's
-step. The run checks that it has not been stopped immediately before it saves, so a
-provider that answers after Stop still saves nothing and the action shows as
-stopped. If the review had already begun to save, it commits, the review remains
-and the action shows as succeeded, so it offers no retry. The approved material is
+step. The run checks that it has not been stopped after the provider answers and
+again inside the save transaction, after it has the application lock and immediately
+before it inserts the review, so a provider that answers after Stop, or a save that
+waited for the lock while Stop arrived, saves nothing and the action shows as
+stopped. Stop is recorded at once but reaches the running worker asynchronously: a
+save whose last check ran before the cancellation arrived may still commit. Then the
+review remains and the action shows as succeeded, so it offers no retry. The approved material is
 what is sent: the preview binds the application and criteria versions it showed, and a
 run that finds either changed sends nothing and reports the action as stale, with a
 fresh preview to approve. A claim that lapses without an outcome, because the
 worker died or the run timed out, first looks for a review saved under the action's
 run identity. If one exists the action is recorded as succeeded with it and nothing
-is asked of the provider. Otherwise it is reported as a failed action and never run
+is asked of the provider. A stopped action whose claim lapses is settled the same
+way: a review under its run identity makes it succeeded, and without one it stays
+stopped. Otherwise a running action is reported as a failed action and never run
 again automatically. Its retry asks for a fresh approval and never repeats an action
 that succeeded.
 
