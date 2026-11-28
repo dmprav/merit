@@ -30,12 +30,21 @@ To measure repeat use, count keys with activity in two different periods. Group
 by `surface` to compare web and MCP. Demo outcomes use `workspace_kind = demo`
 and omit the key. The key is derived from the stable internal workspace ID.
 
+Outcomes counted per application also carry an `application_key`, a hash of the
+workspace and application IDs, so runs per application can be counted without the
+ID. Demo outcomes omit it. A repeatable outcome carries `prior`, one of `none`,
+`current`, `outdated`, or `unknown`: the freshness of the latest earlier run when
+this one saved. For `ai_review_saved`, count events per `application_key` for runs
+per application, and `prior = outdated` for re-runs after the application or
+criteria changed.
+
 | Event                          | Counted once for                                             |
 | ------------------------------ | ------------------------------------------------------------ |
 | `round_created`                | A newly created funding round                                |
 | `application_recorded`         | A newly recorded application                                 |
 | `assessment_submitted`         | A reviewer's first submission for an assignment              |
 | `funding_recommendation_saved` | A saved change to a funding recommendation                   |
+| `ai_review_saved`              | A saved AI review run                                        |
 | `mcp_tool_finished`            | One call to a known MCP tool, with its tool name and outcome |
 
 A successful MCP write can produce both a grant outcome and a tool-call event.

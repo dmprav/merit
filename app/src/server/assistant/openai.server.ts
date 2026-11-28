@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { AssistantCatalog } from "@merit/mcp/assistant";
 
+import { requestChatCompletion } from "../openai-request.server";
 import { providerHistory } from "./context.server";
 import type { Message } from "./state";
 
@@ -67,42 +68,12 @@ const instructions = [
   "A write requires a person to approve its preview. Report individual outcomes accurately. Never recreate or retry a failed action yourself.",
 ].join("\n");
 
-const readReply = async (response: Response): Promise<unknown> => {
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error("Assistant provider returned no response body.");
-  }
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const part = await reader.read();
-    if (part.done) {
-      break;
-    }
-    size += part.value.byteLength;
-    if (size > 1_048_576) {
-      await reader.cancel();
-      throw new Error("Assistant provider response exceeded its limit.");
-    }
-    chunks.push(part.value);
-  }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-};
-
 export const createOpenAiAssistantModel =
   (config: { apiKey: string; model: string }): AssistantModel =>
   async (messages, tools, guidance, signal) => {
-    if (!config.apiKey || !config.model) {
-      throw new Error("Assistant provider is unavailable.");
-    }
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      redirect: "error",
-      signal: AbortSignal.any([AbortSignal.timeout(90_000), ...(signal ? [signal] : [])]),
-      headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: config.model,
-        store: false,
+    const reply = await requestChatCompletion(
+      config,
+      {
         max_completion_tokens: 8192,
         messages: [
           { role: "system", content: instructions },
@@ -128,13 +99,10 @@ export const createOpenAiAssistantModel =
             },
           })),
         ],
-      }),
-    });
-    if (!response.ok) {
-      await response.body?.cancel();
-      throw new Error("Assistant provider request failed.");
-    }
-    const [choice] = completion.parse(await readReply(response)).choices;
+      },
+      signal,
+    );
+    const [choice] = completion.parse(reply).choices;
     if (choice?.message.tool_calls) {
       const clarification = choice.message.tool_calls.find(
         (call) => call.function.name === clarificationTool.function.name,

@@ -41,6 +41,13 @@ transfers ownership. Round preparation cannot save application content. Material
 excludes staff summaries and judgments. An assessment's basis identifies the
 material and criteria versions used.
 
+The application page also reads the case's saved [AI reviews](../../../docs/decisions/0018-ai-review.md)
+(`aiReviews`, newest first, each with freshness) and `aiReviewAvailability`
+(`available`, `consent_required`, `provider_unconfigured`, `withdrawn` or `demo`)
+with the provider and model a run would use. AI reviews are not assessments and
+join no review count or round total. Each example application carries one prepared
+review with provider "Example", seeded with the demo.
+
 The case remains the unit of coordinated application work. A combined reading
 view or financial total does not by itself require one transaction over every
 application. Locks protect demonstrated rules: authorization, revisions, review

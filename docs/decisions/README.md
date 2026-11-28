@@ -22,5 +22,6 @@ operating choices. Records receive a stable sequential ID when added.
 | 0015 | [Merit AI assistant](0015-merit-ai-assistant.md)                                  | Investigate grant work and preview writes under workspace authority.         |
 | 0016 | [Background work on Temporal](0016-temporal-background-work.md)                   | Durable, recoverable delivery and assistant turns; learn durable execution.  |
 | 0017 | [Review agent maintenance after it is built](0017-autonomous-maintenance-loop.md) | Evidence-backed audits scaled to change; review finished PRs, not proposals. |
+| 0018 | [AI review](0018-ai-review.md)                                                    | Add a cited, separate AI perspective on an application, run on demand.       |
 
 [All documentation](../README.md)

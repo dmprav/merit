@@ -8,9 +8,9 @@ import {
 } from "@merit/applications/scope";
 import type { Database } from "@merit/db";
 import { readDecisionStatesMap, readRoundCommitments } from "@merit/decisions/scope";
-import { authorizedWorkspaces } from "@merit/organizations/scope";
+import { authorizedWorkspaces, readAssistantConsent } from "@merit/organizations/scope";
 import { readCurrentRecommendationsMap, readRoundAllocations } from "@merit/recommendations/scope";
-import { readReviewsByCasesMap } from "@merit/reviews/scope";
+import { readAiReviewRecords, readReviewsByCasesMap } from "@merit/reviews/scope";
 import { fundingRounds } from "@merit/rounds/schema";
 import {
   assembleRoundRecord,
@@ -58,6 +58,15 @@ export const readPublicRound = async (
   };
 };
 
+/** The saved AI reviews of a case and whether the workspace consents to sending material out. */
+const readAiReviewState = async (db: Database, organizationId: string, caseId: string) => {
+  const [aiReviews, aiConsent] = await Promise.all([
+    readAiReviewRecords(db, organizationId, caseId),
+    readAssistantConsent(db, organizationId),
+  ]);
+  return { aiReviews, aiConsent };
+};
+
 // Only the selected case's content and sibling allocations cross the database seam.
 export const readApplicationDetail = async (
   db: Database,
@@ -72,6 +81,7 @@ export const readApplicationDetail = async (
       foundation: workspace.name,
       withdrawnApplications: roundWithdrawnCount(fundingRounds),
       workspaceSlug: workspace.slug,
+      workspaceKind: workspace.kind,
     })
     .from(applicationCases)
     .innerJoin(
@@ -95,6 +105,7 @@ export const readApplicationDetail = async (
     allocations,
     workingRevisionsMap,
     versionRows,
+    aiReview,
     decisionsMap,
     commitments,
   ] = await Promise.all([
@@ -109,6 +120,7 @@ export const readApplicationDetail = async (
       .from(materialVersions)
       .where(eq(materialVersions.caseId, row.caseRow.id))
       .orderBy(asc(materialVersions.version)),
+    readAiReviewState(db, row.caseRow.organizationId, row.caseRow.id),
     readDecisionStatesMap(db, [row.caseRow.id]),
     readRoundCommitments(db, row.caseRow.organizationId, row.roundRow.id),
   ]);
@@ -128,6 +140,8 @@ export const readApplicationDetail = async (
     decision: decisionsMap.get(row.caseRow.id) ?? { revision: 0, versions: [] },
     withdrawnApplications: row.withdrawnApplications,
     workspaceSlug: row.workspaceSlug,
+    workspaceKind: row.workspaceKind,
+    ...aiReview,
     publicId: row.caseRow.id,
     recommendationVersion: recommendation?.revision ?? 0,
     intakeRevision: row.caseRow.revision,

@@ -300,3 +300,23 @@ export const recommendationPreview = async (
     }
   }
 };
+
+/**
+ * A run sends material to the model provider and saves a new record; the person approves both. The
+ * approved action carries the identity of its run. Retrying the action repeats it, so a review that
+ * already saved is returned, never run and saved a second time. The model never chooses it: one
+ * copied from an earlier action would return that action's review.
+ */
+export const aiReviewPreview = (ctx: PreviewContext, preview: AssistantPreview) => {
+  const provider = ctx.ops.reviews.aiReviewProvider;
+  if (!provider) {
+    throw new PreviewProblem("provider_unconfigured");
+  }
+  if (!ctx.stored || typeof preview.input.runId !== "string") {
+    preview.input.runId = crypto.randomUUID();
+  }
+  preview.effects.push(
+    `Sends this application's current material and the round's criteria to ${provider.provider} (${provider.model}).`,
+    "Saves a new AI review.",
+  );
+};

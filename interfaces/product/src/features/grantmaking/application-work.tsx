@@ -52,6 +52,7 @@ export const ApplicationWork = ({
                   : undefined
               }
               reviewData={data.reviews}
+              aiReviewData={data.aiReview}
               tab={tab}
               onTabChange={onTabChange}
               recommendationAction={recommendation.action}

@@ -19,6 +19,7 @@ import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures"
 import { defaultLocale } from "@merit/i18n";
 import { fromMinorUnits, encodeMoney } from "@merit/money";
 import { createQueryClient } from "@merit/query";
+import { aiReviewFixture } from "@merit/reviews-web/testing";
 import { Toasts } from "@merit/ui/toast";
 
 import { productRoute } from "../../../../../tests/product-route";
@@ -34,6 +35,7 @@ import {
   readWorkspaceApplications,
 } from "../../data/server/funding-round.functions";
 import { saveRecommendation } from "../../data/server/recommendations/recommendations.functions";
+import { runAiReview } from "../../data/server/reviews/ai-reviews.functions";
 
 const selectedApplication = () =>
   makeApplication({
@@ -131,6 +133,9 @@ const applicationData = () => {
     status: "ok" as const,
     ...encodeApplicationDetail({ round, application }),
     recommendationVersion: 0,
+    aiReviews: [],
+    aiReviewAvailability: "available" as const,
+    aiReviewProvider: null,
     decision: { revision: 0, versions: [] },
     intake: { revision: 0, workingRevision: null, history: [] },
     workspaceSlug: "alder",
@@ -142,6 +147,7 @@ vi.mock("../../data/server/funding-round.functions", () => ({
   readFundingApplicationPage: vi.fn(),
   readWorkspaceApplications: vi.fn(),
 }));
+vi.mock("../../data/server/reviews/ai-reviews.functions", () => ({ runAiReview: vi.fn() }));
 vi.mock("../../data/server/reviews/reviewer.functions", () => ({
   applicationReviewers: vi.fn(async () => ({ status: "ok", value: [] })),
   inviteReviewer: vi.fn(async () => ({ status: "invalid" })),
@@ -707,4 +713,41 @@ it("records assessment work beside readable references with one retained draft",
     "Keep this recorded assessment.",
   );
   await user.click(pane.getByRole("button", { name: "Discard draft" }));
+});
+
+it("runs an AI review from the page and shows it once the page reloads", async () => {
+  let saved = false;
+  vi.mocked(readFundingApplicationPage).mockImplementation(async () => ({
+    ...applicationData(),
+    aiReviews: saved ? [aiReviewFixture()] : [],
+    aiReviewProvider: { provider: "OpenAI", model: "gpt-5.1" },
+  }));
+  vi.mocked(runAiReview).mockImplementation(async () => {
+    saved = true;
+    return { status: "ok", review: aiReviewFixture() };
+  });
+  const { user } = await renderApplication();
+  const pane = within(screen.getByRole("complementary", { name: "Application workspace" }));
+
+  expect(await pane.findByText("No AI review yet.")).toBeVisible();
+  await user.click(pane.getByRole("button", { name: "Run AI review" }));
+
+  expect(await pane.findByRole("button", { name: /Merit AI/ })).toBeVisible();
+  expect(runAiReview).toHaveBeenCalledOnce();
+  const input = vi.mocked(runAiReview).mock.calls[0]?.[0].data;
+  expect(input).toMatchObject({ workspaceSlug: "alder", publicId: "b8q3w5j7c2df" });
+  expect(input?.runId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(await screen.findByText("AI review saved")).toBeVisible();
+});
+
+it("explains why an AI review cannot be run on this page", async () => {
+  vi.mocked(readFundingApplicationPage).mockImplementation(async () => ({
+    ...applicationData(),
+    aiReviewAvailability: "provider_unconfigured" as const,
+  }));
+  await renderApplication();
+  const pane = within(screen.getByRole("complementary", { name: "Application workspace" }));
+
+  expect(await pane.findByText("Merit AI isn't set up on this server.")).toBeVisible();
+  expect(pane.queryByRole("button", { name: /Run/ })).not.toBeInTheDocument();
 });

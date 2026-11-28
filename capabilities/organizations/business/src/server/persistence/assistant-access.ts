@@ -1,8 +1,5 @@
-import { eq } from "drizzle-orm";
-
 import type { Transaction } from "@merit/db";
 
-import { assistantConsents } from "./assistant-schema";
 import { authorizedWorkspaces } from "./scope";
 
 export type AssistantOwner = { userId: string; slug: string };
@@ -23,10 +20,4 @@ export const readAssistantOwner = async (tx: Transaction, { userId, slug }: Assi
   return member;
 };
 
-export const hasAssistantConsent = async (tx: Transaction, organizationId: string) => {
-  const [consent] = await tx
-    .select()
-    .from(assistantConsents)
-    .where(eq(assistantConsents.organizationId, organizationId));
-  return !!consent;
-};
+export { readAssistantConsent as hasAssistantConsent } from "./scope";

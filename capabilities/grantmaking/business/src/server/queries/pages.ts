@@ -6,7 +6,12 @@ import { decisionUsage } from "@merit/decisions/domain";
 import { fromMinorUnits } from "@merit/money";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 import { readWorkspace } from "@merit/organizations/transactions";
-import { reviewProgress } from "@merit/reviews/domain";
+import {
+  aiReviewAvailability,
+  aiReviewEntry,
+  reviewProgress,
+  type AiReviewer,
+} from "@merit/reviews/domain";
 import type { PreparationState } from "@merit/rounds/api";
 import { decodeRound } from "@merit/rounds/domain";
 import { readManagerCandidates, readRoundBudgetHistory } from "@merit/rounds/readers";
@@ -99,10 +104,12 @@ export const getFundingRoundPage = async (
   });
 };
 
+/** Program managers read AI reviews with the page; the provider's identity is a server fact. */
 export const getFundingApplicationPage = async (
   db: Database,
   actor: Actor,
   input: ApplicationRequest,
+  aiReviewProvider: Pick<AiReviewer, "provider" | "model"> | null = null,
 ) => {
   return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = applicationRequestSchema.safeParse(input);
@@ -121,6 +128,11 @@ export const getFundingApplicationPage = async (
       row.commitments,
       row.withdrawnApplications,
     );
+    const application = applicationView(
+      decodeApplication(row.application),
+      round.criteria,
+      round.criteriaVersion,
+    );
 
     return {
       intake: {
@@ -133,14 +145,27 @@ export const getFundingApplicationPage = async (
         history: history.entries,
         decisions: decisionUsage(row.decision.versions[0]?.decision.outcome),
       } satisfies IntakeState,
-      application: applicationView(
-        decodeApplication(row.application),
-        round.criteria,
-        round.criteriaVersion,
-      ),
+      application,
       round,
       workspaceSlug: row.workspaceSlug,
       recommendationVersion: row.recommendationVersion,
+      aiReviews: row.aiReviews.map((record) =>
+        aiReviewEntry(record, {
+          applicationVersion: application.version,
+          criteriaVersion: round.criteriaVersion,
+          criteria: round.criteria,
+        }),
+      ),
+      aiReviewAvailability: aiReviewAvailability({
+        workspaceKind: row.workspaceKind,
+        withdrawn: application.withdrawal !== undefined,
+        providerConfigured: aiReviewProvider !== null,
+        consent: row.aiConsent,
+      }),
+      aiReviewProvider: aiReviewProvider && {
+        provider: aiReviewProvider.provider,
+        model: aiReviewProvider.model,
+      },
       decision: row.decision,
     };
   });

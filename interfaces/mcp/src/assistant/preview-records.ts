@@ -1,7 +1,11 @@
 import type { AssistantPreview } from "./contracts";
 import type { AssistantContext } from "./operations";
 
-export type PreviewContext = AssistantContext & { refresh: boolean };
+export type PreviewContext = AssistantContext & {
+  refresh: boolean;
+  /** Input taken from an approved action (a retry or a stale refresh), not supplied by the model. */
+  stored: boolean;
+};
 
 type Target = AssistantPreview["targets"][number];
 

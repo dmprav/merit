@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 
 import { Avatar } from "../../components/avatar/avatar";
+import type { IconName } from "../../components/icon/icon-base";
 import styles from "./person-identity.module.css";
 
 /** A visible name with decorative initials. Links and person-specific metadata belong to callers. */
 export const PersonIdentity = ({
   name,
+  icon,
   description,
   annotation,
   status,
@@ -13,6 +15,8 @@ export const PersonIdentity = ({
   nameAs: Name = "span",
 }: {
   name: string;
+  /** A glyph in place of initials, for an author that is not a person, such as Merit AI. */
+  icon?: IconName;
   description?: ReactNode;
   /** Short identity qualifier, such as “You”; workflow status belongs outside the identity. */
   annotation?: string;
@@ -32,6 +36,7 @@ export const PersonIdentity = ({
     >
       <Avatar
         name={isPlaceholder ? undefined : name}
+        icon={icon}
         size={description != null || Name !== "span" ? "regular" : "compact"}
       />
       <Container className={styles.copy}>

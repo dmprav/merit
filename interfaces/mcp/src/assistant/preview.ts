@@ -9,8 +9,9 @@ export const prepareWrite = async (
   name: AssistantToolName,
   input: Record<string, unknown>,
   refresh = false,
+  stored = refresh,
 ) => {
-  const ctx = { ...context, refresh };
+  const ctx = { ...context, refresh, stored };
   const preview: AssistantPreview = { name, input: { ...input }, targets: [], effects: [] };
   const policy = assistantPolicy[name];
   const dependencies: AssistantDependency[] = [{ kind: policy.access }];

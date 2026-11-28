@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import type { Actor } from "@merit/auth";
 
-import { publication } from "../app/publication";
+import { publication, slowToolNames } from "../app/publication";
 import { workspaceCatalog } from "../app/tools";
 import { permitsAll, workspacePermits } from "./authority";
 import {
@@ -20,6 +20,13 @@ import { assistantPolicy } from "./policy";
 import { prepareWrite } from "./preview";
 
 export type { AssistantOperations } from "./operations";
+
+/**
+ * Whether an approved action of this tool makes a slow external call. The assistant claims such an
+ * action, runs it without the conversation's lock or a surrounding transaction, then applies the
+ * outcome. Every other tool executes inside the conversation's transaction.
+ */
+export const isSlowTool = (name: string) => slowToolNames.has(name);
 
 export {
   assistantDependencySchema,
@@ -44,14 +51,15 @@ const schemaOf = (definition: Definition) => {
 
 const providerDefinition = (definition: Definition) => {
   const schema = z.toJSONSchema(schemaOf(definition), { io: "input", unrepresentable: "any" });
-  const { workspaceSlug: _bound, ...properties } = schema.properties ?? {};
+  // The workspace is bound, and a run's identity is the assistant's to assign, not the model's.
+  const { workspaceSlug: _bound, runId: _identity, ...properties } = schema.properties ?? {};
   return {
     name: definition.name,
     description: definition.description,
     inputSchema: {
       ...schema,
       properties,
-      required: schema.required?.filter((name) => name !== "workspaceSlug"),
+      required: schema.required?.filter((name) => name !== "workspaceSlug" && name !== "runId"),
     },
     write: !publication[definition.name].annotations.readOnlyHint,
   };
@@ -141,6 +149,36 @@ const deliveryOutcome = async (
   return observation;
 };
 
+/**
+ * What an approved AI review run already saved under its run identity, found without running it
+ * again; undefined when it saved nothing or the action is another tool.
+ */
+const recoverSavedRun = async (
+  { actor, workspaceSlug, ops }: AssistantContext,
+  approved: AssistantPreview,
+) => {
+  const { applicationId, runId } = approved.input;
+  if (
+    approved.name !== "run_ai_review" ||
+    typeof applicationId !== "string" ||
+    typeof runId !== "string"
+  ) {
+    return undefined;
+  }
+  const found = await ops.reviews.readAiReviewRun(actor, {
+    workspaceSlug,
+    publicId: applicationId,
+    runId,
+  });
+  return found.status === "ok"
+    ? describeResult(approved.name, approved.input, {
+        status: "ok",
+        applicationId,
+        aiReview: found.review,
+      })
+    : undefined;
+};
+
 export const createAssistantCatalog = (
   actor: Actor,
   workspaceSlug: string,
@@ -152,12 +190,12 @@ export const createAssistantCatalog = (
 
   const permits: AssistantCatalog["permits"] = (deps) => permitsAll(ctx, deps);
 
-  const preview: AssistantCatalog["preview"] = async (name, input) => {
+  const preview: AssistantCatalog["preview"] = async (name, input, stored = false) => {
     const resolved = await resolveTool(ctx, definitions, name, input, true);
     if (!resolved.tool) {
       return receipt(resolved.error);
     }
-    return prepareWrite(ctx, resolved.tool.name, resolved.input);
+    return prepareWrite(ctx, resolved.tool.name, resolved.input, stored);
   };
 
   const execute = async (approved: AssistantPreview): ReturnType<AssistantCatalog["execute"]> => {
@@ -165,7 +203,7 @@ export const createAssistantCatalog = (
     if (!resolved.tool) {
       return receipt(resolved.error);
     }
-    const current = await prepareWrite(ctx, resolved.tool.name, resolved.input, true);
+    const current = await prepareWrite(ctx, resolved.tool.name, resolved.input, true, true);
     if (!("preview" in current)) {
       return {
         ...current,
@@ -198,6 +236,7 @@ export const createAssistantCatalog = (
     permits,
     preview,
     execute,
+    recover: (approved) => recoverSavedRun(ctx, approved),
     read: async (name, input): Promise<AssistantReceipt> => {
       const resolved = await resolveTool(ctx, definitions, name, input, false);
       if (!resolved.tool) {

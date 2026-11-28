@@ -33,6 +33,12 @@ as “Unassigned”. It preserves alignment without presenting absence as a warn
 
 <Canvas of={People.Unassigned} />
 
+When the author is not a person, such as Merit AI, set `icon` to show a glyph
+instead of initials, so it cannot be mistaken for someone. The name stays visible,
+and `JudgmentChoice` and `Judgment` pass it on as `authorIcon`.
+
+<Canvas of={People.NotAPerson} />
+
 Wrap the component in a real link for navigation. Keep account menus, review
 outcomes, and domain status logic with the feature.
 

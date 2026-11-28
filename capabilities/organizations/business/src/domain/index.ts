@@ -4,6 +4,10 @@ export type WorkspaceChange = {
   workspaceId: string;
   workspaceKind: "standard" | "demo";
   surface: "web" | "mcp";
+  /** The application the change belongs to, when the outcome is counted per application. */
+  applicationId?: string;
+  /** For a repeatable action: the state of the latest earlier run when this one saved. */
+  prior?: "none" | "current" | "outdated" | "unknown";
 };
 
 export type WorkspaceChangeObserver = (change: WorkspaceChange) => void;

@@ -46,6 +46,7 @@ it("rolls back the catalog write and saves its business rejection on the approve
       read: vi.fn(),
       deliver: vi.fn(),
       retryDelivery: vi.fn(),
+      recover: vi.fn(),
     }),
   });
   const chat = await turns.create(actor, workspace);

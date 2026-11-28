@@ -22,10 +22,10 @@ type ApplicationChanges = (
   preview: AssistantPreview,
   applicationId: string,
   title: string,
-) => Promise<void>;
+) => void | Promise<void>;
 
 export const application =
-  (revision: keyof typeof revisionInputs | "context", changes?: ApplicationChanges) =>
+  (revision: keyof typeof revisionInputs | "context" | "material", changes?: ApplicationChanges) =>
   async (ctx: PreviewContext, preview: AssistantPreview) => {
     const { actor, ops, workspaceSlug } = ctx;
     const { input } = preview;
@@ -35,7 +35,12 @@ export const application =
       throw new PreviewProblem(loaded.status);
     }
     const app = loaded.application;
-    if (
+    if (revision === "material") {
+      // The material a person approves sending is the application and criteria versions shown;
+      // the run refuses when either has moved on. A refresh rebases them like any other revision.
+      bindRevision(ctx, input, "expectedApplicationVersion", app.applicationVersion);
+      bindRevision(ctx, input, "expectedCriteriaVersion", app.criteriaVersion);
+    } else if (
       (input.expectedApplicationVersion !== undefined &&
         input.expectedApplicationVersion !== app.applicationVersion) ||
       (input.expectedCriteriaVersion !== undefined &&
@@ -43,9 +48,14 @@ export const application =
     ) {
       throw new PreviewProblem("conflict");
     }
-    const version = revision === "context" ? app.intakeRevision : app[revision];
-    if (revision !== "context") {
-      bindRevision(ctx, input, revisionInputs[revision], version);
+    const version =
+      revision === "context"
+        ? app.intakeRevision
+        : revision === "material"
+          ? `application version ${app.applicationVersion}, criteria version ${app.criteriaVersion}`
+          : app[revision];
+    if (revision !== "context" && revision !== "material") {
+      bindRevision(ctx, input, revisionInputs[revision], app[revision]);
     }
     preview.targets.push(target("application", applicationId, app.title, version));
     await changes?.(ctx, preview, applicationId, app.title);

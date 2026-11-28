@@ -19,6 +19,15 @@ const read = { scope: "workspace:read", annotations: readAnnotations } as const;
 const write = { scope: "grants:write", annotations: writeAnnotations } as const;
 const create = { ...write, annotations: { ...writeAnnotations, destructiveHint: false } };
 const notify = { ...write, annotations: { ...writeAnnotations, openWorldHint: true } };
+/**
+ * A write that only adds a record, sends material to an external service, and can take long. The
+ * assistant must not hold a lock meanwhile.
+ */
+const slow = {
+  ...create,
+  annotations: { ...create.annotations, idempotentHint: false, openWorldHint: true },
+  slow: true,
+} as const;
 
 export const publication = {
   archive_contact: write,
@@ -55,12 +64,14 @@ export const publication = {
   manage_reviewer_assignment: notify,
   mark_application_ready: write,
   publish_application_revision: write,
+  read_ai_reviews: read,
   record_assessment: write,
   record_committee_decision: write,
   reinstate_application: write,
   request_review: write,
   respond_to_review: { ...write, scope: "reviews:write" },
   restore_contact: write,
+  run_ai_review: slow,
   save_application_revision: write,
   save_recommendation: write,
   save_reviewer_draft: { ...write, scope: "reviews:write" },
@@ -73,9 +84,16 @@ export const publication = {
   withdraw_application: write,
 } satisfies Record<
   WorkspaceToolName,
-  { scope: McpScope; annotations: typeof readAnnotations | typeof writeAnnotations }
+  { scope: McpScope; annotations: typeof readAnnotations | typeof writeAnnotations; slow?: true }
 >;
 
 export const readOnlyToolNames = Object.entries(publication)
   .filter(([, policy]) => policy.annotations.readOnlyHint)
   .map(([name]) => name);
+
+/** Tools that declare a slow external call; the assistant runs an approved one without holding the conversation. */
+export const slowToolNames: ReadonlySet<string> = new Set(
+  Object.entries(publication)
+    .filter(([, policy]) => "slow" in policy)
+    .map(([name]) => name),
+);

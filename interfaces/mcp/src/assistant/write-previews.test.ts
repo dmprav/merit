@@ -137,7 +137,7 @@ const draftInput = { assignmentId, commandId, expectedDraftRevision: 10 };
 const example = (
   input: Record<string, unknown>,
   targets: (ReturnType<typeof record> | ReturnType<typeof proposed>)[],
-  addedRevisions: Record<string, number> = {},
+  addedRevisions: Record<string, unknown> = {},
 ) => ({ input, targets, addedRevisions });
 
 const writes = {
@@ -221,6 +221,16 @@ const writes = {
       recommendation: { position: "Fund", allocation: amount, reasoning: "Strong plan" },
     },
     [record("application", applicationId, "4"), record("assessment", assessmentId, "1")],
+  ),
+  // The assistant assigns the run's identity and binds the application and criteria versions it shows.
+  run_ai_review: example(
+    { applicationId },
+    [record("application", applicationId, "application version 8, criteria version 9")],
+    {
+      runId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      expectedApplicationVersion: 8,
+      expectedCriteriaVersion: 9,
+    },
   ),
   record_committee_decision: example(
     {

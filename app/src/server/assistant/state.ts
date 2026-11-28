@@ -50,6 +50,8 @@ const action = z.object({
   deliveryAttempt: z
     .object({ id: z.string(), until: z.number().optional(), errors: z.number().optional() })
     .optional(),
+  /** The claim on an approved slow action: the worker that holds it runs the tool outside the lock. */
+  executing: z.object({ id: z.string(), until: z.number() }).optional(),
 });
 const group = z.object({ id: z.string(), actions: z.array(action) });
 export const conversationState = z.object({
@@ -163,10 +165,12 @@ export const publicState = (state: ConversationState) => ({
   messages: state.messages.filter((entry) => entry.role !== "tool"),
   groups: state.groups.map((item) => ({
     id: item.id,
-    actions: item.actions.map(({ retry, delivery, deliveryAttempt: _attempt, ...action }) => ({
-      ...action,
-      canRetry: action.status === "failed" && Boolean(retry || delivery),
-    })),
+    actions: item.actions.map(
+      ({ retry, delivery, deliveryAttempt: _attempt, executing: _claim, ...action }) => ({
+        ...action,
+        canRetry: action.status === "failed" && Boolean(retry || delivery),
+      }),
+    ),
   })),
   progress: state.messages
     .filter((entry) => entry.role === "tool")

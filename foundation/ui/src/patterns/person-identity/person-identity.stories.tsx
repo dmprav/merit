@@ -19,6 +19,9 @@ type Story = StoryObj<typeof meta>;
 export const Compact: Story = {};
 export const Unassigned: Story = { args: { name: "Unassigned", isPlaceholder: true } };
 export const WithDescription: Story = { args: { description: "Program manager" } };
+export const NotAPerson: Story = {
+  args: { name: "Merit AI", icon: "assistant", description: "9 November · gpt-5" },
+};
 export const CurrentPerson: Story = {
   args: { description: "dana@example.test", annotation: "You" },
 };

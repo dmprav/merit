@@ -34,6 +34,7 @@ export const createTransport = (
   },
   sendEmail: EmailSender = async () => {},
   analytics?: Parameters<typeof createApplicationServices>[0]["analytics"],
+  aiReviewer?: Parameters<typeof createApplicationServices>[0]["aiReviewer"],
 ) => {
   const {
     grantmaking,
@@ -49,6 +50,7 @@ export const createTransport = (
     database: async (operation) => operation(db),
     identity,
     analytics,
+    aiReviewer,
     startReviewerMessage: inlineReviewerDelivery(
       reviewerMessageDelivery({
         database: async (operation) => operation(db),

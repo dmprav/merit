@@ -17,6 +17,7 @@ import { productLinks } from "@merit/product/links";
 import { createRecommendationsService } from "@merit/recommendations/server";
 import { applicationRecommendationWork } from "@merit/recommendations/server/integrations";
 import type { ReviewerMessage } from "@merit/reviews/api";
+import type { AiReviewer } from "@merit/reviews/domain";
 import { createReviewService } from "@merit/reviews/server";
 import {
   createReviewerService,
@@ -55,6 +56,8 @@ type Dependencies = {
   /** How long a request waits for the first delivery outcome. */
   deliveryWait?: OutcomeWait;
   deferReviewerDelivery?: (delivery: ReviewerDelivery) => void;
+  /** Absent when no model provider is configured on this server. */
+  aiReviewer?: AiReviewer;
 };
 
 /** What the delivery activities, which run in the worker, need to send an email. */
@@ -82,8 +85,15 @@ export const reviewerMessageDelivery = ({
 type Observe = (event: GrantOutcome["event"]) => WorkspaceChangeObserver | undefined;
 
 /** The services that carry grant work through its lifecycle, from rounds to committee decisions. */
-const createGrantWorkServices = (database: Dependencies["database"], observe: Observe) => ({
-  grantmaking: instrumentService("grantmaking", createGrantmakingService({ database })),
+const createGrantWorkServices = (
+  database: Dependencies["database"],
+  observe: Observe,
+  aiReviewer: AiReviewer | undefined,
+) => ({
+  grantmaking: instrumentService(
+    "grantmaking",
+    createGrantmakingService({ database, aiReviewProvider: aiReviewer }),
+  ),
   rounds: instrumentService(
     "rounds",
     createRoundsService({
@@ -140,25 +150,20 @@ const reportOutcomeError = (operation: string) => () =>
 const reportInvitationOutcomeError = reportOutcomeError("organization-invitation.outcome");
 const reportReviewerOutcomeError = reportOutcomeError("reviewer-message.outcome");
 
-export const createApplicationServices = ({
-  invitationKey = readInvitationKey,
-  database,
-  analytics,
-  identity,
-  networkAddress,
-  startReviewerMessage,
-  startOrganizationInvitation,
-  deliveryWait,
-  deferReviewerDelivery,
-}: Dependencies) => {
-  const observe: Observe = (event) =>
-    analytics && ((workspace) => analytics.captureGrantOutcome({ event, ...workspace }));
-
-  const grantWork = createGrantWorkServices(database, observe);
-  const reviews = instrumentService("reviews", createReviewService({ database }));
-
-  const navigation = instrumentService("navigation", createNavigationService({ database }));
-  const reviewer = instrumentService(
+/** Manager review commands, AI reviews and reviewer participation share one review capability. */
+const createReviewServices = (
+  { database, startReviewerMessage, deliveryWait, deferReviewerDelivery, aiReviewer }: Dependencies,
+  observe: Observe,
+) => ({
+  reviews: instrumentService(
+    "reviews",
+    createReviewService({
+      database,
+      reviewer: aiReviewer,
+      onAiReviewSaved: observe("ai_review_saved"),
+    }),
+  ),
+  reviewer: instrumentService(
     "reviewer",
     createReviewerService({
       database,
@@ -168,7 +173,27 @@ export const createApplicationServices = ({
       onOutcomeError: reportReviewerOutcomeError,
       onSubmitted: observe("assessment_submitted"),
     }),
-  );
+  ),
+});
+
+export const createApplicationServices = (dependencies: Dependencies) => {
+  const {
+    invitationKey = readInvitationKey,
+    database,
+    analytics,
+    identity,
+    networkAddress,
+    startOrganizationInvitation,
+    deliveryWait,
+    aiReviewer,
+  } = dependencies;
+
+  const observe: Observe = (event) =>
+    analytics && ((workspace) => analytics.captureGrantOutcome({ event, ...workspace }));
+
+  const grantWork = createGrantWorkServices(database, observe, aiReviewer);
+
+  const navigation = instrumentService("navigation", createNavigationService({ database }));
   const contacts = instrumentService(
     "contacts",
     createContactService({
@@ -192,8 +217,7 @@ export const createApplicationServices = ({
 
   return {
     ...grantWork,
-    reviews,
-    reviewer,
+    ...createReviewServices(dependencies, observe),
     navigation,
     contacts,
     organizations,

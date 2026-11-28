@@ -32,7 +32,11 @@ export const writeObservedWorkspace = async <T>(
   onCommitted: WorkspaceChangeObserver | undefined,
   operation: (
     tx: Transaction,
-    changed: (id: string, kind: WorkspaceChange["workspaceKind"]) => void,
+    changed: (
+      id: string,
+      kind: WorkspaceChange["workspaceKind"],
+      detail?: Pick<WorkspaceChange, "applicationId" | "prior">,
+    ) => void,
   ) => Promise<T>,
 ) => {
   const scope: MemberScope =
@@ -41,8 +45,8 @@ export const writeObservedWorkspace = async <T>(
       : { kind: "workspace", userId: actor.userId, slug: address.workspaceSlug };
   let change: WorkspaceChange | undefined;
   const result = await writeTenant(db, scope, (tx) =>
-    operation(tx, (workspaceId, workspaceKind) => {
-      change = { workspaceId, workspaceKind, surface: actorProvenance(actor).interface };
+    operation(tx, (workspaceId, workspaceKind, detail) => {
+      change = { workspaceId, workspaceKind, surface: actorProvenance(actor).interface, ...detail };
     }),
   );
   if (change && onCommitted && !(db instanceof PgTransaction)) {

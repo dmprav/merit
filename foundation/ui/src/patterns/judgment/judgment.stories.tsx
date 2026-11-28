@@ -65,6 +65,28 @@ export const NotYetRecorded: Story = {
   ),
 };
 
+export const NotAPersonAuthor: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <JudgmentChoice
+      author="Merit AI"
+      authorIcon="assistant"
+      meta="9 November · gpt-5"
+      summary={
+        <>
+          <strong>Fund with a condition</strong>
+          <span>Proposed amount: €18,000</span>
+        </>
+      }
+      basis={<span>Reviewed version 2</span>}
+      onPress={onChooseJudgment}
+    />
+  ),
+  play: async ({ canvas }) => {
+    await expect(canvas.getByRole("button", { name: /Merit AI/ })).toBeVisible();
+  },
+};
+
 export const Choices: Story = {
   parameters: { controls: { disable: true } },
   render: () => (

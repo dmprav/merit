@@ -38,6 +38,9 @@ sb.mock(
   "../../../interfaces/product/src/features/grantmaking/data/server/reviews/reviews.functions.ts",
 );
 sb.mock(
+  "../../../interfaces/product/src/features/grantmaking/data/server/reviews/ai-reviews.functions.ts",
+);
+sb.mock(
   "../../../interfaces/product/src/features/grantmaking/data/server/applications/application-contact.functions.ts",
 );
 sb.mock(

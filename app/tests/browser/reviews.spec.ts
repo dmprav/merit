@@ -81,6 +81,10 @@ test("contacts and reviews preserve judgments across application and criteria ch
     page.getByRole("button", { name: "Mark ready for review", exact: true }),
   ).toBeHidden();
 
+  // On a phone the toasts from the steps above cover the bottom of the task pane, and a pointer
+  // resting on them pauses their timer. Let them expire so they cannot intercept the controls below.
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+
   await page.getByRole("button", { name: /^Reference material:/ }).click();
   await page.getByRole("menuitem", { name: "Reviewer assessments", exact: true }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();

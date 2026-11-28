@@ -29,6 +29,28 @@ cancellations, reviewer participation transitions, and assessments are recorded 
 [Audit](../../audit/business/README.md); private drafts and email delivery attempts
 are not audited.
 
+An [AI review](../../../docs/decisions/0018-ai-review.md) is a separate immutable
+record (`ai_reviews` with its sections, items, citations and questions), never an
+assessment, so it joins no review summary, status or budget total. The
+[run command](src/server/commands/ai-reviews.ts) checks `work_on_grants` through
+the application case lock, then consent, withdrawal, demo and provider availability
+(one [policy](src/domain/ai-review.ts) shared with the application page). It reads
+the material version and criteria, releases its transaction, and only then calls
+the injected `AiReviewer` port, so no database transaction or lock is held while
+the provider works. A caller that showed the material to a person names the
+application and criteria versions it showed, and a run that reads others sends
+nothing and returns `conflict`. The reply is validated with Zod (text with a NUL
+character is rejected) and every citation is verified against the material that was
+sent. A reviewer that carries a stop signal ends the provider request, and a run
+whose signal has ended saves nothing and returns `stopped`. When the provider fails,
+the run looks once more for a review saved under its identity by a concurrent run
+before reporting `failed`. A second short transaction repeats the checks, saves
+against the basis read at the start in bounded insert batches, stamps the run when
+it is inserted so history order is commit order, records `ai_review.recorded`, and
+reports the `ai_review_saved` outcome after commit. The provider implementation
+lives in the application server, so this package has no provider dependency.
+Database policies limit these tables to program managers in a workspace scope.
+
 Recorded assessment commands and reads use the [money contract](../../../foundation/money/README.md).
 An unstated amount is `null`. An explicit zero is `{ "minorUnits": "0", "currency": "EUR" }`.
 Draft saves accept the editor's decimal text, including an unfinished entry such as

@@ -36,13 +36,13 @@ monetary formats. Text and structured results carry the same validated data.
 
 ## Choose client access
 
-| OAuth grant        | Allows, subject to current Merit permissions                                                                                           |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `workspace:read`   | Workspace discovery, rounds, applications, manager assignment views, contacts, and workspace members                                   |
-| `grants:write`     | Round preparation, intake, reviews, reviewer invitations and assignment management, recommendations, committee decisions, and contacts |
-| `reviews:read`     | Your reviewer assignments, assigned evidence, private drafts, and submissions                                                          |
-| `reviews:write`    | Accept/decline assignments, report conflicts, save private drafts, submit and amend your assessments                                   |
-| `onboarding:write` | Start or resume the signed-in account's demo                                                                                           |
+| OAuth grant        | Allows, subject to current Merit permissions                                                                                                       |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workspace:read`   | Workspace discovery, rounds, applications, manager assignment views, contacts, and workspace members                                               |
+| `grants:write`     | Round preparation, intake, reviews, AI reviews, reviewer invitations and assignment management, recommendations, committee decisions, and contacts |
+| `reviews:read`     | Your reviewer assignments, assigned evidence, private drafts, and submissions                                                                      |
+| `reviews:write`    | Accept/decline assignments, report conflicts, save private drafts, submit and amend your assessments                                               |
+| `onboarding:write` | Start or resume the signed-in account's demo                                                                                                       |
 
 Grant the scopes needed for the task. For example, trying a sample round requires
 `onboarding:write` to start the demo and `workspace:read` to read the round.
@@ -136,6 +136,7 @@ save operation checks eligibility again.
 | Record intake     | `create_application`, `edit_application`, `select_application_contact`, `mark_application_ready`, `withdraw_application`, `reinstate_application`, `delete_application` |
 | Revise intake     | `start_application_revision`, `save_application_revision`, `publish_application_revision`, `discard_application_revision`                                               |
 | Review            | `request_review`, `cancel_review_request`, `record_assessment`, `correct_assessment`                                                                                    |
+| AI review         | `run_ai_review`                                                                                                                                                         |
 | Recommend         | `save_recommendation`                                                                                                                                                   |
 | Maintain contacts | `create_contact`, `update_contact`, `archive_contact`, `restore_contact`                                                                                                |
 
@@ -201,6 +202,46 @@ recommendation does not commit funding. To record what a committee decided, use
 against the round budget, while Defer and Decline commit nothing. See
 [recording committee decisions](../workflows/record-decisions.md#in-mcp). Publishing a working intake revision makes that correction or revision current;
 public publication is not implemented in either interface.
+
+## Ask for and read AI reviews
+
+`run_ai_review` (`grants:write`) asks the configured model provider to review one
+application against its round's criteria and saves the result.
+`read_ai_reviews` (`workspace:read`) returns every saved run, newest first, with
+its freshness. Both are for program managers: a reviewer member's call returns
+`not_found`. `read_ai_reviews` takes no revision preconditions. A run saves against
+the application and criteria versions it read when it started. A client that showed
+a person those versions before asking for the run can send `expectedApplicationVersion`
+and `expectedCriteriaVersion`: if either has changed, the run sends nothing to the
+provider and returns `conflict`. Omit them to review whatever is current.
+
+Calling `run_ai_review` sends the application's current material and the round's
+criteria to the provider, so confirm that the person intends it. It can take up
+to about two minutes. Each run has an identity. Send `runId`, a UUID you generate,
+to name the run; the server generates one when you omit it. Repeating a run with
+the same `runId`, after a lost response for example, returns the review it already
+saved without asking the provider again, even if consent has since been turned off.
+A `runId` used for another application returns `not_found`. Reuse a `runId` only to
+retry that run: a new run, which saves another review, needs a new one. Do not send
+the same `runId` twice at once: both requests can reach the provider before either
+saves, so only one review is kept but the material may be sent twice. The result
+is the saved review in `aiReview`, or:
+
+| Result                              | Meaning                                                                                                 |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `not_available` with `availability` | `consent_required`, `provider_unconfigured`, `withdrawn` or `demo`. Nothing was sent.                   |
+| `failed`                            | The provider, its output or a citation could not be trusted. Nothing was saved. Retrying runs it again. |
+| `not_found`                         | The application does not exist for you, or you do not work on grants in the workspace.                  |
+
+A review has `claims` with `citations` (a `source` of `title`, `applicant`,
+`requested`, `projectPeriod`, `submittedOn` or a submission question ID, and a
+verbatim `quote`), `gaps`,
+`strengths`, `weaknesses` and `concerns` for each criterion; `questions` for the
+applicant; `reasoning`; and a `position` and `amount` as in an assessment. Treat
+it as Merit AI's interpretation, never as application material or an
+assessment. See the [workflow](../workflows/review-applications.md#ask-merit-ai-for-another-perspective).
+The [Merit AI assistant](merit-ai.md) offers the same tools and previews a run
+before sending anything.
 
 ## Participate in and manage reviews
 

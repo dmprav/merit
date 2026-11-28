@@ -12,7 +12,11 @@
     "./work": "./src/work.ts",
     "./contracts": "./src/contracts/reviews.ts",
     "./drafts": "./src/controllers/reviews/drafts.tsx",
-    "./data": "./src/data/reviews/workspace-data.ts"
+    "./data": "./src/data/reviews/workspace-data.ts",
+    "./ai-review": "./src/ai-review.ts",
+    "./contracts/ai-review": "./src/contracts/ai-review.ts",
+    "./data/ai-review": "./src/data/ai-review/workspace-data.ts",
+    "./testing": "./src/testing/ai-review.fixtures.ts"
   },
   "dependencies": {
     "@merit/applications": "workspace:*",

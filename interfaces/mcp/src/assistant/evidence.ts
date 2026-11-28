@@ -82,6 +82,10 @@ const recordEvidence = (result: Result, cite: Cite) => {
   for (const row of itemOrList(result.contact, result.contacts)) {
     cite("contact", row.contactId, row.contactRevision, row.name);
   }
+  // An AI review is Merit AI's interpretation. It is never cited as application material.
+  for (const row of itemOrList(result.aiReview, result.aiReviews)) {
+    cite("ai_review", row.id, row.applicationVersion, `AI review (${String(row.model)})`);
+  }
   for (const row of objects(result.reviews)) {
     cite(row.kind, row.id, row.assessmentVersion ?? row.reviewRevision, row.reviewer);
   }

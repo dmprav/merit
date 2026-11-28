@@ -52,7 +52,82 @@ expired or been revoked revives nothing; the action reports it as unavailable.
 In each workspace, read `settings` to show the configured provider and model to
 an organization administrator or owner. Send `set_consent` with `enabled: true`
 after opt-in. Set it to false to turn off provider access for that workspace.
+Turning consent off blocks new conversation turns and new
+[AI reviews](#run-ai-reviews) only. Saved AI reviews stay readable, because
+the material was shared while consent was on. The product has no consent settings
+screen yet, so `set_consent` is how an owner or administrator changes it.
 The public demo panel continues to use recorded conversations.
+
+## Run AI reviews
+
+The same server settings, `OPENAI_API_KEY` and `MERIT_AI_MODEL`, and the same
+workspace consent enable an
+[AI review](../workflows/review-applications.md#ask-merit-ai-for-another-perspective)
+of an application. It is a single request rather than a conversation: the server
+asks Chat Completions for a strict JSON schema reply (`response_format` with
+`json_schema` and `strict: true`), with provider storage disabled and a 90 second
+limit. The business package validates the reply with Zod, and every cited quote
+must appear in the field it names, before anything is saved. Any provider error,
+timeout, malformed reply or unverifiable citation saves nothing.
+
+The reply is capped at 8,192 completion tokens, so besides the per-list limits (20
+items per list, 10 citations per claim) a review holds at most 400 items (claims,
+gaps, strengths, weaknesses and concerns together) and 600 citations in all. A
+reply over either cap is invalid and saves nothing. The instructions and the
+provider schema state both caps.
+
+The assistant offers `run_ai_review` as a write. Its preview names the application
+and criteria versions, the provider and model, the effect "Sends this application's current
+material and the round's criteria to the provider", and "Saves a new AI review".
+Results of `read_ai_reviews` are cited with the evidence kind `ai_review`, never
+as application material. Reviewer members do not receive either tool.
+
+### Slow tools run outside the conversation lock
+
+An approved `run_ai_review` can take about two minutes, so the assistant does not
+run it inside the conversation's locked transaction, as it does every other tool.
+A tool declares a slow external call in the MCP publication table
+(`slow: true`), and an approved action of it goes through three steps:
+
+1. **Claim.** A short lock records `executing` on the action, a claim that lapses
+   after the provider timeout plus a margin. A worker leaves another worker's live
+   claim alone.
+2. **Execute.** With no conversation lock and no surrounding transaction, the tool
+   runs its own short transactions around the provider call. The conversation
+   stays readable, and other writes to the application commit.
+3. **Apply.** A short lock records the outcome if the claim still stands, reports it
+   for this action alone, continues independent actions and stops dependent ones.
+
+Stop aborts the provider request, through the workflow that cancels the worker's
+step. The run checks that it has not been stopped after the provider answers and
+again inside the save transaction, after it has the application lock and immediately
+before it inserts the review, so a provider that answers after Stop, or a save that
+waited for the lock while Stop arrived, saves nothing and the action shows as
+stopped. Stop is recorded at once but reaches the running worker asynchronously: a
+save whose last check ran before the cancellation arrived may still commit. Then the
+review remains and the action shows as succeeded, so it offers no retry. The approved material is
+what is sent: the preview binds the application and criteria versions it showed, and a
+run that finds either changed sends nothing and reports the action as stale, with a
+fresh preview to approve. A claim that lapses without an outcome, because the
+worker died or the run timed out, first looks for a review saved under the action's
+run identity. If one exists the action is recorded as succeeded with it and nothing
+is asked of the provider. A stopped action whose claim lapses is settled the same
+way: a review under its run identity makes it succeeded, and without one it stays
+stopped. Otherwise a running action is reported as a failed action and never run
+again automatically. Its retry asks for a fresh approval and never repeats an action
+that succeeded.
+
+Each approved `run_ai_review` carries a run identity (`runId`) that the assistant
+assigns when it previews the action and hides from the model. Retrying the action
+repeats the identity. If the review had committed before the claim lapsed, because
+the worker died after saving and before recording the outcome, the approved retry
+returns that review without calling the provider, and exactly one review exists.
+
+Two authorized requests that carry the same run identity at the same time can both
+reach the provider before either saves: the check for a saved run happens before the
+call, and the save is where the identity is enforced. The unique constraint keeps one
+saved review and both requests answer with it, but the application material may have
+been sent to the provider twice. Do not start the same run twice at once.
 
 ## Use the endpoint
 

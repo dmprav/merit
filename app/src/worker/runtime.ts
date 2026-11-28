@@ -4,6 +4,7 @@ import { createServerAnalytics } from "@merit/analytics/server";
 import { createDatabasePool } from "@merit/db";
 import { createWorkflowClient, readTemporalConfig, type TemporalConfig } from "@merit/workflows";
 
+import { createOpenAiReviewer } from "../server/ai-reviewer.server";
 import { createAssistantRuntime } from "../server/assistant/host.server";
 import { createBackgroundWork } from "../server/background-work.server";
 import { createEmailSender } from "../server/email-delivery.server";
@@ -38,6 +39,7 @@ export const createWorkerRuntime = (
     taskQueue: queues.taskQueue,
     turnTaskQueue: queues.turnTaskQueue,
   });
+  const modelProvider = { apiKey: env.OPENAI_API_KEY ?? "", model: env.MERIT_AI_MODEL ?? "" };
 
   const invitationKey = () => config.payloadKey;
 
@@ -53,8 +55,9 @@ export const createWorkerRuntime = (
       invitationKey,
       startOrganizationInvitation: background.startOrganizationInvitation,
       invitationOrigin,
+      aiReviewer: createOpenAiReviewer(modelProvider),
     },
-    { apiKey: env.OPENAI_API_KEY ?? "", model: env.MERIT_AI_MODEL ?? "" },
+    modelProvider,
   );
   const activities = createActivities({
     database,

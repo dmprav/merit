@@ -6,6 +6,7 @@ import type { AssistantPreview, AssistantReceipt } from "@merit/mcp/assistant";
 
 import type { Stored, TurnDependencies } from "./access.server";
 import { createOpenAiAssistantModel, type AssistantDecision } from "./openai.server";
+import { conversationState } from "./state";
 import { AssistantTurnConflict, createAssistantTurns } from "./turns.server";
 
 const actor = { userId: "manager" };
@@ -32,6 +33,8 @@ const answer = (text: string): AssistantDecision => ({ kind: "answer", text });
 
 const fixture = async () => {
   let row: Stored | null = null;
+  // How many conversation locks are open: a slow tool must run while this is zero.
+  const locks = { open: 0 };
   const tx = {
     transaction: async <T>(work: (tx: Transaction) => Promise<T>) => work({} as Transaction),
   } as Transaction;
@@ -67,16 +70,27 @@ const fixture = async () => {
       if (!row || row.revision !== revision || !(await store.getConsent(user, slug))) {
         return null;
       }
-      return store.save(user, slug, id, revision, await operation(tx, structuredClone(row)));
+      locks.open++;
+      try {
+        return await store.save(
+          user,
+          slug,
+          id,
+          revision,
+          await operation(tx, structuredClone(row)),
+        );
+      } finally {
+        locks.open--;
+      }
     },
   };
   const catalog = {
     list: async () =>
-      ["find", "inspect", "invite", "get_reviewer_assignment"].map((name) => ({
+      ["find", "inspect", "invite", "run_ai_review", "get_reviewer_assignment"].map((name) => ({
         name,
         description: name,
         inputSchema: {},
-        write: name === "invite",
+        write: name === "invite" || name === "run_ai_review",
       })),
     permits: vi.fn<ReturnType<TurnDependencies["catalog"]>["permits"]>(async () => true),
     read: vi.fn<ReturnType<TurnDependencies["catalog"]>["read"]>(async () => ok),
@@ -85,11 +99,13 @@ const fixture = async () => {
       preview: proposal(name, input),
     })),
     execute: vi.fn<ReturnType<TurnDependencies["catalog"]>["execute"]>(async () => ok),
+    recover: vi.fn<ReturnType<TurnDependencies["catalog"]>["recover"]>(async () => undefined),
     deliver: vi.fn<ReturnType<TurnDependencies["catalog"]>["deliver"]>(async () => "sent"),
     retryDelivery: vi.fn<ReturnType<TurnDependencies["catalog"]>["retryDelivery"]>(async () => {}),
   };
   const model = vi.fn<TurnDependencies["model"]>(async () => answer("Done."));
-  const turns = createAssistantTurns({ store, model, catalog: () => catalog });
+  const create = vi.fn<TurnDependencies["catalog"]>(() => catalog);
+  const turns = createAssistantTurns({ store, model, catalog: create });
   await turns.create(actor, "workspace");
   await turns.start(...address, {
     message: "What needs attention?",
@@ -98,6 +114,8 @@ const fixture = async () => {
   return {
     turns,
     catalog,
+    create,
+    locks,
     model,
     store,
     run: () => turns.run(...address),
@@ -263,6 +281,36 @@ it("waits for a worker with a live model lease without sending another request",
     await first;
   }
   expect((await ctx.open())?.messages.at(-1)).toMatchObject({ text: "First reply." });
+});
+
+it("applies a model reply after an unrelated save advanced the revision", async () => {
+  const ctx = await fixture();
+
+  let finish: (decision: AssistantDecision) => void = () => {};
+
+  ctx.model.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const first = ctx.turns.advance(...address);
+  await vi.waitFor(async () => {
+    expect((await ctx.store.read(...address))?.state).toHaveProperty("modelAttempt");
+  });
+  // An old stopped action settling saves the conversation without touching the request.
+  const held = await ctx.store.read(...address);
+  assert.isNotNull(held);
+  assert.isNotNull(
+    await ctx.store.save(...address, held.revision, { status: held.status, state: held.state }),
+  );
+  finish(answer("Late reply."));
+  expect(await first).toBe("progressed");
+  expect(await ctx.open()).toMatchObject({
+    status: "completed",
+    messages: [{ role: "user" }, { role: "assistant", text: "Late reply." }],
+  });
+  expect((await ctx.store.read(...address))?.state).not.toHaveProperty("modelAttempt");
 });
 
 it("stops the investigation after 24 model steps", async () => {
@@ -919,4 +967,175 @@ it("rechecks access before using a saved observation for the next model request"
     status: "unavailable",
     state: { messages: [{ role: "user" }, { role: "tool", name: "inspect" }] },
   });
+});
+
+const slowReview = async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValueOnce(calls("run_ai_review", "application"));
+  await ctx.run();
+  const group = (await ctx.open())?.groups[0];
+  assert.isDefined(group);
+  await ctx.turns.approve(...address, { previewId: group.id });
+
+  let finish: (receipt: AssistantReceipt) => void = () => {};
+
+  let announce = () => {};
+
+  const started = new Promise<void>((resolve) => {
+    announce = resolve;
+  });
+  const held: { locks?: number; open?: unknown } = {};
+  ctx.catalog.execute.mockImplementationOnce(async () => {
+    held.locks = ctx.locks.open;
+    held.open = await ctx.open();
+    announce();
+    return new Promise((resolve) => {
+      finish = resolve;
+    });
+  });
+  return { ...ctx, group, started, held, finish: (receipt: AssistantReceipt) => finish(receipt) };
+};
+
+it("runs an approved slow tool with no conversation lock, and keeps the conversation readable and stoppable meanwhile", async () => {
+  const ctx = await slowReview();
+  const cancellation = new AbortController();
+  const running = ctx.turns.advance(...address, cancellation.signal);
+  await ctx.started;
+  expect(ctx.held.locks).toBe(0);
+  expect(ctx.held.open).toMatchObject({
+    status: "running",
+    groups: [{ actions: [{ status: "approved" }] }],
+  });
+  // The model request of the run is aborted by Stop's cancellation, never by a lock.
+  const run = ctx.create.mock.calls.find((call) => call[3]);
+  expect(run?.[2]).toBeUndefined();
+  const signal = run?.[3];
+  expect(signal?.aborted).toBe(false);
+  cancellation.abort();
+  expect(signal?.aborted).toBe(true);
+  ctx.finish(ok);
+  await running;
+  expect(await ctx.open()).toMatchObject({
+    status: "running",
+    groups: [{ actions: [{ status: "succeeded" }] }],
+  });
+  expect(ctx.catalog.execute).toHaveBeenCalledTimes(1);
+});
+
+it("leaves a live claim to the worker that holds it", async () => {
+  const ctx = await slowReview();
+  const running = ctx.turns.advance(...address);
+  await ctx.started;
+  expect(await ctx.turns.advance(...address)).toBe("waiting");
+  expect(ctx.catalog.execute).toHaveBeenCalledTimes(1);
+  ctx.finish(ok);
+  await running;
+  expect((await ctx.open())?.groups[0]?.actions[0]?.status).toBe("succeeded");
+});
+
+it("stops a slow run that saved nothing, and reports a review that committed before Stop as succeeded", async () => {
+  const saved = await slowReview();
+  const savedRun = saved.turns.advance(...address);
+  await saved.started;
+  await saved.turns.stop(...address);
+  saved.finish({ ...ok, result: { status: "failed" } });
+  await savedRun;
+  expect(await saved.open()).toMatchObject({
+    status: "stopped",
+    groups: [{ actions: [{ status: "stopped", canRetry: false }] }],
+  });
+
+  const committed = await slowReview();
+  const committedRun = committed.turns.advance(...address);
+  await committed.started;
+  await committed.turns.stop(...address);
+  committed.finish(ok);
+  await committedRun;
+  const view = await committed.open();
+  expect(view).toMatchObject({
+    status: "stopped",
+    groups: [{ actions: [{ status: "succeeded", canRetry: false }] }],
+  });
+  const action = view?.groups[0]?.actions[0];
+  assert.isDefined(action);
+  await expect(
+    committed.turns.retry(...address, { previewId: committed.group.id, actionId: action.id }),
+  ).rejects.toThrow(AssistantTurnConflict);
+});
+
+it("reports an expired claim as a failed action that is retried only by approval, never run again", async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValueOnce(calls("run_ai_review", "application"));
+  await ctx.run();
+  const group = (await ctx.open())?.groups[0];
+  assert.isDefined(group);
+  await ctx.turns.approve(...address, { previewId: group.id });
+  // A worker claimed the run and died: its claim has passed with no outcome.
+  const stored = await ctx.store.read(...address);
+  assert.isNotNull(stored);
+  const state = conversationState.parse(stored.state);
+  const claimed = state.groups[0]?.actions[0];
+  assert.isDefined(claimed);
+  claimed.executing = { id: "dead", until: 0 };
+  assert.isNotNull(await ctx.store.save(...address, stored.revision, { status: "running", state }));
+
+  await ctx.run();
+  expect(ctx.catalog.execute).not.toHaveBeenCalled();
+  const failed = (await ctx.open())?.groups[0]?.actions[0];
+  expect(failed).toMatchObject({ status: "failed", canRetry: true });
+  assert.isDefined(failed);
+  await ctx.turns.retry(...address, { previewId: group.id, actionId: failed.id });
+  const retried = (await ctx.open())?.groups[1];
+  assert.isDefined(retried);
+  await ctx.turns.approve(...address, { previewId: retried.id });
+  await ctx.run();
+  expect(ctx.catalog.execute).toHaveBeenCalledTimes(1);
+  expect((await ctx.open())?.groups.map((item) => item.actions[0]?.status)).toEqual([
+    "failed",
+    "succeeded",
+  ]);
+});
+
+const approvedReview = async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValueOnce(calls("run_ai_review", "application"));
+  await ctx.run();
+  const group = (await ctx.open())?.groups[0];
+  assert.isDefined(group);
+  await ctx.turns.approve(...address, { previewId: group.id });
+  ctx.catalog.execute.mockRejectedValueOnce(new Error("The run ended after the review committed."));
+  return { ...ctx, group };
+};
+
+it("records the review a run committed before it threw, without running it again", async () => {
+  const ctx = await approvedReview();
+  ctx.catalog.recover.mockResolvedValueOnce(ok);
+  await ctx.turns.advance(...address);
+  expect(ctx.catalog.recover).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "run_ai_review" }),
+  );
+  expect((await ctx.open())?.groups[0]?.actions[0]).toMatchObject({
+    status: "succeeded",
+    canRetry: false,
+  });
+  expect(ctx.catalog.execute).toHaveBeenCalledTimes(1);
+});
+
+it("reports a run that threw with no saved review as failed and retryable", async () => {
+  const ctx = await approvedReview();
+  await ctx.turns.advance(...address);
+  expect(ctx.catalog.recover).toHaveBeenCalledTimes(1);
+  expect((await ctx.open())?.groups[0]?.actions[0]).toMatchObject({
+    status: "failed",
+    canRetry: true,
+  });
+});
+
+it("leaves the claim for expiry recovery when looking for the committed review fails", async () => {
+  const ctx = await approvedReview();
+  ctx.catalog.recover.mockRejectedValueOnce(new Error("The database is unavailable."));
+  expect(await ctx.turns.advance(...address)).toBe("waiting");
+  const state = conversationState.parse((await ctx.store.read(...address))?.state);
+  expect(state.groups[0]?.actions[0]?.status).toBe("approved");
+  expect(state.groups[0]?.actions[0]?.executing).toBeDefined();
 });

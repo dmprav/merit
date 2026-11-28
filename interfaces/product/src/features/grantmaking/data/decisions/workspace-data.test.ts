@@ -48,6 +48,9 @@ const pageWith = (state: DecisionStateData) => ({
   status: "ok" as const,
   ...encodeApplicationDetail({ round, application }),
   recommendationVersion: 0,
+  aiReviews: [],
+  aiReviewAvailability: "available" as const,
+  aiReviewProvider: null,
   decision: state,
   intake: {
     revision: 1,

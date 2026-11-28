@@ -61,11 +61,21 @@ export type AssistantCatalog = {
   >;
   permits(dependencies: AssistantDependency[]): Promise<boolean>;
   read(name: string, input: Record<string, unknown>): Promise<AssistantReceipt>;
+  /**
+   * `stored` marks input taken from an approved action (a retry or a stale refresh), whose run
+   * identity is kept. Input a model supplied never is.
+   */
   preview(
     name: string,
     input: Record<string, unknown>,
+    stored?: boolean,
   ): Promise<AssistantReceipt & { preview?: AssistantPreview }>;
   execute(preview: AssistantPreview): Promise<AssistantReceipt & { retry?: AssistantPreview }>;
+  /**
+   * What an approved slow action already saved under its run identity, found without running it
+   * again. Undefined when it saved nothing, or is not a slow action.
+   */
+  recover(approved: AssistantPreview): Promise<AssistantReceipt | undefined>;
 };
 
 export const receipt = (status: string): AssistantReceipt => ({

@@ -48,6 +48,7 @@ const config: StorybookConfig = {
             "All applications",
             "Create",
             "Application detail",
+            "AI review",
             "Manage intake",
             "Intake form",
             "Withdraw and reinstate",

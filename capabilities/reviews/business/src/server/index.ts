@@ -11,3 +11,5 @@ export {
   type ReviewerMessageActivityDependencies,
   type ReviewerMessageWork,
 } from "./commands/reviewer-delivery";
+export { runAiReview } from "./commands/ai-reviews";
+export { readApplicationAiReviews } from "./queries/ai-reviews";

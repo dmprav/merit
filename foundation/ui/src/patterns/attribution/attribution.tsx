@@ -15,10 +15,13 @@ import styles from "./attribution.module.css";
  */
 export const Attribution = ({
   actor,
+  action = "recorded",
   provenance,
   recordedAt,
 }: {
   actor: string | null;
+  /** What the actor did: recorded the record, or ran the work that produced it. */
+  action?: "recorded" | "ran";
   /** Names an MCP client beside the actor when one was recorded. */
   provenance?: ActionProvenanceValue | null;
   /** An instant, shown in the viewer's local time. */
@@ -27,7 +30,9 @@ export const Attribution = ({
   const { t } = useTranslation("common");
   return (
     <div className={styles.attribution}>
-      <span>{t("recordedBy", { name: actor ?? t("unknownActor") })}</span>
+      <span>
+        {t(action === "ran" ? "ranBy" : "recordedBy", { name: actor ?? t("unknownActor") })}
+      </span>
       {provenance !== undefined && <ActionProvenance value={provenance} />}
       {recordedAt && <Timestamp value={recordedAt} />}
     </div>

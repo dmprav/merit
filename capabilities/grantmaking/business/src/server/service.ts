@@ -26,17 +26,25 @@ type Dependencies = {
   database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
 };
 
+type QueryDependencies = Dependencies & {
+  /** The provider and model AI reviews would use, or null when this server has none. */
+  aiReviewProvider?: { provider: string; model: string } | null;
+};
+
 export const createNavigationService = ({ database }: Dependencies): NavigationService => ({
   read: (actor) => database((db) => readNavigationPins(db, actor)),
   change: (actor, input) => database((db) => changeNavigationPin(db, actor, input)),
 });
 
-export const createGrantmakingService = ({ database }: Dependencies): GrantmakingQueries => ({
+export const createGrantmakingService = ({
+  database,
+  aiReviewProvider = null,
+}: QueryDependencies): GrantmakingQueries => ({
   applicationAuditHistory: (actor, input) =>
     database((db) => applicationAuditHistory(db, actor, input)),
   roundBudgetHistory: (actor, input) => database((db) => roundBudgetHistory(db, actor, input)),
   readApplicationPage: (actor, input) =>
-    database((db) => getFundingApplicationPage(db, actor, input)),
+    database((db) => getFundingApplicationPage(db, actor, input, aiReviewProvider)),
   readRoundPage: (actor, input) => database((db) => getFundingRoundPage(db, actor, input)),
   listWorkspaceApplications: (actor, input) =>
     database((db) => listWorkspaceApplications(db, actor, input)),

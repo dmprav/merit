@@ -12,7 +12,15 @@ import type {
 } from "@merit/grantmaking/api";
 import { RemotePagedContent } from "@merit/query/pages";
 import { ApplicationRecommendationSummary } from "@merit/recommendations-web/work";
+import {
+  AiReviewContent,
+  AiReviewFeedback,
+  AiReviewOverview,
+  useAiReviewWork,
+  type AiReviewWork,
+} from "@merit/reviews-web/ai-review";
 import type { ReviewData } from "@merit/reviews-web/contracts";
+import type { AiReviewData } from "@merit/reviews-web/contracts/ai-review";
 import { ReviewWork, ReviewOverview, type ReviewWorkspace } from "@merit/reviews-web/work";
 import { ActionMenu } from "@merit/ui/action-menu";
 import { Button } from "@merit/ui/button";
@@ -42,6 +50,7 @@ type ApplicationViewProps = {
   editorCloseAction?: ReactNode;
   intake?: IntakeSession;
   reviewData?: ReviewData | null;
+  aiReviewData?: AiReviewData | null;
   intakeState?: IntakeState;
   recommendationAction?: ReactNode;
   /** The committee's decision versions, newest first, shown above the recommendation. */
@@ -69,6 +78,7 @@ export const ApplicationView = (props: ApplicationViewProps) => {
   } = props;
   // A withdrawn application keeps its reviews and recommendation readable but accepts no work.
   const locked = readOnly || isWithdrawn(application);
+  const aiReview = useAiReviewWork(props.aiReviewData);
   const history = intake?.data.state.history ?? intakeState?.history ?? [];
   return (
     <ReviewWork
@@ -92,6 +102,7 @@ export const ApplicationView = (props: ApplicationViewProps) => {
         <ApplicationWorkspace
           {...props}
           review={review}
+          aiReview={aiReview}
           locked={locked}
           history={history}
           tab={tab}
@@ -107,6 +118,7 @@ const ApplicationWorkspace = (
     review: ReviewWorkspace;
     locked: boolean;
     history: NonNullable<IntakeState["history"]>;
+    aiReview: AiReviewWork | null;
   },
 ) => {
   const { application, intake, editor, review, tab = "evidence", onTabChange } = props;
@@ -145,14 +157,16 @@ type ApplicationLayoutProps = ApplicationViewProps & {
   state: ReturnType<typeof useApplicationNavigation>;
   history: NonNullable<IntakeState["history"]>;
   review: ReviewWorkspace;
+  aiReview: AiReviewWork | null;
 };
 
 const ApplicationLayout = (props: ApplicationLayoutProps) => {
   const { t } = useTranslation(["fundingRounds", "reviews"]);
-  const { editor, content, review } = props;
+  const { editor, content, review, aiReview } = props;
   const labels: Record<ApplicationReference, string> = {
     evidence: t("workspace.submission"),
-    reviews: t("workspace.assessments"),
+    // The AI review shares the reviews pane but is not an assessment, so it names itself while shown.
+    reviews: t(aiReview?.reading.selected ? "workspace.aiReview" : "workspace.assessments"),
     history: t("workspace.history"),
     details: t("workspace.details"),
   };
@@ -170,6 +184,7 @@ const ApplicationLayout = (props: ApplicationLayoutProps) => {
         <>
           {content.feedback}
           {review.feedback}
+          {aiReview && <AiReviewFeedback work={aiReview} />}
         </>
       }
     >
@@ -220,6 +235,7 @@ const ApplicationReferencePane = ({
   history,
   intake,
   review,
+  aiReview,
 }: ApplicationLayoutProps & { labels: Record<ApplicationReference, string> }) => {
   const { t } = useTranslation(["fundingRounds", "reviews"]);
   const {
@@ -259,7 +275,14 @@ const ApplicationReferencePane = ({
           {key === "evidence" ? (
             content.evidence
           ) : key === "reviews" ? (
-            review.content(state.inspectHistory)
+            <>
+              <div hidden={Boolean(aiReview?.reading.selected)}>
+                {review.content(state.inspectHistory)}
+              </div>
+              {aiReview && (
+                <AiReviewContent work={aiReview} onInspectVersion={state.inspectHistory} />
+              )}
+            </>
           ) : key === "details" ? (
             content.details
           ) : (
@@ -308,6 +331,7 @@ const ApplicationWorkPane = ({
   decisionAction,
   editorTitle,
   review,
+  aiReview,
   state,
 }: ApplicationLayoutProps) => {
   const { t } = useTranslation(["fundingRounds", "reviews"]);
@@ -338,13 +362,20 @@ const ApplicationWorkPane = ({
           decisionVersions={decisionVersions}
           decisionAction={decisionAction}
           actions={review.actions}
+          aiReview={aiReview}
           onShowAll={() => {
+            aiReview?.reading.close();
             review.reading.showAll();
             changeReference("reviews");
           }}
           onSelect={(id) => {
+            aiReview?.reading.close();
             changeReference("reviews", false);
             review.reading.openReview(id);
+          }}
+          onSelectAiReview={(id) => {
+            changeReference("reviews", false);
+            aiReview?.reading.open(id);
           }}
           triggerRef={review.reading.registerTrigger}
         />
@@ -371,21 +402,10 @@ const ApplicationTaskContent = ({
   </>
 );
 
-const ApplicationWorkOverview = ({
-  application,
-  manager,
-  overview,
-  readOnly,
-  recommendationAction,
-  decisionVersions,
-  decisionAction,
-  onShowAll,
-  onSelect,
-  triggerRef,
-  actions,
-  onInspectVersion,
-}: Omit<ComponentProps<typeof ReviewOverview>, "application"> & {
+type WorkOverviewProps = Omit<ComponentProps<typeof ReviewOverview>, "application"> & {
   application: Application;
+  aiReview: AiReviewWork | null;
+  onSelectAiReview: (id: string) => void;
   manager: ApplicationRoundContext["manager"];
   overview: ReactNode;
   readOnly: boolean;
@@ -393,36 +413,86 @@ const ApplicationWorkOverview = ({
   decisionVersions?: readonly DecisionVersion[];
   decisionAction?: ReactNode;
   onInspectVersion: (version: number) => void;
-}) => (
-  <PanelSections>
-    {overview}
+};
+
+/** The committee decision and the manager's recommendation, each with its action while work is accepted. */
+const ApplicationJudgments = ({
+  application,
+  manager,
+  readOnly,
+  recommendationAction,
+  decisionVersions,
+  decisionAction,
+  onInspectVersion,
+  preparing,
+}: Pick<
+  WorkOverviewProps,
+  | "application"
+  | "manager"
+  | "readOnly"
+  | "recommendationAction"
+  | "decisionVersions"
+  | "decisionAction"
+  | "onInspectVersion"
+> & { preparing: boolean }) => (
+  <>
     {decisionVersions && (
       <ApplicationDecisionSummary
         versions={decisionVersions}
         action={!readOnly && decisionAction}
       />
     )}
-    {application.intakeStatus !== "in_preparation" || application.managerRecommendation ? (
+    {!preparing && (
       <ApplicationRecommendationSummary
         application={application}
         manager={manager}
         action={!readOnly && recommendationAction}
         onInspectVersion={onInspectVersion}
       />
-    ) : null}
-    <ReviewOverview
-      application={application}
-      onShowAll={onShowAll}
-      onSelect={onSelect}
-      triggerRef={triggerRef}
-      actions={actions}
-    />
-    {application.intakeStatus === "in_preparation" &&
-      !application.managerRecommendation &&
-      !readOnly &&
-      recommendationAction}
-  </PanelSections>
+    )}
+  </>
 );
+
+const ApplicationWorkOverview = ({
+  application,
+  overview,
+  readOnly,
+  recommendationAction,
+  onShowAll,
+  onSelect,
+  triggerRef,
+  actions,
+  aiReview,
+  onSelectAiReview,
+  ...judgments
+}: WorkOverviewProps) => {
+  // Until a recommendation exists, an application in preparation offers to start one last.
+  const preparing =
+    application.intakeStatus === "in_preparation" && !application.managerRecommendation;
+  return (
+    <PanelSections>
+      {overview}
+      <ApplicationJudgments
+        {...judgments}
+        application={application}
+        readOnly={readOnly}
+        recommendationAction={recommendationAction}
+        preparing={preparing}
+      />
+      <ReviewOverview
+        application={application}
+        onShowAll={onShowAll}
+        onSelect={onSelect}
+        triggerRef={triggerRef}
+        actions={actions}
+      />
+      {aiReview && (
+        <AiReviewOverview work={aiReview} onSelect={onSelectAiReview} readOnly={readOnly} />
+      )}
+      {preparing && !readOnly && recommendationAction}
+    </PanelSections>
+  );
+};
 
 const ApplicationHistoryContent = (props: ComponentProps<typeof ApplicationHistory>) => {
   const [inspectingAudit, setInspectingAudit] = useState(false);

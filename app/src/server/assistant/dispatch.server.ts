@@ -233,14 +233,17 @@ export const nextAction = (state: ConversationState) => {
   return null;
 };
 
-export const executeNext = async (state: ConversationState, catalog: AssistantRuntimeCatalog) => {
-  const next = nextAction(state);
-  if (!next || next.action.status !== "approved") {
-    throw new Error("No approved assistant action.");
-  }
-  const { group, action } = next;
+export type Receipt = Awaited<ReturnType<AssistantRuntimeCatalog["execute"]>>;
+
+/** Record what executing an approved action returned, and what that means for the rest of its group. */
+export const applyReceipt = async (
+  state: ConversationState,
+  catalog: AssistantRuntimeCatalog,
+  group: ConversationState["groups"][number],
+  action: Action,
+  receipt: Receipt,
+) => {
   const { name, input } = action.preview;
-  const receipt = await catalog.execute(action.preview);
   recordReceipt(state, name, input, {
     ...receipt,
     result: { ...receipt.result, phase: "execution" },
@@ -248,7 +251,7 @@ export const executeNext = async (state: ConversationState, catalog: AssistantRu
   action.result = receipt.result;
   if (receipt.result.status === "stale" || receipt.result.status === "conflict") {
     action.status = "stale";
-    const fresh = await catalog.preview(name, receipt.retry?.input ?? input);
+    const fresh = await catalog.preview(name, receipt.retry?.input ?? input, true);
     recordReceipt(state, name, input, fresh);
     if (fresh.preview) {
       const replacement = newAction(fresh.preview);
@@ -269,12 +272,22 @@ export const executeNext = async (state: ConversationState, catalog: AssistantRu
   return disposition(state, group);
 };
 
+export const executeNext = async (state: ConversationState, catalog: AssistantRuntimeCatalog) => {
+  const next = nextAction(state);
+  if (!next || next.action.status !== "approved") {
+    throw new Error("No approved assistant action.");
+  }
+  const receipt = await catalog.execute(next.action.preview);
+  return applyReceipt(state, catalog, next.group, next.action, receipt);
+};
+
 export const failNext = (state: ConversationState) => {
   const next = nextAction(state);
   if (!next) {
     return change(state, "failed");
   }
   const { action, group } = next;
+  delete action.executing;
   action.status = "failed";
   action.result = { status: "failed" };
   recordReceipt(state, action.preview.name, action.preview.input, {

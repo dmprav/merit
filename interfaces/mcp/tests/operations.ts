@@ -15,6 +15,10 @@ export const testOperations = (): McpOperations => ({
   },
   reviews: {
     saveReview: vi.fn<McpOperations["reviews"]["saveReview"]>(),
+    runAiReview: vi.fn<McpOperations["reviews"]["runAiReview"]>(),
+    readAiReviewRun: vi.fn<McpOperations["reviews"]["readAiReviewRun"]>(),
+    readAiReviews: vi.fn<McpOperations["reviews"]["readAiReviews"]>(),
+    aiReviewProvider: { provider: "OpenAI", model: "merit-test" },
   },
   reviewer: {
     list: vi.fn<McpOperations["reviewer"]["list"]>(),

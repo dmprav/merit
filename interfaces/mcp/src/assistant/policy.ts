@@ -3,6 +3,7 @@ import type { AssistantToolName } from "../app/tools";
 import type { AssistantDependency, AssistantPreview } from "./contracts";
 import type { PreviewContext } from "./preview-records";
 import {
+  aiReviewPreview,
   assignmentPreview,
   cancelReviewPreview,
   correctAssessmentPreview,
@@ -78,6 +79,7 @@ export const assistantPolicy = {
   manage_reviewer_assignment: write("grants", application("context", managerAssignmentPreview)),
   mark_application_ready: write("grants", intake),
   publish_application_revision: changeWorkingRevision,
+  read_ai_reviews: grants,
   record_assessment: write(
     "grants",
     application("reviewRevision", recordAssessmentPreview),
@@ -92,6 +94,7 @@ export const assistantPolicy = {
   ),
   respond_to_review: write("reviewer", assignmentPreview("respond")),
   restore_contact: changeContactStatus,
+  run_ai_review: write("grants", application("material", aiReviewPreview)),
   save_application_revision: write("grants", intake, linkedContact),
   save_recommendation: write(
     "grants",

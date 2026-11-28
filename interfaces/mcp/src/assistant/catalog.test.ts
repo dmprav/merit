@@ -1,8 +1,10 @@
 import { assert, expect, it, vi } from "vite-plus/test";
 
+import { aiReviewEntrySchema } from "@merit/reviews/domain";
+
 import { testOperations } from "../../tests/operations";
 import { publication } from "../app/publication";
-import { createAssistantCatalog, type AssistantOperations } from "./catalog";
+import { createAssistantCatalog, isSlowTool, type AssistantOperations } from "./catalog";
 import { describeResult } from "./evidence";
 
 const actor = { userId: "manager" };
@@ -490,4 +492,229 @@ it("keeps a refused draft operation from invalidating the reviewer's conversatio
       })
     ).preview,
   ).toBeDefined();
+});
+
+const aiReview = aiReviewEntrySchema.parse({
+  id: "5a2cb9b7-4a6e-4f5a-a0f2-b0f3a1c0e100",
+  applicationVersion: 3,
+  criteriaVersion: 1,
+  provider: "OpenAI",
+  model: "merit-test",
+  runBy: { userId: "manager", name: "Dana Reed" },
+  provenance: { interface: "web" },
+  recordedAt: "2027-01-18T10:00:00.000Z",
+  position: "Defer",
+  amount: { minorUnits: "0", currency: "EUR" },
+  reasoning: "The venue is not confirmed.",
+  criteria: [
+    {
+      criterionId: null,
+      title: "Whole application",
+      claims: [],
+      gaps: ["No dates."],
+      strengths: [],
+      weaknesses: [],
+      concerns: [],
+    },
+  ],
+  questions: [],
+  basisComparison: { applicationVersion: "same", criteriaVersion: "same", criteriaContent: "same" },
+  freshness: "current",
+});
+
+const aiReviewSetup = () => {
+  const { ops, catalog } = setup();
+  vi.mocked(ops.grantmaking.readApplication).mockImplementation(
+    vi.fn().mockResolvedValue({
+      status: "ok",
+      application: {
+        applicationId,
+        title: "Community garden",
+        intakeRevision: 2,
+        applicationVersion: 3,
+        criteriaVersion: 1,
+      },
+    }),
+  );
+  vi.mocked(ops.reviews.runAiReview).mockResolvedValue({ status: "ok", review: aiReview });
+  vi.mocked(ops.reviews.readAiReviews).mockResolvedValue({
+    status: "ok",
+    applicationVersion: 3,
+    reviews: [aiReview],
+  });
+  return { ops, catalog };
+};
+
+const aiReviewCitation = {
+  kind: "ai_review",
+  recordId: aiReview.id,
+  version: "3",
+  label: "AI review (merit-test)",
+};
+
+it("previews an AI review run with its application and criteria versions and its external effect, without running it", async () => {
+  const { ops, catalog } = aiReviewSetup();
+
+  expect((await catalog.read("run_ai_review", { applicationId })).result.status).toBe(
+    "invalid_input",
+  );
+  const { preview } = await catalog.preview("run_ai_review", { applicationId });
+
+  assert(preview);
+  expect(preview.targets).toEqual([
+    {
+      kind: "application",
+      id: applicationId,
+      label: "Community garden",
+      version: "application version 3, criteria version 1",
+    },
+  ]);
+  expect(preview.effects).toEqual([
+    "Sends this application's current material and the round's criteria to OpenAI (merit-test).",
+    "Saves a new AI review.",
+  ]);
+  // The material a person approves is bound to the run, so a run that finds other versions refuses.
+  expect(preview.input).toMatchObject({
+    expectedApplicationVersion: 3,
+    expectedCriteriaVersion: 1,
+  });
+  expect(ops.reviews.runAiReview).not.toHaveBeenCalled();
+});
+
+it("generates a run identity for the approved action, keeps it for a stored retry and never takes the model's", async () => {
+  const { catalog } = aiReviewSetup();
+  const { preview } = await catalog.preview("run_ai_review", { applicationId });
+  assert(preview);
+  const runId = preview.input.runId;
+
+  expect(runId).toMatch(/^[0-9a-f-]{36}$/);
+  const listed = (await catalog.list()).find((tool) => tool.name === "run_ai_review");
+  expect(listed?.inputSchema.properties).toHaveProperty("applicationId");
+  expect(listed?.inputSchema.properties).not.toHaveProperty("runId");
+  // Previewing the same input again, as a retry does, keeps the identity.
+  expect((await catalog.preview("run_ai_review", preview.input, true)).preview?.input.runId).toBe(
+    runId,
+  );
+  // A run ID the model supplies, for instance copied from an earlier action, is replaced.
+  const supplied = (await catalog.preview("run_ai_review", { applicationId, runId })).preview;
+  expect(supplied?.input.runId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(supplied?.input.runId).not.toBe(runId);
+});
+
+it("executes an approved AI review run with its identity and the versions it showed, and cites the saved review as an AI review", async () => {
+  const { ops, catalog } = aiReviewSetup();
+  const { preview } = await catalog.preview("run_ai_review", { applicationId });
+  assert(preview);
+
+  const executed = await catalog.execute(preview);
+
+  expect(ops.reviews.runAiReview).toHaveBeenCalledExactlyOnceWith(actor, {
+    workspaceSlug,
+    publicId: applicationId,
+    runId: preview.input.runId,
+    expectedApplicationVersion: 3,
+    expectedCriteriaVersion: 1,
+  });
+  expect(executed.citations).toContainEqual(aiReviewCitation);
+});
+
+it.each([
+  ["the application", { applicationVersion: 4, criteriaVersion: 1 }],
+  ["the criteria", { applicationVersion: 3, criteriaVersion: 2 }],
+])("reports an approved AI review run stale when %s changed before it ran", async (_name, now) => {
+  const { ops, catalog } = aiReviewSetup();
+  const { preview } = await catalog.preview("run_ai_review", { applicationId });
+  assert(preview);
+  vi.mocked(ops.grantmaking.readApplication).mockResolvedValue({
+    status: "ok",
+    application: {
+      applicationId,
+      title: "Community garden",
+      intakeRevision: 2,
+      ...now,
+    },
+  } as Awaited<ReturnType<typeof ops.grantmaking.readApplication>>);
+
+  const executed = await catalog.execute(preview);
+
+  expect(executed.result.status).toBe("stale");
+  expect(executed.retry?.targets[0]?.version).toBe(
+    `application version ${now.applicationVersion}, criteria version ${now.criteriaVersion}`,
+  );
+  expect(ops.reviews.runAiReview).not.toHaveBeenCalled();
+});
+
+it("reports an approved AI review run stale when the run itself finds the versions moved on", async () => {
+  const { ops, catalog } = aiReviewSetup();
+  const { preview } = await catalog.preview("run_ai_review", { applicationId });
+  assert(preview);
+  vi.mocked(ops.reviews.runAiReview).mockResolvedValue({ status: "conflict" });
+
+  expect((await catalog.execute(preview)).result.status).toBe("stale");
+});
+
+it("cites read AI reviews as AI reviews, never as application material", async () => {
+  const { catalog } = aiReviewSetup();
+
+  const read = await catalog.read("read_ai_reviews", { applicationId });
+
+  expect(read.citations).toEqual([aiReviewCitation]);
+  expect(read.citations.some(({ kind }) => kind === "material")).toBe(false);
+});
+
+it("finds the review an approved AI review run already saved without running it again", async () => {
+  const { ops, catalog } = aiReviewSetup();
+  const { preview } = await catalog.preview("run_ai_review", { applicationId });
+  assert(preview);
+  vi.mocked(ops.reviews.readAiReviewRun).mockResolvedValueOnce({ status: "ok", review: aiReview });
+
+  const recovered = await catalog.recover(preview);
+
+  expect(ops.reviews.readAiReviewRun).toHaveBeenCalledExactlyOnceWith(actor, {
+    workspaceSlug,
+    publicId: applicationId,
+    runId: preview.input.runId,
+  });
+  expect(recovered?.result).toMatchObject({ status: "ok", applicationId });
+  expect(recovered?.citations).toContainEqual(aiReviewCitation);
+  expect(ops.reviews.runAiReview).not.toHaveBeenCalled();
+  // A run that saved nothing, and any other tool, recover nothing.
+  vi.mocked(ops.reviews.readAiReviewRun).mockResolvedValueOnce({ status: "not_found" });
+  expect(await catalog.recover(preview)).toBeUndefined();
+  expect(await catalog.recover({ ...preview, name: "request_review" })).toBeUndefined();
+  expect(await catalog.recover({ ...preview, input: { applicationId } })).toBeUndefined();
+});
+
+it("refuses an AI review run when the provider is not configured", async () => {
+  const { ops, catalog } = aiReviewSetup();
+  ops.reviews.aiReviewProvider = null;
+
+  expect((await catalog.preview("run_ai_review", { applicationId })).result.status).toBe(
+    "provider_unconfigured",
+  );
+});
+
+it("withholds both AI review tools from a reviewer and refuses them without calling a service", async () => {
+  const { ops, catalog } = setup();
+  ops.readWorkspace.mockResolvedValue({
+    ...workspace,
+    role: "reviewer",
+    canWorkOnGrants: false,
+    canViewTeam: false,
+  });
+  const names = (await catalog.list()).map((tool) => tool.name);
+  expect(names).not.toContain("run_ai_review");
+  expect(names).not.toContain("read_ai_reviews");
+  expect((await catalog.read("read_ai_reviews", { applicationId })).result.status).toBe(
+    "forbidden",
+  );
+  expect((await catalog.preview("run_ai_review", { applicationId })).result.status).toBe(
+    "forbidden",
+  );
+  expect(ops.reviews.readAiReviews).not.toHaveBeenCalled();
+  expect(ops.reviews.runAiReview).not.toHaveBeenCalled();
+});
+
+it("declares only the AI review run as a slow external call", () => {
+  expect(Object.keys(publication).filter(isSlowTool)).toEqual(["run_ai_review"]);
 });

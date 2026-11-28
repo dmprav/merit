@@ -117,6 +117,14 @@ material and criteria; it does not establish the judgment's quality or require a
 new review. Criteria revision identity and criteria content equality remain
 separate comparisons under the [review basis policy](../workflows/review-applications.md#review-basis-and-freshness-policy).
 
+An **AI review** is Merit AI's interpretation of one application's material
+against its round's criteria: cited evidence, gaps, strengths, weaknesses and
+concerns for each criterion, questions for the applicant, and an overall funding
+position with a proposed amount. It is its own record, never an assessment by a
+reviewer, a review request or a recommendation, and it never counts in review
+status or budget totals. It has a review basis and freshness like an assessment.
+See the [decision](../decisions/0018-ai-review.md).
+
 A **recommendation** proposes an action; a **decision** records the authorized
 choice. At [Wellcome](https://wellcome.org/research-funding/guidance/how-wellcome-makes-funding-decisions/how-wellcome-assesses-funding-applications),
 committee rankings inform staff decisions alongside budget and strategy.

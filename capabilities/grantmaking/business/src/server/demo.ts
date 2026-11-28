@@ -1,19 +1,23 @@
+import { randomUUID } from "node:crypto";
+
 import { encodeApplicationMaterial } from "@merit/applications/domain";
 import { recordApplicationChange } from "@merit/applications/server/demo";
 import { seedExampleContacts } from "@merit/contacts/server/demo";
 import type { Transaction } from "@merit/db";
 import { encodeDecision } from "@merit/decisions/domain";
 import { fromMinorUnits } from "@merit/money";
+import { insertAiReview } from "@merit/reviews/server/demo";
 import { encodeRound } from "@merit/rounds/domain";
 import { insertPreparedRound } from "@merit/rounds/server/demo";
 
 import { decodeApplication, encodeRoundOverview } from "../domain/encoding";
 import { applicationRecordSchema } from "../domain/model";
+import { exampleAiReviewProvider, exampleAiReviews } from "../examples/example-ai-reviews";
 import { exampleDecisions, exampleRound } from "../examples/example-data";
 import { getExampleRound } from "../examples/get-example-round";
 import { insertExampleApplication, deleteDemoFunding } from "./persistence/commands/demo";
 
-export const exampleSeedVersion = 1;
+export const exampleSeedVersion = 2;
 export const fundingExampleAuthor = { id: "merit-example-author", name: exampleRound.manager };
 
 /** Fixture labels stay in the scenario; each workspace gets its own stable record identities. */
@@ -42,6 +46,66 @@ export const fundingExampleIds = async (organizationId: string) => {
   };
 };
 
+/** One prepared review per example application, written as the example's manager. The demo never calls a provider. */
+const seedPreparedAiReview = async (
+  db: Transaction,
+  options: {
+    organizationId: string;
+    roundId: string;
+    caseId: string;
+    applicationId: string;
+    applicationVersion: number;
+    example: ReturnType<typeof getExampleRound>;
+    authorUserId: string;
+  },
+) => {
+  const { example, applicationId } = options;
+  const prepared = exampleAiReviews[applicationId];
+  if (!prepared) {
+    throw new Error(`Missing prepared AI review for application: ${applicationId}`);
+  }
+  await insertAiReview(db, {
+    organizationId: options.organizationId,
+    runId: randomUUID(),
+    caseId: options.caseId,
+    applicationVersion: options.applicationVersion,
+    roundId: options.roundId,
+    criteriaVersion: example.criteriaVersion,
+    ...exampleAiReviewProvider,
+    runBy: { userId: options.authorUserId, name: fundingExampleAuthor.name },
+    provenance: { interface: "web" },
+    titles: example.criteria.map((criterion) => criterion.title),
+    output: prepared,
+    recordedAt: new Date(`${example.snapshotDate}T10:00:00Z`),
+  });
+};
+
+const seededContent = (
+  application: ReturnType<typeof encodeRoundOverview>["applications"][number],
+  ids: Awaited<ReturnType<typeof fundingExampleIds>>,
+  contactIds: Awaited<ReturnType<typeof seedExampleContacts>>,
+) => {
+  const reviews = structuredClone(application.reviews);
+  for (const review of [...reviews.requests, ...reviews.assessments]) {
+    const contactId = contactIds.get(review.contactId);
+    if (!contactId) {
+      throw new Error(`Missing seeded contact for review: ${review.contactId}`);
+    }
+    review.contactId = contactId;
+  }
+
+  const seededApplicationId = ids.applications[application.id];
+  if (!seededApplicationId) {
+    throw new Error(`Missing seeded ID for application: ${application.id}`);
+  }
+  return {
+    ...application,
+    id: seededApplicationId,
+    reviews,
+    contactId: application.contactId ? (contactIds.get(application.contactId) ?? null) : null,
+  };
+};
+
 const seedExampleApplication = async (
   db: Transaction,
   options: {
@@ -57,25 +121,7 @@ const seedExampleApplication = async (
 ) => {
   const { organizationId, roundId, authorUserId, position, example, application, ids, contactIds } =
     options;
-  const reviews = structuredClone(application.reviews);
-  for (const review of [...reviews.requests, ...reviews.assessments]) {
-    const contactId = contactIds.get(review.contactId);
-    if (!contactId) {
-      throw new Error(`Missing seeded contact for review: ${review.contactId}`);
-    }
-    review.contactId = contactId;
-  }
-
-  const seededApplicationId = ids.applications[application.id];
-  if (!seededApplicationId) {
-    throw new Error(`Missing seeded ID for application: ${application.id}`);
-  }
-  const content = {
-    ...application,
-    id: seededApplicationId,
-    reviews,
-    contactId: application.contactId ? (contactIds.get(application.contactId) ?? null) : null,
-  };
+  const content = seededContent(application, ids, contactIds);
   const exampleDecision = exampleDecisions[application.id];
   const seededAt = new Date();
   const earlierMaterial =
@@ -103,6 +149,15 @@ const seedExampleApplication = async (
           },
         ]
       : [],
+  });
+  await seedPreparedAiReview(db, {
+    organizationId,
+    roundId,
+    caseId: saved.id,
+    applicationId: application.id,
+    applicationVersion: content.version,
+    example,
+    authorUserId,
   });
   if (earlierMaterial) {
     await recordApplicationChange(db, {

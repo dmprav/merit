@@ -44,6 +44,38 @@ const draft = {
   note: "",
 };
 
+const savedAiReview = {
+  id: "5a2cb9b7-4a6e-4f5a-a0f2-b0f3a1c0e100",
+  applicationVersion: 1,
+  criteriaVersion: 1,
+  provider: "OpenAI",
+  model: "merit-test",
+  runBy: { userId: "sam", name: "Sam" },
+  provenance: { interface: "mcp" as const, clientId: "integration-client" },
+  recordedAt: "2027-01-18T10:00:00.000Z",
+  position: "Defer" as const,
+  amount: { minorUnits: "0", currency: "EUR" as const },
+  reasoning: "The venue is not confirmed.",
+  criteria: [
+    {
+      criterionId: null,
+      title: "Whole application",
+      claims: [{ text: "Venue.", citations: [{ source: "title", quote: "Meals", label: null }] }],
+      gaps: [],
+      strengths: [],
+      weaknesses: [],
+      concerns: [],
+    },
+  ],
+  questions: ["When is the venue confirmed?"],
+  basisComparison: {
+    applicationVersion: "same" as const,
+    criteriaVersion: "same" as const,
+    criteriaContent: "same" as const,
+  },
+  freshness: "current" as const,
+};
+
 type DispatchCase = {
   name: string;
   args: Record<string, unknown>;
@@ -209,6 +241,22 @@ const dispatchCases: DispatchCase[] = [
     input: { workspaceSlug: "alder", publicId: roundId, expectedRevision: 2 },
     result: { status: "ok" },
     response: { status: "ok", roundId, deleted: true },
+  },
+  {
+    name: "run_ai_review",
+    args: { ...address, runId: commandId },
+    fn: (o) => o.reviews.runAiReview,
+    input: { workspaceSlug: "alder", publicId: applicationId, runId: commandId },
+    result: { status: "ok", review: savedAiReview },
+    response: { status: "ok", applicationId, aiReview: savedAiReview },
+  },
+  {
+    name: "read_ai_reviews",
+    args: address,
+    fn: (o) => o.reviews.readAiReviews,
+    input: { workspaceSlug: "alder", publicId: applicationId },
+    result: { status: "ok", applicationVersion: 1, reviews: [savedAiReview] },
+    response: { status: "ok", applicationId, applicationVersion: 1, aiReviews: [savedAiReview] },
   },
   {
     name: "cancel_review_request",
@@ -526,6 +574,25 @@ it.each(["expired", "limited", "unavailable"] as const)(
       const result = await client.callTool("start_demo", {});
       expect(result.isError).toBe(true);
       expect(result.structuredContent).toEqual({ status });
+    } finally {
+      await client.close();
+    }
+  },
+);
+
+it.each([
+  { status: "not_available", availability: "consent_required" },
+  { status: "not_available", availability: "demo" },
+  { status: "failed" },
+  { status: "not_found" },
+] as const)(
+  "returns the AI review refusal %j unchanged and never an unrelated error",
+  async (refusal) => {
+    const operations = testOperations();
+    vi.mocked(operations.reviews.runAiReview).mockResolvedValue(refusal);
+    const client = await connect(operations);
+    try {
+      expect((await client.callTool("run_ai_review", address)).structuredContent).toEqual(refusal);
     } finally {
       await client.close();
     }

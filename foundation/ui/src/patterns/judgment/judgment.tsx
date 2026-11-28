@@ -1,13 +1,15 @@
 import type { ReactNode, Ref } from "react";
 
 import { ButtonBase } from "../../components/button/button-base";
-import { IconBase } from "../../components/icon/icon-base";
+import { IconBase, type IconName } from "../../components/icon/icon-base";
 import { PersonIdentity } from "../person-identity/person-identity";
 import styles from "./judgment.module.css";
 
 type JudgmentContent = {
-  /** The person whose judgment this is. */
+  /** The person, or other author, whose judgment this is. */
   author: string;
+  /** A glyph in place of initials, when the author is not a person, such as Merit AI. */
+  authorIcon?: IconName;
   /** Muted facts beside the author, such as when it was recorded. */
   meta?: ReactNode;
   /** The position and any amount, with the position in strong text. Omit before a judgment exists. */
@@ -19,6 +21,7 @@ type JudgmentContent = {
 const JudgmentParts = ({
   as: Element,
   author,
+  authorIcon,
   meta,
   summary,
   basis,
@@ -28,7 +31,7 @@ const JudgmentParts = ({
   <>
     <Element className={styles.header}>
       <span className={styles.identity}>
-        <PersonIdentity name={author} />
+        <PersonIdentity name={author} icon={authorIcon} />
         {meta != null && <span className={styles.meta}>{meta}</span>}
       </span>
       {aside}

@@ -343,3 +343,4 @@ export const readAssessmentRecord = async (
 
 export { reviewOverview } from "./overview";
 export { readReviewSummaryPage, reviewAssignmentMatch } from "./summary-entries";
+export { readAiReviewRecords } from "./ai-reviews";

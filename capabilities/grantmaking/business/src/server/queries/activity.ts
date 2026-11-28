@@ -36,6 +36,7 @@ export const listWorkspaceActivity = (
         "round",
         "application",
         "assessment",
+        "ai_review",
         "recommendation",
         "decision",
         "review_request",

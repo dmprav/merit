@@ -222,6 +222,7 @@ it("labels every action the workspace records", () => {
     "assessment.corrected",
     "assessment.amended",
     "recommendation.recorded",
+    "ai_review.recorded",
     "review_request.created",
     "review_request.cancelled",
     "review_assignment.invited",
