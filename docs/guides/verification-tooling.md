@@ -100,7 +100,8 @@ the [documentation guide](documentation.md) describes its scope.
 The `verification-record` job runs
 [`verification-record.ts`](../../tooling/verification/verification-record.ts) on
 pull requests. It owns the required record sections, exemptions, and diff rules
-that the [verification guide](verification.md#record-verification) describes; keep
+that the [verification guide](verification.md#record-verification) describes, and
+warns without failing about gap entries that leave a check to CI; keep
 the guide's template and the script's sections in step. Run `vp run test:ci`
 after changing either. Change routing treats records as documentation, so a
 record never widens the checks a pull request runs.
@@ -119,9 +120,14 @@ non-test file under a package's `src/`, a story, or `.storybook/`), its
 `ui-screenshots` job uses
 [`pr-screenshots.ts`](../../tooling/verification/pr-screenshots.ts) and
 `ui:verify --viewport desktop` to capture affected desktop stories, publish them
-to a single squashed orphan commit on `ci/pr-screenshots`, and embed them inline
-in the same sticky comment; `cleanup-screenshots` removes `pr-<number>/` when
-the pull request closes.
+to a single squashed orphan commit on `ci/pr-screenshots`, and embed them in the
+same sticky comment behind a collapsed disclosure whose label counts screenshots
+with audit warnings; `cleanup-screenshots` removes `pr-<number>/` when
+the pull request closes. The packet names up to three paths in a list and counts
+longer lists by folder. It lists a shared mechanism only when the change touches
+its contract, with the mechanism's summary. When it finds nothing, it posts no
+comment, but it still replaces an earlier revision's comment so stale findings do
+not remain.
 
 `pr-screenshots.ts select` chooses stories from the import graph in the
 `preview-stats.json` that the Storybook `build` task writes beside `index.json`.

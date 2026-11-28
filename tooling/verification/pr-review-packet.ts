@@ -477,6 +477,50 @@ const formatCappedList = (items: readonly string[], limit = MAX_LIST_ITEMS): str
   return shown.join(", ");
 };
 
+const MAX_NAMED_PATHS = 3;
+
+/** The deepest folder that contains every given folder, or "" when they share none. */
+const commonFolder = (folders: readonly string[]): string => {
+  const [first = "", ...rest] = folders;
+  let prefix = first;
+  for (const folder of rest) {
+    while (!folder.startsWith(prefix)) {
+      prefix = prefix.slice(0, prefix.lastIndexOf("/", prefix.length - 2) + 1);
+    }
+  }
+  return prefix;
+};
+
+/** Names a few paths outright, or counts many by folder so a long list stays one line. */
+export const summarizePaths = (paths: readonly string[]): string => {
+  const unique = [...new Set(paths)].sort();
+  if (unique.length <= MAX_NAMED_PATHS) {
+    return unique.map((path) => `\`${path}\``).join(", ");
+  }
+  const byFolder = new Map<string, number>();
+  for (const path of unique) {
+    const folder = path.slice(0, path.lastIndexOf("/") + 1) || "./";
+    byFolder.set(folder, (byFolder.get(folder) ?? 0) + 1);
+  }
+  const folders = [...byFolder].sort(([a, x], [b, y]) => y - x || a.localeCompare(b));
+  if (folders.length === 1) {
+    return `${unique.length} files in \`${folders[0]?.[0]}\``;
+  }
+  // Sibling folders, such as one per component, read better as the folder holding them all.
+  const common = commonFolder(folders.map(([folder]) => folder));
+  if (folders.length > MAX_NAMED_PATHS && common) {
+    return `${unique.length} files under \`${common}\``;
+  }
+  const shown = folders
+    .slice(0, MAX_NAMED_PATHS)
+    .map(([folder, count]) => `\`${folder}\` (${count})`);
+  const hidden = folders.length - MAX_NAMED_PATHS;
+  if (hidden > 0) {
+    shown.push(`_+${hidden} more ${hidden === 1 ? "folder" : "folders"}_`);
+  }
+  return `${unique.length} files in ${shown.join(", ")}`;
+};
+
 const formatSizeBucket = (label: string, bucket: DiffSizeBucket) =>
   `**${label}:** \`+${bucket.additions}/-${bucket.deletions}\` (${bucket.files} ${bucket.files === 1 ? "file" : "files"})`;
 
@@ -551,16 +595,16 @@ const renderContractsSection = (
 
   const bullets: string[] = [];
   if (authPaths.length > 0) {
-    bullets.push(`- **Auth / access:** ${formatCappedList(authPaths.sort())}`);
+    bullets.push(`- **Auth / access:** ${summarizePaths(authPaths)}`);
   }
   if (mcpPaths.length > 0) {
-    bullets.push(`- **MCP / AI surface:** ${formatCappedList(mcpPaths.sort())}`);
+    bullets.push(`- **MCP / AI surface:** ${summarizePaths(mcpPaths)}`);
   }
   if (emailPaths.length > 0) {
-    bullets.push(`- **Emails:** ${formatCappedList(emailPaths.sort())}`);
+    bullets.push(`- **Emails:** ${summarizePaths(emailPaths)}`);
   }
   if (routePaths.length > 0) {
-    bullets.push(`- **Routes:** ${formatCappedList(routePaths.sort())}`);
+    bullets.push(`- **Routes:** ${summarizePaths(routePaths)}`);
   }
   if (deps.length > 0) {
     bullets.push(`- **Dependencies added/updated:** ${formatCappedList(deps)}`);
@@ -575,16 +619,12 @@ const renderContractsSection = (
     }
     bullets.push(`- **Runtime / infra:** ${parts.join("; ")}`);
   }
-  if (matchedMechanisms.length > 0) {
-    const sorted = [...matchedMechanisms].sort((a, b) =>
-      a.impact === b.impact
-        ? a.mechanism.id.localeCompare(b.mechanism.id)
-        : a.impact === "extends"
-          ? -1
-          : 1,
-    );
-    const formatted = sorted.map((entry) => `\`${entry.mechanism.id}\` (${entry.impact})`);
-    bullets.push(`- **Matched mechanisms:** ${formatted.join(", ")}`);
+  // Composing a mechanism is routine; changing its contract is what a reviewer must weigh.
+  const extended = matchedMechanisms
+    .filter((entry) => entry.impact === "extends")
+    .sort((a, b) => a.mechanism.id.localeCompare(b.mechanism.id));
+  for (const { mechanism } of extended) {
+    bullets.push(`- **Changes shared mechanism \`${mechanism.id}\`:** ${mechanism.summary}`);
   }
 
   return bullets.length > 0 ? ["### Contracts, Auth & Mechanisms", ...bullets] : [];
@@ -629,10 +669,12 @@ const scanAddedLines = (addedLines: readonly AddedDiffLine[]) => {
 };
 
 /** Renders a bullet per non-empty list, in the given order. */
-const listBullets = (rows: ReadonlyArray<readonly [string, readonly string[]]>): string[] =>
+const listBullets = (
+  rows: ReadonlyArray<readonly [string, readonly string[], (items: readonly string[]) => string]>,
+): string[] =>
   rows
     .filter(([, items]) => items.length > 0)
-    .map(([label, items]) => `- **${label}:** ${formatCappedList(items)}`);
+    .map(([label, items, format]) => `- **${label}:** ${format(items)}`);
 
 const renderVerificationIntegritySection = (
   changedFiles: readonly ChangedFile[],
@@ -647,11 +689,11 @@ const renderVerificationIntegritySection = (
   const { suppressions, testWeakenings } = scanAddedLines(addedLines);
 
   const bullets = listBullets([
-    ["Protected paths touched", findProtectedPaths(paths)],
-    ["CI / coverage / health config", paths.filter(isCiOrCoverageConfigPath).sort()],
-    ["Added suppressions / overrides", suppressions],
-    ["Deleted test files", deletedTests],
-    ["Added skipped/focused tests", testWeakenings],
+    ["Protected paths touched", findProtectedPaths(paths), summarizePaths],
+    ["CI / coverage / health config", paths.filter(isCiOrCoverageConfigPath), summarizePaths],
+    ["Added suppressions / overrides", suppressions, formatCappedList],
+    ["Deleted test files", deletedTests, formatCappedList],
+    ["Added skipped/focused tests", testWeakenings, formatCappedList],
   ]);
 
   for (const heading of ["Could not verify", "Did not verify", "Dismissed review findings"]) {
@@ -681,30 +723,28 @@ export const describeScreenshotCoverage = (
   return `_Showing ${shown} of ${total} affected ${files}, nearest to the change first. ${reach}_`;
 };
 
+/** Labels the collapsed screenshot list so audit warnings stay visible while the images are hidden. */
+const describeScreenshotDisclosure = (screenshots: readonly PrScreenshot[]): string => {
+  const noun = screenshots.length === 1 ? "screenshot" : "screenshots";
+  const warned = screenshots.filter((shot) => !shot.passed).length;
+  const warnings = warned > 0 ? ` (${warned} with audit warnings)` : "";
+  return `Show ${screenshots.length} desktop ${noun}${warnings}`;
+};
+
 const renderUiSection = (
   changedFiles: readonly ChangedFile[],
   screenshots: readonly PrScreenshot[] = [],
   affected?: AffectedStoryFiles,
 ): string[] => {
-  const paths = [...new Set(changedFiles.map((file) => file.path))];
-  const uiFiles = paths.filter(isUiProdPath).sort();
-  const storyFiles = paths.filter(isStoryPath).sort();
+  const uiFiles = changedFiles.map((file) => file.path).filter(isUiProdPath);
   const affectsStories = (affected?.storyFiles ?? 0) > 0;
-  if (
-    uiFiles.length === 0 &&
-    storyFiles.length === 0 &&
-    screenshots.length === 0 &&
-    !affectsStories
-  ) {
+  if (uiFiles.length === 0 && screenshots.length === 0 && !affectsStories) {
     return [];
   }
 
   const lines: string[] = ["### UI Touched"];
   if (uiFiles.length > 0) {
-    lines.push(`- **UI modules (${uiFiles.length}):** ${formatCappedList(uiFiles)}`);
-  }
-  if (storyFiles.length > 0) {
-    lines.push(`- **Stories (${storyFiles.length}):** ${formatCappedList(storyFiles)}`);
+    lines.push(`- **UI modules:** ${summarizePaths(uiFiles)}`);
   }
   if (affected && affectsStories) {
     lines.push(
@@ -716,6 +756,9 @@ const renderUiSection = (
   } else if (screenshots.length > 0) {
     lines.push("", "#### Desktop Screenshots");
   }
+  if (screenshots.length > 0) {
+    lines.push("", "<details>", `<summary>${describeScreenshotDisclosure(screenshots)}</summary>`);
+  }
   for (const shot of screenshots) {
     const label = shot.title ? `${shot.title} — ${shot.name}` : shot.storyId;
     const status = shot.passed ? "passed" : "audit warnings";
@@ -725,53 +768,43 @@ const renderUiSection = (
       `![${escapeMarkdownAlt(label)}](${shot.url})`,
     );
   }
+  if (screenshots.length > 0) {
+    lines.push("", "</details>");
+  }
   return lines;
 };
 
-/** Renders the complete exception-only sticky PR Review Packet markdown. */
-export const renderReviewPacket = (input: ReviewPacketInput): string => {
-  const size = summarizeDiffSize(input.numstat);
+/** Builds the packet's sections, most in need of the reviewer's judgment first. */
+const reviewPacketBlocks = (input: ReviewPacketInput): string[][] => {
   const paths = [...new Set(input.changedFiles.map((file) => file.path))];
-  const mechanisms = classifyChangedPaths({ paths });
   const recordSections = input.recordContent
     ? extractRecordSections(input.recordContent)
     : new Map<string, string>();
+  // Behavioral decisions stay out: the PR description already states them for readers.
+  return [
+    renderVerificationIntegritySection(input.changedFiles, input.addedLines, recordSections),
+    renderDbSection(input),
+    renderContractsSection(
+      input.changedFiles,
+      input.addedLines,
+      classifyChangedPaths({ paths }).matched,
+    ),
+    renderUiSection(input.changedFiles, input.screenshots, input.affectedStoryFiles),
+  ].filter((block) => block.length > 0);
+};
 
-  const blocks: string[][] = [];
+// Screenshots may still be on their way, so the note claims nothing about UI.
+export const EMPTY_REVIEW_PACKET_NOTE = "Nothing to add to the description and diff.";
 
-  const behavioral = recordSections.get("Behavioral decisions");
-  if (behavioral && !isNoneSection(behavioral)) {
-    blocks.push(["### Behavioral Decisions", behavioral]);
-  }
-
-  const dbBlock = renderDbSection(input);
-  if (dbBlock.length > 0) {
-    blocks.push(dbBlock);
-  }
-
-  const uiBlock = renderUiSection(input.changedFiles, input.screenshots, input.affectedStoryFiles);
-  if (uiBlock.length > 0) {
-    blocks.push(uiBlock);
-  }
-
-  const contractsBlock = renderContractsSection(
-    input.changedFiles,
-    input.addedLines,
-    mechanisms.matched,
-  );
-  if (contractsBlock.length > 0) {
-    blocks.push(contractsBlock);
-  }
-
-  const integrityBlock = renderVerificationIntegritySection(
-    input.changedFiles,
-    input.addedLines,
-    recordSections,
-  );
-  if (integrityBlock.length > 0) {
-    blocks.push(integrityBlock);
-  }
-
+/**
+ * Builds the sticky PR Review Packet: only what the description and diff do not show.
+ * `hasFindings` is false when the packet says nothing beyond its size line.
+ */
+export const buildReviewPacket = (
+  input: ReviewPacketInput,
+): { markdown: string; hasFindings: boolean } => {
+  const size = summarizeDiffSize(input.numstat);
+  const blocks = reviewPacketBlocks(input);
   const header = [
     REVIEW_PACKET_MARKER,
     "## Review Packet",
@@ -780,15 +813,18 @@ export const renderReviewPacket = (input: ReviewPacketInput): string => {
   ];
 
   if (blocks.length === 0) {
-    header.push(
-      "",
-      "No behavioral decisions, DB/schema deltas, UI changes, contract/auth touches, or verification-integrity flags detected.",
-    );
-    return `${header.join("\n")}\n`;
+    header.push("", EMPTY_REVIEW_PACKET_NOTE);
+    return { markdown: `${header.join("\n")}\n`, hasFindings: false };
   }
 
-  return `${header.join("\n")}\n\n${blocks.map((block) => block.join("\n")).join("\n\n")}\n`;
+  return {
+    markdown: `${header.join("\n")}\n\n${blocks.map((block) => block.join("\n")).join("\n\n")}\n`,
+    hasFindings: true,
+  };
 };
+
+export const renderReviewPacket = (input: ReviewPacketInput): string =>
+  buildReviewPacket(input).markdown;
 
 const parseNextLink = (linkHeader: string | null): string | null => {
   if (!linkHeader) {
@@ -808,12 +844,17 @@ const issueCommentSchema = z.object({
 
 const issueCommentListSchema = z.array(issueCommentSchema);
 
-/** Creates or updates the single sticky Review Packet comment on a pull request. */
+/**
+ * Creates or updates the single sticky Review Packet comment on a pull request. With
+ * `createIfMissing: false` it only updates an existing comment, so a packet with nothing to
+ * say never adds one but still replaces findings an earlier revision reported.
+ */
 export const upsertReviewPacketComment = async ({
   repo,
   prNumber,
   token,
   body,
+  createIfMissing = true,
   authorLogin = DEFAULT_PUBLISHER_LOGIN,
   fetchImpl = fetch,
 }: {
@@ -821,9 +862,10 @@ export const upsertReviewPacketComment = async ({
   prNumber: number;
   token: string;
   body: string;
+  createIfMissing?: boolean;
   authorLogin?: string;
   fetchImpl?: typeof fetch;
-}): Promise<{ action: "created" | "updated"; id?: number }> => {
+}): Promise<{ action: "created" | "updated" | "skipped"; id?: number }> => {
   const headers = {
     Accept: "application/vnd.github+json",
     Authorization: `Bearer ${token}`,
@@ -861,6 +903,10 @@ export const upsertReviewPacketComment = async ({
       throw new Error(`Failed to update PR comment (${response.status}): ${await response.text()}`);
     }
     return { action: "updated", id: existingId };
+  }
+
+  if (!createIfMissing) {
+    return { action: "skipped" };
   }
 
   const response = await fetchImpl(`${GITHUB_API_BASE}/repos/${repo}/issues/${prNumber}/comments`, {
@@ -1033,13 +1079,23 @@ const appendGitHubFile = (name: "GITHUB_OUTPUT" | "GITHUB_STEP_SUMMARY", text: s
   }
 };
 
-const postReviewPacket = async (prNumber: number | undefined, markdown: string) => {
+const postReviewPacket = async (
+  prNumber: number | undefined,
+  markdown: string,
+  createIfMissing: boolean,
+) => {
   const repo = process.env.GITHUB_REPOSITORY;
   const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
   if (!repo || !token || !prNumber) {
     throw new Error("Posting requires GITHUB_REPOSITORY, GH_TOKEN, and PR_NUMBER.");
   }
-  const result = await upsertReviewPacketComment({ repo, prNumber, token, body: markdown });
+  const result = await upsertReviewPacketComment({
+    repo,
+    prNumber,
+    token,
+    body: markdown,
+    createIfMissing,
+  });
   process.stdout.write(`Review Packet comment ${result.action} on ${repo}#${prNumber}.\n`);
 };
 
@@ -1057,17 +1113,18 @@ const runCli = async () => {
 
   const hasDbChanges = diff.changedFiles.some((file) => isDbPath(file.path));
   const record = readVerificationRecord(REPO_ROOT, options.headRef, options.prNumber);
-  const markdown = renderReviewPacket({
+  const input: ReviewPacketInput = {
     ...diff,
     ...readDatabaseSql(hasDbChanges, diff.mergeBase, options.headRef),
     recordContent: record.content,
     recordFilePath: record.path,
     ...readScreenshotManifest(options.screenshotsManifest),
-  });
+  };
+  const { markdown, hasFindings } = buildReviewPacket(input);
   appendGitHubFile("GITHUB_STEP_SUMMARY", `${markdown}\n`);
 
   if (options.post) {
-    await postReviewPacket(options.prNumber, markdown);
+    await postReviewPacket(options.prNumber, markdown, hasFindings);
   } else {
     process.stdout.write(markdown);
   }

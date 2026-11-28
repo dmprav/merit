@@ -232,6 +232,38 @@ export const checkVerificationRecord = ({
   return { exempt: null, errors };
 };
 
+/** Sections that list gaps; a check CI runs is not one, since CI reports its own results. */
+const GAP_SECTIONS = ["Could not verify", "Did not verify"] as const;
+
+const CI_DEFERRAL =
+  /\b(?:left|leave|leaving|leaves|deferred|defer)\b[^\n]{0,40}?\b(?:to|for)\s+(?:the\s+)?(?:PR\s+|pull request\s+)?CI\b/iu;
+
+const MAX_QUOTE_LENGTH = 80;
+
+/**
+ * Returns a warning for each gap entry that leaves a check to CI. Such entries crowd out the
+ * checks nobody runs, which are what reviewers read the sections for.
+ */
+export const findCiDeferrals = (path: string, content: string): string[] => {
+  const sections = extractRecordSections(content);
+  return GAP_SECTIONS.flatMap((heading) =>
+    (sections.get(heading) ?? "")
+      .split(/\n(?=\s*[-*]\s)/u)
+      .map((entry) =>
+        entry
+          .replace(/^\s*[-*]\s+/u, "")
+          .replace(/\s+/gu, " ")
+          .trim(),
+      )
+      .filter((entry) => CI_DEFERRAL.test(entry))
+      .map((entry) => {
+        const quote =
+          entry.length > MAX_QUOTE_LENGTH ? `${entry.slice(0, MAX_QUOTE_LENGTH - 1)}…` : entry;
+        return `${path}: "## ${heading}" lists a check left to CI ("${quote}"). List only checks that neither you nor CI ran; CI reports its own results. See ${GUIDE}.`;
+      }),
+  );
+};
+
 const requireEnv = (name: string) => {
   const value = process.env[name];
   if (!value) {
@@ -253,14 +285,16 @@ const runCli = () => {
   const prNumber = parsePrNumber(requireEnv("PR_NUMBER"));
   const diffRange = `${requireEnv("PR_BASE_SHA")}...${requireEnv("PR_HEAD_SHA")}`;
 
+  const readRecord = (path: string) => {
+    const file = join(repoRoot, path);
+    return existsSync(file) ? readFileSync(file, "utf8") : undefined;
+  };
+
   const result = checkVerificationRecord({
     prNumber,
     author: requireEnv("PR_AUTHOR"),
     changedFiles: readChangedFiles(repoRoot, diffRange),
-    readRecord: (path) => {
-      const file = join(repoRoot, path);
-      return existsSync(file) ? readFileSync(file, "utf8") : undefined;
-    },
+    readRecord,
   });
 
   const summary =
@@ -272,6 +306,11 @@ const runCli = () => {
   process.stdout.write(`${summary}\n`);
   if (process.env.GITHUB_STEP_SUMMARY) {
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Verification record\n\n${summary}\n`);
+  }
+
+  const content = result.exempt === null ? readRecord(recordPath(prNumber)) : undefined;
+  for (const warning of content ? findCiDeferrals(recordPath(prNumber), content) : []) {
+    process.stdout.write(`::warning::${warning}\n`);
   }
 
   if (result.exempt === null && result.errors.length > 0) {

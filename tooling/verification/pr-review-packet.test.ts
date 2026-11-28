@@ -2,16 +2,20 @@ import { describe, expect, test } from "vite-plus/test";
 
 import {
   describeScreenshotCoverage,
+  EMPTY_REVIEW_PACKET_NOTE,
   extractSqlDdlDelta,
   mayAffectStorybook,
   parseAddedDiffLines,
   parseNumstatZ,
   parseReviewPacketArgs,
   renderReviewPacket,
+  buildReviewPacket,
   REVIEW_PACKET_MARKER,
   splitSqlStatements,
   summarizeDiffSize,
+  summarizePaths,
   upsertReviewPacketComment,
+  type ReviewPacketInput,
 } from "./pr-review-packet.ts";
 
 describe("pr-review-packet", () => {
@@ -153,7 +157,7 @@ describe("pr-review-packet", () => {
   });
 
   test("renders an exception-only clean packet when no high-risk surfaces changed", () => {
-    const markdown = renderReviewPacket({
+    const input: ReviewPacketInput = {
       changedFiles: [{ status: "modified", path: "docs/README.md" }],
       numstat: [{ path: "docs/README.md", additions: 5, deletions: 2 }],
       addedLines: [],
@@ -163,7 +167,7 @@ describe("pr-review-packet", () => {
 
 ## Behavioral decisions
 
-None.
+- The guide now leads with the shared vocabulary.
 
 ## Checks run
 
@@ -181,17 +185,29 @@ None.
 
 None.
 `,
-    });
+    };
+    const markdown = renderReviewPacket(input);
 
     expect(markdown).toContain(REVIEW_PACKET_MARKER);
     expect(markdown).toContain("**Docs/other:** `+5/-2` (1 file)");
-    expect(markdown).toContain("No behavioral decisions, DB/schema deltas");
+    // The description states decisions, so the packet does not repeat them.
+    expect(markdown).toContain(EMPTY_REVIEW_PACKET_NOTE);
+    expect(buildReviewPacket(input).hasFindings).toBe(false);
     expect(markdown).not.toContain("### Behavioral Decisions");
+    expect(markdown).not.toContain("guide now leads");
     expect(markdown).not.toContain("### DB & Schema Delta");
     expect(markdown).not.toContain("### Verification Integrity");
+
+    // Code that only composes a shared mechanism is routine and earns no packet.
+    const composes: ReviewPacketInput = {
+      ...input,
+      changedFiles: [{ status: "modified", path: "capabilities/reviews/business/src/server/x.ts" }],
+      recordContent: undefined,
+    };
+    expect(buildReviewPacket(composes).hasFindings).toBe(false);
   });
 
-  test("surfaces behavioral decisions, DB DDL, UI touches, contracts, and integrity flags", () => {
+  test("orders integrity, DB, contracts, and UI sections and omits behavioral decisions", () => {
     const markdown = renderReviewPacket({
       changedFiles: [
         { status: "added", path: "foundation/db/database/migrations/0002_retry.sql" },
@@ -244,17 +260,27 @@ None.
 `,
     });
 
-    expect(markdown).toContain(
-      "### Behavioral Decisions\n- Retries for 15 minutes before marking failed.",
-    );
-    expect(markdown).toContain("### DB & Schema Delta");
+    expect(markdown).not.toContain("Retries for 15 minutes");
+    const order = [
+      "### Verification Integrity",
+      "### DB & Schema Delta",
+      "### Contracts, Auth & Mechanisms",
+      "### UI Touched",
+    ].map((heading) => markdown.indexOf(heading));
+    expect(order.every((at) => at > -1)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(markdown).toContain("CREATE FUNCTION retry_it()` **[SECURITY DEFINER]**");
     expect(markdown).toContain("### UI Touched");
-    expect(markdown).toContain("Banner.stories.tsx");
+    expect(markdown).toContain(
+      "- **UI modules:** `capabilities/reviews/web/src/components/Banner.tsx`",
+    );
+    expect(markdown).not.toContain("Banner.stories.tsx");
     expect(markdown).toContain("### Contracts, Auth & Mechanisms");
     expect(markdown).toContain("@temporalio/client@1.26.0");
     expect(markdown).toContain("`TEMPORAL_ADDRESS`");
-    expect(markdown).toContain("`authorization-policy` (extends)");
+    expect(markdown).toMatch(
+      /- \*\*Changes shared mechanism `authorization-policy`:\*\* Single policy table/u,
+    );
     expect(markdown).toContain("### Verification Integrity");
     expect(markdown).toContain("`as any at capabilities/access/src/policy.ts:42`");
     expect(markdown).toContain("`capabilities/reviews/business/tests/old.test.ts`");
@@ -273,21 +299,24 @@ None.
       passed: true,
     });
 
-    const markdown = renderReviewPacket({
-      changedFiles: [
-        { status: "modified", path: "foundation/ui/src/components/button/button.tsx" },
-      ],
-      numstat: [
-        { path: "foundation/ui/src/components/button/button.tsx", additions: 4, deletions: 2 },
-      ],
-      addedLines: [],
-      baseMigrationSql: "",
-      headMigrationSql: "",
-      screenshots: [
-        screenshot("components-button--overview", "foundation/ui/src/button/button.stories.tsx"),
-      ],
-      affectedStoryFiles: { storyFiles: 5, directStoryFiles: 2 },
-    });
+    const packet = (screenshots: ReturnType<typeof screenshot>[]) =>
+      renderReviewPacket({
+        changedFiles: [
+          { status: "modified", path: "foundation/ui/src/components/button/button.tsx" },
+        ],
+        numstat: [
+          { path: "foundation/ui/src/components/button/button.tsx", additions: 4, deletions: 2 },
+        ],
+        addedLines: [],
+        baseMigrationSql: "",
+        headMigrationSql: "",
+        screenshots,
+        affectedStoryFiles: { storyFiles: 5, directStoryFiles: 2 },
+      });
+
+    const markdown = packet([
+      screenshot("components-button--overview", "foundation/ui/src/button/button.stories.tsx"),
+    ]);
 
     expect(markdown).toContain("#### Desktop Screenshots");
     expect(markdown).toContain(
@@ -298,6 +327,27 @@ None.
     );
     expect(markdown).toContain(
       "![Components/Button — Overview](https://raw.githubusercontent.com/dmprav/merit/abc123/pr-42/components-button--overview-desktop.png)",
+    );
+
+    // The coverage line stays visible; the images sit in a collapsed disclosure after it.
+    const coverageAt = markdown.indexOf("_Showing 1 of 5");
+    const openAt = markdown.indexOf("<details>\n<summary>Show 1 desktop screenshot</summary>\n");
+    const imageAt = markdown.indexOf("![Components/Button");
+    const closeAt = markdown.indexOf("\n</details>");
+    expect(coverageAt).toBeGreaterThan(-1);
+    expect(openAt).toBeGreaterThan(coverageAt);
+    expect(imageAt).toBeGreaterThan(openAt);
+    expect(closeAt).toBeGreaterThan(imageAt);
+
+    const warned = packet([
+      screenshot("components-button--overview", "foundation/ui/src/button/button.stories.tsx"),
+      {
+        ...screenshot("components-button--disabled", "foundation/ui/src/button/button.stories.tsx"),
+        passed: false,
+      },
+    ]);
+    expect(warned).toContain(
+      "<summary>Show 2 desktop screenshots (1 with audit warnings)</summary>",
     );
 
     const variants = [
@@ -331,6 +381,7 @@ None.
       "_Showing 0 of 4 affected story files, nearest to the change first. 1 changed or imports a changed module directly._",
     );
     expect(markdown).not.toContain("![");
+    expect(markdown).not.toContain("<details>");
     expect(
       renderReviewPacket({
         changedFiles: [{ status: "modified", path: "docs/README.md" }],
@@ -366,6 +417,23 @@ None.
     ]) {
       expect(mayAffectStorybook(path), path).toBe(false);
     }
+  });
+
+  test("names a few paths and counts many by folder", () => {
+    expect(summarizePaths(["b/x.ts", "a/y.ts", "a/y.ts"])).toBe("`a/y.ts`, `b/x.ts`");
+    expect(summarizePaths(["t/w/a.ts", "t/w/b.ts", "t/w/c.ts", "t/w/d.ts"])).toBe(
+      "4 files in `t/w/`",
+    );
+    expect(
+      summarizePaths(["m/a.ts", "m/b.ts", "m/c.ts", "r/a.ts", "p/a.ts", "q/a.ts", "root.ts"]),
+    ).toBe("7 files in `m/` (3), `./` (1), `p/` (1), _+2 more folders_");
+    expect(summarizePaths(["a/x.ts", "b/x.ts", "c/x.ts", "d/x.ts"])).toBe(
+      "4 files in `a/` (1), `b/` (1), `c/` (1), _+1 more folder_",
+    );
+    const components = ["button", "dialog", "menu", "table"].map(
+      (name) => `foundation/ui/src/components/${name}/${name}.tsx`,
+    );
+    expect(summarizePaths(components)).toBe("4 files under `foundation/ui/src/components/`");
   });
 
   test("summarizes prod, test, and docs/other buckets cleanly", () => {
@@ -417,6 +485,18 @@ None.
       "POST https://api.github.com/repos/dmprav/merit/issues/42/comments",
     ]);
 
+    calls.length = 0;
+    const skipped = await upsertReviewPacketComment({
+      repo: "dmprav/merit",
+      prNumber: 42,
+      token: "tok",
+      body: `${REVIEW_PACKET_MARKER}\nnothing`,
+      createIfMissing: false,
+      fetchImpl: createFetch,
+    });
+    expect(skipped).toEqual({ action: "skipped" });
+    expect(calls.map((c) => c.method)).toEqual(["GET"]);
+
     const patchCalls: Array<{ url: string; method: string }> = [];
 
     const updateFetch: typeof fetch = async (input, init) => {
@@ -456,6 +536,8 @@ None.
       prNumber: 42,
       token: "tok",
       body: `${REVIEW_PACKET_MARKER}\nnew packet`,
+      // An earlier revision's findings are still replaced when the packet has nothing to say.
+      createIfMissing: false,
       fetchImpl: updateFetch,
     });
     expect(updated).toEqual({ action: "updated", id: 77 });
