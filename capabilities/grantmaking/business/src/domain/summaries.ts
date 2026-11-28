@@ -2,6 +2,13 @@ import { isWithdrawn, type ApplicationWithdrawal } from "@merit/applications/dom
 import { add, subtract, fromMinorUnits, type Money } from "@merit/money";
 import { reviewProgress, type ReviewAssessment } from "@merit/reviews/domain";
 
+export const roundBalances = (budget: Money | null, proposed: Money, committed: Money) => ({
+  proposed,
+  remaining: budget === null ? null : subtract(budget, proposed),
+  committed,
+  available: budget === null ? null : subtract(budget, committed),
+});
+
 /**
  * Round totals from application records. Commitments belong to Decisions, so callers that
  * hold the committed total pass it; a round without decisions has committed nothing.
@@ -46,8 +53,6 @@ export const summarizeRound = (
   return {
     ...totals,
     reviews: { ...totals.reviews, ...reviewProgress(totals.reviews) },
-    remaining: budget === null ? null : subtract(budget, totals.proposed),
-    committed,
-    available: budget === null ? null : subtract(budget, committed),
+    ...roundBalances(budget, totals.proposed, committed),
   };
 };

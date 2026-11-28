@@ -8,6 +8,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 
 import { reactCompilerOptions } from "../react-compiler";
+import { typecheckTask } from "../verification/typecheck";
 import { componentTestTimeout } from "./component-tests";
 
 export const workspaceUiSetup = fileURLToPath(new URL("./ui/setup-workspace.ts", import.meta.url));
@@ -22,7 +23,7 @@ export const webTestConfig = ({
           run: {
             tasks: {
               test: "vp test",
-              ...(typecheck ? { typecheck: "tsc --noEmit -p tsconfig.json" } : {}),
+              ...(typecheck ? { typecheck: typecheckTask } : {}),
             },
           },
         }

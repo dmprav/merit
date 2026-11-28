@@ -24,7 +24,8 @@ export const createWorkerRuntime = (
   local = env.MERIT_LOCAL_WORKER === "1",
 ) => {
   const config: TemporalConfig = readTemporalConfig(env, { local });
-  const database = createDatabasePool(readDatabaseUrl());
+  const invitationOrigin = readAppOrigin(undefined, env);
+  const database = createDatabasePool(readDatabaseUrl(env));
   const client = createWorkflowClient(config);
   const sendEmail = createEmailSender({
     from: env.EMAIL_FROM ?? (local ? "invitations@merit.local" : ""),
@@ -40,7 +41,6 @@ export const createWorkerRuntime = (
 
   const invitationKey = () => config.payloadKey;
 
-  const invitationOrigin = readAppOrigin();
   // Turns run here, so this process owns what a turn's grant changes report and deliver.
   const assistant = createAssistantRuntime(
     {
@@ -65,12 +65,12 @@ export const createWorkerRuntime = (
     },
     reviewerMessages: reviewerMessageDelivery({
       database,
-      invitationOrigin: readAppOrigin(),
+      invitationOrigin,
       sendEmail,
     }),
     invitations: organizationInvitationDelivery({
       database,
-      invitationOrigin: readAppOrigin(),
+      invitationOrigin,
       sendEmail,
     }),
     invitationDispatch: { invitationKey, start: background.startOrganizationInvitation },

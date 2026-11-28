@@ -25,7 +25,9 @@ it("encodes recommendation money exactly and keeps the committed revision and pr
     internal: "private detail",
   };
 
-  expect(savedRecommendationSchema.parse(presentRecommendation(result, "k7m2p9x4n6rt"))).toEqual({
+  const response = presentRecommendation(result, "k7m2p9x4n6rt");
+  expect(savedRecommendationSchema.parse(response)).toEqual(response);
+  expect(response).toEqual({
     status: "ok",
     recommendation: encodeRecommendation(recommendation),
     applicationId: "k7m2p9x4n6rt",

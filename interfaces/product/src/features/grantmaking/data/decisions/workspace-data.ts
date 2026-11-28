@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { createDecisionData } from "@merit/decisions-web/data";
 import type { DecisionStateData } from "@merit/decisions/api";
-import { commitsFunding } from "@merit/decisions/domain";
+import { decisionUsage } from "@merit/decisions/domain";
 
 import { applicationOptions, fundingRoundsQueryKey } from "../queries";
 import type { recordDecision } from "../server/decisions/decisions.functions";
@@ -36,16 +36,12 @@ export const workspaceDecisionData = (
           saved.recorded && isNewer
             ? [saved.decision, ...cached.decision.versions]
             : cached.decision.versions;
-        const current = versions[0]?.decision;
         return {
           ...cached,
           // Deleting and withdrawing depend on what the decision commits.
           intake: {
             ...cached.intake,
-            decisions: {
-              hasDecision: versions.length > 0,
-              hasCommitment: current ? commitsFunding(current.outcome) : false,
-            },
+            decisions: decisionUsage(versions[0]?.decision.outcome),
           },
           round: {
             ...cached.round,

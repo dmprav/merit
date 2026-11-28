@@ -43,8 +43,9 @@ afterEach(() => {
 
 describe("installing the focus tracker", () => {
   test.each([
-    { replaced: "between snapshot capture and the focus locator", replaceBefore: 2 },
-    { replaced: "between the focus locator and the focus tracker", replaceBefore: 3 },
+    { replaced: "between the paint reader and the style reader", replaceBefore: 2 },
+    { replaced: "between the style reader and the focus locator", replaceBefore: 3 },
+    { replaced: "between the focus locator and the focus tracker", replaceBefore: 4 },
   ])(
     "reports a lost tracker when the document is replaced $replaced",
     async ({ replaceBefore }) => {
@@ -60,10 +61,11 @@ describe("installing the focus tracker", () => {
   );
 
   test.each([
-    { step: "snapshot capture", replaceBefore: 1 },
-    { step: "the focus locator", replaceBefore: 2 },
-    { step: "the focus tracker", replaceBefore: 3 },
-    { step: "the wait for a rendering update", replaceBefore: 4 },
+    { step: "the paint reader", replaceBefore: 1 },
+    { step: "the style reader", replaceBefore: 2 },
+    { step: "the focus locator", replaceBefore: 3 },
+    { step: "the focus tracker", replaceBefore: 4 },
+    { step: "the wait for a rendering update", replaceBefore: 5 },
   ])(
     "reports a lost tracker when the document is replaced while installing $step",
     async ({ replaceBefore }) => {

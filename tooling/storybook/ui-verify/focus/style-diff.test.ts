@@ -3,6 +3,13 @@ import { describe, expect, it } from "vite-plus/test";
 import { baseSnapshot, baseStyle, outlinedSnapshot, pseudoBaseStyle } from "./snapshot.fixtures.ts";
 import { compareStyleSnapshots, detectFocusVisualChange } from "./style-diff.ts";
 
+const relative = (nodeId: number, style = baseStyle(), painted = true) => ({
+  nodeId,
+  hasArea: true,
+  style,
+  painted,
+});
+
 const unchanged = { changed: false, reasons: [] };
 
 describe("detectFocusVisualChange", () => {
@@ -25,8 +32,10 @@ describe("detectFocusVisualChange", () => {
   it("detects a change on an ancestor", () => {
     expect(
       detectFocusVisualChange(
-        baseSnapshot({ ancestors: [baseStyle()] }),
-        baseSnapshot({ ancestors: [baseStyle({ backgroundColor: "rgb(238, 242, 255)" })] }),
+        baseSnapshot({ ancestors: [relative(1)] }),
+        baseSnapshot({
+          ancestors: [relative(1, baseStyle({ backgroundColor: "rgb(238, 242, 255)" }))],
+        }),
       ),
     ).toEqual({ changed: true, reasons: ["ancestor[0]:background"] });
   });
@@ -34,14 +43,46 @@ describe("detectFocusVisualChange", () => {
   it("detects a change on a descendant", () => {
     expect(
       detectFocusVisualChange(
-        baseSnapshot({ descendants: [baseStyle()] }),
+        baseSnapshot({ descendants: [relative(1)] }),
         baseSnapshot({
-          descendants: [
-            baseStyle({ outlineStyle: "solid", outlineWidth: "2px", outlineColor: "rgb(0, 0, 0)" }),
-          ],
+          descendants: [relative(1, outlinedSnapshot().self)],
         }),
       ),
     ).toEqual({ changed: true, reasons: ["descendant[0]:outline"] });
+  });
+
+  it("ignores a replacement at the same index and follows a surviving descendant", () => {
+    const before = baseSnapshot({ descendants: [relative(1), relative(2)] });
+    const replacement = relative(3, outlinedSnapshot().self);
+    expect(detectFocusVisualChange(before, baseSnapshot({ descendants: [replacement] }))).toEqual(
+      unchanged,
+    );
+    expect(
+      detectFocusVisualChange(
+        before,
+        baseSnapshot({
+          descendants: [replacement, relative(1, outlinedSnapshot().self)],
+        }),
+      ),
+    ).toEqual({ changed: true, reasons: ["descendant[1]:outline"] });
+  });
+
+  it("ignores changes confined to an unpainted relative", () => {
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot({ ancestors: [relative(1, baseStyle(), false)] }),
+        baseSnapshot({ ancestors: [relative(1, outlinedSnapshot().self, false)] }),
+      ),
+    ).toEqual(unchanged);
+  });
+
+  it("ignores an outline confined to the hidden side of a visibility change", () => {
+    const plain = relative(1, pseudoBaseStyle());
+    const hiddenRing = relative(1, outlinedSnapshot().self, false);
+    const visible = baseSnapshot({ descendants: [plain] });
+    const hidden = baseSnapshot({ descendants: [hiddenRing] });
+    expect(detectFocusVisualChange(visible, hidden)).toEqual(unchanged);
+    expect(detectFocusVisualChange(hidden, visible)).toEqual(unchanged);
   });
 
   it("detects a pseudo-element that starts painting its background", () => {
