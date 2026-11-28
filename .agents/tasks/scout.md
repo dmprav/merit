@@ -29,6 +29,11 @@ scheduled runs; picks the most overdue lens from `#219` cursors) or an explicit
      `architecture`/`simplification`), `unreadVerifications`, `openIssues`, and
      `wontfixIssues` (including each maintainer rejection `reason`, when
      present).
+   - A ready run reads the working tree as `origin/main`, so `scout.ts context`
+     fails when the checkout is at another commit or has changed or untracked
+     paths. On a clean checkout, run the `git switch --detach <scanTipSha>` the
+     error names and retry. If the checkout has changes, stop and report them
+     without advancing any cursor rather than stashing or discarding them.
 2. **Respect the proposal cap:**
    While running in human-gated mode (`--tier2-only`), every proposal lands in
    `agent:proposed` (capped at 5 open issues). Leaving the cursor untouched on

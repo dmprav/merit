@@ -4,6 +4,7 @@ import { AGENT_LABELS } from "../../verification/agent-policy.ts";
 import type { IssueListItem, IssueListQuery } from "../github.ts";
 import type { ScoutLens } from "../proposal.ts";
 import { advanceLens, buildContext } from "./commands.ts";
+import type { CheckoutState } from "./git.ts";
 import type { ScoutPorts } from "./ports.ts";
 import { parseScoutState, SCOUT_STATE_ISSUE_TITLE } from "./state.ts";
 
@@ -31,7 +32,12 @@ const describeQuery = ({ state, label }: IssueListQuery) => `${state}${label ? `
 const createFakePorts = ({
   body = stateBody({}),
   openProposedCount = 0,
-}: { body?: string; openProposedCount?: number } = {}) => {
+  checkout = { headSha: "tip1234567", changedPaths: [] },
+}: {
+  body?: string;
+  openProposedCount?: number;
+  checkout?: CheckoutState;
+} = {}) => {
   const calls: string[] = [];
   const edits: string[] = [];
   const warnings: string[] = [];
@@ -60,6 +66,7 @@ const createFakePorts = ({
           "verifications/250.md",
         ]),
       isShallow: () => record("git.isShallow", false),
+      checkoutState: () => record("git.checkoutState", checkout),
     },
     issues: {
       viewIssue: (number) =>
@@ -107,6 +114,38 @@ describe("building scout context", () => {
       "git.revParse origin/main",
       `issues.listIssues open ${AGENT_LABELS.proposed}`,
     ]);
+  });
+
+  test("checks the checkout against the scan tip before reading history or telemetry", () => {
+    const { ports, calls } = createFakePorts();
+    buildContext(ports, "architecture");
+    const checkoutCheck = calls.indexOf("git.checkoutState");
+    expect(checkoutCheck).toBeGreaterThan(calls.indexOf("git.revParse origin/main"));
+    expect(checkoutCheck).toBeLessThan(calls.findIndex((call) => call.startsWith("git.list")));
+    expect(checkoutCheck).toBeLessThan(calls.indexOf("fallow.health"));
+  });
+
+  test.each<ScoutLens>(["architecture", "docs"])(
+    "refuses to scan for the %s lens from a checkout at another commit",
+    (lens) => {
+      const { ports, calls } = createFakePorts({
+        checkout: { headSha: "other7654321", changedPaths: [] },
+      });
+      expect(() => buildContext(ports, lens)).toThrow(
+        /scan tip tip1234567.*checkout is at other7654321.*git switch --detach tip1234567/s,
+      );
+      expect(calls.some((call) => call.startsWith("git.list") || call.startsWith("fallow"))).toBe(
+        false,
+      );
+    },
+  );
+
+  test("refuses a ready run from a checkout with changed or untracked paths", () => {
+    const changedPaths = ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts", "f.ts", "g.ts"];
+    const { ports } = createFakePorts({ checkout: { headSha: "tip1234567", changedPaths } });
+    expect(() => buildContext(ports, "tests")).toThrow(
+      /7 changed or untracked paths \(a\.ts, b\.ts, c\.ts, d\.ts, e\.ts, and 2 more\)/,
+    );
   });
 
   test("goes idle without reading the repository when every lens is fresh", () => {

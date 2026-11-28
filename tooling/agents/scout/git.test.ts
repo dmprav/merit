@@ -5,7 +5,13 @@ import { join } from "node:path";
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { buildCommitQueryArgs, createGitPort, parseCommitLog } from "./git.ts";
+import {
+  assertCheckoutAt,
+  buildCommitQueryArgs,
+  createGitPort,
+  parseCommitLog,
+  parseStatusPaths,
+} from "./git.ts";
 
 describe("scout commit query", () => {
   const fallbackSinceIso = "2026-11-15T00:00:00Z";
@@ -53,27 +59,69 @@ describe("scout commit query", () => {
   });
 });
 
+/** Runs `body` against a fresh repository with one commit tracking `README.md` and a Café guide. */
+const withScratchRepo = (body: (repo: string, git: (args: readonly string[]) => void) => void) => {
+  const repo = mkdtempSync(join(tmpdir(), "merit-scout-git-"));
+  try {
+    const git = (args: readonly string[]) => {
+      execFileSync("git", ["-c", "commit.gpgsign=false", ...args], { cwd: repo });
+    };
+
+    git(["init", "-q"]);
+    mkdirSync(join(repo, "docs/guides"), { recursive: true });
+    writeFileSync(join(repo, "docs/guides/café.md"), "# Café\n");
+    writeFileSync(join(repo, "README.md"), "# Readme\n");
+    git(["add", "."]);
+    git(["-c", "user.name=Scout", "-c", "user.email=scout@example.com", "commit", "-qm", "docs"]);
+    body(repo, git);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+};
+
+describe("scout checkout state", () => {
+  test("skips the source path that follows a rename or copy", () => {
+    expect(parseStatusPaths(" M a.ts\0R  new.ts\0old.ts\0?? notes/café.md\0")).toEqual([
+      "a.ts",
+      "new.ts",
+      "notes/café.md",
+    ]);
+  });
+
+  test("reports HEAD and modified, renamed, and untracked paths", () => {
+    withScratchRepo((repo, git) => {
+      const port = createGitPort(repo);
+      const head = port.revParse("HEAD");
+      expect(port.checkoutState()).toEqual({ headSha: head, changedPaths: [] });
+      expect(() => assertCheckoutAt(port, head)).not.toThrow();
+
+      writeFileSync(join(repo, "README.md"), "# Changed\n");
+      git(["mv", "docs/guides/café.md", "docs/guides/cafe.md"]);
+      writeFileSync(join(repo, "scratch.ts"), "export {};\n");
+
+      expect(port.checkoutState()).toEqual({
+        headSha: head,
+        changedPaths: ["README.md", "docs/guides/cafe.md", "scratch.ts"],
+      });
+      expect(() => assertCheckoutAt(port, head)).toThrow(/3 changed or untracked paths/);
+    });
+  });
+
+  test("refuses a clean checkout at another commit", () => {
+    expect(() =>
+      assertCheckoutAt({ checkoutState: () => ({ headSha: "b", changedPaths: [] }) }, "a"),
+    ).toThrow(/scan tip a, but the checkout is at b\. Run "git switch --detach a"/);
+  });
+});
+
 describe("scout git paths", () => {
   test("reads non-ASCII paths as written, not quoted", () => {
-    const repo = mkdtempSync(join(tmpdir(), "merit-scout-git-"));
-    try {
-      const git = (args: readonly string[]) =>
-        execFileSync("git", ["-c", "commit.gpgsign=false", ...args], { cwd: repo });
-
-      git(["init", "-q"]);
-      mkdirSync(join(repo, "docs/guides"), { recursive: true });
-      writeFileSync(join(repo, "docs/guides/café.md"), "# Café\n");
-      writeFileSync(join(repo, "README.md"), "# Readme\n");
-      git(["add", "."]);
-      git(["-c", "user.name=Scout", "-c", "user.email=scout@example.com", "commit", "-qm", "docs"]);
-
+    withScratchRepo((repo) => {
       const port = createGitPort(repo);
       const head = port.revParse("HEAD");
 
       expect(port.trackedFiles(head)).toEqual(["README.md", "docs/guides/café.md"]);
       expect(port.filesChangedIn(head)).toEqual(["README.md", "docs/guides/café.md"]);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
+    });
   });
 });
