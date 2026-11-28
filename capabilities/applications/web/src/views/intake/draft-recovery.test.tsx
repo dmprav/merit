@@ -3,8 +3,7 @@ import { act, render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vite-plus/test";
 
-import { applicationView } from "@merit/grantmaking/api";
-import { makeApplication } from "@merit/grantmaking/testing/fixtures";
+import { makeApplication } from "@merit/applications/testing/fixtures";
 import { createQueryClient } from "@merit/query";
 
 import type { IntakeData } from "../../contracts/intake";
@@ -20,9 +19,7 @@ import { ApplicationIntake } from "./intake-content";
 
 vi.mock("@merit/contacts-web/contacts", () => ({ ContactPicker: () => null }));
 
-const application = applicationView(
-  makeApplication({ title: "Saved application", summary: "Saved staff summary" }),
-);
+const application = makeApplication({ title: "Saved application", summary: "Saved staff summary" });
 const recovered = {
   ...newIntakeDraft("details", intakeSnapshot(application, null), 1),
   value: { summary: "Unfinished staff summary" },

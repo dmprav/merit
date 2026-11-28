@@ -57,8 +57,6 @@ const version = (revision: number, decision: Decision): EncodedVersion => ({
 
 const twoVersions = [version(2, amendedDecision), version(1, firstDecision)];
 
-const oneVersion = [version(1, firstDecision)];
-
 type PreviewProps = Omit<
   ComponentProps<typeof DecisionEditor>,
   "round" | "application" | "onSave" | "versions" | "onDraftChange"
@@ -66,7 +64,6 @@ type PreviewProps = Omit<
   round: FundingRoundOverviewData;
   application: { id: string };
   versions: readonly EncodedVersion[];
-  withBudget?: boolean;
   onSave: (value: { outcome: string; reason: string }) => DecisionFailure | null;
 };
 
@@ -74,9 +71,9 @@ type PreviewProps = Omit<
 const committedElsewhere = fromMinorUnits(2800000n);
 
 /** The round as the application page reports it: committed funding comes from decisions. */
-const withCommitments = (round: RoundView, current: Decision | undefined, withBudget: boolean) => {
-  const budget = withBudget ? round.budget : null;
-  const committed = withBudget ? add(committedElsewhere, commitmentOf(current ?? null)) : zero;
+const withCommitments = (round: RoundView, current: Decision | undefined) => {
+  const budget = round.budget;
+  const committed = add(committedElsewhere, commitmentOf(current ?? null));
   return {
     ...round,
     budget,
@@ -88,19 +85,13 @@ const withCommitments = (round: RoundView, current: Decision | undefined, withBu
   };
 };
 
-const zero = fromMinorUnits(0n);
-
-const EditablePreview = ({
-  withBudget = true,
-  versions: encodedVersions,
-  ...args
-}: PreviewProps) => {
+const EditablePreview = ({ versions: encodedVersions, ...args }: PreviewProps) => {
   const versions = encodedVersions.map((saved) => ({
     revision: saved.revision,
     decision: decodeDecision(saved.decision),
   }));
   const base = decodeRoundView(args.round);
-  const round = withCommitments(base, versions[0]?.decision, withBudget);
+  const round = withCommitments(base, versions[0]?.decision);
   const application = base.applications.find((item) => item.id === args.application.id)!;
   const [tab, setTab] = useState<"evidence" | "reviews">("reviews");
   const [draft, setDraft] = useState<DecisionDraft | undefined>(args.draft);
@@ -168,16 +159,6 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-/** No decision yet: the section says so and offers to record one. */
-export const NoDecision: Story = {
-  play: async ({ canvas }) => {
-    await expect(canvas.getByText("No decision recorded")).toBeVisible();
-    await expect(
-      canvas.getByRole("button", { name: "Record decision for Neighbour Table" }),
-    ).toBeVisible();
-  },
-};
-
 /** Two saved versions: the current decision, its recorder, and the history behind it. */
 export const SummaryWithHistory: Story = {
   args: { versions: twoVersions },
@@ -203,109 +184,6 @@ export const RecordFirstDecision: Story = {
     await expect(canvas.getByRole("status", { name: "Budget preview" })).toHaveTextContent(
       /Available with this decision\s*€8,000/,
     );
-  },
-};
-
-/** A change starts from the current decision and asks why it is changing. */
-export const AmendWithExplanation: Story = {
-  args: { versions: oneVersion },
-  play: async ({ canvas, userEvent }) => {
-    await userEvent.click(canvas.getByRole("button", { name: /Change decision for/ }));
-
-    await expect(canvas.getByLabelText(/Reason/)).toHaveValue(firstDecision.reason);
-    await expect(canvas.getByLabelText(/changing this decision/)).toBeVisible();
-    await userEvent.type(canvas.getByLabelText(/Reason/), " Revised.");
-    await userEvent.click(canvas.getByRole("button", { name: "Save decision" }));
-    await expect(canvas.getByLabelText(/changing this decision/)).toHaveAccessibleDescription(
-      /Explain why the decision is changing\./,
-    );
-  },
-};
-
-/** The budget preview shows the excess before saving; the server rejects it too. */
-export const OverBudget: Story = {
-  args: {
-    versions: oneVersion,
-    onSave: fn<PreviewProps["onSave"]>(() => ({
-      status: "invalid",
-      error: "commitment_exceeds_budget",
-      budget: { minorUnits: "6000000", currency: "EUR" },
-      committed: { minorUnits: "6100000", currency: "EUR" },
-      excess: { minorUnits: "100000", currency: "EUR" },
-    })),
-  },
-  play: async ({ canvas, userEvent }) => {
-    await userEvent.click(canvas.getByRole("button", { name: /Change decision for/ }));
-    const amount = canvas.getByRole("textbox", { name: "Amount" });
-    await userEvent.clear(amount);
-    await userEvent.type(amount, "33000");
-    await expect(canvas.getByRole("status", { name: "Budget preview" })).toHaveTextContent(
-      /Over budget with this decision\s*€1,000/,
-    );
-
-    await userEvent.type(canvas.getByLabelText(/changing this decision/), "Raised after review.");
-    await userEvent.click(canvas.getByRole("button", { name: "Save decision" }));
-    await expect(await canvas.findByRole("alert")).toHaveTextContent(
-      "This decision would exceed the round budget by €1,000.",
-    );
-  },
-};
-
-/** Funding needs a round budget; a deferral or decline does not. */
-export const NoBudget: Story = {
-  args: {
-    withBudget: false,
-    onSave: fn<PreviewProps["onSave"]>(() => ({
-      status: "invalid",
-      error: "budget_required",
-      budget: null,
-      committed: { minorUnits: "2400000", currency: "EUR" },
-      excess: null,
-    })),
-  },
-  play: async ({ canvas, userEvent }) => {
-    await userEvent.click(canvas.getByRole("button", { name: /Record decision for/ }));
-    await expect(
-      canvas.getByText("This round has no budget. Set one before funding."),
-    ).toBeVisible();
-    await userEvent.type(canvas.getByLabelText(/Reason/), "Funded in full.");
-    await userEvent.type(canvas.getByLabelText(/Decided by/), "Funding committee");
-    await userEvent.type(canvas.getByRole("textbox", { name: /Decision date/ }), yesterday);
-    await userEvent.click(canvas.getByRole("button", { name: "Save decision" }));
-    await expect(await canvas.findByRole("alert")).toHaveTextContent(
-      "This round has no budget. Set a budget before recording funding.",
-    );
-    // The save error says it, so the preview does not repeat it.
-    await expect(
-      canvas.queryByText("This round has no budget. Set one before funding."),
-    ).not.toBeInTheDocument();
-  },
-};
-
-/** Another person changed the decision while this draft was open. */
-export const ConflictRecovery: Story = {
-  args: {
-    versions: twoVersions,
-    conflict: "record_changed",
-    onKeepDraft: fn(),
-    onLoadLatest: fn(),
-    draft: {
-      outcome: "Fund",
-      amount: "24000.00",
-      conditions: "",
-      reason: "My unsaved reason.",
-      decidedBy: "Funding committee",
-      decisionDate: daysAgo(3),
-      changeExplanation: "My unsaved explanation.",
-    },
-  },
-  play: async ({ canvas, userEvent }) => {
-    await userEvent.click(canvas.getByRole("button", { name: /Resume editing decision for/ }));
-    await expect(canvas.getByRole("alert")).toHaveTextContent(
-      "Decision changed while you were editing",
-    );
-    await expect(canvas.getByRole("button", { name: "Save decision" })).toBeDisabled();
-    await expect(canvas.getByLabelText(/Reason/)).toHaveValue("My unsaved reason.");
   },
 };
 

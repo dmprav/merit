@@ -4,13 +4,12 @@ import type { ComponentProps } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
 import { intakeContent } from "@merit/applications/domain";
-import { applicationView } from "@merit/grantmaking/api";
-import { makeApplication } from "@merit/grantmaking/testing/fixtures";
+import { makeApplication } from "@merit/applications/testing/fixtures";
 
 import { GrantmakingMessagesProvider } from "../../testing/providers";
 import { IntakeControls } from "./application-intake";
 
-const application = applicationView(makeApplication());
+const application = makeApplication();
 const revision = {
   kind: "revision" as const,
   content: intakeContent(application),

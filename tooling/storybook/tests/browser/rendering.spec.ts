@@ -21,21 +21,22 @@ for (const story of [
   { id: "components-select--open", ready: '[role="listbox"]' },
   { id: "components-dialog--centered-with-actions", ready: '[role="dialog"]' },
   {
-    id: "features-applications-recommendation--budget-preview",
+    id: "features-applications-recommendation-editor--budget-preview",
     ready: '[aria-label="Budget preview"]',
   },
+  { id: "features-applications-decision-editor--no-budget", ready: '[role="alert"]' },
   { id: "features-applications-application-detail--changed-evidence", ready: "h1" },
   {
     id: "features-applications-application-detail--reviews",
     ready: 'section[aria-label="Reviewer assessments"]',
   },
-  { id: "features-applications-recommendation--no-recommendation", ready: "button" },
-  { id: "features-applications-recommendation--validation", ready: '[aria-invalid="true"]' },
+  { id: "features-applications-recommendation-editor--no-recommendation", ready: "button" },
+  { id: "features-applications-recommendation-editor--validation", ready: '[aria-invalid="true"]' },
   {
     id: "features-applications-recommendation--saving",
     ready: 'form[aria-busy="true"] button[type="submit"]:disabled',
   },
-  { id: "features-applications-recommendation--save-failure", ready: '[role="alert"]' },
+  { id: "features-applications-recommendation-editor--save-failure", ready: '[role="alert"]' },
 ]) {
   test(`story: ${story.id}`, async ({ page }, testInfo) => {
     await page.goto(`/iframe.html?id=${story.id}&viewMode=story`);

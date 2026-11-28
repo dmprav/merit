@@ -3,6 +3,7 @@ import { test } from "vite-plus/test";
 
 import { migrate } from "@merit/db/migrate";
 
+import { openLockSessions } from "./lock-sessions";
 import { createTestDatabase } from "./test-database";
 
 // Tests in a file share one database and must run sequentially.
@@ -17,4 +18,5 @@ export const databaseTest = test
   .extend("db", { auto: true }, async ({ database }) => {
     await database.client.query("TRUNCATE organizations, app_users CASCADE");
     return drizzle(database.client);
-  });
+  })
+  .extend("locks", async ({ database }, { onCleanup }) => openLockSessions(database, onCleanup));

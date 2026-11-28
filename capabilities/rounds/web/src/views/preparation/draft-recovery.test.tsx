@@ -4,8 +4,6 @@ import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
-import { roundView } from "@merit/grantmaking/api";
-import { getExampleRound } from "@merit/grantmaking/examples";
 import { createQueryClient } from "@merit/query";
 
 import type { PreparationData } from "../../contracts/preparation";
@@ -15,14 +13,13 @@ import {
   type PreparationDraft,
 } from "../../controllers/preparation/preparation-state";
 import { useRoundPreparation } from "../../controllers/preparation/use-round-preparation";
+import { makePreparationRound } from "../../testing/fixtures";
 import { GrantmakingMessagesProvider } from "../../testing/providers";
 import { RoundPreparation } from "./preparation-content";
 
-const round = roundView({
-  ...getExampleRound(),
+const round = makePreparationRound({
   title: "Saved round",
   purpose: "Saved purpose",
-  applications: [],
 });
 const recovered = {
   ...preparationDraft("purpose", round, 1),

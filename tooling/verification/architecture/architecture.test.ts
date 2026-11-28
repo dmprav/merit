@@ -54,8 +54,10 @@ const grantmakingFiles = {
       "./server/integrations": "./src/server/integrations.ts",
       "./server/demo": "./src/server/demo.ts",
       "./examples": "./src/examples/value.ts",
+      "./testing/fixtures": "./tests/fixtures.ts",
     },
   }),
+  [`${grantmakingRoot}/tests/fixtures.ts`]: "export const value = 1;",
   ...Object.fromEntries(
     [
       "domain/value.ts",
@@ -1403,6 +1405,30 @@ describe.concurrent("architecture rules", { timeout: checkTimeout() }, () => {
       );
     },
   );
+
+  test.each([
+    ["rounds/web/src/probe.test.ts", "@merit/grantmaking/examples"],
+    ["reviews/web/src/probe.story-fixtures.tsx", "@merit/grantmaking/examples"],
+    ["recommendations/web/src/probe.stories.tsx", "@merit/grantmaking/testing/fixtures"],
+    ["applications/business/tests/probe.integration.ts", "@merit/grantmaking/server/demo"],
+    ["decisions/business/tests/probe.integration.ts", "@merit/grantmaking/testing/fixtures"],
+  ])("rejects composed grantmaking fixtures in %s", async (path, specifier) => {
+    await check(
+      {
+        ...grantmakingFiles,
+        [`capabilities/${path}`]: `export { value } from "${specifier}";`,
+      },
+      "Use capability-owned test fixtures",
+    );
+  });
+
+  test("grantmaking composition tests can still use combined fixtures", async () => {
+    await check({
+      ...grantmakingFiles,
+      [`${grantmakingRoot}/tests/probe.integration.ts`]:
+        'export { value } from "@merit/grantmaking/testing/fixtures";',
+    });
+  });
 
   test("cross-capability imports cannot hide an undeclared relationship behind an approved barrel", async () => {
     await check(

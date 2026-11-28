@@ -1,19 +1,12 @@
 import { randomUUID } from "node:crypto";
 
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Client } from "pg";
-import { assert, afterAll, afterEach, beforeAll, beforeEach, expect, it } from "vite-plus/test";
+import type { Client } from "pg";
+import { assert, expect } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
-import {
-  createFundingApplication,
-  editFundingApplication,
-  selectApplicationContact,
-} from "@merit/applications/server";
-import { roundHasApplications } from "@merit/applications/server/integrations";
+import { createFundingApplication, editFundingApplication } from "@merit/applications/server";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import type { Database } from "@merit/db";
-import { migrate } from "@merit/db/migrate";
 import { getFundingApplicationPage, getFundingRoundPage } from "@merit/grantmaking/server";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
 import { createInlineOrganizationService } from "@merit/organizations/server/testing";
@@ -22,109 +15,20 @@ import { saveApplicationReview } from "@merit/reviews/server";
 import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
 import { createInlineReviewerService } from "@merit/reviews/testing";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
-import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit/rounds/server";
-import { createTestDatabase } from "@merit/test-support/test-database";
+import { createFundingRound, editFundingRound } from "@merit/rounds/server";
+import { databaseTest } from "@merit/test-support/database";
 
 import { applicationWork } from "./application-work";
 import { roundCommitments } from "./application-work";
 import { contactWork } from "./contact-work";
 
-let database: Awaited<ReturnType<typeof createTestDatabase>>;
-let db: Database;
-let first: Client;
-let second: Client;
-let firstPid: number;
-let secondPid: number;
-let releases: (() => void)[];
-let pending: Promise<unknown>[];
 const actor = { userId: "dana" };
 const workspaceSlug = "alder";
+const it = databaseTest.extend("exampleRounds", { auto: true }, async ({ db }) =>
+  seedExampleRounds(db),
+);
 
-beforeAll(async () => {
-  database = await createTestDatabase();
-  db = drizzle(database.client);
-  await migrate(database.client);
-});
-beforeEach(async () => {
-  releases = [];
-  pending = [];
-  await database.client.query("TRUNCATE organizations, app_users CASCADE");
-  await seedExampleRounds(db);
-  const options = { connectionString: database.connectionString, statement_timeout: 3000 };
-  first = new Client(options);
-  second = new Client(options);
-  await Promise.all([first.connect(), second.connect()]);
-  const firstBackend = (await first.query<{ pid: number }>("SELECT pg_backend_pid() AS pid"))
-    .rows[0];
-
-  assert.isDefined(firstBackend);
-
-  firstPid = firstBackend.pid;
-  const secondBackend = (await second.query<{ pid: number }>("SELECT pg_backend_pid() AS pid"))
-    .rows[0];
-
-  assert.isDefined(secondBackend);
-
-  secondPid = secondBackend.pid;
-});
-afterEach(async () => {
-  for (const release of releases) {
-    release();
-  }
-  await Promise.allSettled(pending);
-  await Promise.all([first?.end(), second?.end()]);
-});
-afterAll(async () => database?.dispose());
-
-const barrier = () => {
-  let open!: () => void;
-  const promise = new Promise<void>((resolve) => {
-    open = resolve;
-  });
-  return { promise, open };
-};
-
-const track = <T extends Promise<unknown>>(promise: T) => {
-  // Attach rejection handling immediately, including when a blocking assertion fails.
-  pending.push(promise.catch(() => undefined));
-  return promise;
-};
-
-const hold = async (operation: (tx: Database) => Promise<{ status: string }>) => {
-  const ready = barrier();
-  const release = barrier();
-  releases.push(release.open);
-  const transaction = track(
-    drizzle(first).transaction(async (tx) => {
-      expect(await operation(tx)).toMatchObject({ status: "ok" });
-
-      ready.open();
-      await release.promise;
-    }),
-  );
-  await Promise.race([ready.promise, transaction]);
-
-  return async () => {
-    release.open();
-    await transaction;
-  };
-};
-
-const expectBlocked = () =>
-  expect
-    .poll(
-      async () =>
-        (
-          await database.client.query<{ blockers: number[] }>(
-            "SELECT pg_blocking_pids($1) AS blockers",
-            [secondPid],
-          )
-        ).rows[0]?.blockers,
-      { timeout: 1500 },
-    )
-    .toContain(firstPid);
-
-const createRound = async () => {
+const createRound = async (db: Database) => {
   const result = await createFundingRound(db, actor, {
     workspaceSlug,
     requestId: randomUUID(),
@@ -138,8 +42,8 @@ const createRound = async () => {
   return result.publicId;
 };
 
-const fixture = async (email = "sam@example.test") => {
-  const roundId = await createRound();
+const fixture = async (db: Database, email = "sam@example.test") => {
+  const roundId = await createRound(db);
   const application = await createFundingApplication(db, actor, {
     workspaceSlug,
     publicId: roundId,
@@ -198,21 +102,7 @@ const updateProfile = (connection: Database, data: Fixture) =>
     contactWork,
   );
 
-const archiveContact = (connection: Database, data: Fixture) =>
-  changeWorkspaceContact(
-    connection,
-    actor,
-    {
-      workspaceSlug,
-      contactId: data.contact.id,
-      action: "archive",
-      expectedContactRevision: 0,
-    },
-    contactWork,
-  );
-
-const revisionProtectedEdits = {
-  round: roundEdit,
+const edits = {
   application: (connection: Database, data: Fixture) =>
     editFundingApplication(
       connection,
@@ -257,16 +147,14 @@ const revisionProtectedEdits = {
     }),
 };
 
-const edits = revisionProtectedEdits;
-
-it.each(Object.entries({ contactProfile: updateProfile, ...revisionProtectedEdits }))(
+it.for(Object.entries({ contactProfile: updateProfile, ...edits }))(
   "allows editing %s while another round has an uncommitted edit",
-  async (_, edit) => {
-    const a = await fixture();
-    const b = await fixture();
-    const commit = await hold((tx) => roundEdit(tx, a));
+  async ([, edit], { db, locks }) => {
+    const a = await fixture(db);
+    const b = await fixture(db);
+    const commit = await locks.hold((tx) => roundEdit(tx, a));
 
-    expect(await edit(drizzle(second), b)).toMatchObject({ status: "ok" });
+    expect(await edit(locks.second, b)).toMatchObject({ status: "ok" });
     // The first round remains uncommitted while the independent edit finishes.
     expect(
       (
@@ -282,98 +170,9 @@ it.each(Object.entries({ contactProfile: updateProfile, ...revisionProtectedEdit
   },
 );
 
-it.each(Object.entries({ contactArchive: archiveContact, ...revisionProtectedEdits }))(
-  "serializes competing %s edits and rejects the stale revision",
-  async (_, edit) => {
-    const data = await fixture();
-    const commit = await hold((tx) => edit(tx, data));
-    const competing = track(edit(drizzle(second), data));
-    await expectBlocked();
-    await commit();
-
-    expect(await competing).toEqual({ status: "conflict" });
-  },
-);
-
-it("serializes competing Tier 1 contact updates and applies the later details", async () => {
-  const data = await fixture();
-  const commit = await hold((tx) => updateProfile(tx, data));
-  const competing = track(
-    changeWorkspaceContact(
-      drizzle(second),
-      actor,
-      {
-        workspaceSlug,
-        contactId: data.contact.id,
-        action: "update",
-        details: { name: "Later contact", email: "sam@example.test", affiliation: "" },
-      },
-      contactWork,
-    ),
-  );
-  await expectBlocked();
-  await commit();
-
-  expect(await competing).toMatchObject({
-    status: "ok",
-    contact: { name: "Later contact", revision: 2 },
-  });
-});
-
-it("serializes competing Tier 1 contact selections and applies the later choice", async () => {
-  const data = await fixture();
-  const commit = await hold((tx) =>
-    selectApplicationContact(tx, actor, {
-      workspaceSlug,
-      publicId: data.applicationId,
-      contactId: data.contact.id,
-    }),
-  );
-  const competing = track(
-    selectApplicationContact(drizzle(second), actor, {
-      workspaceSlug,
-      publicId: data.applicationId,
-      contactId: null,
-    }),
-  );
-  await expectBlocked();
-  await commit();
-
-  expect(await competing).toMatchObject({ status: "ok" });
-  expect(
-    (
-      await getFundingApplicationPage(db, actor, {
-        workspaceSlug,
-        publicId: data.applicationId,
-      })
-    )?.application.contactId,
-  ).toBeNull();
-});
-
-it("deletes an empty round while another round has an uncommitted edit", async () => {
-  const data = await fixture();
-  const emptyRound = await createRound();
-  const commit = await hold((tx) => roundEdit(tx, data));
-
-  expect(
-    await deleteFundingRound(
-      drizzle(second),
-      actor,
-      {
-        workspaceSlug,
-        publicId: emptyRound,
-        expectedRevision: 0,
-      },
-      roundHasApplications,
-    ),
-  ).toEqual({ status: "ok" });
-
-  await commit();
-});
-
-const revoke = async (connection: Database) => {
+const revoke = async (connection: Database, observer: Client) => {
   const member = (
-    await database.client.query<{ id: string; version: number }>(
+    await observer.query<{ id: string; version: number }>(
       "SELECT id, version FROM memberships WHERE organization_id = 'alder' AND user_id = 'dana'",
     )
   ).rows[0];
@@ -403,14 +202,18 @@ const revoke = async (connection: Database) => {
   );
 };
 
-it("finishes an authorized edit before a concurrent membership revocation", async () => {
-  const data = await fixture();
-  const commit = await hold((tx) => roundEdit(tx, data));
-  const revocation = track(revoke(drizzle(second)));
-  await expectBlocked();
-  await commit();
+it("finishes an authorized edit before a concurrent membership revocation", async ({
+  db,
+  locks,
+  database,
+}) => {
+  const data = await fixture(db);
+  const revocation = await locks.race(
+    (tx) => roundEdit(tx, data),
+    (second) => revoke(second, database.client),
+  );
 
-  expect(await revocation).toMatchObject({ status: "ok" });
+  expect(revocation).toMatchObject({ status: "ok" });
   expect(await roundEdit(db, data)).toEqual({ status: "not_found" });
   expect(
     (
@@ -422,14 +225,18 @@ it("finishes an authorized edit before a concurrent membership revocation", asyn
   ).toEqual([{ action: "round.created" }, { action: "round.details_changed" }]);
 });
 
-it("checks access again after waiting for membership revocation", async () => {
-  const data = await fixture();
-  const commit = await hold(revoke);
-  const edit = track(roundEdit(drizzle(second), data));
-  await expectBlocked();
-  await commit();
+it("checks access again after waiting for membership revocation", async ({
+  db,
+  locks,
+  database,
+}) => {
+  const data = await fixture(db);
+  const edit = await locks.race(
+    (tx) => revoke(tx, database.client),
+    (second) => roundEdit(second, data),
+  );
 
-  expect(await edit).toEqual({ status: "not_found" });
+  expect(edit).toEqual({ status: "not_found" });
   expect(
     (
       await database.client.query(
@@ -453,24 +260,27 @@ const archive = (connection: Database, data: Fixture) =>
     contactWork,
   );
 
-it("rejects contact archival after waiting for an outstanding review request", async () => {
-  const data = await fixture();
-  const commit = await hold((tx) => edits.review(tx, data));
-  const archival = track(archive(drizzle(second), data));
-  await expectBlocked();
-  await commit();
+it("rejects contact archival after waiting for an outstanding review request", async ({
+  db,
+  locks,
+}) => {
+  const data = await fixture(db);
+  const archival = await locks.race(
+    (tx) => edits.review(tx, data),
+    (second) => archive(second, data),
+  );
 
-  expect(await archival).toMatchObject({ status: "invalid", error: "outstanding_requests" });
+  expect(archival).toMatchObject({ status: "invalid", error: "outstanding_requests" });
 });
 
-it("rejects a review request after waiting for contact archival", async () => {
-  const data = await fixture();
-  const commit = await hold((tx) => archive(tx, data));
-  const review = track(edits.review(drizzle(second), data));
-  await expectBlocked();
-  await commit();
+it("rejects a review request after waiting for contact archival", async ({ db, locks }) => {
+  const data = await fixture(db);
+  const review = await locks.race(
+    (tx) => archive(tx, data),
+    (second) => edits.review(second, data),
+  );
 
-  expect(await review).toEqual({ status: "invalid", error: "contact_unavailable" });
+  expect(review).toEqual({ status: "invalid", error: "contact_unavailable" });
   expect(
     (
       await getFundingApplicationPage(db, actor, {
@@ -481,79 +291,6 @@ it("rejects a review request after waiting for contact archival", async () => {
   ).toEqual([]);
 });
 
-it("locks the existing round before the actor on a creation retry", async () => {
-  const input = { workspaceSlug, requestId: randomUUID(), title: "Retried round" };
-  const created = await createFundingRound(db, actor, input);
-  assert(created.status === "ok");
-
-  let retry: ReturnType<typeof createFundingRound>;
-  await first.query("BEGIN");
-  try {
-    await first.query("SELECT id FROM funding_rounds WHERE id = $1 FOR UPDATE", [created.publicId]);
-    retry = track(createFundingRound(drizzle(second), actor, input));
-    await expectBlocked();
-
-    // While the retry waits for its round, the actor's membership must still be free.
-    const probe = await first.query(
-      "SELECT id FROM memberships WHERE organization_id = $1 AND user_id = $2 FOR UPDATE NOWAIT",
-      [workspaceSlug, actor.userId],
-    );
-    expect(probe.rowCount).toBe(1);
-  } finally {
-    await first.query("ROLLBACK");
-  }
-  expect(await retry).toEqual(created);
-});
-
-it.each(["round", "application"] as const)("keeps %s creation retries serialized", async (kind) => {
-  const roundId = await createRound();
-  const input = { workspaceSlug, requestId: randomUUID(), title: "Retried creation" };
-
-  const create = async (connection: Database) =>
-    kind === "round"
-      ? createFundingRound(connection, actor, input)
-      : createFundingApplication(connection, actor, { ...input, publicId: roundId });
-
-  let publicId: string | undefined;
-  const commit = await hold(async (tx) => {
-    const result = await create(tx);
-    if (result.status === "ok") {
-      publicId = result.publicId;
-    }
-    return result;
-  });
-  const retry = track(create(drizzle(second)));
-  await expectBlocked();
-  await commit();
-
-  expect(await retry).toEqual({ status: "ok", publicId });
-});
-
-it("allows independent application creates and rejects a competing cross-round receipt", async () => {
-  const a = await createRound();
-  const b = await createRound();
-
-  const create = (connection: Database, publicId: string, requestId: string) =>
-    createFundingApplication(connection, actor, {
-      workspaceSlug,
-      publicId,
-      requestId,
-      title: "Meals",
-    });
-
-  const sharedId = randomUUID();
-  const commit = await hold((tx) => create(tx, a, sharedId));
-  expect(await create(drizzle(second), b, randomUUID())).toMatchObject({ status: "ok" });
-  const competing = track(create(drizzle(second), b, sharedId));
-  await expectBlocked();
-  await commit();
-  expect(await competing).toEqual({ status: "invalid", error: "application_deleted" });
-  expect(
-    (await database.client.query("SELECT id FROM application_cases WHERE round_id = $1", [b]))
-      .rowCount,
-  ).toBe(1);
-});
-
 const reviewerService = (connection: Database) =>
   createInlineReviewerService({
     database: async (operation) => operation(connection),
@@ -562,10 +299,10 @@ const reviewerService = (connection: Database) =>
     managerUrl: (_, id) => `https://merit.test/applications/${id}`,
   });
 
-const requestedReview = async (email: string) => {
-  const data = await fixture(email);
-  await database.client.query("INSERT INTO app_users (id, name) VALUES ($1, 'Reviewer')", [email]);
-  await database.client.query(
+const requestedReview = async (db: Database, observer: Client, email: string) => {
+  const data = await fixture(db, email);
+  await observer.query("INSERT INTO app_users (id, name) VALUES ($1, 'Reviewer')", [email]);
+  await observer.query(
     "INSERT INTO memberships (organization_id, user_id, email, role) VALUES ('alder', $1, $1, 'reviewer')",
     [email],
   );
@@ -589,12 +326,12 @@ const requestedReview = async (email: string) => {
   };
 };
 
-it.each(["invite", "resend"] as const)(
+it.for(["invite", "resend"] as const)(
   "holds the last workspace invitation slot for a %s while an independent round edit commits",
-  async (firstAction) => {
-    const original = await requestedReview("sam@example.test");
-    const next = await requestedReview("robin@example.test");
-    const independent = await fixture();
+  async (firstAction, { db, locks, database }) => {
+    const original = await requestedReview(db, database.client, "sam@example.test");
+    const next = await requestedReview(db, database.client, "robin@example.test");
+    const independent = await fixture(db);
     expect(await reviewerService(db).invite(actor, original)).toMatchObject({ status: "ok" });
     // Nineteen prior invitations, outside the per-recipient cooldown.
     await database.client.query(
@@ -620,12 +357,13 @@ it.each(["invite", "resend"] as const)(
         note: "",
       });
 
-    const commit = await hold(firstAction === "invite" ? invite : resend);
-    expect(await roundEdit(drizzle(second), independent)).toMatchObject({ status: "ok" });
-    const competing = track((firstAction === "invite" ? resend : invite)(drizzle(second)));
-    await expectBlocked();
-    await commit();
-    expect(await competing).toEqual({ status: "limited" });
+    const commit = await locks.hold(firstAction === "invite" ? invite : resend);
+    expect(await roundEdit(locks.second, independent)).toMatchObject({ status: "ok" });
+    const competing = await locks.finishBlocked(
+      (firstAction === "invite" ? resend : invite)(locks.second),
+      commit,
+    );
+    expect(competing).toEqual({ status: "limited" });
     expect(
       (await database.client.query("SELECT id FROM reviewer_messages WHERE kind = 'invitation'"))
         .rowCount,
@@ -633,9 +371,13 @@ it.each(["invite", "resend"] as const)(
   },
 );
 
-it("commits an unrelated reviewer draft while a contact profile edit is open", async () => {
+it("commits an unrelated reviewer draft while a contact profile edit is open", async ({
+  db,
+  locks,
+  database,
+}) => {
   const email = "robin@example.test";
-  const review = await requestedReview(email);
+  const review = await requestedReview(db, database.client, email);
   const service = reviewerService(db);
   const invited = await service.invite(actor, review);
   assert(invited.status === "ok");
@@ -650,11 +392,11 @@ it("commits an unrelated reviewer draft while a contact profile edit is open", a
       note: "",
     }),
   ).toMatchObject({ status: "ok" });
-  const independent = await fixture();
+  const independent = await fixture(db);
 
-  const commit = await hold((tx) => updateProfile(tx, independent));
+  const commit = await locks.hold((tx) => updateProfile(tx, independent));
   expect(
-    await reviewerService(drizzle(second)).saveDraft(reviewer, {
+    await reviewerService(locks.second).saveDraft(reviewer, {
       assignmentId,
       commandId: randomUUID(),
       expectedDraftRevision: 0,
@@ -670,13 +412,17 @@ it("commits an unrelated reviewer draft while a contact profile edit is open", a
   await commit();
 });
 
-it("records the updated reviewer name after waiting for a contact profile edit", async () => {
-  const data = await fixture();
-  const commit = await hold((tx) => updateProfile(tx, data));
-  const request = track(edits.review(drizzle(second), data));
-  await expectBlocked();
-  await commit();
-  expect(await request).toMatchObject({ status: "ok" });
+it("records the updated reviewer name after waiting for a contact profile edit", async ({
+  db,
+  locks,
+  database,
+}) => {
+  const data = await fixture(db);
+  const request = await locks.race(
+    (tx) => updateProfile(tx, data),
+    (second) => edits.review(second, data),
+  );
+  expect(request).toMatchObject({ status: "ok" });
   expect(
     (
       await database.client.query("SELECT reviewer FROM review_requests WHERE case_id = $1", [

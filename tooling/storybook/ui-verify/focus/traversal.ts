@@ -5,7 +5,7 @@ import { settleAnimations } from "@merit/test-support/browser";
 import type { FocusTraversal } from "../results.ts";
 import type { CapturedStop } from "./judge.ts";
 import type { FocusVisualSnapshot } from "./style-diff.ts";
-import type { FocusedObservation } from "./tracker.ts";
+import { type FocusedObservation, unlessDocumentReplaced } from "./tracker.ts";
 
 export const MAX_TAB_STOPS = 40;
 
@@ -127,17 +127,23 @@ const recordOutcome = (stops: CapturedStop[], outcome: TabOutcome): void => {
   }
 };
 
+/** The page's own handlers can navigate while animations settle, as a focus handler can. */
+const settle = (page: Page): Promise<void> =>
+  unlessDocumentReplaced(settleAnimations(page), undefined);
+
 const startFromDocumentStart = async (page: Page): Promise<CapturedStop[]> => {
-  const initial = await page.evaluate(observeInitialFocus);
+  const initial = await unlessDocumentReplaced(page.evaluate(observeInitialFocus), {
+    kind: "none",
+  } as const);
   if (initial.kind === "reset") {
-    await settleAnimations(page);
+    await settle(page);
   }
   return initial.kind === "dialogStop" ? [initial.stop] : [];
 };
 
 const pressTab = async (page: Page): Promise<void> => {
   await page.keyboard.press("Tab");
-  await settleAnimations(page);
+  await settle(page);
 };
 
 /**
@@ -153,10 +159,10 @@ export const traverseTabStops = async (
   for (let step = 0; step <= maxStops; step += 1) {
     const isAtCap = stops.length >= maxStops;
     await pressTab(page);
-    const outcome = await page.evaluate(observeTabOutcome, {
-      previousIndex: stops.length - 1,
-      isAtCap,
-    });
+    const outcome = await unlessDocumentReplaced(
+      page.evaluate(observeTabOutcome, { previousIndex: stops.length - 1, isAtCap }),
+      { kind: "trackerLost" } as const,
+    );
     recordOutcome(stops, outcome);
     if (outcome.kind !== "stop") {
       return { stops, traversal: traversalEndFor(outcome) };
@@ -182,16 +188,26 @@ const blurStopIfFocused = (index: number): boolean => {
   return true;
 };
 
+/** A baseline read, unless the page replaced its document since the stops were reached. */
+type BaselineRead<T> = { kind: "trackerLost" } | { kind: "read"; baseline: T };
+
 /**
  * Runs in the page: the stop's current styles, unless it left the document or has focus again,
  * as when its blur handler takes focus back, so its styles are not an unfocused baseline.
  */
-const snapshotUnfocusedStop = (index: number): FocusVisualSnapshot | undefined => {
+const snapshotUnfocusedStop = (index: number): BaselineRead<FocusVisualSnapshot | undefined> => {
   const tracker = window.__meritFocusTracker;
-  const el = tracker?.stops[index];
-  return tracker && el?.isConnected && tracker.deepActiveElement() !== el
-    ? tracker.captureSnapshot(el)
-    : undefined;
+  if (!tracker) {
+    return { kind: "trackerLost" };
+  }
+  const el = tracker.stops[index];
+  return {
+    kind: "read",
+    baseline:
+      el?.isConnected && tracker.deepActiveElement() !== el
+        ? tracker.captureSnapshot(el)
+        : undefined,
+  };
 };
 
 const COLLECTION_ITEM =
@@ -247,26 +263,33 @@ const siblingHasFocus = ({
   );
 };
 
+/** Why capturing baselines left the check incomplete. */
+type BaselineGap = "siblingFocus" | "trackerLost";
+
 /**
  * Captures the last stop's unfocused baseline when focus stayed on it, as a focus trap does. An
  * item of an open list or menu is compared with how it looks while a sibling item has focus,
- * because the collection returns focus to it when it is blurred. Returns false when focus did not
- * reach a sibling, so the check is reported as incomplete rather than judged on a focused baseline.
+ * because the collection returns focus to it when it is blurred. Reports `siblingFocus` when
+ * focus did not reach a sibling, so the check is reported as incomplete rather than judged on a
+ * focused baseline, and `trackerLost` when the page replaced its document meanwhile.
  */
 export const captureFinalBaseline = async (
   page: Page,
   stops: readonly CapturedStop[],
-): Promise<boolean> => {
+): Promise<BaselineGap | undefined> => {
   const finalStop = stops.at(-1);
   if (!finalStop || finalStop.unfocused) {
-    return true;
+    return undefined;
   }
   await pressTab(page);
-  const siblingKey = await page.evaluate(siblingKeyForStop, {
-    index: finalStop.index,
-    item: COLLECTION_ITEM,
-    collection: COLLECTION,
-  });
+  const siblingKey = await unlessDocumentReplaced(
+    page.evaluate(siblingKeyForStop, {
+      index: finalStop.index,
+      item: COLLECTION_ITEM,
+      collection: COLLECTION,
+    }),
+    undefined,
+  );
   let reachedSibling = true;
   if (siblingKey) {
     await page.keyboard.press(siblingKey);
@@ -280,43 +303,71 @@ export const captureFinalBaseline = async (
         () => true,
         () => false,
       );
-  } else if (await page.evaluate(blurStopIfFocused, finalStop.index)) {
-    await settleAnimations(page);
+  } else if (
+    await unlessDocumentReplaced(page.evaluate(blurStopIfFocused, finalStop.index), false)
+  ) {
+    await settle(page);
   }
-  await settleAnimations(page);
-  const finalUnfocused = await page.evaluate(snapshotUnfocusedStop, finalStop.index);
-  if (finalUnfocused) {
-    finalStop.unfocused = finalUnfocused;
+  await settle(page);
+  const finalUnfocused = await unlessDocumentReplaced(
+    page.evaluate(snapshotUnfocusedStop, finalStop.index),
+    { kind: "trackerLost" } as const,
+  );
+  if (finalUnfocused.kind === "trackerLost") {
+    return "trackerLost";
   }
-  return reachedSibling;
+  if (finalUnfocused.baseline) {
+    finalStop.unfocused = finalUnfocused.baseline;
+  }
+  return reachedSibling ? undefined : "siblingFocus";
 };
 
 /** Runs in the page: every stop's styles while nothing has focus, or null if something does. */
-const snapshotStopsWithNothingFocused = (): Array<FocusVisualSnapshot | null> | null => {
-  const tracker = window.__meritFocusTracker;
-  const active = tracker?.deepActiveElement();
-  if (!tracker || (active && active !== document.body && active !== document.documentElement)) {
-    return null;
-  }
-  return tracker.stops.map((el) => (el.isConnected ? tracker.captureSnapshot(el) : null));
-};
+const snapshotStopsWithNothingFocused =
+  (): BaselineRead<Array<FocusVisualSnapshot | null> | null> => {
+    const tracker = window.__meritFocusTracker;
+    if (!tracker) {
+      return { kind: "trackerLost" };
+    }
+    const active = tracker.deepActiveElement();
+    if (active && active !== document.body && active !== document.documentElement) {
+      return { kind: "read", baseline: null };
+    }
+    return {
+      kind: "read",
+      baseline: tracker.stops.map((el) => (el.isConnected ? tracker.captureSnapshot(el) : null)),
+    };
+  };
 
 /**
  * A baseline captured after Tab can carry the next stop's focus styles, such as
  * `button:has(+ button:focus-visible)`, so also capture each stop with nothing focused. Skipped
- * when the page moves focus back, as modal focus containment does.
+ * when the page moves focus back, as modal focus containment does. Reports `trackerLost` when the
+ * page replaced its document meanwhile.
  */
-export const captureUnfocusedBaselines = async (page: Page, stops: readonly CapturedStop[]) => {
+export const captureUnfocusedBaselines = async (
+  page: Page,
+  stops: readonly CapturedStop[],
+): Promise<"trackerLost" | undefined> => {
   if (stops.length === 0) {
-    return;
+    return undefined;
   }
-  await page.evaluate(() => window.__meritFocusTracker?.resetFocusToDocumentStart());
-  await settleAnimations(page);
-  const baselines = await page.evaluate(snapshotStopsWithNothingFocused);
+  await unlessDocumentReplaced(
+    page.evaluate(() => window.__meritFocusTracker?.resetFocusToDocumentStart()),
+    undefined,
+  );
+  await settle(page);
+  const baselines = await unlessDocumentReplaced(page.evaluate(snapshotStopsWithNothingFocused), {
+    kind: "trackerLost",
+  } as const);
+  if (baselines.kind === "trackerLost") {
+    return "trackerLost";
+  }
   for (const stop of stops) {
-    const baseline = baselines?.[stop.index];
+    const baseline = baselines.baseline?.[stop.index];
     if (baseline) {
       stop.cleanUnfocused = baseline;
     }
   }
+  return undefined;
 };

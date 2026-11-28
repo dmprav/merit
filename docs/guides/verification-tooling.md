@@ -114,12 +114,29 @@ entry remains.
 The separate [Review Packet workflow](../../.github/workflows/review-packet.yml)
 runs [`pr-review-packet.ts`](../../tooling/verification/pr-review-packet.ts) on
 same-repo pull requests with `pull-requests: write` while keeping `verify.yml`
-read-only. When UI or Storybook files change, its `ui-screenshots` job uses
+read-only. When a change touches source the Storybook preview may bundle (any
+non-test file under a package's `src/`, a story, or `.storybook/`), its
+`ui-screenshots` job uses
 [`pr-screenshots.ts`](../../tooling/verification/pr-screenshots.ts) and
 `ui:verify --viewport desktop` to capture affected desktop stories, publish them
 to a single squashed orphan commit on `ci/pr-screenshots`, and embed them inline
 in the same sticky comment; `cleanup-screenshots` removes `pr-<number>/` when
-the pull request closes. Run
+the pull request closes.
+
+`pr-screenshots.ts select` chooses stories from the import graph in the
+`preview-stats.json` that the Storybook `build` task writes beside `index.json`.
+A story file is affected when it changed or imports a changed module, however
+indirectly. A change to `.storybook/preview.tsx` or a module it imports affects
+every story, and none of them directly. Changed files the preview does not
+bundle, such as tests and server code, select nothing. Affected story files are
+ranked by import distance, then by whether they sit beside a changed module,
+then by path. Stories are taken one per file in turn, up to eight, so a file
+contributes a second story only after every affected file has contributed one.
+The packet states how many affected story files the screenshots cover and how
+many of those changed or import a changed module directly. After
+`vp run @merit/storybook#build`, run
+`vpx tooling/verification/pr-screenshots.ts select --base origin/main` to see
+the selection for the current branch. Run
 `vp run ci:review-packet -- --base origin/main --head HEAD --pr <number>` to
 preview the sticky comment locally, and run `vp run test:ci` after changing it.
 

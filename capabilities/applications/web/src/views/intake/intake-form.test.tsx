@@ -4,8 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
-import { applicationView } from "@merit/grantmaking/api";
-import { makeApplication } from "@merit/grantmaking/testing/fixtures";
+import { makeApplication } from "@merit/applications/testing/fixtures";
 import { createQueryClient } from "@merit/query";
 
 import type { IntakeData } from "../../contracts/intake";
@@ -21,13 +20,11 @@ vi.mock("@merit/contacts-web/contacts", () => ({
     contactId === "leah" ? "Leah" : fallback,
 }));
 
-const application = applicationView(
-  makeApplication({
-    intakeStatus: "ready",
-    summary: "Original staff summary",
-    submission: { version: 1, contact: "Sam", answers: [] },
-  }),
-);
+const application = makeApplication({
+  intakeStatus: "ready",
+  summary: "Original staff summary",
+  submission: { version: 1, contact: "Sam", answers: [] },
+});
 const working = {
   kind: "revision" as const,
   content: {

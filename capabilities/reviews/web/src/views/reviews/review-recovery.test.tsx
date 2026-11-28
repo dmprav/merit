@@ -3,10 +3,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vite-plus/test";
 
-import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
 import { createQueryClient } from "@merit/query";
 
 import { DraftContext, type ReviewDraft } from "../../controllers/reviews/drafts";
+import { makeApplication, makeRound } from "../../testing/fixtures";
 import { GrantmakingMessagesProvider } from "../../testing/providers";
 import { ReviewWork } from "./review-work";
 

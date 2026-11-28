@@ -4,12 +4,12 @@ import { useState, type ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
-import { applicationView } from "@merit/grantmaking/api";
-import { makeApplication, makeAssessment, makeRound } from "@merit/grantmaking/testing/fixtures";
 import { createQueryClient } from "@merit/query";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
+import { makeAssessment } from "@merit/reviews/testing/fixtures";
 
 import type { ReviewData, ReviewProps } from "../../contracts/reviews";
+import { makeApplication, makeRound } from "../../testing/fixtures";
 import { DraftContext, type ReviewDraft } from "./drafts";
 import { useReview } from "./use-review";
 
@@ -17,12 +17,10 @@ const setup = (
   overrides: Partial<Pick<ReviewProps, "application" | "availableApplicationVersions">> = {},
 ) => {
   const round = makeRound();
-  const application = applicationView(
-    makeApplication({
-      version: 2,
-      reviews: { revision: 3, requests: [], assessments: [] },
-    }),
-  );
+  const application = makeApplication({
+    version: 2,
+    reviews: { revision: 3, requests: [], assessments: [] },
+  });
   const data = {
     draftKey: "application",
     workspaceSlug: "alder",
@@ -63,16 +61,14 @@ it("offers the current application version when no history or assessments are av
 
 it("includes earlier assessment bases and deduplicates versions across all sources", () => {
   const { result } = setup({
-    application: applicationView(
-      makeApplication({
-        version: 7,
-        reviews: {
-          revision: 3,
-          requests: [],
-          assessments: [assessmentWithVersions([2, 4, 3]), assessmentWithVersions([null, 1, 2, 7])],
-        },
-      }),
-    ),
+    application: makeApplication({
+      version: 7,
+      reviews: {
+        revision: 3,
+        requests: [],
+        assessments: [assessmentWithVersions([2, 4, 3]), assessmentWithVersions([null, 1, 2, 7])],
+      },
+    }),
     availableApplicationVersions: [4, 6, 4, 7].map((version) =>
       materialVersionSchema.parse(version),
     ),
@@ -83,16 +79,14 @@ it("includes earlier assessment bases and deduplicates versions across all sourc
 
 it("does not invent application versions for assessments with unknown bases", () => {
   const { result } = setup({
-    application: applicationView(
-      makeApplication({
-        version: 2,
-        reviews: {
-          revision: 3,
-          requests: [],
-          assessments: [assessmentWithVersions([null, null])],
-        },
-      }),
-    ),
+    application: makeApplication({
+      version: 2,
+      reviews: {
+        revision: 3,
+        requests: [],
+        assessments: [assessmentWithVersions([null, null])],
+      },
+    }),
   });
 
   expect([...result.current.versions]).toEqual([2]);
@@ -112,16 +106,14 @@ it("updates selectable versions when history and application assessments arrive"
 
   rerender({
     ...loadedHistory,
-    application: applicationView(
-      makeApplication({
-        version: 5,
-        reviews: {
-          revision: 4,
-          requests: [],
-          assessments: [assessmentWithVersions([3, 2])],
-        },
-      }),
-    ),
+    application: makeApplication({
+      version: 5,
+      reviews: {
+        revision: 4,
+        requests: [],
+        assessments: [assessmentWithVersions([3, 2])],
+      },
+    }),
   });
 
   expect([...result.current.versions]).toEqual([5, 1, 4, 3, 2]);
@@ -261,11 +253,12 @@ const makeRecordDraft = (
 
 it("flags a conflict for a null-requestId draft when a matching request is created", () => {
   const round = makeRound();
-  const baseApp = applicationView(
-    makeApplication({ version: 2, reviews: { revision: 1, requests: [], assessments: [] } }),
-  );
+  const baseApp = makeApplication({
+    version: 2,
+    reviews: { revision: 1, requests: [], assessments: [] },
+  });
   const { result, rerender } = renderHook(
-    (app: ReturnType<typeof applicationView>) =>
+    (app: ReviewProps["application"]) =>
       useReview({
         application: app,
         round,
@@ -279,28 +272,26 @@ it("flags a conflict for a null-requestId draft when a matching request is creat
 
   expect(result.current.conflict).toBe(false);
 
-  const withRequest = applicationView(
-    makeApplication({
-      version: 2,
-      reviews: {
-        revision: 2,
-        requests: [
-          {
-            id: crypto.randomUUID(),
-            contactId: "sam",
-            reviewer: "Sam",
-            applicationVersion: materialVersionSchema.parse(2),
-            criteriaVersion: round.criteriaVersion,
-            criteria: round.criteria,
-            status: "outstanding",
-            recorder: null,
-            closedBy: null,
-          },
-        ],
-        assessments: [],
-      },
-    }),
-  );
+  const withRequest = makeApplication({
+    version: 2,
+    reviews: {
+      revision: 2,
+      requests: [
+        {
+          id: crypto.randomUUID(),
+          contactId: "sam",
+          reviewer: "Sam",
+          applicationVersion: materialVersionSchema.parse(2),
+          criteriaVersion: round.criteriaVersion,
+          criteria: round.criteria,
+          status: "outstanding",
+          recorder: null,
+          closedBy: null,
+        },
+      ],
+      assessments: [],
+    },
+  });
   rerender(withRequest);
   expect(result.current.conflict).toBe(true);
 });
@@ -312,12 +303,10 @@ it("clears an edit draft on loadLatest when its target was authored directly by 
     contactId: "sam",
     authorUserId: "sam-user",
   });
-  const baseApp = applicationView(
-    makeApplication({
-      version: 2,
-      reviews: { revision: 3, requests: [], assessments: [authoredAssessment] },
-    }),
-  );
+  const baseApp = makeApplication({
+    version: 2,
+    reviews: { revision: 3, requests: [], assessments: [authoredAssessment] },
+  });
   const { result } = renderHook(
     () =>
       useReview({

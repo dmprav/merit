@@ -93,7 +93,8 @@ organization foreign key without introducing a reverse Organizations dependency.
 Package tests cover the envelope and activity cursor at the shared coverage
 thresholds. [Database tests](tests/events.integration.ts) cover attribution,
 transaction rollback, immutability, scopes, ordering, and paging. Capability tests
-cover authorization and domain payloads. Grantmaking's
-[recording tests](../../grantmaking/business/tests/audit-recording.integration.ts)
-and [activity tests](../../grantmaking/business/tests/workspace-activity.integration.ts)
+cover authorization and domain payloads. The
+[intake recording tests](../../applications/business/tests/audit-recording.integration.ts),
+[round recording tests](../../rounds/business/tests/audit-recording.integration.ts),
+and [workspace activity tests](../../grantmaking/business/tests/workspace-activity.integration.ts)
 verify atomic writes, no-op and retry behavior, and retained historical context.

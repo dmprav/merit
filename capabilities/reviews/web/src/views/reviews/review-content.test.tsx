@@ -3,14 +3,10 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import {
-  makeApplication,
-  makeAssessment,
-  makeReviewRequest,
-  makeRound,
-} from "@merit/grantmaking/testing/fixtures";
+import { makeAssessment, makeReviewRequest } from "@merit/reviews/testing/fixtures";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
+import { makeApplication, makeRound } from "../../testing/fixtures";
 import { GrantmakingMessagesProvider } from "../../testing/providers";
 import { ReviewContent as ReviewPresentation } from "./review-content";
 import { ReviewWork } from "./review-work";

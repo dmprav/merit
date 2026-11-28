@@ -84,28 +84,28 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          selection_json="$(vpx tooling/verification/pr-screenshots.ts select)"
-          story_ids="$(printf '%s' "$selection_json" | node -e 'const d = JSON.parse(require("node:fs").readFileSync(0, "utf8")); process.stdout.write((d.storyIds || []).join(","));')"
-          omitted="$(printf '%s' "$selection_json" | node -e 'const d = JSON.parse(require("node:fs").readFileSync(0, "utf8")); process.stdout.write(String(d.omittedCount || 0));')"
+          out_dir="$(mktemp -d)"
+          trap 'rm -rf "$out_dir"' EXIT
+          selection="$out_dir/selection.json"
+          # Ranks stories by import distance from changed modules in the build's preview-stats.json.
+          vpx tooling/verification/pr-screenshots.ts select > "$selection"
+          story_ids="$(node -e 'const d = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(d.storyIds.join(","));' "$selection")"
           if [ -z "$story_ids" ]; then
-            echo "No matching Storybook stories for changed UI files."
+            echo "No Storybook story imports a changed module."
             exit 0
           fi
 
-          out_dir="$(mktemp -d)"
-          trap 'rm -rf "$out_dir"' EXIT
           # Capture screenshots even when a story has audit warnings; verify.yml gates pass/fail.
-          vpx tooling/storybook/ui-verify.ts --viewport desktop --story "$story_ids" --out "$out_dir" --json > /dev/null || true
-          if [ ! -f "$out_dir/results.json" ]; then
+          vpx tooling/storybook/ui-verify.ts --viewport desktop --story "$story_ids" --out "$out_dir/shots" --json > /dev/null || true
+          if [ ! -f "$out_dir/shots/results.json" ]; then
             echo "ui:verify did not produce results.json; skipping screenshot publish."
             exit 0
           fi
 
           manifest="$out_dir/manifest.json"
           vpx tooling/verification/pr-screenshots.ts publish \
-            --results "$out_dir/results.json" \
-            --story-ids "$story_ids" \
-            --omitted "$omitted" \
+            --results "$out_dir/shots/results.json" \
+            --selection "$selection" \
             --out-manifest "$manifest"
           vpx tooling/verification/pr-review-packet.ts --post --screenshots-manifest "$manifest"
 

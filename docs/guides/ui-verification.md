@@ -150,17 +150,20 @@ WCAG 2 A/AA/2.1AA violations, zero horizontal overflow, zero console/page errors
 keyboard `Tab` focus changes (each stop must be painted, with no `opacity: 0` on it or an
 ancestor, and must differ from the page with nothing focused and with the next stop focused,
 so a stop removed from the document as focus leaves it fails;
-focus that enters a cross-origin frame or navigates to a new document fails as incomplete), then writes deterministic proof artifacts to `.tmp/ui-verify/`
+focus that enters a cross-origin frame fails as incomplete, as does a page that navigates to a new document at any point in the focus check, which keeps the stops checked before it), then writes deterministic proof artifacts to `.tmp/ui-verify/`
 (override with `--out <dir>`): `report.md`, Zod-validated `results.json`, and
 `screenshots/*.png`. A route that redirects, such as to sign-in, is checked where it lands:
 `results.json` records that page as `url` beside the requested `requestedUrl`, and `report.md` shows it after the requested route, in full when it is on another origin.
 Each target in `results.json` (schema `version` 2) has a `status`: an `audited` target carries
 its audit and `focus` results, where `focus.traversal` is `{ "complete": true }` or names why
-traversal stopped short (`cap`, `opaqueFrame`, or `trackerLost`). When a target fails before its
+traversal stopped short (`cap`, `opaqueFrame`, `siblingFocus`, or `trackerLost`). When a target fails before its
 checks run, such as on an HTTP error, it is `errored` with its `error` and no audit or focus
 results, and `report.md` marks its axe, overflow, and focus checks as not checked.
 Servers and ephemeral databases are torn down automatically on exit or
-failure, and a teardown step that fails is logged rather than ignored. Pass `--update` on host runs to delete the selected targets' previous screenshots for
+failure, and a teardown step that fails is logged rather than ignored. Each server and each
+build or seed command runs in its own process group, and teardown stops the whole group, not
+only the process it started, even after that process exits successfully. A build or seed whose
+group survives SIGKILL fails. Pass `--update` on host runs to delete the selected targets' previous screenshots for
 the selected viewports before checking; screenshots of other targets and viewports stay. A run
 locks its output directory until its report is written, so a second concurrent run against the
 same `--out` fails immediately; give concurrent runs separate `--out` directories. The lock is the
