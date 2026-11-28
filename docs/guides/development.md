@@ -313,6 +313,9 @@ A failed `worktree:create` leaves the branch for inspection because Git can
 reuse its name while setup runs. Inspect the reported branch before reusing
 the name, or retry with a different `--branch`. Cleanup of a retained record
 from that attempt also preserves the branch, including database cleanup retries.
+If recovery may already have finished, pass `--keep-branch` when repeating
+`worktree:clean`: once the record is gone, the command treats the slug as
+unregistered and can delete the default `worktree/<slug>` branch.
 Older records already marked as cleaning also keep their branch when the
 registry cannot distinguish a failed create from an interrupted clean.
 If `worktree:create` fails after creating the checkout and Git
