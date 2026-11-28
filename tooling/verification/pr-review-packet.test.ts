@@ -3,7 +3,6 @@ import { describe, expect, test } from "vite-plus/test";
 import {
   describeScreenshotCoverage,
   EMPTY_REVIEW_PACKET_NOTE,
-  extractSqlDdlDelta,
   mayAffectStorybook,
   parseAddedDiffLines,
   parseNumstatZ,
@@ -11,7 +10,6 @@ import {
   renderReviewPacket,
   buildReviewPacket,
   REVIEW_PACKET_MARKER,
-  splitSqlStatements,
   summarizeDiffSize,
   summarizePaths,
   upsertReviewPacketComment,
@@ -39,99 +37,6 @@ describe("pr-review-packet", () => {
   test("keeps tabs inside numstat paths", () => {
     expect(parseNumstatZ(["1\t0\tsrc/example\tcase.test.ts", ""].join("\0"))).toEqual([
       { path: "src/example\tcase.test.ts", additions: 1, deletions: 0 },
-    ]);
-  });
-
-  test("splits SQL statements across dollar-quoted function bodies and comments", () => {
-    const sql = `
-      -- Leading comment with ; semicolon
-      CREATE FUNCTION demo() RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
-      BEGIN
-        PERFORM 1;
-        PERFORM 2;
-      END;
-      $$;
-      /* block comment; */
-      CREATE INDEX idx_demo ON public.demo (id);
-    `;
-
-    const statements = splitSqlStatements(sql);
-    expect(statements).toHaveLength(2);
-    expect(statements[0]).toContain("CREATE FUNCTION demo()");
-    expect(statements[0]).toContain("PERFORM 2;");
-    expect(statements[1]).toBe("CREATE INDEX idx_demo ON public.demo (id)");
-  });
-
-  test("extracts only net SQL DDL changes when migrations are squashed", () => {
-    const baseSql = `
-      CREATE TABLE "existing" ("id" uuid PRIMARY KEY);
-      CREATE INDEX "existing_idx" ON "existing" ("id");
-    `;
-    const headSql = `
-      CREATE TABLE "existing" ("id" uuid PRIMARY KEY);
-      CREATE INDEX "existing_idx" ON "existing" ("id");
-      CREATE INDEX "new_pending_idx" ON "existing" ("id") WHERE "id" IS NOT NULL;
-      CREATE FUNCTION merit_retry(id uuid) RETURNS boolean LANGUAGE sql SECURITY DEFINER AS $$ SELECT true $$;
-      REVOKE ALL ON FUNCTION merit_retry(uuid) FROM PUBLIC;
-      CREATE POLICY "workspace_only" ON "existing" USING (true);
-    `;
-
-    expect(extractSqlDdlDelta(baseSql, headSql)).toEqual([
-      {
-        action: "added",
-        kind: "index",
-        summary: "CREATE INDEX new_pending_idx ON existing",
-        securityDefiner: false,
-      },
-      {
-        action: "added",
-        kind: "function",
-        summary: "CREATE FUNCTION merit_retry(id uuid)",
-        securityDefiner: true,
-      },
-      {
-        action: "added",
-        kind: "grant",
-        summary: "REVOKE ALL ON FUNCTION merit_retry(uuid) FROM PUBLIC",
-        securityDefiner: false,
-      },
-      {
-        action: "added",
-        kind: "policy",
-        summary: "CREATE POLICY workspace_only ON existing",
-        securityDefiner: false,
-      },
-    ]);
-  });
-
-  test("preserves SQL string and dollar-quoted literal whitespace and reports removed revocations", () => {
-    const baseSql = `
-      CREATE FUNCTION label() RETURNS text LANGUAGE sql AS $$ SELECT 'a  b' $$;
-      REVOKE ALL ON FUNCTION label() FROM PUBLIC;
-    `;
-    const headSql = `
-      CREATE FUNCTION label() RETURNS text LANGUAGE sql AS $$ SELECT 'a b' $$;
-    `;
-
-    expect(extractSqlDdlDelta(baseSql, headSql)).toEqual([
-      {
-        action: "added",
-        kind: "function",
-        summary: "CREATE FUNCTION label()",
-        securityDefiner: false,
-      },
-      {
-        action: "removed",
-        kind: "function",
-        summary: "CREATE FUNCTION label()",
-        securityDefiner: false,
-      },
-      {
-        action: "removed",
-        kind: "grant",
-        summary: "REVOKE ALL ON FUNCTION label() FROM PUBLIC",
-        securityDefiner: false,
-      },
     ]);
   });
 
@@ -417,6 +322,24 @@ None.
     ]) {
       expect(mayAffectStorybook(path), path).toBe(false);
     }
+  });
+
+  test("counts a grant moved from a migration into the runtime grants as no change", () => {
+    const grant = 'GRANT SELECT ON reviews TO :"runtime_role";';
+    const markdown = renderReviewPacket({
+      changedFiles: [
+        { status: "modified", path: "foundation/db/database/migrations/0000_baseline.sql" },
+        { status: "modified", path: "foundation/db/database/runtime-grants.sql" },
+      ],
+      numstat: [],
+      addedLines: [],
+      baseMigrationSql: `CREATE TABLE reviews (id uuid); ${grant}`,
+      headMigrationSql: "CREATE TABLE reviews (id uuid);",
+      baseRuntimeGrantsSql: "",
+      headRuntimeGrantsSql: grant,
+    });
+    expect(markdown).toContain("### DB & Schema Delta");
+    expect(markdown).toContain("- No net SQL DDL changes detected.");
   });
 
   test("names a few paths and counts many by folder", () => {
