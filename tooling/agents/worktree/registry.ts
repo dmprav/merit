@@ -130,3 +130,23 @@ export const updateRecord = (
     },
     lockOptions,
   );
+
+/**
+ * Consumes creation proof before issuing DROP. A crash or lost reply cannot authorize a second
+ * drop by name after another database has taken its place.
+ */
+export const consumeDatabaseOwnership = (
+  root: string,
+  slug: string,
+  matchesClaim: RecordUpdate["when"],
+  lockOptions?: RegistryLockOptions,
+): Promise<boolean> =>
+  updateRecord(
+    root,
+    slug,
+    {
+      when: (record) => record.databaseCreated && matchesClaim(record),
+      apply: (record) => ({ ...record, databaseCreated: false }),
+    },
+    lockOptions,
+  );

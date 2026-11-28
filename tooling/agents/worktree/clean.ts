@@ -35,6 +35,7 @@ import {
   pathsOverlap,
 } from "./paths.ts";
 import {
+  consumeDatabaseOwnership,
   readWorktreeRegistry,
   updateRecord,
   type WorktreeRecord,
@@ -242,27 +243,6 @@ const assertClaimHeld = (run: CleanRun, refusedAction: string): void => {
 const withRegistryLock = <T>(run: CleanRun, operation: () => Promise<T> | T): Promise<T> =>
   withWorktreeRegistryLock(run.git.root, operation, run.deps.lockOptions);
 
-const consumeDatabaseOwnership = async (run: CleanRun): Promise<void> => {
-  const { target, deps } = run;
-  // Consume permission before DROP: a crash or lost reply must never authorize a second drop
-  // by name, because the operator may have put a different database there in the meantime.
-  const cleared = await updateRecord(
-    run.git.root,
-    target.slug,
-    {
-      when: (record) => matchesCleanClaim(record, target),
-      apply: (record) => ({ ...record, databaseCreated: false }),
-    },
-    deps.lockOptions,
-  );
-  if (!cleared) {
-    throw new Error(
-      `Worktree "${target.slug}" registry record no longer matches this cleanup claim; refusing to drop database "${target.databaseName}".`,
-    );
-  }
-  target.databaseCreated = false;
-};
-
 const dropDatabase = async (run: CleanRun): Promise<{ dropped: boolean; warnings: string[] }> => {
   const { target, deps } = run;
   if (!target.databaseCreated) {
@@ -281,7 +261,18 @@ const dropDatabase = async (run: CleanRun): Promise<{ dropped: boolean; warnings
       ],
     };
   }
-  await consumeDatabaseOwnership(run);
+  const cleared = await consumeDatabaseOwnership(
+    run.git.root,
+    target.slug,
+    (record) => matchesCleanClaim(record, target),
+    deps.lockOptions,
+  );
+  if (!cleared) {
+    throw new Error(
+      `Worktree "${target.slug}" registry record no longer matches this cleanup claim; refusing to drop database "${target.databaseName}".`,
+    );
+  }
+  target.databaseCreated = false;
   try {
     await deps.database.drop(target.databaseName);
   } catch (cause) {
