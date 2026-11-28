@@ -183,6 +183,7 @@ export default defineConfig({
         command: [
           "vp lint --config tooling/verification/architecture/config.ts .",
           "fallow architecture --no-cache",
+          "vpx tooling/verification/architecture/capabilities.ts",
           "vp test tooling/verification/architecture/typescript.test.ts",
           "vpx tooling/verification/architecture/mechanisms.ts --check",
         ],
@@ -196,7 +197,7 @@ export default defineConfig({
       "test:fallow": { command: "vp test tooling/verification/fallow.test.ts", cache: false },
       "test:architecture": {
         command:
-          "vp test tooling/verification/architecture/architecture.test.ts tooling/verification/architecture/mechanisms.test.ts",
+          "vp test tooling/verification/architecture/architecture.test.ts tooling/verification/architecture/capabilities.test.ts tooling/verification/architecture/mechanisms.test.ts",
         cache: false,
       },
       "test:checks": {
