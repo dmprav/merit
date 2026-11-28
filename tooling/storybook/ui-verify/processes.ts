@@ -4,7 +4,12 @@ import { createServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { getErrnoCode, isProcessAlive } from "../../agents/file-lock.ts";
-import { isLiveProcessGroupMember, readProcessStat } from "../../agents/process-stat.ts";
+import {
+  hasLiveThread,
+  hasProcessExited,
+  isProcessGroupMember,
+  readProcessStat,
+} from "../../agents/process-stat.ts";
 import { errorMessage } from "../../cli.ts";
 import type { RegisterCleanup } from "./cleanup.ts";
 
@@ -193,46 +198,65 @@ const processGroupExists = (pgid: number): boolean => {
   }
 };
 
-/**
- * Whether the group still has a member that has not exited. A detached child leads both its
- * own group and its own session, and its descendants inherit both. On Linux a member that has
- * exited but whose new parent never reaps it, as an orphan in a container without an init
- * process can be, stays in the group as a zombie; it holds no ports or pipes, so it does not
- * count. An entry that exists but cannot be read may be a member, so it counts.
- */
-const isProcessGroupAlive = (pgid: number): boolean => {
-  if (!processGroupExists(pgid)) {
-    return false;
+/** Lists `/proc`, or returns undefined when it cannot be listed. */
+const listProcEntries = (): string[] | undefined => {
+  try {
+    return readdirSync("/proc");
+  } catch {
+    return undefined;
   }
+};
+
+/**
+ * Whether the group has a member that has not exited, given that the group exists. A detached
+ * child leads both its own group and its own session, and its descendants inherit both. On
+ * Linux a member that has exited but whose new parent never reaps it, as an orphan in a
+ * container without an init process can be, stays in the group as a zombie; it holds no ports
+ * or pipes, so it does not count unless one of its threads still runs. A member whose entry
+ * cannot be read, or a `/proc` that cannot be listed, counts as alive, so the group is still
+ * signalled.
+ */
+const hasLiveGroupMember = (pgid: number): boolean => {
   if (process.platform !== "linux") {
     return true;
   }
-  return readdirSync("/proc").some((entry) => {
+  const entries = listProcEntries();
+  if (entries === undefined) {
+    return true;
+  }
+  return entries.some((entry) => {
     if (!/^\d+$/.test(entry)) {
       return false;
     }
     const reading = readProcessStat(entry);
+    if (reading.kind !== "read") {
+      return reading.kind === "unreadable";
+    }
     return (
-      reading.kind === "unreadable" ||
-      (reading.kind === "read" && isLiveProcessGroupMember(reading.stat, pgid))
+      isProcessGroupMember(reading.stat, pgid) &&
+      (!hasProcessExited(reading.stat) || hasLiveThread(entry))
     );
   });
 };
 
 /**
- * The state of the group a detached child leads. Its pgid is the child's pid, and a pid is not
- * reused while any process, group, or session still bears it. So once the child has exited,
- * another process with its pid proves the group emptied and the pid was reassigned, and the
- * group's former pgid must not be signalled.
+ * The state of the group a detached child leads: `alive` with a member that has not exited,
+ * `empty` with only exited members, or `gone` with none. Its pgid is the child's pid, and a pid
+ * is not reused while any process, group, or session still bears it. So once the child has
+ * exited, another process with its pid proves the group emptied and the pid was reassigned, and
+ * the group's former pgid must not be signalled.
  */
-type ChildGroupState = "alive" | "empty" | "reassigned";
+type ChildGroupState = "alive" | "empty" | "gone" | "reassigned";
 
 const readChildGroupState = (child: StoppableChild, pgid: number): ChildGroupState => {
   const childExited = child.exitCode !== null || child.signalCode !== null;
   if (childExited && isProcessAlive(pgid)) {
     return "reassigned";
   }
-  return isProcessGroupAlive(pgid) ? "alive" : "empty";
+  if (!processGroupExists(pgid)) {
+    return "gone";
+  }
+  return hasLiveGroupMember(pgid) ? "alive" : "empty";
 };
 
 /** Signals every process in the group; returns false when the group has no processes left. */
@@ -249,9 +273,10 @@ const signalProcessGroup = (pgid: number, signal: NodeJS.Signals): boolean => {
 };
 
 /**
- * Kills whatever is left of a group that no longer has a member that has not exited. A member
- * forked after the `/proc` listing is missing from it, but a group signal reaches every member,
- * including one being forked, and an exited member ignores it.
+ * Kills whatever is left of a group that still exists but has no member that has not exited.
+ * Its exited members keep its pgid from being reassigned. A member forked after the `/proc`
+ * listing is missing from it, but a group signal reaches every member, including one being
+ * forked, and an exited member ignores it.
  */
 const sweepEmptyGroup = (pgid: number): void => {
   signalProcessGroup(pgid, "SIGKILL");
@@ -281,14 +306,19 @@ const groupsEmptiedAtLeaderExit = new WeakSet<StoppableChild>();
 const recordGroupEmptiedAtLeaderExit = (child: ChildProcess) => {
   child.once("exit", () => {
     const pgid = child.pid;
-    if (pgid === undefined || readChildGroupState(child, pgid) !== "empty") {
+    if (pgid === undefined) {
       return;
     }
     try {
-      sweepEmptyGroup(pgid);
-      groupsEmptiedAtLeaderExit.add(child);
+      const state = readChildGroupState(child, pgid);
+      if (state === "empty") {
+        sweepEmptyGroup(pgid);
+      }
+      if (state === "empty" || state === "gone") {
+        groupsEmptiedAtLeaderExit.add(child);
+      }
     } catch {
-      // The group could not be swept, so the stop signals it and reports why.
+      // The group could not be read or swept, so a later stop signals it and reports why.
     }
   });
 };

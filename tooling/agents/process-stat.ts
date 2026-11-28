@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 /** The fields of a Linux `/proc/<pid>/stat` line that tooling reads. */
 export type ProcessStat = {
@@ -49,16 +49,17 @@ export type ProcessStatReading =
   /** The process may exist but its entry cannot be read or parsed. */
   | { kind: "unreadable" };
 
-const readStatFile = (path: string): string => readFileSync(path, "utf8");
+type ProcessFileReaders = {
+  readFile?: (path: string) => string;
+  listDirectory?: (path: string) => string[];
+};
 
-/** Reads `/proc/<pid>/stat`, telling a reaped process apart from an entry that cannot be read. */
-export const readProcessStat = (
-  pid: number | string,
-  readFile: (path: string) => string = readStatFile,
-): ProcessStatReading => {
+const readTextFile = (path: string): string => readFileSync(path, "utf8");
+
+const readStat = (path: string, readFile: (path: string) => string): ProcessStatReading => {
   let line: string;
   try {
-    line = readFile(`/proc/${pid}/stat`);
+    line = readFile(path);
   } catch (error) {
     const code = error instanceof Error && "code" in error ? error.code : undefined;
     return code === "ENOENT" || code === "ESRCH" ? { kind: "gone" } : { kind: "unreadable" };
@@ -67,10 +68,39 @@ export const readProcessStat = (
   return stat ? { kind: "read", stat } : { kind: "unreadable" };
 };
 
+/** Reads `/proc/<pid>/stat`, telling a reaped process apart from an entry that cannot be read. */
+export const readProcessStat = (
+  pid: number | string,
+  readFile: (path: string) => string = readTextFile,
+): ProcessStatReading => readStat(`/proc/${pid}/stat`, readFile);
+
 /**
- * Whether the process is a member of the process group `pgid`, led by the leader of session
- * `pgid` as a detached spawn is, that has not exited. A group's members always share its
- * leader's session, so a member of another session belongs to an unrelated group.
+ * Whether any thread of the process has not exited. A process whose main thread exited while
+ * its other threads still run reports itself as a zombie, but those threads are listed under
+ * `/proc/<pid>/task` and still hold its resources.
  */
-export const isLiveProcessGroupMember = (stat: ProcessStat, pgid: number): boolean =>
-  stat.processGroup === pgid && stat.session === pgid && !hasProcessExited(stat);
+export const hasLiveThread = (
+  pid: number | string,
+  { readFile = readTextFile, listDirectory = readdirSync }: ProcessFileReaders = {},
+): boolean => {
+  let threads: string[];
+  try {
+    threads = listDirectory(`/proc/${pid}/task`);
+  } catch {
+    return false;
+  }
+  return threads.some((thread) => {
+    const reading = readStat(`/proc/${pid}/task/${thread}/stat`, readFile);
+    return (
+      reading.kind === "unreadable" || (reading.kind === "read" && !hasProcessExited(reading.stat))
+    );
+  });
+};
+
+/**
+ * Whether the process is in the process group `pgid` that the leader of session `pgid` leads,
+ * as a detached spawn does. A group's members always share its leader's session, so a process
+ * in another session belongs to an unrelated group.
+ */
+export const isProcessGroupMember = (stat: ProcessStat, pgid: number): boolean =>
+  stat.processGroup === pgid && stat.session === pgid;

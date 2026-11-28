@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  hasLiveThread,
   hasProcessExited,
-  isLiveProcessGroupMember,
+  isProcessGroupMember,
   parseProcessStat,
   type ProcessStat,
   readProcessStat,
@@ -43,10 +44,13 @@ describe("readProcessStat", () => {
     throw Object.assign(new Error(code), { code });
   };
 
-  it("reads and parses the stat line of a running process", () => {
-    const reading = readProcessStat(process.pid);
-    expect(reading.kind).toBe("read");
-  });
+  it.skipIf(process.platform !== "linux")(
+    "reads and parses the stat line of a running process",
+    () => {
+      const reading = readProcessStat(process.pid);
+      expect(reading.kind === "read" && reading.stat.state).toMatch(/^[RS]$/);
+    },
+  );
 
   it("reports a reaped process as gone", () => {
     expect(readProcessStat(4242, failingRead("ENOENT"))).toEqual({ kind: "gone" });
@@ -59,8 +63,29 @@ describe("readProcessStat", () => {
   });
 });
 
-describe("isLiveProcessGroupMember", () => {
-  const member = (overrides: Partial<ProcessStat>): ProcessStat => ({
+describe("hasLiveThread", () => {
+  const threadStates = (states: Record<string, string>) => ({
+    listDirectory: () => Object.keys(states),
+    readFile: (path: string) => statLine("node", states[path.split("/").at(-2)!]!),
+  });
+
+  it("finds a thread still running in a process whose main thread exited", () => {
+    expect(hasLiveThread(4242, threadStates({ "4242": "Z", "4243": "S" }))).toBe(true);
+  });
+
+  it("finds none in a process whose every thread exited, or whose threads are gone", () => {
+    expect(hasLiveThread(4242, threadStates({ "4242": "Z" }))).toBe(false);
+
+    const gone = () => {
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    };
+
+    expect(hasLiveThread(4242, { listDirectory: gone })).toBe(false);
+  });
+});
+
+describe("isProcessGroupMember", () => {
+  const stat = (overrides: Partial<ProcessStat>): ProcessStat => ({
     state: "S",
     parentPid: 1,
     processGroup: 4200,
@@ -69,13 +94,12 @@ describe("isLiveProcessGroupMember", () => {
     ...overrides,
   });
 
-  it("counts a running process in the group and its session", () => {
-    expect(isLiveProcessGroupMember(member({}), 4200)).toBe(true);
+  it("counts a process in the group and its leader's session", () => {
+    expect(isProcessGroupMember(stat({}), 4200)).toBe(true);
   });
 
-  it("does not count a zombie, another group, or another session", () => {
-    expect(isLiveProcessGroupMember(member({ state: "Z" }), 4200)).toBe(false);
-    expect(isLiveProcessGroupMember(member({ processGroup: 4300 }), 4200)).toBe(false);
-    expect(isLiveProcessGroupMember(member({ session: 4100 }), 4200)).toBe(false);
+  it("does not count a process in another group or another session", () => {
+    expect(isProcessGroupMember(stat({ processGroup: 4300 }), 4200)).toBe(false);
+    expect(isProcessGroupMember(stat({ session: 4100 }), 4200)).toBe(false);
   });
 });
