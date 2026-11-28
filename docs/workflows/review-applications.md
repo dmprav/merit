@@ -92,7 +92,7 @@ A program manager can ask Merit AI to review an application against its round's
 current criteria, at intake to find what to ask the applicant for or later as an
 additional perspective beside reviewer assessments. An application that is not yet
 marked ready, or that has no submitted answers, can be reviewed; the review reports
-the gaps. The [decision](../decisions/0017-ai-review.md) explains the choices.
+the gaps. The [decision](../decisions/0018-ai-review.md) explains the choices.
 
 An **AI review** is its own record, shown apart from reviewer assessments with
 "Merit AI" as its author. It is never an assessment, never counts in review

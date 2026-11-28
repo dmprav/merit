@@ -1,5 +1,9 @@
 # Autonomous Maintenance Scout
 
+> **Paused.** This task is being replaced by the loop in
+> [decision 0017](../../docs/decisions/0017-autonomous-maintenance-loop.md).
+> Do not schedule or run it.
+
 Read-only scheduled audit of Merit across seven specialized lenses. This task
 **never** edits repository files, commits changes, opens pull requests, or
 deletes `verifications/*.md` files. Its only outputs are concise, decision-ready

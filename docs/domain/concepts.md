@@ -123,7 +123,7 @@ concerns for each criterion, questions for the applicant, and an overall funding
 position with a proposed amount. It is its own record, never an assessment by a
 reviewer, a review request or a recommendation, and it never counts in review
 status or budget totals. It has a review basis and freshness like an assessment.
-See the [decision](../decisions/0017-ai-review.md).
+See the [decision](../decisions/0018-ai-review.md).
 
 A **recommendation** proposes an action; a **decision** records the authorized
 choice. At [Wellcome](https://wellcome.org/research-funding/guidance/how-wellcome-makes-funding-decisions/how-wellcome-assesses-funding-applications),
