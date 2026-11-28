@@ -33,7 +33,9 @@ export const workspaceCatalog = (
   ...createContactTools(actor, ops.contacts),
 ];
 
-export type WorkspaceToolName = ReturnType<typeof workspaceCatalog>[number]["name"] | "start_demo";
+export type AssistantToolName = ReturnType<typeof workspaceCatalog>[number]["name"];
+
+export type WorkspaceToolName = AssistantToolName | "start_demo";
 
 type WorkspaceListing = Extract<
   ReturnType<typeof workspaceCatalog>[number],

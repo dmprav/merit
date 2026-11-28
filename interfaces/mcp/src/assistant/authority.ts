@@ -1,25 +1,5 @@
-import type { WorkspaceToolName } from "../app/tools";
 import type { AssistantDependency } from "./contracts";
 import type { AssistantContext, AssistantWorkspace } from "./operations";
-
-export const requiredAccess = (
-  name: WorkspaceToolName,
-): Exclude<AssistantDependency["kind"], "assignment"> => {
-  switch (name) {
-    case "list_workspaces":
-      return "membership";
-    case "list_team_members":
-      return "team";
-    case "list_my_reviews":
-    case "get_reviewer_assignment":
-    case "save_reviewer_draft":
-    case "submit_reviewer_assessment":
-    case "respond_to_review":
-      return "reviewer";
-    default:
-      return "grants";
-  }
-};
 
 export const workspacePermits = (
   workspace: AssistantWorkspace,
