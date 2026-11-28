@@ -283,6 +283,36 @@ it("waits for a worker with a live model lease without sending another request",
   expect((await ctx.open())?.messages.at(-1)).toMatchObject({ text: "First reply." });
 });
 
+it("applies a model reply after an unrelated save advanced the revision", async () => {
+  const ctx = await fixture();
+
+  let finish: (decision: AssistantDecision) => void = () => {};
+
+  ctx.model.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const first = ctx.turns.advance(...address);
+  await vi.waitFor(async () => {
+    expect((await ctx.store.read(...address))?.state).toHaveProperty("modelAttempt");
+  });
+  // An old stopped action settling saves the conversation without touching the request.
+  const held = await ctx.store.read(...address);
+  assert.isNotNull(held);
+  assert.isNotNull(
+    await ctx.store.save(...address, held.revision, { status: held.status, state: held.state }),
+  );
+  finish(answer("Late reply."));
+  expect(await first).toBe("progressed");
+  expect(await ctx.open()).toMatchObject({
+    status: "completed",
+    messages: [{ role: "user" }, { role: "assistant", text: "Late reply." }],
+  });
+  expect((await ctx.store.read(...address))?.state).not.toHaveProperty("modelAttempt");
+});
+
 it("stops the investigation after 24 model steps", async () => {
   const ctx = await fixture();
   ctx.model.mockResolvedValue(calls("inspect", "reviewer"));
@@ -1064,4 +1094,48 @@ it("reports an expired claim as a failed action that is retried only by approval
     "failed",
     "succeeded",
   ]);
+});
+
+const approvedReview = async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValueOnce(calls("run_ai_review", "application"));
+  await ctx.run();
+  const group = (await ctx.open())?.groups[0];
+  assert.isDefined(group);
+  await ctx.turns.approve(...address, { previewId: group.id });
+  ctx.catalog.execute.mockRejectedValueOnce(new Error("The run ended after the review committed."));
+  return { ...ctx, group };
+};
+
+it("records the review a run committed before it threw, without running it again", async () => {
+  const ctx = await approvedReview();
+  ctx.catalog.recover.mockResolvedValueOnce(ok);
+  await ctx.turns.advance(...address);
+  expect(ctx.catalog.recover).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "run_ai_review" }),
+  );
+  expect((await ctx.open())?.groups[0]?.actions[0]).toMatchObject({
+    status: "succeeded",
+    canRetry: false,
+  });
+  expect(ctx.catalog.execute).toHaveBeenCalledTimes(1);
+});
+
+it("reports a run that threw with no saved review as failed and retryable", async () => {
+  const ctx = await approvedReview();
+  await ctx.turns.advance(...address);
+  expect(ctx.catalog.recover).toHaveBeenCalledTimes(1);
+  expect((await ctx.open())?.groups[0]?.actions[0]).toMatchObject({
+    status: "failed",
+    canRetry: true,
+  });
+});
+
+it("leaves the claim for expiry recovery when looking for the committed review fails", async () => {
+  const ctx = await approvedReview();
+  ctx.catalog.recover.mockRejectedValueOnce(new Error("The database is unavailable."));
+  expect(await ctx.turns.advance(...address)).toBe("waiting");
+  const state = conversationState.parse((await ctx.store.read(...address))?.state);
+  expect(state.groups[0]?.actions[0]?.status).toBe("approved");
+  expect(state.groups[0]?.actions[0]?.executing).toBeDefined();
 });

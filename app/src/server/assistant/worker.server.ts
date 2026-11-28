@@ -17,6 +17,36 @@ import { observationTool } from "./observation.server";
 import type { AssistantModel } from "./openai.server";
 import { conversationState } from "./state";
 
+/**
+ * Record how a model request ended while its attempt is still the live one. The row read when the
+ * request started is stale once anything else saves the conversation (an old stopped action
+ * settling, an unrelated write), so read it again under each lost revision race instead of
+ * dropping the reply. Stop and a new turn clear the attempt, so a request that is no longer the
+ * live one records nothing.
+ */
+const settleAttempt = async (
+  access: Access,
+  attempt: string,
+  update: Parameters<Access["locked"]>[1],
+) => {
+  for (;;) {
+    const row = await access.read();
+    if (
+      !row ||
+      row.status !== "running" ||
+      conversationState.parse(row.state).modelAttempt?.id !== attempt
+    ) {
+      return false;
+    }
+    if (await access.locked(row, update)) {
+      return true;
+    }
+    if (!(await access.consent())) {
+      return false;
+    }
+  }
+};
+
 const runModel = async (
   access: Access,
   row: Stored,
@@ -55,13 +85,11 @@ const runModel = async (
     }
     try {
       const decision = await work.reply;
-      return Boolean(
-        await access.locked(claimed, (current, catalog) =>
-          applyDecision(current, catalog, decision),
-        ),
+      return await settleAttempt(access, id, (current, catalog) =>
+        applyDecision(current, catalog, decision),
       );
     } catch {
-      await access.locked(claimed, (current) => {
+      await settleAttempt(access, id, (current) => {
         delete current.modelAttempt;
         current.error = "The assistant could not complete this step. Ask again to continue.";
         return change(current, "failed");

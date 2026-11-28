@@ -177,7 +177,13 @@ export const executeSlow = async (access: Access, row: Stored, cancellation?: Ab
     try {
       receipt = await access.catalog(undefined, signal).execute(current.action.preview);
     } catch {
-      // The run did not report an outcome; anything it committed is not known to this action.
+      // The run did not report an outcome, but the review may have committed first: look for it
+      // under the action's run identity. If looking fails too, the claim stays for expiry recovery.
+      try {
+        receipt = await access.catalog().recover(current.action.preview);
+      } catch {
+        return false;
+      }
     }
     return await record(access, claim, receipt);
   } finally {
