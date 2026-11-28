@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { sql } from "drizzle-orm";
+import type { Client } from "pg";
 import { expect } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
@@ -20,6 +21,13 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import { readReviewsByCasesMap } from "../src/server/persistence/projections";
 import { contact, content, unknownBasisRecord } from "./assessment-test";
+
+const readApplicationCase = async (client: Client, publicId: string) =>
+  (
+    await client.query<Record<string, unknown>>("SELECT * FROM application_cases WHERE id = $1", [
+      publicId,
+    ])
+  ).rows;
 
 const it = applicationTest.extend("reviewCase", async ({ db, applications }) => {
   const address = await applications.createApplication("Workshop Saturdays");
@@ -171,6 +179,7 @@ it("rolls back receiving a request when recording its assessment version fails",
     await review({ action: "request", id: requestId, contactId: sam.id, replacesId: null }),
   ).toEqual({ status: "ok", revision: 1 });
   const before = await read();
+  const application = await readApplicationCase(database.client, reviewCase.address.publicId);
   await database.client.query(`
     CREATE FUNCTION reject_assessment_version() RETURNS trigger LANGUAGE plpgsql AS $$
     BEGIN RAISE EXCEPTION 'Version storage unavailable'; END $$;
@@ -187,8 +196,11 @@ it("rolls back receiving a request when recording its assessment version fails",
         previousId: null,
         content,
       }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ cause: { message: "Version storage unavailable" } });
     expect(await read()).toEqual(before);
+    expect(await readApplicationCase(database.client, reviewCase.address.publicId)).toEqual(
+      application,
+    );
   } finally {
     await database.client.query(
       "DROP TRIGGER reject_assessment_version ON assessment_versions; DROP FUNCTION reject_assessment_version()",
@@ -259,15 +271,7 @@ it.for([
     const sam = await contact(db);
     const before = await read();
 
-    const application = async () =>
-      (
-        await database.client.query<Record<string, unknown>>(
-          "SELECT * FROM application_cases WHERE id = $1",
-          [address.publicId],
-        )
-      ).rows;
-
-    const stored = await application();
+    const stored = await readApplicationCase(database.client, address.publicId);
     expect(
       await saveApplicationReview(db, actor, {
         ...address,
@@ -278,7 +282,7 @@ it.for([
       }),
     ).toEqual({ status: "conflict" });
     expect(await read()).toEqual(before);
-    expect(await application()).toEqual(stored);
+    expect(await readApplicationCase(database.client, address.publicId)).toEqual(stored);
   },
 );
 
@@ -540,6 +544,10 @@ it("protects each recorded assessment version and its observations", async ({
       },
     }),
   ).toMatchObject({ status: "ok" });
+  // Version 2 has no observation whose own deletion guard could reject the cascade.
+  expect(await review({ action: "edit", id, note: "Remove observation", content })).toMatchObject({
+    status: "ok",
+  });
   const before = await read();
   expect(
     (await database.client.query("SELECT 1 FROM application_cases WHERE id=$1", [address.publicId]))
@@ -548,7 +556,7 @@ it("protects each recorded assessment version and its observations", async ({
   for (const query of [
     "UPDATE assessment_versions SET reasoning=reasoning",
     "UPDATE assessment_version_observations SET text=text",
-    "DELETE FROM assessment_versions",
+    "DELETE FROM assessment_versions WHERE version = 2",
     "DELETE FROM assessment_version_observations",
   ]) {
     await expect(database.client.query(query)).rejects.toMatchObject({ code: "23514" });

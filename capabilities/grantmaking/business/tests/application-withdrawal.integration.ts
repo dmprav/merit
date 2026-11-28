@@ -250,7 +250,17 @@ it("closes outstanding review requests and ends reviewer access without touching
   database,
   scenario: s,
 }) => {
+  expect(await s.edit({ action: "start_revision", kind: "revision" })).toMatchObject({
+    status: "ok",
+  });
+  expect(
+    await s.edit({
+      action: "save_revision",
+      draft: { kind: "revision", reason: "Clarify the venue", content: { title: "Revised venue" } },
+    }),
+  ).toMatchObject({ status: "ok" });
   const before = await s.read();
+  expect(before.intake.workingRevision?.content.title).toBe("Revised venue");
 
   const draftContent = async () =>
     (
@@ -264,7 +274,9 @@ it("closes outstanding review requests and ends reviewer access without touching
 
   expect(await s.edit(withdrawal())).toMatchObject({ status: "ok" });
 
-  const { requests, assessments } = (await s.read()).application.reviews;
+  const withdrawn = await s.read();
+  expect(withdrawn.intake.workingRevision).toEqual(before.intake.workingRevision);
+  const { requests, assessments } = withdrawn.application.reviews;
   expect(requests.find((request) => request.id === s.requestId)).toMatchObject({
     status: "cancelled",
     closedBy: { userId: "dana", cause: "application_withdrawn" },
@@ -276,7 +288,7 @@ it("closes outstanding review requests and ends reviewer access without touching
     "cause",
   );
   expect(assessments).toEqual(before.application.reviews.assessments);
-  expect((await s.read()).application.reviews.revision).toBeGreaterThan(
+  expect(withdrawn.application.reviews.revision).toBeGreaterThan(
     before.application.reviews.revision,
   );
 
@@ -297,6 +309,11 @@ it("closes outstanding review requests and ends reviewer access without touching
       draft: { position: "Fund", amount: "40.00", reasoning: "Late", observations: [], note: "" },
     }),
   ).toEqual({ status: "not_found" });
+
+  expect(await s.edit({ action: "reinstate", reason: "The applicant returned." })).toMatchObject({
+    status: "ok",
+  });
+  expect((await s.read()).intake.workingRevision).toEqual(before.intake.workingRevision);
 });
 
 it("rejects a submitted reviewer's amendment, draft, and response while the application is withdrawn", async ({
@@ -598,6 +615,13 @@ it("reinstates with a reason, restoring active work but not the closed requests"
       `application.withdraw application/${s.address.publicId}@${withdrawn.intake.revision}`,
     ].sort(),
   );
+
+  expect(await s.edit(withdrawal("Withdrew a second time."))).toMatchObject({ status: "ok" });
+  expect(
+    (await s.read()).intake.history
+      .filter((entry) => entry.action === "application.withdraw")
+      .map((entry) => entry.reason),
+  ).toEqual(["Withdrew a second time.", "The applicant secured other funding."]);
 });
 
 it("rejects reinstatement whose recommendation would overflow the round's proposed total", async ({

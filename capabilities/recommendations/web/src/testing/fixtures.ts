@@ -1,5 +1,5 @@
 import { materialVersionSchema } from "@merit/applications/domain";
-import { fromMinorUnits } from "@merit/money";
+import { add, fromMinorUnits } from "@merit/money";
 
 import type { RecommendationApplication, RecommendationRound } from "../contracts/recommendations";
 
@@ -14,12 +14,16 @@ export const application: RecommendationApplication = {
     reasoning: "Support weekly meals for the neighbourhood.",
   },
 };
-export const round: RecommendationRound = {
+
+const proposedElsewhere = fromMinorUnits(2800000n);
+
+export const roundForRecommendation = (
+  saved: RecommendationApplication["managerRecommendation"],
+): RecommendationRound => ({
   manager: "Dana Reed",
   budget: fromMinorUnits(6000000n),
-  // €24,000 for this application and €28,000 allocated to other applications.
   totals: {
-    proposed: fromMinorUnits(5200000n),
+    proposed: saved ? add(proposedElsewhere, saved.allocation) : proposedElsewhere,
     withdrawnApplications: 0,
   },
-};
+});

@@ -7,9 +7,11 @@ import { materialVersionSchema } from "@merit/applications/domain";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 
 import type { RecommendationDraft } from "../../contracts/recommendations";
-import { application, round } from "../../testing/fixtures";
+import { application, roundForRecommendation } from "../../testing/fixtures";
 import { GrantmakingMessagesProvider } from "../../testing/providers";
 import { RecommendationEditor } from "./recommendation-editor";
+
+const round = roundForRecommendation(application.managerRecommendation);
 
 const budgetFigure = (preview: HTMLElement) => ({
   label: within(preview).getByRole("term").textContent,
@@ -18,6 +20,7 @@ const budgetFigure = (preview: HTMLElement) => ({
 
 const EditableRecommendation = ({
   onSave,
+  application: selected = application,
   draft: initialDraft,
   ...props
 }: Pick<ComponentProps<typeof RecommendationEditor>, "onSave"> &
@@ -39,8 +42,8 @@ const EditableRecommendation = ({
 
   return (
     <RecommendationEditor
-      application={application}
-      round={round}
+      application={selected}
+      round={roundForRecommendation(selected.managerRecommendation)}
       disabled={false}
       {...props}
       draft={draft}

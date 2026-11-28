@@ -1,6 +1,4 @@
 import { sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Client as PgClient } from "pg";
 import { assert, describe, expect } from "vite-plus/test";
 
 import { withAuditFailure } from "@merit/audit/testing";
@@ -456,50 +454,24 @@ describe("persisted recommendations", () => {
   });
 
   it("rechecks revoked access after waiting for a concurrent round transaction", async ({
+    locks,
     database,
     scenario,
   }) => {
     const request = recommendationRequest(scenario.selected.publicId);
-    const blocker = new PgClient({ connectionString: database.connectionString });
-    const saver = new PgClient({ connectionString: database.connectionString });
-    let pending: ReturnType<typeof saveFundingRecommendation> | undefined;
-    try {
-      await Promise.all([blocker.connect(), saver.connect()]);
-      await blocker.query("BEGIN");
-      await blocker.query(
-        "SELECT id FROM funding_rounds WHERE organization_id = 'alder' FOR UPDATE",
+    const commit = await locks.hold(async (tx) => {
+      await tx.execute(
+        sql`SELECT id FROM funding_rounds WHERE organization_id = 'alder' FOR UPDATE`,
       );
-      const pid = (await saver.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0]
-        ?.pid;
-      pending = saveFundingRecommendation(drizzle(saver), actor, request, withoutAssessment);
-      let waiting = false;
-      for (let attempt = 0; attempt < 100; attempt++) {
-        const activity = (
-          await database.client.query<{ wait_event_type: string | null }>(
-            "SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1",
-            [pid],
-          )
-        ).rows[0];
-        if (activity?.wait_event_type === "Lock") {
-          waiting = true;
-          break;
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-
-      expect(waiting).toBe(true);
-
+      return { status: "ok" };
+    });
+    const saved = await locks.finishBlocked(save(request)(locks.second), async () => {
       await database.client.query("DELETE FROM memberships WHERE user_id = 'dana'");
-      await blocker.query("COMMIT");
+      await commit();
+    });
 
-      expect(await pending).toEqual({ status: "not_found" });
-      expect(await readRecommendationVersions(database.client)).toEqual(scenario.versions);
-    } finally {
-      await blocker.query("ROLLBACK");
-      await pending;
-      await Promise.all([blocker.end(), saver.end()]);
-    }
+    expect(saved).toEqual({ status: "not_found" });
+    expect(await readRecommendationVersions(database.client)).toEqual(scenario.versions);
   });
 
   it("attributes a recommendation to its authenticated recorder", async ({ db, scenario }) => {

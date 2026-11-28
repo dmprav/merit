@@ -207,7 +207,9 @@ export const withRejectedRecommendationWrite = async (
   );
 
   try {
-    await expect(save()).rejects.toThrow();
+    await expect(save()).rejects.toMatchObject({
+      cause: { code: "23514", constraint: "reject_test_audit", table },
+    });
   } finally {
     await client.query(`ALTER TABLE ${table} DROP CONSTRAINT reject_test_audit`);
   }

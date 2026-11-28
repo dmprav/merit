@@ -7,7 +7,7 @@ import { encodeRecommendation } from "@merit/recommendations/api";
 
 import type { RecommendationFailure } from "../../contracts/recommendations";
 import { Messages } from "../../messages";
-import { application, round } from "../../testing/fixtures";
+import { application, roundForRecommendation } from "../../testing/fixtures";
 import { RecommendationEditor } from "./recommendation-editor";
 
 type PreviewProps = Pick<ComponentProps<typeof RecommendationEditor>, "draft" | "conflict"> & {
@@ -39,7 +39,7 @@ const EditablePreview = ({
   return (
     <RecommendationEditor
       application={{ ...application, managerRecommendation: recommendations[saved] }}
-      round={round}
+      round={roundForRecommendation(recommendations[saved])}
       disabled={false}
       draft={draft}
       draftReset={draftReset}
@@ -93,7 +93,7 @@ export const BudgetPreview: Story = {
     );
     const amount = canvas.getByRole("textbox", { name: "Proposed allocation" });
     await userEvent.clear(amount);
-    await userEvent.type(amount, "22000");
+    await userEvent.type(amount, "46000");
 
     await expect(canvas.getByRole("status", { name: "Budget preview" })).toHaveTextContent(
       /Over budget with draft\s*€14,000/,

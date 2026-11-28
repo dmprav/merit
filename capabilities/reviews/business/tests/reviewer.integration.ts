@@ -907,37 +907,55 @@ it("answers a committed reviewer message when only the reads that wait for its o
   );
   expect(message.rows[0]?.status).toBe("pending");
 });
-it("keeps a committed reviewer message and fails the response, not the commit, while the database stays down", async ({
-  runtimeUrl,
-  database,
-  reviewerScenario: s,
-}) => {
-  await database.client.query("UPDATE reviewer_messages SET status = 'pending' WHERE id = $1", [
-    s.invitation.commandId,
-  ]);
-  let readsFail = false;
-  let reported = 0;
-  const service = createReviewerService({
-    database: (operation) =>
-      readsFail ? Promise.reject(new Error("database down")) : withDatabase(runtimeUrl, operation),
-    start: async () => {
-      readsFail = true;
-      return true;
-    },
-    wait: { timeoutMs: 50, intervalMs: 1 },
-    // Only reports: the database stays down, so the response itself cannot be read either.
-    onOutcomeError: () => {
-      reported += 1;
-    },
-  });
+it.for(["first invitation", "retry"] as const)(
+  "retains the assignment and queued message when the database stays down after the %s commits",
+  async (attempt, { runtimeUrl, database, applications, reviewerScenario: s }) => {
+    let invitation = s.invitation;
+    if (attempt === "first invitation") {
+      // The same reviewer can receive a new invitation after the recipient cooldown.
+      await database.client.query(
+        "UPDATE reviewer_messages SET created_at = now() - interval '2 minutes' WHERE id = $1",
+        [s.invitation.commandId],
+      );
+      const address = await applications.createApplication("Second review");
+      invitation = {
+        ...invitation,
+        ...address,
+        requestId: await s.requestReview(address),
+        commandId: randomUUID(),
+      };
+    } else {
+      await database.client.query("UPDATE reviewer_messages SET status = 'pending' WHERE id = $1", [
+        invitation.commandId,
+      ]);
+    }
+    let readsFail = false;
+    let reported = 0;
+    const service = createReviewerService({
+      database: (operation) =>
+        readsFail
+          ? Promise.reject(new Error("database down"))
+          : withDatabase(runtimeUrl, operation),
+      start: async () => {
+        readsFail = true;
+        return true;
+      },
+      wait: { timeoutMs: 50, intervalMs: 1 },
+      // Only reports: the database stays down, so the response itself cannot be read either.
+      onOutcomeError: () => {
+        reported += 1;
+      },
+    });
 
-  // The response is the manager's assignment row, which needs a read; no data is invented.
-  await expect(service.invite(actor, s.invitation)).rejects.toThrow("database down");
-  expect(reported).toBe(1);
-  readsFail = false;
-  const message = await database.client.query<{ status: string }>(
-    "SELECT status FROM reviewer_messages WHERE id = $1",
-    [s.invitation.commandId],
-  );
-  expect(message.rows[0]?.status).toBe("pending");
-});
+    // The response is the manager's assignment row, which needs a read; no data is invented.
+    await expect(service.invite(actor, invitation)).rejects.toThrow("database down");
+    expect(reported).toBe(1);
+    const persisted = await database.client.query<{ request_id: string; status: string }>(
+      `SELECT a.request_id, m.status FROM review_assignments a
+     JOIN reviewer_messages m ON m.assignment_id = a.id
+     WHERE a.id = $1 AND m.id = $1`,
+      [invitation.commandId],
+    );
+    expect(persisted.rows).toEqual([{ request_id: invitation.requestId, status: "pending" }]);
+  },
+);
