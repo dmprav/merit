@@ -5,7 +5,6 @@ export {
   createReviewerMessageActivities,
   deliverCommittedReviewerMessage,
   listPendingReviewerMessageWork,
-  retryReviewerDelivery,
   reviewerMessageWorkflowId,
   type ReviewerDelivery,
   type ReviewerMessageInput,
