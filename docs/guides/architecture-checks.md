@@ -64,6 +64,8 @@ statically known source.
 | Server assembly              | API definitions and command/query handlers.                                 |
 | Integration entry            | Domain and private persistence functions.                                   |
 | Reading entry                | Domain, query handlers, query persistence, and shared persistence.          |
+| Assistant store              | Domain, command persistence, and shared persistence.                        |
+| Reviewer delivery entry      | API definitions and command handlers.                                       |
 | Demo lifecycle               | Example records, domain, command persistence, and shared persistence.       |
 | Examples                     | Domain, API definitions, and examples.                                      |
 
@@ -107,8 +109,9 @@ authorization, result handling, and token hashing. Commands, queries, and assemb
 may use them; support modules can use only domain, API definitions, and each other.
 They cannot introduce handler or persistence dependencies.
 
-`server/integrations.ts`, `server/read.ts`, and `server/demo.ts` provide deliberate
-server-only integration entries. Their callers must preserve the documented authorization,
+`server/integrations.ts`, `server/read.ts`, `server/demo.ts`, `server/assistant.ts`,
+and `server/delivery.ts` provide deliberate server-only integration entries.
+Their callers must preserve the documented authorization,
 lock, and transaction obligations. Ordinary command and query handlers cannot
 depend on these privileged entries or the server assembly.
 
@@ -125,7 +128,7 @@ packages. Test and Storybook fixtures may compose the combined views.
 application assembly by consumer role, public entry pattern, and resolved provider
 role (`business-assembly`, `business-demo`, `business-shared-persistence`,
 `business-command-persistence`, `business-query-persistence`, `business-grant-work`,
-`business-integrations`, and `business-reading`). All three must match, a leaf rule keeps `audit` isolated
+`business-integrations`, `business-reading`, `business-assistant`, and `business-delivery`). All three must match, a leaf rule keeps `audit` isolated
 from all foreign business packages (current and newly added), and
 `capabilityGroups` lists capabilities in dependency order. Outside composition
 tests (`tests/` and `testing/`), a capability can import from earlier groups.
@@ -144,6 +147,9 @@ Current integrations have distinct responsibilities:
 | Applications and Reviews integrations | The type-only `@merit/contacts/server/grant-work` interface, each implementing the part about its own records.      |
 | Grantmaking demo seeding              | Grant-work and contact demo seeding through `@merit/*/server/demo`, excluding `organizations/server/demo`.          |
 | Audit recording and history           | Write-owning commands record through `@merit/audit/server/record`; queries read through `@merit/audit/server/read`. |
+| Assistant host and access             | Organization consent and conversation storage through `@merit/organizations/server/assistant`.                      |
+| Assistant host                        | Post-commit reviewer message delivery and retry through `@merit/reviews/server/delivery`.                           |
+| Background work and worker activities | Reviewer message reconciliation and activities through `@merit/reviews/server`.                                     |
 
 Organizations, Applications, Rounds, Reviews, Recommendations, and Decisions record
 audit events in the same transaction as the command. Grantmaking, Organizations, and

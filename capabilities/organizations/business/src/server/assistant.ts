@@ -4,19 +4,21 @@ import type { Actor } from "@merit/auth";
 import type { DatabaseRunner, Transaction } from "@merit/db";
 
 import {
-  changeAssistantConsent,
   hasAssistantConsent,
   readAssistantOwner,
   type AssistantOwner,
 } from "./persistence/assistant-access";
 import {
-  createConversation,
-  deleteConversation,
   readConversations,
-  updateConversation,
   type AssistantCheckpoint,
   type CheckpointOperation,
 } from "./persistence/assistant-conversations";
+import {
+  changeAssistantConsent,
+  createConversation,
+  deleteConversation,
+  updateConversation,
+} from "./persistence/commands/assistant";
 import { readWorkspace, writeWorkspace } from "./persistence/tenant";
 
 export { AssistantStoreError } from "./persistence/assistant-access";

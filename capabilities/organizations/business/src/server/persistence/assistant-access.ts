@@ -1,12 +1,9 @@
-import { and, eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
-import type { AccessAction } from "@merit/access";
-import { appUsers } from "@merit/auth/schema";
 import type { Transaction } from "@merit/db";
 
 import { assistantConsents } from "./assistant-schema";
-import { memberships, organizations } from "./membership-schema";
-import { activeOrganization, authorizedWorkspaces, membershipScope } from "./scope";
+import { authorizedWorkspaces } from "./scope";
 
 export type AssistantOwner = { userId: string; slug: string };
 
@@ -26,67 +23,10 @@ export const readAssistantOwner = async (tx: Transaction, { userId, slug }: Assi
   return member;
 };
 
-// Take workspace locks first, as grant commands and team changes do. A callback that may
-// run a grant command takes the exclusive lock up front to avoid lock upgrades.
-export const lockAssistantOwner = async (
-  tx: Transaction,
-  { userId, slug }: AssistantOwner,
-  action: Extract<AccessAction, "read_workspace" | "configure_assistant">,
-  mode: "share" | "update",
-) => {
-  const [org] = await tx
-    .select({ id: organizations.id })
-    .from(organizations)
-    .where(and(eq(organizations.slug, slug), activeOrganization))
-    .for(mode);
-  if (!org) {
-    return undefined;
-  }
-  const [member] = await tx
-    .select({ organizationId: memberships.organizationId, membershipId: memberships.id })
-    .from(memberships)
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(
-      and(
-        eq(memberships.userId, userId),
-        eq(memberships.organizationId, org.id),
-        membershipScope(action, org.id),
-      ),
-    )
-    .for("share", { of: [memberships, appUsers] });
-  return member;
-};
-
 export const hasAssistantConsent = async (tx: Transaction, organizationId: string) => {
   const [consent] = await tx
     .select()
     .from(assistantConsents)
     .where(eq(assistantConsents.organizationId, organizationId));
   return !!consent;
-};
-
-export const changeAssistantConsent = async (
-  tx: Transaction,
-  owner: AssistantOwner,
-  enabled: boolean,
-) => {
-  const member = await lockAssistantOwner(tx, owner, "configure_assistant", "update");
-  if (!member) {
-    throw new AssistantStoreError("forbidden");
-  }
-  if (enabled) {
-    await tx
-      .insert(assistantConsents)
-      .values({ organizationId: member.organizationId })
-      .onConflictDoNothing();
-    return { enabled, ending: [] };
-  }
-  // The administrator's own transaction learns which chats this ends, before consent is gone.
-  const running = await tx.execute<{ id: string }>(
-    sql`select merit_workspace_running_assistant_conversations() as id`,
-  );
-  await tx
-    .delete(assistantConsents)
-    .where(eq(assistantConsents.organizationId, member.organizationId));
-  return { enabled, ending: running.rows.map((row) => row.id) };
 };
