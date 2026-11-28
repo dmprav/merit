@@ -33,6 +33,8 @@ jobs:
           cache: false
           run-install: false
 
+      # A record is scouted once the `records` run's cursor on pinned issue #219 has passed its pull
+      # request number (falling back to the old `verification-flakes` cursor before the first run).
       - name: Prune scouted verification records older than 30 days
         shell: bash
         env:
@@ -70,7 +72,7 @@ jobs:
           first="${files[0]}"
           last="${files[$((count - 1))]}"
           # GitHub suppresses `pull_request` workflows for `GITHUB_TOKEN`-created PRs; note the manual trigger in the PR body.
-          body=$(printf '## Why\n\nRemove %d verification record(s) already read by the `verification-flakes` scout and older than 30 days.\n\n## What changed\n\n- Deleted %d verification record(s) (`%s` through `%s`).\n\n> Note: Because this PR was opened with `GITHUB_TOKEN`, close and reopen it (or push a commit) to trigger the required `verify` check.\n' "$count" "$count" "$first" "$last")
+          body=$(printf '## Why\n\nRemove %d verification record(s) already read by the `records` scout run and older than 30 days.\n\n## What changed\n\n- Deleted %d verification record(s) (`%s` through `%s`).\n\n> Note: Because this PR was opened with `GITHUB_TOKEN`, close and reopen it (or push a commit) to trigger the required `verify` check.\n' "$count" "$count" "$first" "$last")
 
           existing_pr=$(gh pr list --head "$branch" --base main --state open --json number --jq '.[0].number // empty')
           if [ -n "$existing_pr" ]; then

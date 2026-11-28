@@ -20,8 +20,8 @@ and examples maintained beside the code.
   [proposal implementation](../.agents/skills/implement-proposal/SKILL.md), with their shared
   [grilling](../.agents/skills/grill/SKILL.md) and [diagnosis](../.agents/skills/diagnose/SKILL.md) steps,
   and the [autonomous maintenance loop](decisions/0017-autonomous-maintenance-loop.md)
-  that replaces the paused [maintenance scout](../.agents/tasks/scout.md) and
-  [queue worker](../.agents/tasks/queue-worker.md).
+  that replaces the paused [queue worker](../.agents/tasks/queue-worker.md); its first
+  part is the [maintenance scout](../.agents/tasks/scout.md).
 
 | Area                                 | What it covers                                                                      |
 | ------------------------------------ | ----------------------------------------------------------------------------------- |
