@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
+import { errorMessage } from "../../cli.ts";
 import { assertSafeManagedDatabaseName } from "../../scripts/local-postgres.ts";
 import {
   assertCheckoutIdentity,
@@ -151,6 +152,7 @@ const claimCleanup = (
     identity: record,
     branch: record?.branch ?? defaultBranchForSlug(slug),
     databaseName,
+    databaseCreated: record?.databaseCreated ?? false,
     claimed: Boolean(record),
     cleanToken,
   };
@@ -240,8 +242,37 @@ const assertClaimHeld = (run: CleanRun, refusedAction: string): void => {
 const withRegistryLock = <T>(run: CleanRun, operation: () => Promise<T> | T): Promise<T> =>
   withWorktreeRegistryLock(run.git.root, operation, run.deps.lockOptions);
 
+const consumeDatabaseOwnership = async (run: CleanRun): Promise<void> => {
+  const { target, deps } = run;
+  // Consume permission before DROP: a crash or lost reply must never authorize a second drop
+  // by name, because the operator may have put a different database there in the meantime.
+  const cleared = await updateRecord(
+    run.git.root,
+    target.slug,
+    {
+      when: (record) => matchesCleanClaim(record, target),
+      apply: (record) => ({ ...record, databaseCreated: false }),
+    },
+    deps.lockOptions,
+  );
+  if (!cleared) {
+    throw new Error(
+      `Worktree "${target.slug}" registry record no longer matches this cleanup claim; refusing to drop database "${target.databaseName}".`,
+    );
+  }
+  target.databaseCreated = false;
+};
+
 const dropDatabase = async (run: CleanRun): Promise<{ dropped: boolean; warnings: string[] }> => {
   const { target, deps } = run;
+  if (!target.databaseCreated) {
+    return {
+      dropped: false,
+      warnings: [
+        `Skipped database "${target.databaseName}": the registry has no ownership record for this database.`,
+      ],
+    };
+  }
   if (!(await deps.database.isReachable())) {
     return {
       dropped: false,
@@ -250,17 +281,14 @@ const dropDatabase = async (run: CleanRun): Promise<{ dropped: boolean; warnings
       ],
     };
   }
-  const refusedDrop = `drop database "${target.databaseName}"`;
-  if (target.claimed) {
-    await withRegistryLock(run, () => assertClaimHeld(run, refusedDrop));
+  await consumeDatabaseOwnership(run);
+  try {
     await deps.database.drop(target.databaseName);
-  } else {
-    // An unrecorded slug has no claim to keep a same-slug create out, so hold the lock across
-    // the drop: a create cannot record the slug and create its database in the meantime.
-    await withRegistryLock(run, async () => {
-      assertClaimHeld(run, refusedDrop);
-      await deps.database.drop(target.databaseName);
-    });
+  } catch (cause) {
+    throw new Error(
+      `Could not confirm the drop of "${target.databaseName}": ${errorMessage(cause)}. Inspect the database manually before retrying cleanup.`,
+      { cause },
+    );
   }
   return { dropped: true, warnings: [] };
 };
@@ -286,19 +314,23 @@ const deleteBranch = (run: CleanRun): Promise<boolean> =>
     return true;
   });
 
-const removeRecord = async ({ target, git, deps }: CleanRun): Promise<boolean> => {
-  const removed = await updateRecord(
+/** Keeps the ownership record for an offline database and releases its claim for a retry. */
+const finishRecord = async ({ target, git, deps }: CleanRun): Promise<boolean> => {
+  const updated = await updateRecord(
     git.root,
     target.slug,
-    { when: (record) => matchesCleanClaim(record, target), apply: () => undefined },
+    {
+      when: (record) => matchesCleanClaim(record, target),
+      apply: (record) => (record.databaseCreated ? withoutCleanClaim(record) : undefined),
+    },
     deps.lockOptions,
   );
-  if (!removed) {
+  if (!updated) {
     throw new Error(
       `Worktree "${target.slug}" registry record no longer matches this cleanup claim; refusing to remove registry entry.`,
     );
   }
-  return true;
+  return !target.databaseCreated;
 };
 
 /**
@@ -334,7 +366,7 @@ const cleanClaimedWorktree = async (
   const database = await dropDatabase(run);
   const branchDeleted =
     !keepBranch && !isProtectedBranch(target.branch) && (await deleteBranch(run));
-  const registryRemoved = target.claimed && (await removeRecord(run));
+  const registryRemoved = target.claimed && (await finishRecord(run));
   return {
     result: {
       slug: target.slug,

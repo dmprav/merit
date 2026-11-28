@@ -235,7 +235,7 @@ const bootstrapCheckout = async ({ request, progress, deps }: CreateRun): Promis
 
 /** Creates the worktree's database when PostgreSQL is up, returning a warning when it was skipped. */
 const createDatabase = async (run: CreateRun, postgresReachable: boolean): Promise<string[]> => {
-  const { request, plan, progress, deps } = run;
+  const { request, plan, progress, deps, git } = run;
   if (request.dbMode === "skip") {
     return [];
   }
@@ -245,13 +245,6 @@ const createDatabase = async (run: CreateRun, postgresReachable: boolean): Promi
     ];
   }
   progress.databaseCreated = (await deps.database.ensure(plan.databaseName)).created;
-  return [];
-};
-
-const runDoctor = async ({ request, plan, progress, git, deps }: CreateRun): Promise<void> => {
-  if (!request.doctor) {
-    return;
-  }
   if (progress.databaseCreated) {
     await updateRecord(
       git.root,
@@ -262,6 +255,13 @@ const runDoctor = async ({ request, plan, progress, git, deps }: CreateRun): Pro
       },
       deps.lockOptions,
     );
+  }
+  return [];
+};
+
+const runDoctor = async ({ request, progress, deps }: CreateRun): Promise<void> => {
+  if (!request.doctor) {
+    return;
   }
   const doctorScript = join(progress.checkoutPath, ".agents/install-environment.sh");
   if (existsSync(doctorScript)) {
@@ -280,7 +280,6 @@ const activateRecord = async ({ plan, progress, git, deps }: CreateRun): Promise
       when: isCreateClaimAt(progress.checkoutPath),
       apply: (record) => ({
         ...withoutOwner(record),
-        databaseCreated: progress.databaseCreated,
         status: "active",
       }),
     },

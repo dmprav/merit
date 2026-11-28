@@ -295,8 +295,8 @@ When the database was created during `worktree:create`, run
 seed data, after the same `DATABASE_URL` check.
 
 `worktree:clean` idempotently force-removes the checkout directory, prunes stale
-worktrees, drops its dedicated database (refusing to touch `merit` or
-`postgres`), and deletes the worktree branch with `git branch -D` unless
+worktrees, drops the dedicated database when its registry record confirms that
+Merit created it, and deletes the worktree branch with `git branch -D` unless
 `--keep-branch` is passed. Force-removing the checkout discards uncommitted
 changes and `git branch -D` discards unmerged commits (`--keep-branch` preserves
 the branch, not uncommitted files). `worktree:create` stores a per-checkout
@@ -308,15 +308,22 @@ path), that contains another worktree, or that Git refuses to remove, such as a
 locked worktree. If `worktree:create` fails after creating the checkout and Git
 refuses to remove it, the checkout and its registry record stay for
 `worktree:clean <slug>` once the cause is fixed. If a `worktree:create` process
-exits before finishing, `worktree:clean <slug>` removes what it left behind.
+exits before finishing, `worktree:clean <slug>` removes the resources it can
+identify. Clean skips the database when create reused an existing one, when
+creation was skipped, or when the slug has no registry record. If create exited
+between creating the database and recording that success, inspect the named
+database manually. A successful `db:reset` in a registered worktree records
+ownership of the database it recreated.
 If Git removed a custom `--dir` checkout's `.git` but not its files,
 `worktree:clean` does not delete that directory outside `.tmp/worktrees/`
 itself: check it, delete it, and rerun `vp run worktree:clean <slug>`. If
-PostgreSQL is stopped when running `worktree:clean`, the database drop is skipped; start services with
-`vp run services:start` and rerun `vp run worktree:clean <slug>` before reusing
-the slug. If the first run used `--keep-branch`, pass it again: the retry no
-longer has the registry record and otherwise deletes the default
-`worktree/<slug>` branch.
+PostgreSQL is stopped when cleaning an owned database, clean keeps the registry
+record for a retry. Start services with `vp run services:start` and rerun
+`vp run worktree:clean <slug>` before reusing the slug. Pass `--keep-branch`
+again on the retry if you want to retain the branch. Once clean attempts a
+drop, it consumes the ownership record for that database. If the command is
+interrupted during the drop, inspect the named database before removing it
+manually.
 
 ## Schema changes
 
