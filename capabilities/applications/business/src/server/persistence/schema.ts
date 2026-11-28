@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  jsonb,
   date,
   foreignKey,
   index,
@@ -22,10 +23,13 @@ import {
   optimisticRevision,
   positiveCheck,
   publicId,
+  uuidPk,
   recordedAt,
 } from "@merit/db/schema";
 import { organizations } from "@merit/organizations/schema";
 import { fundingRounds } from "@merit/rounds/schema";
+
+import type { ApplicationPdf } from "../../domain/pdf";
 
 export const applicationCases = pgTable(
   "application_cases",
@@ -95,6 +99,7 @@ export const materialVersions = pgTable(
     applicantOrganization: text("applicant_organization"),
     submittedOn: date("submitted_on"),
     projectPeriod: text("project_period"),
+    pdfs: jsonb().$type<ApplicationPdf[]>().notNull().default([]),
     changeKind: text("change_kind").notNull(),
     sourceKind: text("source_kind", { enum: ["recorded_external", "fictional_example"] })
       .notNull()
@@ -105,6 +110,10 @@ export const materialVersions = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.caseId, t.version] }),
+    check(
+      "material_versions_pdfs_check",
+      sql`jsonb_typeof(${t.pdfs}) = 'array' AND jsonb_array_length(${t.pdfs}) <= 5`,
+    ),
     index("material_versions_recorded_by_idx").on(t.recordedByUserId),
     positiveCheck("material_version_positive", t.version),
     check(
@@ -178,6 +187,7 @@ export const materialDrafts = pgTable(
     title: text().notNull(),
     applicant: text().notNull(),
     projectPeriod: text("project_period"),
+    pdfs: jsonb().$type<ApplicationPdf[]>().notNull().default([]),
     requested: text().notNull(),
     reason: text().notNull(),
     revision: integer().notNull(),
@@ -187,6 +197,10 @@ export const materialDrafts = pgTable(
       columns: [t.caseId, t.baseMaterialVersion],
       foreignColumns: [materialVersions.caseId, materialVersions.version],
     }),
+    check(
+      "material_drafts_pdfs_check",
+      sql`jsonb_typeof(${t.pdfs}) = 'array' AND jsonb_array_length(${t.pdfs}) <= 5`,
+    ),
     index("material_drafts_base_material_idx").on(t.caseId, t.baseMaterialVersion),
     positiveCheck("material_drafts_base_material_version_check", t.baseMaterialVersion),
     enumCheck("material_drafts_kind_check", t.kind, ["correction", "revision"]),
@@ -222,4 +236,45 @@ export const applicationCreationReceipts = pgTable(
     publicId: text("case_id").notNull(),
   },
   (t) => [primaryKey({ columns: [t.organizationId, t.requestId] })],
+);
+
+// File identity and bytes stay immutable. A creation-stage file acquires its case when
+// intake commits; snapshots retain only the filename, size, and stable document ID.
+export const applicationPdfs = pgTable(
+  "application_pdfs",
+  {
+    id: uuidPk(),
+    organizationId: text("organization_id").notNull(),
+    roundId: text("round_id").notNull(),
+    caseId: text("case_id"),
+    uploaderId: text("uploader_id")
+      .notNull()
+      .references(() => appUsers.id),
+    filename: text().notNull(),
+    objectKey: text("object_key").notNull().unique(),
+    byteLength: integer("byte_length").notNull(),
+    sha256: text().notNull(),
+    createdAt: recordedAt("created_at"),
+    attachedAt: timestamp("attached_at", { withTimezone: true }),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.roundId],
+      foreignColumns: [fundingRounds.organizationId, fundingRounds.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.organizationId, t.caseId],
+      foreignColumns: [applicationCases.organizationId, applicationCases.id],
+    }).onDelete("cascade"),
+    index("application_pdfs_round_idx").on(t.organizationId, t.roundId),
+    index("application_pdfs_case_idx").on(t.organizationId, t.caseId),
+    index("application_pdfs_uploader_idx").on(t.uploaderId),
+    check("application_pdfs_filename_check", sql`length(btrim(${t.filename})) BETWEEN 1 AND 255`),
+    check("application_pdfs_size_check", sql`${t.byteLength} BETWEEN 1 AND 25000000`),
+    check("application_pdfs_digest_check", sql`${t.sha256} ~ '^[a-f0-9]{64}$'`),
+    check(
+      "application_pdfs_attachment_check",
+      sql`${t.attachedAt} IS NULL OR ${t.caseId} IS NOT NULL`,
+    ),
+  ],
 );

@@ -195,14 +195,16 @@ export const ReferenceSwitcher = <Key extends string>({
   label,
   triggerLabel,
   options,
+  section,
   selected,
   onChange,
   triggerRef,
 }: {
   label: string;
   /** Names the trigger together with the current choice, such as "Reference material: Guidelines". */
-  triggerLabel: string;
+  triggerLabel: string | ((selectedLabel: string) => string);
   options: Record<Key, string>;
+  section?: { label: string; items: { id: Key; label: string }[] };
   selected: Key;
   onChange: (next: Key) => void;
   triggerRef?: Ref<HTMLButtonElement>;
@@ -214,20 +216,32 @@ export const ReferenceSwitcher = <Key extends string>({
     }
   }
 
+  const selectedLabel =
+    section?.items.find((entry) => entry.id === selected)?.label ?? options[selected];
+
   return (
     <>
       <span className={styles.meta}>{label}</span>
       <ActionMenu
         label={label}
         trigger={
-          <Button ref={triggerRef} variant="quiet" aria-label={triggerLabel}>
-            {options[selected]}
+          <Button
+            ref={triggerRef}
+            variant="quiet"
+            aria-label={
+              typeof triggerLabel === "function" ? triggerLabel(selectedLabel) : triggerLabel
+            }
+          >
+            {selectedLabel}
             <Icon name="down" />
           </Button>
         }
         items={entries}
+        section={section}
         onAction={(next) => {
-          const match = entries.find((entry) => entry.id === next);
+          const match =
+            entries.find((entry) => entry.id === next) ??
+            section?.items.find((entry) => entry.id === next);
           if (match) {
             onChange(match.id);
           }

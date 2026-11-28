@@ -2,6 +2,7 @@ import { useState, type ReactNode, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { IntakeState } from "@merit/applications-web/contracts";
+import { pdfReferenceItems, SubmittedPdfReferences } from "@merit/applications-web/intake";
 import { ApplicationIntake, type IntakeSession } from "@merit/applications-web/work";
 import { isWithdrawn } from "@merit/applications/domain";
 import { ApplicationDecisionSummary } from "@merit/decisions-web/decisions";
@@ -223,7 +224,7 @@ const ApplicationReferencePane = ({
 }: ApplicationLayoutProps & { labels: Record<ApplicationReference, string> }) => {
   const { t } = useTranslation(["fundingRounds", "reviews"]);
   const {
-    reference,
+    reference: requestedReference,
     referenceViewport,
     referenceMenu,
     changeReference,
@@ -231,6 +232,12 @@ const ApplicationReferencePane = ({
     historyFrom,
     historyVisit,
   } = state;
+  const pdfs = intake ? content.referencePdfs : [];
+  const pdfItems = pdfReferenceItems(pdfs);
+  const reference =
+    requestedReference in labels || pdfItems.some((item) => item.id === requestedReference)
+      ? requestedReference
+      : "evidence";
   return (
     <ReferencePane
       label={t("workspace.reference")}
@@ -238,7 +245,8 @@ const ApplicationReferencePane = ({
       toolbar={
         <ReferenceSwitcher
           label={t("workspace.reference")}
-          triggerLabel={t("workspace.referenceLabel", { name: labels[reference] })}
+          triggerLabel={(name) => t("workspace.referenceLabel", { name })}
+          section={{ label: t("workspace.submittedPdfs"), items: pdfItems }}
           options={labels}
           selected={reference}
           onChange={changeReference}
@@ -285,6 +293,14 @@ const ApplicationReferencePane = ({
           )}
         </div>
       ))}
+      {intake && (
+        <SubmittedPdfReferences
+          pdfs={pdfs}
+          workspaceSlug={intake.data.workspaceSlug}
+          address={{ applicationId: intake.data.publicId }}
+          selected={reference}
+        />
+      )}
     </ReferencePane>
   );
 };

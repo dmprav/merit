@@ -137,7 +137,7 @@ ownership and cross-capability coordination.
 
 ## Beyond recorded decisions
 
-Applicant-facing submission, attachments, live AI processing, reviewer discussions,
+Applicant-facing submission, OCR, live AI processing, reviewer discussions,
 committee briefs, publication, voting, award terms, and payments are not implemented.
 [Recording committee decisions](record-decisions.md) is the end of current grant work.
 [Future committee design](committee-decisions.md) preserves the agreed direction

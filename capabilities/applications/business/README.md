@@ -20,6 +20,22 @@ Reviews and Recommendations each implement the part about their own records.
 Any review request, assessment, or recommendation prevents deletion, including a
 cancelled request.
 
+## Store submitted PDFs
+
+A browser upload stages immutable bytes in [private storage](../../../foundation/storage/README.md).
+The `application_pdfs` registry records the storage reference, filename, uploader,
+workspace, and target case or creation round. The intake transaction checks each selected
+file against its registry row, then binds it to the case. A manager can attach their
+own staged file or reuse a file already recorded on the same case.
+
+Recorded material versions, working revisions, and audit snapshots carry at most five
+public file descriptors. Each descriptor records the document ID, original filename,
+and byte length. The registry retains the immutable object key and digest so replacing
+a file preserves the bytes supporting earlier assessments. The reviewer read checks
+the accepted assignment and selects the PDF from its pinned material version. Deleting
+the owning case or round cascades its registry rows. Include the registry in the storage
+foundation’s reference scan before reclaiming unreferenced objects.
+
 ## Withdraw and reinstate
 
 A withdrawal is an optional [`withdrawal`](src/domain/model.ts) on the case, stored in its

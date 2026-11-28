@@ -97,6 +97,14 @@ const caseContent = (snapshot: ApplicationData) => ({
   contactId: snapshot.contactId,
 });
 
+const recordedSubmission = (submission: MaterialData["submission"]) => ({
+  submissionVersion: submission?.version ?? null,
+  applicantOrganization: submission?.organization ?? null,
+  submittedOn: submission?.submittedOn ?? null,
+  projectPeriod: submission?.projectPeriod ?? null,
+  pdfs: submission?.pdfs ?? [],
+});
+
 const insertMaterialVersionRows = async (
   db: Transaction,
   values: {
@@ -116,10 +124,7 @@ const insertMaterialVersionRows = async (
     title: material.title,
     requestedMinorUnits: material.requested?.minorUnits ?? null,
     requestedCurrency: material.requested?.currency ?? null,
-    submissionVersion: material.submission?.version ?? null,
-    applicantOrganization: material.submission?.organization ?? null,
-    submittedOn: material.submission?.submittedOn ?? null,
-    projectPeriod: material.submission?.projectPeriod ?? null,
+    ...recordedSubmission(material.submission),
     changeKind: values.changeKind,
     sourceKind: values.sourceKind,
     reason: values.reason ?? null,
@@ -263,6 +268,7 @@ const writeIntakeApplication = async (
       title: draft.content.title,
       applicant: draft.content.applicant,
       projectPeriod: draft.content.projectPeriod ?? null,
+      pdfs: draft.content.pdfs ?? [],
       requested: draft.content.requested,
       reason: draft.reason,
       revision: values.revision,

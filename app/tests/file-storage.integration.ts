@@ -9,16 +9,10 @@ import { assert, expect, it, onTestFinished, vi } from "vite-plus/test";
 import { createFileStorage } from "@merit/storage";
 
 import { createFileObjects } from "../src/server/file-objects.server";
+import { localFileStorage as local, deleteLocalTestFile } from "./local-file-storage";
 
-const endpoint = "http://127.0.0.1:8333";
-const bucket = "merit-files";
-const local = {
-  FILE_STORAGE_ENDPOINT: endpoint,
-  FILE_STORAGE_BUCKET: bucket,
-  FILE_STORAGE_REGION: "us-east-1",
-  FILE_STORAGE_ACCESS_KEY_ID: "merit-local",
-  FILE_STORAGE_SECRET_ACCESS_KEY: "merit-local-storage",
-};
+const endpoint = local.FILE_STORAGE_ENDPOINT;
+const bucket = local.FILE_STORAGE_BUCKET;
 
 it("creates a private object that can be read through its reference and rejects overwrites", async () => {
   const objects = createFileObjects(local);
@@ -27,13 +21,7 @@ it("creates a private object that can be read through its reference and rejects 
   const saved = await storage.writeFile(bytes);
   const url = `${endpoint}/${bucket}/${saved.objectKey}`;
   onTestFinished(async () => {
-    const client = new AwsClient({
-      accessKeyId: local.FILE_STORAGE_ACCESS_KEY_ID,
-      secretAccessKey: local.FILE_STORAGE_SECRET_ACCESS_KEY,
-      service: "s3",
-      region: local.FILE_STORAGE_REGION,
-    });
-    expect((await client.fetch(url, { method: "DELETE" })).ok).toBe(true);
+    expect(await deleteLocalTestFile(saved.objectKey)).toBe(true);
   });
   expect((await fetch(url)).status).toBe(403);
   const changed = Uint8Array.of(1);

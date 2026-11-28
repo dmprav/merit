@@ -135,7 +135,7 @@ export const docs = {
           save: "Choose Add application to save and open the record. Its status is In preparation.",
         },
         access:
-          "Program managers can record applications, including in the demo. Applicants need no Merit account. This records material you received elsewhere; applicant-facing submission and file attachments are not available.",
+          "Program managers can record applications, including in the demo. Applicants need no Merit account. Enter the applicant’s answers and optionally attach up to five PDFs received with the application. The public demo provides sample PDFs.",
       },
       prepare: {
         title: "Complete the material",

@@ -3,6 +3,7 @@ export const applicationsMessages = {
     title: "Application workspace",
     submission: "Applicant submission",
     assessments: "Reviewer assessments",
+    submittedPdfs: "Submitted PDFs",
     history: "Version history",
     details: "Application details",
     manageApplication: "Manage application",

@@ -31,6 +31,7 @@ import { Route as AppWorkspaceSlugRouteRouteImport } from './../../interfaces/pr
 import { Route as AppSignInRouteImport } from './../../interfaces/product/src/routes/app/sign-in'
 import { Route as DemoWorkshopSaturdaysRouteImport } from './../../interfaces/product/src/routes/demo_/workshop-saturdays'
 import { Route as InvitationsTokenRouteImport } from './../../interfaces/product/src/routes/invitations/$token'
+import { Route as appSrcRoutesApplicationPdfsRouteImport } from './routes/application-pdfs'
 import { Route as appSrcRoutesAssistantRouteImport } from './routes/assistant'
 import { Route as AdminDotorganizationsDotindexRouteImport } from './../../interfaces/admin/src/routes/admin.organizations.index'
 import { Route as AdminDotorganizationsDotorganizationIdRouteImport } from './../../interfaces/admin/src/routes/admin.organizations.$organizationId'
@@ -155,6 +156,12 @@ const InvitationsTokenRoute = InvitationsTokenRouteImport.update({
   path: '/invitations/$token',
   getParentRoute: () => interfacesProductSrcAppProductLayoutRoute,
 } as any)
+const appSrcRoutesApplicationPdfsRoute =
+  appSrcRoutesApplicationPdfsRouteImport.update({
+    id: '/api/application-pdfs/$workspaceSlug',
+    path: '/api/application-pdfs/$workspaceSlug',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const appSrcRoutesAssistantRoute = appSrcRoutesAssistantRouteImport.update({
   id: '/api/assistant/$workspaceSlug',
   path: '/api/assistant/$workspaceSlug',
@@ -252,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/app/sign-in': typeof AppSignInRoute
   '/demo/workshop-saturdays': typeof DemoWorkshopSaturdaysRoute
   '/invitations/$token': typeof InvitationsTokenRoute
+  '/api/application-pdfs/$workspaceSlug': typeof appSrcRoutesApplicationPdfsRoute
   '/api/assistant/$workspaceSlug': typeof appSrcRoutesAssistantRoute
   '/admin/': typeof AdminDotindexRoute
   '/app/': typeof AppIndexRoute
@@ -287,6 +295,7 @@ export interface FileRoutesByTo {
   '/app/sign-in': typeof AppSignInRoute
   '/demo/workshop-saturdays': typeof DemoWorkshopSaturdaysRoute
   '/invitations/$token': typeof InvitationsTokenRoute
+  '/api/application-pdfs/$workspaceSlug': typeof appSrcRoutesApplicationPdfsRoute
   '/api/assistant/$workspaceSlug': typeof appSrcRoutesAssistantRoute
   '/admin': typeof AdminDotindexRoute
   '/app': typeof AppIndexRoute
@@ -325,6 +334,7 @@ export interface FileRoutesById {
   '/_product/app/sign-in': typeof AppSignInRoute
   '/_product/demo_/workshop-saturdays': typeof DemoWorkshopSaturdaysRoute
   '/_product/invitations/$token': typeof InvitationsTokenRoute
+  '/api/application-pdfs/$workspaceSlug': typeof appSrcRoutesApplicationPdfsRoute
   '/api/assistant/$workspaceSlug': typeof appSrcRoutesAssistantRoute
   '/_administration/admin/': typeof AdminDotindexRoute
   '/_product/app/': typeof AppIndexRoute
@@ -362,6 +372,7 @@ export interface FileRouteTypes {
     | '/app/sign-in'
     | '/demo/workshop-saturdays'
     | '/invitations/$token'
+    | '/api/application-pdfs/$workspaceSlug'
     | '/api/assistant/$workspaceSlug'
     | '/admin/'
     | '/app/'
@@ -397,6 +408,7 @@ export interface FileRouteTypes {
     | '/app/sign-in'
     | '/demo/workshop-saturdays'
     | '/invitations/$token'
+    | '/api/application-pdfs/$workspaceSlug'
     | '/api/assistant/$workspaceSlug'
     | '/admin'
     | '/app'
@@ -434,6 +446,7 @@ export interface FileRouteTypes {
     | '/_product/app/sign-in'
     | '/_product/demo_/workshop-saturdays'
     | '/_product/invitations/$token'
+    | '/api/application-pdfs/$workspaceSlug'
     | '/api/assistant/$workspaceSlug'
     | '/_administration/admin/'
     | '/_product/app/'
@@ -466,6 +479,7 @@ export interface RootRouteChildren {
   DocsDotteamRoute: typeof DocsDotteamRoute
   DocsDotworkspacesRoute: typeof DocsDotworkspacesRoute
   DocsDotindexRoute: typeof DocsDotindexRoute
+  appSrcRoutesApplicationPdfsRoute: typeof appSrcRoutesApplicationPdfsRoute
   appSrcRoutesAssistantRoute: typeof appSrcRoutesAssistantRoute
 }
 
@@ -624,6 +638,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/invitations/$token'
       preLoaderRoute: typeof InvitationsTokenRouteImport
       parentRoute: typeof interfacesProductSrcAppProductLayoutRoute
+    }
+    '/api/application-pdfs/$workspaceSlug': {
+      id: '/api/application-pdfs/$workspaceSlug'
+      path: '/api/application-pdfs/$workspaceSlug'
+      fullPath: '/api/application-pdfs/$workspaceSlug'
+      preLoaderRoute: typeof appSrcRoutesApplicationPdfsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/assistant/$workspaceSlug': {
       id: '/api/assistant/$workspaceSlug'
@@ -814,6 +835,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsDotteamRoute: DocsDotteamRoute,
   DocsDotworkspacesRoute: DocsDotworkspacesRoute,
   DocsDotindexRoute: DocsDotindexRoute,
+  appSrcRoutesApplicationPdfsRoute: appSrcRoutesApplicationPdfsRoute,
   appSrcRoutesAssistantRoute: appSrcRoutesAssistantRoute,
 }
 export const routeTree = rootRouteImport

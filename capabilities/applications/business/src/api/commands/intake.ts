@@ -26,6 +26,7 @@ export const createApplicationRequestSchema = z.strictObject({
   title: intakeContentSchema.shape.title,
   applicant: intakeContentSchema.shape.applicant.optional(),
   requested: intakeContentSchema.shape.requested.optional(),
+  pdfs: intakeContentSchema.shape.pdfs,
   answers: intakeContentSchema.shape.answers.optional(),
 });
 export const editApplicationRequestSchema = z

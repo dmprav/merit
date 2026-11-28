@@ -8,7 +8,7 @@ import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures"
 import { fromMinorUnits } from "@merit/money";
 
 import { GrantmakingMessagesProvider } from "../../messages";
-import { ApplicationHistory } from "./application-history";
+import { ApplicationHistory, SnapshotComparison } from "./application-history";
 import type { ApplicationHistoryEntry } from "./application-history-model";
 
 const round = roundView(makeRound());
@@ -67,6 +67,36 @@ const section = (heading: string) =>
   within(screen.getByRole("heading", { name: heading }).closest("section")!);
 
 describe("application history comparison", () => {
+  it("identifies a PDF replacement even when filename, file size and entered answers match", async () => {
+    const before = application(1);
+    const after = application(2);
+    after.submission.answers = before.submission.answers;
+    const pdf = {
+      id: "71000000-0000-4000-8000-000000000001",
+      filename: "Budget.pdf",
+      byteLength: 3170,
+    };
+    before.submission.pdfs = [pdf];
+    after.submission.pdfs = [{ ...pdf, id: "71000000-0000-4000-8000-000000000002" }];
+    render(
+      <SnapshotComparison
+        before={before}
+        after={after}
+        labels={{ fromLabel: "Version 1", toLabel: "Version 2" }}
+      />,
+      { wrapper: GrantmakingMessagesProvider },
+    );
+    expect(section("Submitted PDFs").getByText("Changed")).toBeVisible();
+    expect(section("Submitted PDFs").getAllByText(pdf.filename)).toHaveLength(2);
+    expect(
+      screen.queryByText("No changes to these recorded fields or submitted sections."),
+    ).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Full record" }));
+    expect(
+      within(screen.getByRole("region", { name: "Version 1" })).getByText(pdf.filename),
+    ).toBeVisible();
+  });
+
   it("identifies an order-only revision and keeps both section orders available in the full record", async () => {
     const before = application(1);
     const after = application(2);

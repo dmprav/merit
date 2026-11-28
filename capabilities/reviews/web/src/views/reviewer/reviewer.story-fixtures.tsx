@@ -10,6 +10,15 @@ import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 import type { ReviewerData, ManagerReviewerData } from "../../contracts/reviewer";
 import { Messages as ReviewsMessagesProvider } from "../../messages";
 
+export const submittedPdfs = [
+  {
+    id: "71000000-0000-4000-8000-000000000001",
+    filename: "Neighbour Table proposal.pdf",
+    byteLength: 18440,
+  },
+  { id: "71000000-0000-4000-8000-000000000002", filename: "Kitchen budget.pdf", byteLength: 3140 },
+];
+
 const title = "Neighbour Table";
 const criteria = [
   {

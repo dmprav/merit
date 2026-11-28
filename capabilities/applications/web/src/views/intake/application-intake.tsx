@@ -27,6 +27,7 @@ import type { IntakeSection } from "../../controllers/intake/intake-state";
 import type { ApplicationIntakeController } from "../../controllers/intake/use-application-intake";
 import styles from "./application-intake.module.css";
 import { intakeError } from "./messages";
+import { SnapshotPdfList } from "./submitted-pdf-reference";
 
 export const IntakeSectionEditButton = ({
   intake,
@@ -401,6 +402,11 @@ const RevisionPreview = ({
                 <p>{answer.response}</p>
               </DialogSection>
             ))}
+            {Boolean(preview.pdfs?.length) && (
+              <DialogSection title={t("pdfs.title")}>
+                <SnapshotPdfList pdfs={preview.pdfs ?? []} />
+              </DialogSection>
+            )}
             {!editingContent && (
               <DialogSection title={t("intake.reason")}>
                 <p>{working.reason || t("intake.reasonHint")}</p>

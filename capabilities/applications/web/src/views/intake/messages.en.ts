@@ -1,4 +1,24 @@
 export const intakeMessages = {
+  pdfs: {
+    title: "Submitted PDFs",
+    hint: "Up to five PDFs, 25 MB each.",
+    add: "Choose PDFs",
+    addSample: "Choose a sample PDF",
+    replace: "Replace",
+    replaceNamed: "Replace {{name}}",
+    remove: "Remove",
+    removeNamed: "Remove {{name}}",
+    uploading: "Attaching PDFs…",
+    limit: "Each application version can have up to five PDFs. Remove a file to add another.",
+    invalid: "{{name}} could not be attached. Choose a PDF file.",
+    oversized: "{{name}} exceeds 25 MB. Choose a smaller PDF.",
+    unavailable: "Could not attach {{name}}. Try again.",
+    samples: {
+      proposal: "Sample proposal",
+      budget: "Sample budget",
+      "revised-budget": "Sample revised budget",
+    },
+  },
   intake: {
     amountPrecision: "Enter an amount with up to two decimal places.",
     amountInvalid: "Enter a nonnegative amount with at most two decimal places.",

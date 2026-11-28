@@ -172,7 +172,7 @@ const createContentTools = (actor: Actor, grantmaking: GrantmakingOperations) =>
       errorSchema: readingErrorSchema.extend({ message: z.string().optional() }),
       description:
         historicalMaterial +
-        " Section submission reads current answers. " +
+        " Section submission reads current answers. Use section pdfs with materialVersion to list filenames, identifiers, and sizes of PDFs attached to that version. Uploads and file viewing are available in the browser. " +
         contentDescription +
         " Reviews retain requests, all assessment versions, their evidence bases and attribution. Null means that optional source is absent.",
       inputSchema: applicationContentInput,

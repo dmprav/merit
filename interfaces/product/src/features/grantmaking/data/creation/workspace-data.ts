@@ -5,16 +5,26 @@ import { createCreationData } from "@merit/grantmaking-web/data/creation";
 
 import { grantWorkQueryKey } from "../../../../shared/grant-work-query-key";
 import { creationLocation } from "../../contracts/creation-location";
+import { applicationPdfUpload } from "../intake/pdf-upload";
 import { createApplication, createRound } from "../server/creation/creation.functions";
 
 export const workspaceCreationData = (
   client: QueryClient,
   target: CreationTarget,
   navigate: (location: ReturnType<typeof creationLocation>) => Promise<void>,
-) =>
-  createCreationData(client, target, {
+  kind?: "demo" | "standard",
+) => ({
+  ...(kind && target.kind === "application"
+    ? {
+        pdfUpload: applicationPdfUpload(target.workspaceSlug, kind, {
+          roundId: target.roundPublicId,
+        }),
+      }
+    : {}),
+  ...createCreationData(client, target, {
     grantWorkScope: grantWorkQueryKey(target.workspaceSlug),
     createRound: (data) => createRound({ data }),
     createApplication: (data) => createApplication({ data }),
     open: (record) => navigate(creationLocation(target, record)),
-  });
+  }),
+});

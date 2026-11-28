@@ -6,7 +6,14 @@ import {
   type KeyboardEvent,
   type RefObject,
 } from "react";
-import { Menu, MenuItem, MenuTrigger, Pressable } from "react-aria-components/Menu";
+import {
+  Header,
+  Menu,
+  MenuItem,
+  MenuSection,
+  MenuTrigger,
+  Pressable,
+} from "react-aria-components/Menu";
 import { Popover } from "react-aria-components/Popover";
 
 import rowStyles from "../../foundations/list-row.module.css";
@@ -61,6 +68,19 @@ const MenuFocusGuard = ({ menuRef }: { menuRef: RefObject<HTMLDivElement | null>
   return null;
 };
 
+type ActionItem = { id: string; label: string; icon?: IconName };
+
+const renderMenuItem = (item: ActionItem) => (
+  <MenuItem id={item.id} key={item.id} textValue={item.label} className={rowStyles.row}>
+    {item.icon && (
+      <span className={rowStyles.leading}>
+        <IconBase name={item.icon} />
+      </span>
+    )}
+    <span className={rowStyles.copy}>{item.label}</span>
+  </MenuItem>
+);
+
 /**
  * Use ActionMenu for secondary commands; keep important actions in visibly labeled buttons. Items
  * invoke callbacks. Use real links for destinations and Select for field values. See [control
@@ -70,6 +90,7 @@ export const ActionMenu = ({
   label,
   trigger,
   items,
+  section,
   onAction,
   activation = "press",
   tooltip,
@@ -80,7 +101,8 @@ export const ActionMenu = ({
   activation?: "press" | "contextMenu";
   tooltip?: string;
   /** Give every item an icon or none, so labels stay aligned. */
-  items: readonly { id: string; label: string; icon?: IconName }[];
+  items: readonly ActionItem[];
+  section?: { label: string; items: readonly ActionItem[] };
   onAction: (id: string) => void;
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -110,16 +132,13 @@ export const ActionMenu = ({
           className={popoverScroller}
           onAction={(key) => onAction(String(key))}
         >
-          {items.map((item) => (
-            <MenuItem id={item.id} key={item.id} textValue={item.label} className={rowStyles.row}>
-              {item.icon && (
-                <span className={rowStyles.leading}>
-                  <IconBase name={item.icon} />
-                </span>
-              )}
-              <span className={rowStyles.copy}>{item.label}</span>
-            </MenuItem>
-          ))}
+          {items.map(renderMenuItem)}
+          {section && section.items.length > 0 && (
+            <MenuSection>
+              <Header className={styles.sectionLabel}>{section.label}</Header>
+              {section.items.map(renderMenuItem)}
+            </MenuSection>
+          )}
         </Menu>
       </Popover>
     </MenuTrigger>

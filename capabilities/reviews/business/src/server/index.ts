@@ -11,3 +11,4 @@ export {
   type ReviewerMessageActivityDependencies,
   type ReviewerMessageWork,
 } from "./commands/reviewer-delivery";
+export { readReviewerApplicationPdf } from "./queries/reviewer";

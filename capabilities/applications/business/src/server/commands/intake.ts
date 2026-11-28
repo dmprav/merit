@@ -28,6 +28,28 @@ import {
 } from "../persistence/commands/intake";
 import { intakeCreationReceipt } from "../persistence/commands/intake-history";
 import { lockApplicationCase, type LockedApplicationCase } from "../persistence/commands/locks";
+import { canAttachApplicationPdfs, bindApplicationPdfs } from "../persistence/commands/pdfs";
+
+const attachEditPdfs = async (
+  access: LockedApplicationCase,
+  userId: string,
+  change: EditApplicationRequest["change"],
+) => {
+  const pdfs =
+    change.action === "save_content"
+      ? change.content.pdfs
+      : change.action === "save_revision"
+        ? change.draft.content.pdfs
+        : undefined;
+  if (!pdfs?.length) {
+    return true;
+  }
+  if (!(await canAttachApplicationPdfs(access.tx, { ...access, userId }, pdfs))) {
+    return false;
+  }
+  await bindApplicationPdfs(access.tx, access.caseId, pdfs);
+  return true;
+};
 
 const resolveIntakeContactChange = async (
   tx: Transaction,
@@ -88,12 +110,28 @@ export const createFundingApplication = async (
       }
     }
 
+    const pdfs = request.pdfs ?? [];
+    if (
+      !(await canAttachApplicationPdfs(
+        tx,
+        {
+          organizationId: round.organizationId,
+          roundId: round.roundId,
+          caseId: null,
+          userId: actor.userId,
+        },
+        pdfs,
+      ))
+    ) {
+      return { status: "invalid", error: "invalid_application" } as const;
+    }
     const publicId = await recordIntakeCreation(round, application, actor, request.requestId);
     // Same-round retries saw the receipt above while holding the round lock.
     // A conflict here means a different round committed this request ID first.
     if (!publicId) {
       return { status: "invalid", error: "application_deleted" } as const;
     }
+    await bindApplicationPdfs(tx, publicId, pdfs);
     changed(round.organizationId, round.organizationKind);
     return { status: "ok", publicId } as const;
   });
@@ -165,6 +203,9 @@ export const editFundingApplication = async (
       return { status: "invalid", error: problem } as const;
     }
 
+    if (!(await attachEditPdfs(access, actor.userId, request.change))) {
+      return { status: "invalid", error: "invalid_application" } as const;
+    }
     const revision = await recordIntakeChange(
       row,
       {

@@ -96,6 +96,7 @@ it("records pageviews on navigation and exposes the analytics client to children
 
 // Typed against the route tree, so a new page fails typechecking until its analytics pattern is chosen.
 const analyticsRouteByPage = {
+  "/api/application-pdfs/$workspaceSlug": "/*other",
   "/api/assistant/$workspaceSlug": "/*other",
   "/": "/",
   "/privacy": "/privacy",

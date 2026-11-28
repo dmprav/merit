@@ -38,6 +38,8 @@
   "supportEntry": [
     // The release image starts its HTTP server through app/runtime/start.
     "app/scripts/serve.ts",
+    // Node resolves this worker through the application package import map.
+    "app/src/server/application-pdfs/validate.worker.ts",
     "app/tests/browser/workspace.playwright.config.ts",
     // The MCP eval CLI supplies its Vitest config and suite explicitly.
     "app/vitest.eval.config.ts",

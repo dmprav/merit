@@ -10,6 +10,7 @@ import {
 import {
   intakeContent,
   intakeContentSchema,
+  newIntakeApplication,
   intakeLimits,
   intakeChangeSchema,
   missingIntakeFields,
@@ -59,6 +60,47 @@ const completed = {
 };
 
 describe("application intake", () => {
+  it("preserves submitted PDFs through manual edits and treats removing the last file as a material change", () => {
+    const pdf = {
+      id: "10000000-0000-4000-8000-000000000001",
+      filename: "Proposal.pdf",
+      byteLength: 24,
+    };
+    const application = newIntakeApplication("application", { title: "Proposal", pdfs: [pdf] });
+    expect(intakeContent(application).pdfs).toEqual([pdf]);
+    expect(missingIntakeFields(intakeContent(application))).toContain("answers");
+    const changed = prepareIntakeChange(
+      application,
+      null,
+      { action: "save_content", content: { title: "New title" } },
+      author,
+    );
+    expect(changed).toMatchObject({
+      ok: true,
+      application: { version: 2, submission: { pdfs: [pdf] } },
+    });
+    const removed = prepareIntakeChange(
+      application,
+      null,
+      { action: "save_content", content: { pdfs: [] } },
+      author,
+    );
+    expect(removed).toMatchObject({
+      ok: true,
+      application: { version: 2, submission: { pdfs: [] } },
+    });
+    if (removed.ok) {
+      expect(
+        prepareIntakeChange(
+          removed.application,
+          null,
+          { action: "save_content", content: { pdfs: [] } },
+          author,
+        ),
+      ).toMatchObject({ ok: true, application: { version: 2 } });
+    }
+  });
+
   it("accepts a supplied partial edit and rejects an edit that supplies no field", () => {
     expect(
       intakeChangeSchema.parse({ action: "save_content", content: { title: " Renamed " } }),

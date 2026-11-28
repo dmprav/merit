@@ -3,7 +3,7 @@ GRANT USAGE ON SCHEMA public TO :"runtime_role";
 GRANT SELECT, INSERT ON app_users, guest_sessions, organizations, memberships, organization_invitations,
   access_requests, access_request_limits, demo_entry_limits, grant_navigation_pins, contacts,
   funding_rounds, round_creation_receipts, criteria_versions, criteria_version_items,
-  application_cases, application_creation_receipts, material_versions, material_version_answers,
+  application_pdfs, application_cases, application_creation_receipts, material_versions, material_version_answers,
   material_version_evidence, material_drafts, material_draft_answers, review_assignments,
   review_requests, review_states, reviewer_command_receipts, reviewer_drafts, reviewer_draft_observations,
   reviewer_messages, assessments, assessment_versions, assessment_version_observations,
@@ -12,6 +12,7 @@ GRANT UPDATE ON guest_sessions, access_request_limits, demo_entry_limits, grant_
   contacts, funding_rounds, application_cases, material_drafts, review_assignments,
   review_requests, review_states, reviewer_drafts TO :"runtime_role";
 GRANT EXECUTE ON FUNCTION public.merit_finish_reviewer_message(uuid, uuid, text) TO :"runtime_role";
+GRANT UPDATE (case_id, attached_at) ON application_pdfs TO :"runtime_role";
 GRANT UPDATE (id, name) ON app_users TO :"runtime_role";
 GRANT UPDATE (name, demo_expires_at) ON organizations TO :"runtime_role";
 GRANT UPDATE (user_id, role, administration, version) ON memberships TO :"runtime_role";

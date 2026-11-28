@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { IntakeApplication } from "@merit/applications/domain";
+import type { ApplicationPdf, IntakeApplication } from "@merit/applications/domain";
 import { Attribution } from "@merit/ui/attribution";
 import { Reading, Stack } from "@merit/ui/layout";
 import { PanelSection } from "@merit/ui/panel-section";
@@ -28,6 +28,7 @@ import {
 import styles from "./intake-content.module.css";
 import { IntakeForm } from "./intake-form";
 import { SubmissionAnswers } from "./submission-answers";
+import { ManagerPdfAddress } from "./submitted-pdf-reference";
 
 export type IntakeSession = { data: IntakeData; onDeleted: () => Promise<void> };
 
@@ -35,6 +36,7 @@ type IntakeContent = {
   title: ReactNode;
   overview: ReactNode;
   evidence: ReactNode;
+  referencePdfs: readonly ApplicationPdf[];
   details: ReactNode;
   feedback: ReactNode;
   menu: {
@@ -62,7 +64,16 @@ export const ApplicationIntake = (props: Props) =>
 const EditableIntake = (props: Props & { session: NonNullable<Props["session"]> }) => {
   const intakeEditing = useApplicationIntake({ application: props.application, ...props.session });
   useIntakeRefreshToast(intakeEditing);
-  return <IntakePresentation {...props} intakeEditing={intakeEditing} />;
+  return (
+    <ManagerPdfAddress
+      value={{
+        workspaceSlug: props.session.data.workspaceSlug,
+        applicationId: props.session.data.publicId,
+      }}
+    >
+      <IntakePresentation {...props} intakeEditing={intakeEditing} />
+    </ManagerPdfAddress>
+  );
 };
 
 const IntakePresentation = ({
@@ -145,6 +156,11 @@ const IntakePresentation = ({
     />
   );
 
+  const workingPdfs =
+    editingSection === "content" && intakeEditing?.workingRevision
+      ? intakeEditing.workingRevision.content.pdfs
+      : application.submission?.pdfs;
+  const draft = intakeEditing?.editor.draft;
   return children({
     title: intakeEditing ? (
       <IntakeTitle intake={intakeEditing} titleRef={intakeTitle} onReveal={revealIntake} />
@@ -153,6 +169,8 @@ const IntakePresentation = ({
     ),
     overview,
     evidence,
+    referencePdfs:
+      (draft?.section === "content" ? (draft.value.pdfs ?? workingPdfs) : workingPdfs) ?? [],
     details: (
       <div className={styles.document}>
         <ApplicationDetails application={application} />

@@ -44,6 +44,7 @@ export const applicationContentInput = applicationReadInput.extend({
     "details",
     "submission",
     "material",
+    "pdfs",
     "evidence",
     "reviews",
     "assessment",
@@ -59,7 +60,7 @@ export const applicationContentInput = applicationReadInput.extend({
   materialVersion: materialVersionSchema
     .optional()
     .describe(
-      "Required for section material. The first snapshot is 1. Read later versions in ascending order to find when wording first appeared.",
+      "Required for sections material and pdfs. The first snapshot is 1. Read later versions in ascending order to find when wording first appeared.",
     ),
   revision: z
     .number()

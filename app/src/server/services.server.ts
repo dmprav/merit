@@ -1,11 +1,16 @@
 import type { GrantOutcome, ServerAnalytics } from "@merit/analytics/server";
-import { createApplicationsService } from "@merit/applications/server";
+import {
+  applicationPdfUploadAccess,
+  createApplicationsService,
+  readManagerApplicationPdf,
+  registerApplicationPdf,
+} from "@merit/applications/server";
 import {
   contactApplicationWork,
   roundHasApplications,
 } from "@merit/applications/server/integrations";
 import { createContactService } from "@merit/contacts/server";
-import type { Database } from "@merit/db";
+import type { Database, DatabaseRunner } from "@merit/db";
 import { createDecisionsService } from "@merit/decisions/server";
 import { applicationDecisionWork, roundCommitments } from "@merit/decisions/server/integrations";
 import { renderReviewerEmail } from "@merit/emails/reviewer";
@@ -17,7 +22,7 @@ import { productLinks } from "@merit/product/links";
 import { createRecommendationsService } from "@merit/recommendations/server";
 import { applicationRecommendationWork } from "@merit/recommendations/server/integrations";
 import type { ReviewerMessage } from "@merit/reviews/api";
-import { createReviewService } from "@merit/reviews/server";
+import { createReviewService, readReviewerApplicationPdf } from "@merit/reviews/server";
 import {
   createReviewerService,
   type ReviewerDelivery,
@@ -77,6 +82,21 @@ export const reviewerMessageDelivery = ({
     new URL(productLinks.application(slug, id, { tab: "reviews" }), invitationOrigin).href,
   send: async (message: ReviewerMessage) =>
     sendEmail({ id: message.id, to: message.to, ...(await renderReviewerEmail(message)) }),
+});
+
+const query =
+  <Args extends unknown[], T>(
+    database: DatabaseRunner,
+    operation: (db: Database, ...args: Args) => Promise<T>,
+  ) =>
+  (...args: Args) =>
+    database((db) => operation(db, ...args));
+
+export const createPdfRepository = (database: DatabaseRunner) => ({
+  uploadAccess: query(database, applicationPdfUploadAccess),
+  register: query(database, registerApplicationPdf),
+  forManager: query(database, readManagerApplicationPdf),
+  forReviewer: query(database, readReviewerApplicationPdf),
 });
 
 type Observe = (event: GrantOutcome["event"]) => WorkspaceChangeObserver | undefined;

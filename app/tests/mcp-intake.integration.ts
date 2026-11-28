@@ -63,7 +63,10 @@ it("saves revision content without publishing it", async ({
   expect(encodeMoney(saved.application.requested!)).toEqual(
     encodeMoney(before.application.requested!),
   );
-  expect(saved.intake.workingRevision).toEqual(draft);
+  expect(saved.intake.workingRevision).toEqual({
+    ...draft,
+    content: { ...draft.content, pdfs: [] },
+  });
 });
 
 it.for(["publish", "discard"] as const)(

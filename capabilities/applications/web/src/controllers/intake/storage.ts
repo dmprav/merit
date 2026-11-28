@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { intakeContentSchema } from "@merit/applications/domain";
+
 const text = z.string();
 const revision = z.number().int().nonnegative();
 const intake = z.object({
@@ -8,6 +10,7 @@ const intake = z.object({
     applicant: text,
     requested: text,
     projectPeriod: text.optional(),
+    pdfs: intakeContentSchema.shape.pdfs,
     answers: z.array(z.object({ questionId: z.uuid(), question: text, response: text })),
   }),
   reason: text,
@@ -29,7 +32,7 @@ export const intakeStorage = z.discriminatedUnion("section", [
       contactId: text.nullable().optional(),
     }),
   ),
-  sectionDraft("content", z.object({ answers: intake.shape.content.shape.answers })),
+  sectionDraft("content", intake.shape.content.pick({ answers: true, pdfs: true })),
   sectionDraft("details", z.object({ summary: text })),
   sectionDraft("reason", z.object({ reason: text })),
 ]);

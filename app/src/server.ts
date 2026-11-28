@@ -6,6 +6,7 @@ import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 import { createServerAnalytics } from "@merit/analytics/server";
 import { createDatabasePool, createRequestDatabase } from "@merit/db";
 import { mcpResourceMetadata } from "@merit/mcp";
+import { createFileStorage } from "@merit/storage";
 import { reportError } from "@merit/telemetry/errors";
 import { traceServerRequest } from "@merit/telemetry/server";
 import {
@@ -16,17 +17,20 @@ import {
 
 import { readAnalyticsConfig } from "./analytics-config";
 import type { ApplicationRequestContext } from "./request-context";
+import { handleApplicationPdfHttp } from "./server/application-pdfs/http.server";
 import { createAssistantHost } from "./server/assistant/host.server";
 import { handleAssistantHttp } from "./server/assistant/http.server";
 import { createBackgroundWork } from "./server/background-work.server";
 import { createDemoServices, demoCookie } from "./server/demo.server";
+import { createFileObjects } from "./server/file-objects.server";
 import { applySecurityHeaders, createDocumentPolicy } from "./server/http-headers.server";
 import { createWebIdentity } from "./server/identity.server";
 import { handleMcp } from "./server/mcp.server";
 import { readAppOrigin, readDatabaseUrl } from "./server/runtime-config.server";
-import { createApplicationServices } from "./server/services.server";
+import { createApplicationServices, createPdfRepository } from "./server/services.server";
 import { readWorkSettings } from "./worker/task-queue";
 
+const fileStorage = createFileStorage(createFileObjects(env));
 const origin = readAppOrigin();
 const database = createDatabasePool(readDatabaseUrl());
 const analytics = createServerAnalytics(readAnalyticsConfig());
@@ -161,6 +165,15 @@ const handleWebRequest = async (
     identity: identity.organizationIdentity,
   });
   const context: ApplicationRequestContext = {
+    applicationPdfs: (request, workspace) =>
+      handleApplicationPdfHttp(
+        request,
+        workspace,
+        readAppOrigin(request),
+        identity.currentIdentity,
+        createPdfRepository(dependencies.database),
+        fileStorage,
+      ),
     assistant: (request, workspace) =>
       handleAssistantHttp(
         request,

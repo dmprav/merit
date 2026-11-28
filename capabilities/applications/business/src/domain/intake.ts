@@ -4,9 +4,11 @@ import { calendarDateSchema } from "@merit/dates";
 import { isNegative, parseMoney, toDecimal } from "@merit/money";
 
 import { isWithdrawn, type IntakeApplication, type ApplicationUsage } from "./model";
+import { applicationPdfsSchema, pdfLimits } from "./pdf";
 import { materialVersionSchema } from "./versions";
 
 export const intakeLimits = {
+  ...pdfLimits,
   titleLength: 200,
   applicantLength: 300,
   projectPeriodLength: 300,
@@ -46,6 +48,7 @@ export const intakeContentSchema = z.strictObject({
       const parsed = value ? parseMoney(value) : null;
       return parsed?.ok ? toDecimal(parsed.value) : value;
     }),
+  pdfs: applicationPdfsSchema.optional(),
   answers: z
     .array(
       z.strictObject({
@@ -92,8 +95,8 @@ const mergeIntakeContent = (
   });
 
 const sameIntakeContent = (left: IntakeContent, right: IntakeContent) =>
-  JSON.stringify(intakeContentSchema.parse(left)) ===
-  JSON.stringify(intakeContentSchema.parse(right));
+  JSON.stringify(intakeContentSchema.parse({ ...left, pdfs: left.pdfs ?? [] })) ===
+  JSON.stringify(intakeContentSchema.parse({ ...right, pdfs: right.pdfs ?? [] }));
 
 export const intakeChanges = {
   saveContent: z.strictObject({
@@ -159,6 +162,7 @@ export const intakeContent = (
   ...(application.submission?.projectPeriod !== undefined
     ? { projectPeriod: application.submission.projectPeriod }
     : {}),
+  ...(application.submission?.pdfs?.length ? { pdfs: application.submission.pdfs } : {}),
   answers: application.submission?.answers ?? [],
 });
 
@@ -215,6 +219,7 @@ const withNewMaterialVersion = (
       version,
       organization: content.applicant,
       ...(content.projectPeriod !== undefined ? { projectPeriod: content.projectPeriod } : {}),
+      ...(content.pdfs ? { pdfs: content.pdfs } : {}),
       answers: content.answers,
     },
   };

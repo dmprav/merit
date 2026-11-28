@@ -2,7 +2,12 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
-import { SubmissionAnswers } from "@merit/applications-web/intake";
+import {
+  SubmissionAnswers,
+  pdfReferenceItems,
+  SubmittedPdfReferences,
+  type PdfReference,
+} from "@merit/applications-web/intake";
 import { Form, FormActions, FormDialog, FormTextField, useForm } from "@merit/forms";
 import { useFormat } from "@merit/i18n/format";
 import { decodeMoney } from "@merit/money";
@@ -123,10 +128,12 @@ const ReviewerReference = ({
   reference: ReviewerReferenceKey;
 }) => {
   const { t } = useTranslation("reviewer");
-  const { reference, referenceViewport, moveReference } =
-    useReferenceViewport<ReviewerReferenceKey>(initialReference);
+  const { reference, referenceViewport, moveReference } = useReferenceViewport<
+    ReviewerReferenceKey | PdfReference
+  >(initialReference);
   const assignment = page.assignment;
-  const labels: Record<ReviewerReferenceKey, string> = {
+  const pdfs = material.submission?.pdfs ?? [];
+  const labels: Record<ReviewerReferenceKey | PdfReference, string> = {
     material: t("evidence"),
     criteria: t("criteria"),
   };
@@ -137,7 +144,8 @@ const ReviewerReference = ({
       toolbar={
         <ReferenceSwitcher
           label={t("reference")}
-          triggerLabel={t("referenceLabel", { name: labels[reference] })}
+          triggerLabel={(name) => t("referenceLabel", { name })}
+          section={{ label: t("submittedPdfs"), items: pdfReferenceItems(pdfs) }}
           options={labels}
           selected={reference}
           onChange={(next) => moveReference(next)}
@@ -172,6 +180,21 @@ const ReviewerReference = ({
           </Stack>
         ))}
       </Stack>
+      <SubmittedPdfReferences
+        pdfs={pdfs}
+        workspaceSlug={assignment.workspaceSlug}
+        address={{ assignmentId: assignment.id }}
+        selected={reference}
+        heading={(filename) => (
+          <>
+            <ReferenceHeading
+              title={filename}
+              version={t("applicationVersion", { version: assignment.applicationVersion })}
+            />
+            {assignment.materialChanged && <Notice tone="warning">{t("changed")}</Notice>}
+          </>
+        )}
+      />
     </ReferencePane>
   );
 };

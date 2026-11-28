@@ -7,7 +7,7 @@ import { materialVersionSchema } from "./versions";
 export const newIntakeApplication = (
   id: string,
   input: Pick<IntakeContent, "title"> &
-    Partial<Pick<IntakeContent, "applicant" | "requested" | "answers">>,
+    Partial<Pick<IntakeContent, "applicant" | "requested" | "answers" | "pdfs">>,
 ): IntakeApplication => {
   const amount = input.requested ? parseMoney(input.requested) : null;
   return {
@@ -23,6 +23,7 @@ export const newIntakeApplication = (
     submission: {
       version: 1,
       organization: input.applicant ?? "",
+      ...(input.pdfs?.length ? { pdfs: input.pdfs } : {}),
       answers: input.answers ?? [],
     },
   };

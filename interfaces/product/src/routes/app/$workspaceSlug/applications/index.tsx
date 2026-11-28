@@ -60,6 +60,7 @@ const WorkspaceApplications = () => {
         actions={
           <WorkspaceApplicationCreate
             workspaceSlug={workspaceSlug}
+            workspaceKind={workspace.workspace.kind}
             rounds={rounds}
             search={search}
           />

@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
+import type { WorkingRevision } from "@merit/applications/domain";
+import { ContactsProvider } from "@merit/contacts-web/provider";
 import { roundView, applicationView } from "@merit/grantmaking/api";
 import {
   makeApplication,
@@ -90,6 +92,93 @@ const workspace = () =>
 const reference = () => within(screen.getByRole("group", { name: "Reference" }));
 
 describe("application workspace", () => {
+  const renderPdfIntake = (workingRevision: WorkingRevision | null = null) => {
+    const pdf = {
+      id: "71000000-0000-4000-8000-000000000002",
+      filename: "Kitchen budget.pdf",
+      byteLength: 3140,
+    };
+    const editable = {
+      ...application,
+      intakeStatus: workingRevision ? ("ready" as const) : ("in_preparation" as const),
+      submission: { ...application.submission!, pdfs: [pdf] },
+    };
+    const data = {
+      workspaceSlug: "alder",
+      draftKey: "intake-with-pdfs",
+      publicId: application.id,
+      state: { revision: 1, workingRevision, history: [] },
+      save: vi.fn(),
+      refresh: vi.fn(),
+      refreshCurrent: vi.fn(),
+    };
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <ContactsProvider
+          source={{
+            scope: (slug) => [slug],
+            read: async () => ({ status: "not_found" }),
+            save: vi.fn(),
+          }}
+        >
+          <GrantmakingDrafts storageScope="intake-with-pdfs">
+            <ApplicationView
+              application={editable}
+              round={round}
+              intake={{ data, onDeleted: vi.fn() }}
+            />
+          </GrantmakingDrafts>
+        </ContactsProvider>
+      </QueryClientProvider>,
+      { wrapper: GrantmakingMessagesProvider },
+    );
+    return pdf;
+  };
+
+  it("keeps the published PDF open when editing metadata during a working revision", async () => {
+    const user = userEvent.setup();
+    const pdf = renderPdfIntake({
+      kind: "revision",
+      reason: "Remove the old file",
+      content: {
+        title: application.title,
+        applicant: "Applicant",
+        requested: "100",
+        answers: [],
+        pdfs: [],
+      },
+    });
+    await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+    await user.click(await screen.findByRole("menuitem", { name: pdf.filename }));
+    const frame = screen.getByTitle(pdf.filename);
+    await user.click(screen.getByRole("button", { name: "Edit application details" }));
+    expect(await screen.findByRole("form", { name: "Edit application details" })).toBeVisible();
+    expect(screen.getByTitle(pdf.filename)).toBe(frame);
+    expect(frame).toBeVisible();
+  });
+
+  it("keeps unsaved submitted answers when a manager switches to a PDF", async () => {
+    const user = userEvent.setup();
+    const pdf = renderPdfIntake();
+    await user.click(reference().getByRole("button", { name: "Edit applicant submission" }));
+    const responses = await reference().findAllByRole("textbox", { name: "Applicant’s response" });
+    const response = responses[0]!;
+    await user.clear(response);
+    await user.type(response, "Working on the budget.");
+    await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+    await user.click(await screen.findByRole("menuitem", { name: pdf.filename }));
+    expect(screen.getByTitle(pdf.filename)).toHaveAttribute(
+      "src",
+      `/api/application-pdfs/alder?id=${pdf.id}&applicationId=${application.id}`,
+    );
+    expect(response).not.toBeVisible();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Reference" })).toHaveFocus());
+    await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+    await user.click(await screen.findByRole("menuitem", { name: "Applicant submission" }));
+    expect(response).toBeVisible();
+    expect(response).toHaveValue("Working on the budget.");
+  });
+
   it("opens the requested review or full list when leaving a criteria inspection", async () => {
     const user = userEvent.setup();
     render(<ApplicationView round={round} application={application} />, {

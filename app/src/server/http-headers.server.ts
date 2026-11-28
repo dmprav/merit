@@ -1,6 +1,7 @@
 import { defaultPostHogHost } from "@merit/analytics/server";
 
-const baseline = "frame-ancestors 'none'; object-src 'none'; base-uri 'none'";
+const baseline = (ancestors: "'none'" | "'self'") =>
+  `frame-ancestors ${ancestors}; object-src 'none'; base-uri 'none'`;
 
 const httpsSource = (value: string) => {
   const url = URL.parse(value);
@@ -23,7 +24,7 @@ export const createDocumentPolicy = (
     .join(" ");
   return (nonce: string) =>
     [
-      baseline,
+      baseline("'none'"),
       "default-src 'self'",
       `script-src 'self' 'nonce-${nonce}'${scriptSources}`,
       `connect-src ${connectSources}`,
@@ -48,10 +49,14 @@ export const applySecurityHeaders = (
   if (!headers.has("Permissions-Policy")) {
     headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   }
-  headers.append("Content-Security-Policy", baseline);
+  const contentType = headers.get("Content-Type")?.split(";")[0]?.trim().toLowerCase();
+  const inlinePdf =
+    contentType === "application/pdf" &&
+    headers.get("Content-Disposition")?.split(";")[0]?.trim().toLowerCase() === "inline";
+  headers.append("Content-Security-Policy", baseline(inlinePdf ? "'self'" : "'none'"));
   if (nonce) {
     headers.set("Strict-Transport-Security", "max-age=31536000");
-    if (headers.get("Content-Type")?.split(";")[0]?.trim().toLowerCase() === "text/html") {
+    if (contentType === "text/html") {
       headers.set("Cache-Control", "private, no-store");
       headers.append("Content-Security-Policy-Report-Only", documentPolicy(nonce));
     }

@@ -105,6 +105,10 @@ is recorded.
 
 Fetch longer material through `get_application_content` or
 `get_funding_round_content`. Choose a named section from the tool's input schema.
+To list the PDFs attached to a particular application version, use
+`get_application_content` with `section: "pdfs"` and `materialVersion`. Each entry
+contains the file identifier, filename, and byte length. Open or upload files in
+the browser. A retained version without attachments returns an empty list.
 For criteria, read the `criteria` section with the `criteriaVersion` from a review
 or round to retrieve just that version. Omitting it retrieves the current criteria.
 For a specific assessment or review request, supply `entryId`. Use the history

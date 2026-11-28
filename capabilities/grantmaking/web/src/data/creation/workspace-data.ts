@@ -36,6 +36,7 @@ export const createCreationData = (
           title: value.title.trim(),
           applicant: value.applicant.trim(),
           requested: normalizeMoneyInput(value.amount.trim()),
+          ...(value.pdfs?.length ? { pdfs: value.pdfs } : {}),
           answers: value.body.trim()
             ? [
                 {

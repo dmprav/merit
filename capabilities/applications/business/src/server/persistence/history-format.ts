@@ -13,6 +13,9 @@ const answers = z
     (items) => new Set(items.map((item) => item.questionId)).size === items.length,
     "Question IDs must be unique.",
   );
+const pdfs = z
+  .array(z.object({ id: z.uuid(), filename: z.string(), byteLength: z.int().positive() }))
+  .optional();
 const application = z.object({
   id: z.string(),
   title: z.string(),
@@ -38,6 +41,7 @@ const application = z.object({
       organization: z.string().optional(),
       submittedOn: date.optional(),
       projectPeriod: z.string().optional(),
+      pdfs,
       answers,
       contact: z.string().optional(),
       contactEmail: z.string().optional(),
@@ -58,6 +62,7 @@ export const applicationHistorySchema = z.object({
         applicant: z.string(),
         projectPeriod: z.string().optional(),
         requested: z.string(),
+        pdfs,
         answers,
       }),
     })

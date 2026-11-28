@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
-import { intakeLimits } from "@merit/applications/domain";
+import type { PdfUpload } from "@merit/applications-web/contracts";
+import { SubmittedPdfField } from "@merit/applications-web/intake";
+import { intakeContentSchema, intakeLimits } from "@merit/applications/domain";
 import { calendarDateInputSchema } from "@merit/dates";
 import {
   Form,
@@ -21,6 +24,7 @@ import styles from "./creation-composer.module.css";
 type CreationFormProps = {
   titleId?: string;
   draft: CreationDraft;
+  pdfUpload?: PdfUpload;
   target: CreationTarget;
   onChange: (draft: CreationDraft) => void;
   onDiscard: () => void;
@@ -28,22 +32,12 @@ type CreationFormProps = {
   onSave: (draft: CreationDraft) => Promise<string | null>;
 };
 
-export const CreationForm = ({
-  titleId,
-  draft,
-  target,
-  onChange,
-  onDiscard,
-  onClose,
-  onSave,
-}: CreationFormProps) => {
+export const CreationForm = (props: CreationFormProps) => {
+  const { titleId, pdfUpload, onClose, onDiscard } = props;
   const { t } = useTranslation(["fundingRounds", "common"]);
-  const { form, submission, isRound, limits, titleLabel, bodyLabel, label } = useCreationForm({
-    draft,
-    target,
-    onChange,
-    onSave,
-  });
+  const { form, submission, isRound, limits, titleLabel, bodyLabel, label } =
+    useCreationForm(props);
+  const [uploading, setUploading] = useState(false);
 
   const bodyField = (
     <form.Field name="body">
@@ -56,13 +50,14 @@ export const CreationForm = ({
   return (
     <Form
       label={label}
-      submission={submission}
+      submission={uploading ? { ...submission, submit: async () => {} } : submission}
       actions={
         <FormActions
           submission={submission}
           onCancel={onClose}
           cancelLabel={t("preparation.close")}
           discard={{ label: t("creation.discard"), onPress: onDiscard }}
+          isSubmitDisabled={uploading}
           submitLabel={t(isRound ? "preparation.create" : "intake.add")}
           submittingLabel={t("preparation.creating")}
         />
@@ -117,6 +112,18 @@ export const CreationForm = ({
           )}
         </div>
         {!isRound && bodyField}
+        {!isRound && pdfUpload && (
+          <form.Field name="pdfs">
+            {(field) => (
+              <SubmittedPdfField
+                upload={pdfUpload}
+                value={field.state.value}
+                onChange={field.handleChange}
+                onPendingChange={setUploading}
+              />
+            )}
+          </form.Field>
+        )}
       </div>
     </Form>
   );
@@ -149,6 +156,7 @@ const useCreationForm = ({
     defaultValues: draft,
     schema: useTranslatedSchema(
       z.object({
+        pdfs: intakeContentSchema.shape.pdfs,
         requestId: z.string(),
         title: z
           .string()
