@@ -2,16 +2,20 @@ import { describe, expect, test } from "vite-plus/test";
 
 import {
   describeScreenshotCoverage,
+  EMPTY_REVIEW_PACKET_NOTE,
   extractSqlDdlDelta,
   mayAffectStorybook,
   parseAddedDiffLines,
   parseNumstatZ,
   parseReviewPacketArgs,
   renderReviewPacket,
+  reviewPacketHasFindings,
   REVIEW_PACKET_MARKER,
   splitSqlStatements,
   summarizeDiffSize,
+  summarizePaths,
   upsertReviewPacketComment,
+  type ReviewPacketInput,
 } from "./pr-review-packet.ts";
 
 describe("pr-review-packet", () => {
@@ -153,7 +157,7 @@ describe("pr-review-packet", () => {
   });
 
   test("renders an exception-only clean packet when no high-risk surfaces changed", () => {
-    const markdown = renderReviewPacket({
+    const input: ReviewPacketInput = {
       changedFiles: [{ status: "modified", path: "docs/README.md" }],
       numstat: [{ path: "docs/README.md", additions: 5, deletions: 2 }],
       addedLines: [],
@@ -163,7 +167,7 @@ describe("pr-review-packet", () => {
 
 ## Behavioral decisions
 
-None.
+- The guide now leads with the shared vocabulary.
 
 ## Checks run
 
@@ -181,14 +185,26 @@ None.
 
 None.
 `,
-    });
+    };
+    const markdown = renderReviewPacket(input);
 
     expect(markdown).toContain(REVIEW_PACKET_MARKER);
     expect(markdown).toContain("**Docs/other:** `+5/-2` (1 file)");
-    expect(markdown).toContain("No behavioral decisions, DB/schema deltas");
+    // The description states decisions, so the packet does not repeat them.
+    expect(markdown).toContain(EMPTY_REVIEW_PACKET_NOTE);
+    expect(reviewPacketHasFindings(input)).toBe(false);
     expect(markdown).not.toContain("### Behavioral Decisions");
+    expect(markdown).not.toContain("guide now leads");
     expect(markdown).not.toContain("### DB & Schema Delta");
     expect(markdown).not.toContain("### Verification Integrity");
+
+    // Code that only composes a shared mechanism is routine and earns no packet.
+    const composes: ReviewPacketInput = {
+      ...input,
+      changedFiles: [{ status: "modified", path: "capabilities/reviews/business/src/server/x.ts" }],
+      recordContent: undefined,
+    };
+    expect(reviewPacketHasFindings(composes)).toBe(false);
   });
 
   test("surfaces behavioral decisions, DB DDL, UI touches, contracts, and integrity flags", () => {
@@ -244,17 +260,27 @@ None.
 `,
     });
 
-    expect(markdown).toContain(
-      "### Behavioral Decisions\n- Retries for 15 minutes before marking failed.",
-    );
-    expect(markdown).toContain("### DB & Schema Delta");
+    expect(markdown).not.toContain("Retries for 15 minutes");
+    const order = [
+      "### Verification Integrity",
+      "### DB & Schema Delta",
+      "### Contracts, Auth & Mechanisms",
+      "### UI Touched",
+    ].map((heading) => markdown.indexOf(heading));
+    expect(order.every((at) => at > -1)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(markdown).toContain("CREATE FUNCTION retry_it()` **[SECURITY DEFINER]**");
     expect(markdown).toContain("### UI Touched");
-    expect(markdown).toContain("Banner.stories.tsx");
+    expect(markdown).toContain(
+      "- **UI modules:** `capabilities/reviews/web/src/components/Banner.tsx`",
+    );
+    expect(markdown).not.toContain("Banner.stories.tsx");
     expect(markdown).toContain("### Contracts, Auth & Mechanisms");
     expect(markdown).toContain("@temporalio/client@1.26.0");
     expect(markdown).toContain("`TEMPORAL_ADDRESS`");
-    expect(markdown).toContain("`authorization-policy` (extends)");
+    expect(markdown).toMatch(
+      /- \*\*Changes shared mechanism `authorization-policy`:\*\* Single policy table/u,
+    );
     expect(markdown).toContain("### Verification Integrity");
     expect(markdown).toContain("`as any at capabilities/access/src/policy.ts:42`");
     expect(markdown).toContain("`capabilities/reviews/business/tests/old.test.ts`");
@@ -393,6 +419,16 @@ None.
     }
   });
 
+  test("names a few paths and counts many by folder", () => {
+    expect(summarizePaths(["b/x.ts", "a/y.ts", "a/y.ts"])).toBe("`a/y.ts`, `b/x.ts`");
+    expect(summarizePaths(["t/w/a.ts", "t/w/b.ts", "t/w/c.ts", "t/w/d.ts"])).toBe(
+      "4 files in `t/w/`",
+    );
+    expect(
+      summarizePaths(["m/a.ts", "m/b.ts", "m/c.ts", "r/a.ts", "p/a.ts", "q/a.ts", "root.ts"]),
+    ).toBe("7 files in `m/` (3), `./` (1), `p/` (1), _+2 more folders_");
+  });
+
   test("summarizes prod, test, and docs/other buckets cleanly", () => {
     expect(
       summarizeDiffSize([
@@ -442,6 +478,18 @@ None.
       "POST https://api.github.com/repos/dmprav/merit/issues/42/comments",
     ]);
 
+    calls.length = 0;
+    const skipped = await upsertReviewPacketComment({
+      repo: "dmprav/merit",
+      prNumber: 42,
+      token: "tok",
+      body: `${REVIEW_PACKET_MARKER}\nnothing`,
+      createIfMissing: false,
+      fetchImpl: createFetch,
+    });
+    expect(skipped).toEqual({ action: "skipped" });
+    expect(calls.map((c) => c.method)).toEqual(["GET"]);
+
     const patchCalls: Array<{ url: string; method: string }> = [];
 
     const updateFetch: typeof fetch = async (input, init) => {
@@ -481,6 +529,8 @@ None.
       prNumber: 42,
       token: "tok",
       body: `${REVIEW_PACKET_MARKER}\nnew packet`,
+      // An earlier revision's findings are still replaced when the packet has nothing to say.
+      createIfMissing: false,
       fetchImpl: updateFetch,
     });
     expect(updated).toEqual({ action: "updated", id: 77 });

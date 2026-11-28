@@ -168,23 +168,28 @@ None.
 - <Finding and who raised it>: <the guide, brief, or precedent that answers it>.
 ```
 
-| Section                   | Contains                                                                                                          |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Behavioral decisions      | Defaults, timeouts, fallbacks, state transitions, permission rules, or tradeoffs chosen; surfaced on the PR card. |
-| Checks run                | Checks you ran for this change and their results. CI reports its own checks.                                      |
-| Could not verify          | Checks the change needed that the environment prevented, with what blocked each one.                              |
-| Did not verify            | Checks the change needed that you chose not to run, with the reason.                                              |
-| Dismissed review findings | Reviewer and automated review findings you did not act on, each with its reason.                                  |
+| Section                   | Contains                                                                                                 |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Behavioral decisions      | Defaults, timeouts, fallbacks, state transitions, permission rules, or tradeoffs chosen.                 |
+| Checks run                | Checks you ran for this change and their results. CI reports its own checks.                             |
+| Could not verify          | Checks the change needed that the environment prevented and CI does not run, with what blocked each one. |
+| Did not verify            | Checks the change needed that you chose not to run and CI does not run, with the reason.                 |
+| Dismissed review findings | Reviewer and automated review findings you did not act on, each with its reason.                         |
 
-Write "None." in a section with nothing to report. Record facts about this change
-in the past tense. Advice for future work belongs in the pull request's
+Write "None." in a section with nothing to report. A check you left to CI is not a
+gap: CI reports its result, and listing it hides the checks nobody ran. The
+`verification-record` job warns about gap entries that leave a check to CI.
+Record facts about this change in the past tense. Advice for future work belongs in the pull request's
 **Follow-ups**, where it can become an issue or a guide change.
 
 The [Review Packet workflow](../../.github/workflows/review-packet.yml) posts one
-sticky comment on same-repo pull requests surfacing non-empty **Behavioral
-decisions**, DB/schema DDL deltas, contract/auth/mechanism touches, UI touches,
-and advisory verification-integrity flags so reviewers do not need to scroll full
-diffs for high-risk changes.
+sticky comment on same-repo pull requests with what neither the description nor
+the diff shows a reviewer: the record's gaps and dismissed findings, deleted or
+skipped tests and added suppressions, DB/schema DDL deltas, auth, MCP, email,
+route, dependency, and runtime configuration touches, changes to a shared mechanism's contract,
+and desktop screenshots of affected stories. It leaves out **Behavioral
+decisions**, which the description states. A pull request with none of these gets
+no comment.
 
 The `verification-flakes` lens in the
 [maintenance scout](../../.agents/tasks/scout.md#verification-flakes) reads new

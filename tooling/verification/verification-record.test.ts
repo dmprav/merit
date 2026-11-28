@@ -10,6 +10,7 @@ import {
   checkRecordContent,
   checkVerificationRecord,
   extractRecordSections,
+  findCiDeferrals,
   isNoneSection,
   parseNameStatusZ,
   parsePrNumber,
@@ -217,6 +218,37 @@ describe("verification record", () => {
     expect(isNoneSection("None.")).toBe(true);
     expect(isNoneSection("- none")).toBe(true);
     expect(isNoneSection("- Retries failed deliveries.")).toBe(false);
+  });
+
+  test("warns about gap entries that leave a check to CI", () => {
+    const record = completeRecord
+      .replace(
+        "- Live Clerk sign-in: the agent environment has no Clerk credentials.",
+        [
+          "- Live Clerk sign-in: the agent environment has no Clerk credentials.",
+          "- macOS teardown: CI runs only on Linux, so nothing exercises it.",
+        ].join("\n"),
+      )
+      .replace(
+        "## Did not verify\n\nNone.",
+        [
+          "## Did not verify",
+          "",
+          "- Firefox, WebKit and mobile Playwright projects: left to PR CI.",
+          "- The full application browser matrix and transport database suites were",
+          "  left to CI. The local database run covered every capability suite.",
+          "- A live model call: no provider key.",
+        ].join("\n"),
+      );
+
+    const warnings = findCiDeferrals("verifications/7.md", record);
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain(
+      '"## Did not verify" lists a check left to CI ("Firefox, WebKit and mobile Playwright projects: left to PR CI.")',
+    );
+    expect(warnings[1]).toContain('("The full application browser matrix');
+    expect(warnings[1]).toMatch(/…"\)/u);
+    expect(findCiDeferrals("verifications/7.md", completeRecord)).toEqual([]);
   });
 
   test("parses NUL-delimited git name-status output, splitting renames", () => {
