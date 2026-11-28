@@ -19,7 +19,8 @@ and examples maintained beside the code.
   [bug fixing](../.agents/skills/fix-bug/SKILL.md),
   [proposal implementation](../.agents/skills/implement-proposal/SKILL.md), with their shared
   [grilling](../.agents/skills/grill/SKILL.md) and [diagnosis](../.agents/skills/diagnose/SKILL.md) steps,
-  the [maintenance scout](../.agents/tasks/scout.md), and the
+  and the [autonomous maintenance loop](decisions/0017-autonomous-maintenance-loop.md)
+  that replaces the paused [maintenance scout](../.agents/tasks/scout.md) and
   [queue worker](../.agents/tasks/queue-worker.md).
 
 | Area                                 | What it covers                                                                      |
