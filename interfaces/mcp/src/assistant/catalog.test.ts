@@ -553,7 +553,13 @@ it("previews an AI review run with its external effect and cites saved AI review
   const listed = (await catalog.list()).find((tool) => tool.name === "run_ai_review");
   expect(listed?.inputSchema.properties).not.toHaveProperty("runId");
   // Previewing the same input again, as a retry does, keeps the identity.
-  expect((await catalog.preview("run_ai_review", preview.input)).preview?.input.runId).toBe(runId);
+  expect((await catalog.preview("run_ai_review", preview.input, true)).preview?.input.runId).toBe(
+    runId,
+  );
+  // A run ID the model supplies, for instance copied from an earlier action, is replaced.
+  const supplied = (await catalog.preview("run_ai_review", { applicationId, runId })).preview;
+  expect(supplied?.input.runId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(supplied?.input.runId).not.toBe(runId);
 
   const executed = await catalog.execute(preview);
   expect(ops.reviews.runAiReview).toHaveBeenCalledExactlyOnceWith(actor, {

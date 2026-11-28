@@ -141,13 +141,17 @@ export const prepareWrite = async (
   name: WorkspaceToolName,
   input: Record<string, unknown>,
   refresh = false,
+  stored = refresh,
 ) => {
   const ctx = { ...context, refresh };
   const preview: AssistantPreview = { name, input: { ...input }, targets: [], effects: [] };
   if (name === "run_ai_review") {
     // The approved action carries the identity of its run. Retrying the action repeats it, so a
-    // review that already saved is returned, never run and saved a second time.
-    preview.input.runId ??= crypto.randomUUID();
+    // review that already saved is returned, never run and saved a second time. The model never
+    // chooses it: one copied from an earlier action would return that action's review.
+    if (!stored || typeof preview.input.runId !== "string") {
+      preview.input.runId = crypto.randomUUID();
+    }
   }
   const dependencies: AssistantDependency[] = [{ kind: requiredAccess(name) }];
   try {

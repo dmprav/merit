@@ -11,6 +11,7 @@ import {
   aiReviewEntry,
   aiReviewInput,
   aiReviewInstructions,
+  aiReviewPrior,
   aiReviewOutputJsonSchema,
   verifyAiReviewOutput,
   wholeApplicationTitle,
@@ -63,6 +64,14 @@ const readSavedEntry = async (
     throw new Error("The saved AI review could not be read.");
   }
   return aiReviewEntry(saved, current);
+};
+
+/** The freshness of the latest run already saved for the application, read before a new one is inserted. */
+const readPrior = async (tx: Transaction, organizationId: string, caseId: string) => {
+  const current = await readCurrentAiReviewBasis(tx, organizationId, caseId);
+  return current
+    ? aiReviewPrior(await readAiReviewRecords(tx, organizationId, caseId), current)
+    : ("none" as const);
 };
 
 /** The permission, consent, withdrawal and provider gate, checked again when saving. */
@@ -130,6 +139,7 @@ const saveRun = async (
   basis: RunBasis,
   output: AiReviewOutput,
 ) => {
+  const prior = await readPrior(tx, access.organizationId, request.publicId);
   const id = await insertAiReview(tx, {
     organizationId: access.organizationId,
     runId: request.runId,
@@ -177,6 +187,7 @@ const saveRun = async (
   });
   return {
     created: true,
+    prior,
     review: await readSavedEntry(tx, access.organizationId, request.publicId, id),
   } as const;
 };
@@ -229,7 +240,10 @@ export const runAiReview = async (
       return { status: "not_found" } as const;
     }
     if (saved.created) {
-      changed(opened.access.organizationId, opened.access.organizationKind);
+      changed(opened.access.organizationId, opened.access.organizationKind, {
+        applicationId: request.publicId,
+        prior: saved.prior,
+      });
     }
     return { status: "ok", review: saved.review } as const;
   });

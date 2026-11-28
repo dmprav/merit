@@ -4,9 +4,11 @@ import { materialVersionSchema } from "@merit/applications/domain";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import {
+  aiCitationLabel,
   aiReviewAvailability,
   aiReviewEntry,
   aiReviewInput,
+  aiReviewPrior,
   aiReviewOutputSchema,
   verifyAiReviewOutput,
   type AiReviewRecord,
@@ -343,4 +345,17 @@ it("ages an AI review with the same freshness policy as an assessment", () => {
       criteriaVersion: criteriaVersionSchema.parse(2),
     }).freshness,
   ).toBe("current");
+
+  expect(aiReviewPrior([], current)).toBe("none");
+  expect(aiReviewPrior([record], current)).toBe("current");
+  expect(
+    aiReviewPrior([record], { ...current, applicationVersion: materialVersionSchema.parse(2) }),
+  ).toBe("outdated");
+  expect(aiReviewPrior([{ ...record, recordedCriteria: null }], current)).toBe("unknown");
+});
+
+it("labels a citation with the question the version read, and nothing for a field or an unknown ID", () => {
+  expect(aiCitationLabel(material, questionId)).toBe("Revised venue and funding request");
+  expect(aiCitationLabel(material, "title")).toBeNull();
+  expect(aiCitationLabel(material, "5d1b1c0e-7d0f-4a52-9f27-0f4d4a0a3a11")).toBeNull();
 });

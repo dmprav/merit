@@ -39,6 +39,7 @@ export const AiReviewContent = ({
   onInspectVersion?: (version: number) => void;
 }) => {
   const { t } = useTranslation("aiReview");
+  const { calendarDate } = useFormat();
   const { reading, reviews } = work;
   const { selected, previous, root, heading, back, openEarlier } = reading;
   const [earlierOpen, setEarlierOpen] = useState(false);
@@ -55,7 +56,14 @@ export const AiReviewContent = ({
           {t(previous ? "backReview" : "back")}
         </Button>
         <SectionHeader headingRef={heading} title={t("title")} />
-        <PersonIdentity name={t("author")} nameAs="h3" />
+        <PersonIdentity
+          name={t("author")}
+          nameAs="h3"
+          description={t("entryMeta", {
+            date: calendarDate(selected.recordedAt.slice(0, 10)),
+            model: selected.model,
+          })}
+        />
       </div>
       <Outcome review={selected} />
       <AiReviewBasisNotice review={selected} onInspectVersion={onInspectVersion} />

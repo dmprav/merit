@@ -139,7 +139,8 @@ const ApplicationLayout = (props: ApplicationLayoutProps) => {
   const { editor, content, review, aiReview } = props;
   const labels: Record<ApplicationReference, string> = {
     evidence: t("workspace.submission"),
-    reviews: t("workspace.assessments"),
+    // The AI review shares the reviews pane but is not an assessment, so it names itself while shown.
+    reviews: t(aiReview?.reading.selected ? "workspace.aiReview" : "workspace.assessments"),
     history: t("workspace.history"),
     details: t("workspace.details"),
   };

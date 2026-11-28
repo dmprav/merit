@@ -215,6 +215,8 @@ describe("AI review in full", () => {
     const full = section();
     expect(full.getByRole("heading", { name: "AI review" })).toHaveFocus();
     expect(full.getByText("Merit AI")).toBeVisible();
+    // The header carries the run date and model beside the author, as the overview entry does.
+    expect(full.getByText(/^.+ · gpt-5\.1$/)).toBeVisible();
     expect(full.getByText("gpt-5.1")).toBeVisible();
     expect(full.getByText("OpenAI")).toBeVisible();
     expect(full.getByText("Dana Reed")).toBeVisible();

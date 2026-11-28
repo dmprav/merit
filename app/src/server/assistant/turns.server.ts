@@ -90,7 +90,7 @@ const commands = (deps: TurnDependencies, args: Address) => {
         return conflict();
       }
       const { name, input } = action.retry;
-      const fresh = await tools.preview(name, input);
+      const fresh = await tools.preview(name, input, true);
       recordReceipt(state, name, input, fresh);
       if (!fresh.preview) {
         return change(state, row.status);

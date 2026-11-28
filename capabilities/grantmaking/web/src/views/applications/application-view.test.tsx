@@ -900,10 +900,15 @@ describe("AI review in the application workspace", () => {
     await user.click(workspace().getByRole("button", { name: /Merit AI/ }));
 
     const full = reference().getByRole("region", { name: "AI review details" });
+    // The pane names what it shows, so the AI review is never read as an assessment.
+    expect(screen.getByRole("button", { name: "Reference material: AI review" })).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "Reference material: Reviewer assessments" }),
-    ).toBeVisible();
+      screen.queryByRole("button", { name: "Reference material: Reviewer assessments" }),
+    ).not.toBeInTheDocument();
     expect(within(full).getByRole("heading", { name: "AI review" })).toHaveFocus();
+    // Merit AI, its model and the run date lead the record.
+    expect(within(full).getByRole("heading", { name: "Merit AI" })).toBeVisible();
+    expect(within(full).getAllByText(/ · /)[0]).toBeVisible();
     expect(within(full).getAllByText("Quoted from Application title")[0]).toBeVisible();
     expect(
       reference().queryByRole("article", { name: "Assessment by Sam Morgan" }),
@@ -914,6 +919,9 @@ describe("AI review in the application workspace", () => {
       reference().queryByRole("region", { name: "AI review details" }),
     ).not.toBeInTheDocument();
     expect(reference().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Reference material: Reviewer assessments" }),
+    ).toBeVisible();
     expect(workspace().getByRole("button", { name: /Merit AI/ })).toHaveFocus();
   });
 

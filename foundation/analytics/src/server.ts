@@ -14,7 +14,13 @@ export type GrantOutcome = {
   surface: "web" | "mcp";
   workspaceKind: "standard" | "demo";
   workspaceId: string;
+  /** Counted per application: its key is a hash of the internal ID, never the ID itself. */
+  applicationId?: string;
+  /** For a repeated action: the state of the latest earlier run, `none` for the first. */
+  prior?: "none" | "current" | "outdated" | "unknown";
 };
+
+const priorStates: readonly string[] = ["none", "current", "outdated", "unknown"];
 
 export type ServerAnalytics = {
   captureGrantOutcome: (outcome: GrantOutcome) => void;
@@ -64,13 +70,24 @@ export const createServerAnalytics = (config: {
   };
 
   return {
-    captureGrantOutcome({ event, surface, workspaceKind, workspaceId }) {
+    captureGrantOutcome({ event, surface, workspaceKind, workspaceId, applicationId, prior }) {
       const properties: Record<string, string> = { surface, workspace_kind: workspaceKind };
       if (workspaceKind === "standard") {
         properties.workspace_key = createHash("sha256")
           .update("merit.workspace:")
           .update(workspaceId)
           .digest("hex");
+        if (applicationId) {
+          properties.application_key = createHash("sha256")
+            .update("merit.application:")
+            .update(workspaceId)
+            .update(":")
+            .update(applicationId)
+            .digest("hex");
+        }
+      }
+      if (prior !== undefined && priorStates.includes(prior)) {
+        properties.prior = prior;
       }
       void send(event, properties);
     },

@@ -224,6 +224,8 @@ it("saves a verified run with its basis, provenance, audit event and analytics o
     workspaceId: "alder",
     workspaceKind: "standard",
     surface: "web",
+    applicationId: address.publicId,
+    prior: "none",
   });
 
   const entries = await listWorkspaceActivity(db, actor, { workspaceSlug });
@@ -621,19 +623,37 @@ it("keeps AI reviews away from reviewer members in every read and run", async ({
   expect(await readApplicationAiReviews(db, rita, address)).toEqual({ status: "not_found" });
   expect(await getFundingApplicationPage(db, rita, address)).toBeNull();
 
-  // Even a runtime connection scoped to her own workspace membership reads no AI review rows.
-  const visible = await runtime((rdb) =>
-    import("@merit/organizations/transactions").then(({ readWorkspace }) =>
-      readWorkspace(rdb, "rita", workspaceSlug, (tx) => tx.execute(sql`SELECT id FROM ai_reviews`)),
-    ),
-  );
-  expect(visible.rows).toEqual([]);
-  const manager = await runtime((rdb) =>
-    import("@merit/organizations/transactions").then(({ readWorkspace }) =>
-      readWorkspace(rdb, "dana", workspaceSlug, (tx) => tx.execute(sql`SELECT id FROM ai_reviews`)),
-    ),
-  );
-  expect(manager.rows).toHaveLength(1);
+  // Even a runtime connection scoped to her own workspace membership reads no AI review rows,
+  // from the review or from any table that holds its content.
+  const tables = [
+    "ai_reviews",
+    "ai_review_sections",
+    "ai_review_items",
+    "ai_review_citations",
+    "ai_review_questions",
+  ];
+
+  const countRows = (userId: string) =>
+    runtime((rdb) =>
+      import("@merit/organizations/transactions").then(({ readWorkspace }) =>
+        readWorkspace(rdb, userId, workspaceSlug, async (tx) => {
+          const totals: Record<string, number> = {};
+          for (const table of tables) {
+            const { rows } = await tx.execute<{ total: string }>(
+              sql`SELECT count(*)::text AS total FROM ${sql.identifier(table)}`,
+            );
+            totals[table] = Number(rows[0]?.total);
+          }
+          return totals;
+        }),
+      ),
+    );
+
+  expect(await countRows("rita")).toEqual(Object.fromEntries(tables.map((table) => [table, 0])));
+  // The same connection as a manager does read them, so the zeros above are the policy's doing.
+  const manager = await countRows("dana");
+  expect(Object.keys(manager)).toEqual(tables);
+  expect(Object.values(manager).every((total) => total > 0)).toBe(true);
 });
 
 it("never counts an AI review as an assessment, a review summary or an allocation", async ({

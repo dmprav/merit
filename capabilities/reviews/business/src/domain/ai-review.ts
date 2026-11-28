@@ -352,3 +352,10 @@ export const aiReviewEntry = (
   );
   return { ...review, basisComparison, freshness: reviewFreshness(basisComparison) };
 };
+
+/** What the latest earlier run was worth when a new one saved; the records are newest first. */
+export const aiReviewPrior = (
+  records: AiReviewRecord[],
+  current: ReviewBasis,
+): "none" | AiReviewEntry["freshness"] =>
+  records[0] ? aiReviewEntry(records[0], current).freshness : "none";

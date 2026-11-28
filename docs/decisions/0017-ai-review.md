@@ -92,7 +92,9 @@ list, and the database policy refuses their connections.
 ## What to measure
 
 The server outcome `ai_review_saved` ([analytics](0014-posthog-analytics.md))
-counts saved runs. Runs per application and re-runs after application or
-criteria changes show whether managers use it early, to ask the applicant for more,
+counts saved runs. It carries a hashed application key, like the workspace key
+and without the application's content or any person, and the freshness of the
+latest earlier run (`none`, `current`, `outdated`, or `unknown`). Runs per
+application and re-runs after application or criteria changes (`outdated`) show whether managers use it early, to ask the applicant for more,
 or later as an additional perspective. Showing AI reviews in committee material is
 a decision to revisit with that evidence.

@@ -101,3 +101,36 @@ it("bounds concurrent deliveries and continues capturing after ingestion failure
   analytics?.captureGrantOutcome(outcome);
   expect(send).toHaveBeenCalledTimes(51);
 });
+
+it("counts repeated runs per application with hashed keys and a fixed set of prior states", () => {
+  const send = observeRequests();
+  const analytics = createServerAnalytics({ apiKey: "phc_test" });
+  const run: GrantOutcome = {
+    ...outcome,
+    event: "ai_review_saved",
+    applicationId: "internal-application-id",
+    prior: "outdated",
+  };
+  analytics?.captureGrantOutcome(run);
+  analytics?.captureGrantOutcome({ ...run, applicationId: "another-application" });
+  analytics?.captureGrantOutcome({ ...run, workspaceId: "another-workspace" });
+  analytics?.captureGrantOutcome({ ...run, workspaceKind: "demo" });
+  analytics?.captureGrantOutcome({ ...run, prior: "free text" as GrantOutcome["prior"] });
+
+  const properties = send.mock.calls.map(([, init]) => {
+    assert(typeof init?.body === "string");
+    expect(init.body).not.toContain("internal-application-id");
+    const payload: unknown = JSON.parse(init.body);
+    assert(payload && typeof payload === "object" && "properties" in payload);
+    return payload.properties as Record<string, unknown>;
+  });
+  const applicationKey = createHash("sha256")
+    .update("merit.application:internal-workspace-id:internal-application-id")
+    .digest("hex");
+  expect(properties[0]).toMatchObject({ application_key: applicationKey, prior: "outdated" });
+  expect(properties[1]?.application_key).not.toBe(applicationKey);
+  expect(properties[2]?.application_key).not.toBe(applicationKey);
+  expect(properties[3]).not.toHaveProperty("application_key");
+  expect(properties[3]).toMatchObject({ prior: "outdated" });
+  expect(properties[4]).not.toHaveProperty("prior");
+});

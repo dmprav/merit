@@ -60,7 +60,7 @@ const savedAiReview = {
     {
       criterionId: null,
       title: "Whole application",
-      claims: [{ text: "Venue.", citations: [{ source: "title", quote: "Meals" }] }],
+      claims: [{ text: "Venue.", citations: [{ source: "title", quote: "Meals", label: null }] }],
       gaps: [],
       strengths: [],
       weaknesses: [],

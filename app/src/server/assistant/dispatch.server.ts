@@ -251,7 +251,7 @@ export const applyReceipt = async (
   action.result = receipt.result;
   if (receipt.result.status === "stale" || receipt.result.status === "conflict") {
     action.status = "stale";
-    const fresh = await catalog.preview(name, receipt.retry?.input ?? input);
+    const fresh = await catalog.preview(name, receipt.retry?.input ?? input, true);
     recordReceipt(state, name, input, fresh);
     if (fresh.preview) {
       const replacement = newAction(fresh.preview);

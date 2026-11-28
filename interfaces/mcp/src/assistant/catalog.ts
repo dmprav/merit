@@ -158,12 +158,12 @@ export const createAssistantCatalog = (
 
   const permits: AssistantCatalog["permits"] = (deps) => permitsAll(ctx, deps);
 
-  const preview: AssistantCatalog["preview"] = async (name, input) => {
+  const preview: AssistantCatalog["preview"] = async (name, input, stored = false) => {
     const resolved = await resolveTool(ctx, definitions, name, input, true);
     if (!resolved.tool) {
       return receipt(resolved.error);
     }
-    return prepareWrite(ctx, resolved.tool.name, resolved.input);
+    return prepareWrite(ctx, resolved.tool.name, resolved.input, stored);
   };
 
   const execute = async (approved: AssistantPreview): ReturnType<AssistantCatalog["execute"]> => {
@@ -171,7 +171,7 @@ export const createAssistantCatalog = (
     if (!resolved.tool) {
       return receipt(resolved.error);
     }
-    const current = await prepareWrite(ctx, resolved.tool.name, resolved.input, true);
+    const current = await prepareWrite(ctx, resolved.tool.name, resolved.input, true, true);
     if (!("preview" in current)) {
       return {
         ...current,

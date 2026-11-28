@@ -19,8 +19,15 @@ const read = { scope: "workspace:read", annotations: readAnnotations } as const;
 const write = { scope: "grants:write", annotations: writeAnnotations } as const;
 const create = { ...write, annotations: { ...writeAnnotations, destructiveHint: false } };
 const notify = { ...write, annotations: { ...writeAnnotations, openWorldHint: true } };
-/** A write that waits on an external service for a long time. The assistant must not hold a lock meanwhile. */
-const slow = { ...notify, slow: true } as const;
+/**
+ * A write that only adds a record, sends material to an external service, and can take long. The
+ * assistant must not hold a lock meanwhile.
+ */
+const slow = {
+  ...create,
+  annotations: { ...create.annotations, idempotentHint: false, openWorldHint: true },
+  slow: true,
+} as const;
 
 export const publication = {
   archive_contact: write,

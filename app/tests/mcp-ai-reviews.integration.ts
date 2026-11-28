@@ -85,6 +85,8 @@ it("runs and reads AI reviews through MCP as the delegated manager", async ({ ai
     surface: "mcp",
     workspaceKind: "standard",
     workspaceId: "alder",
+    applicationId: a.application.publicId,
+    prior: "none",
   });
 
   // The web surface reaches the same operation, with web provenance and its own outcome.
@@ -96,7 +98,12 @@ it("runs and reads AI reviews through MCP as the delegated manager", async ({ ai
   assert(web.status === "ok");
   expect(web.review.provenance).toEqual({ interface: "web" });
   expect(a.captureGrantOutcome).toHaveBeenLastCalledWith(
-    expect.objectContaining({ event: "ai_review_saved", surface: "web" }),
+    expect.objectContaining({
+      event: "ai_review_saved",
+      surface: "web",
+      applicationId: a.application.publicId,
+      prior: "current",
+    }),
   );
 
   const read = await a.invoke("dana", "read_ai_reviews");

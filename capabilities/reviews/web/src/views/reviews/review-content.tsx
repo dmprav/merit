@@ -24,6 +24,7 @@ import { Text } from "@merit/ui/text";
 import type { ReviewApplication, ReviewRound } from "../../contracts/reviews";
 import { AssessmentOutcome } from "./assessment-outcome";
 import { RequestDetails } from "./request-details";
+import { ReviewBasisNotice } from "./review-basis-notice";
 import styles from "./review-work.module.css";
 import type { ReviewReading, ReviewInspection } from "./use-review-reading";
 
@@ -98,36 +99,15 @@ const AssessmentBasisNotice = ({
   );
   const inspectedVersion = content.applicationVersion;
   return (
-    <>
-      {reviewFreshness(basis) !== "current" && (
-        <Text as="div" variant="caption">
-          <Inline>
-            {basis.applicationVersion === "different" && (
-              <>
-                <span>{t("earlierSubmission")}</span>
-                {onInspectVersion && inspectedVersion !== null && (
-                  <Button variant="quiet" onPress={() => onInspectVersion(inspectedVersion)}>
-                    {t("compareChanges")}
-                  </Button>
-                )}
-              </>
-            )}
-            {basis.criteriaContent === "different" && <span>{t("criteriaChanged")}</span>}
-            {(basis.applicationVersion === "unknown" || basis.criteriaContent === "unknown") && (
-              <span>
-                {t(
-                  basis.applicationVersion === "unknown" && basis.criteriaContent === "unknown"
-                    ? "basisUnknown"
-                    : basis.applicationVersion === "unknown"
-                      ? "applicationBasisUnknown"
-                      : "criteriaBasisUnknown",
-                )}
-              </span>
-            )}
-          </Inline>
-        </Text>
-      )}
-    </>
+    <ReviewBasisNotice
+      basis={basis}
+      criteriaChanged={t("criteriaChanged")}
+      onCompare={
+        onInspectVersion && inspectedVersion !== null
+          ? () => onInspectVersion(inspectedVersion)
+          : undefined
+      }
+    />
   );
 };
 

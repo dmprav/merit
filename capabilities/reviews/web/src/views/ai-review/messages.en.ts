@@ -43,7 +43,6 @@ export const en = {
     questions: "Questions for the applicant",
     noQuestions: "No questions for the applicant.",
   },
-  noPosition: "Funding position: Not stated",
   noFunding: "No funding proposed",
   back: "Back to assessments",
   backReview: "Back to AI review",
@@ -66,9 +65,4 @@ export const en = {
   earlier: "Earlier AI reviews",
   runBySummary: "Run by {{name}}",
   open: "Open",
-  freshness: {
-    current: "Reviewed v{{version}}",
-    outdated: "Based on an earlier submission",
-    unknown: "Review basis unknown",
-  },
 } as const;
