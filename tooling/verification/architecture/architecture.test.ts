@@ -603,6 +603,21 @@ describe.concurrent("architecture rules", { timeout: checkTimeout() }, () => {
     );
   });
 
+  test("the site cannot import a public entry from the product interface", async () => {
+    await check(
+      {
+        "interfaces/site/src/features/landing/landing-page.tsx":
+          'import { RequestAccess } from "@merit/product/access-request"; export { RequestAccess };',
+        "interfaces/product/package.json": JSON.stringify({
+          name: "@merit/product",
+          exports: { "./access-request": "./src/access-request.tsx" },
+        }),
+        "interfaces/product/src/access-request.tsx": "export const RequestAccess = () => null;",
+      },
+      "Interfaces cannot depend on other interfaces.",
+    );
+  });
+
   test("email presentation can use pure business contracts", async () => {
     await check({
       "interfaces/emails/src/template.ts": 'export { value } from "@merit/contacts/domain";',

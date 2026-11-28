@@ -312,6 +312,11 @@ const policies = [
     "Interfaces cannot depend on application assembly.",
   ),
   forbid(
+    { element: { type: "interface" } },
+    { element: { type: "interface", path: "!{{ from.element.path }}" } },
+    "Interfaces cannot depend on other interfaces.",
+  ),
+  forbid(
     category("pure", ["test"]),
     infrastructure,
     "Business rules and contracts cannot depend on UI or infrastructure.",

@@ -1,12 +1,12 @@
 import { Trans, useTranslation } from "react-i18next";
 
 import { Form, FormActions, FormDialog, FormTextField } from "@merit/forms";
+import type { OrganizationService } from "@merit/organizations/api";
 import { Button } from "@merit/ui/button";
 import { Link } from "@merit/ui/link";
 import { Text } from "@merit/ui/text";
 import { showToast } from "@merit/ui/toast";
 
-import type { RequestAccess } from "../contracts";
 import { useAccessRequest } from "../controllers/use-access-request";
 import styles from "./access-request.module.css";
 
@@ -14,20 +14,20 @@ export const AccessRequestDialog = ({
   request,
   hydrated,
 }: {
-  request: RequestAccess;
+  request: OrganizationService["requestAccess"];
   hydrated: boolean;
 }) => {
-  const { t } = useTranslation("onboarding");
+  const { t } = useTranslation("accessRequest");
   const { open, setOpen, hasDraft, setHasDraft, form, submission } = useAccessRequest(request, () =>
-    showToast({ tone: "success", message: t("request.saved") }),
+    showToast({ tone: "success", message: t("saved") }),
   );
 
   return (
     <FormDialog
-      title={t("request.title")}
+      title={t("title")}
       trigger={
         <Button variant="inline" isDisabled={!hydrated}>
-          {t(hasDraft ? "request.resume" : "request.title")}
+          {t(hasDraft ? "resume" : "title")}
         </Button>
       }
       isOpen={open}
@@ -35,17 +35,17 @@ export const AccessRequestDialog = ({
       onOpenChange={setOpen}
     >
       <Form
-        label={t("request.title")}
+        label={t("title")}
         submission={submission}
         actions={
           <FormActions
             submission={submission}
             onCancel={() => setOpen(false)}
-            cancelLabel={t("request.close")}
+            cancelLabel={t("close")}
             discard={
               hasDraft
                 ? {
-                    label: t("request.discard"),
+                    label: t("discard"),
                     onPress: () => {
                       form.reset();
                       setHasDraft(false);
@@ -54,19 +54,19 @@ export const AccessRequestDialog = ({
                   }
                 : undefined
             }
-            submitLabel={t("request.submit")}
-            submittingLabel={t("request.submitting")}
+            submitLabel={t("submit")}
+            submittingLabel={t("submitting")}
           />
         }
       >
         <div className={styles.content}>
-          <p>{t("request.prototype")}</p>
+          <p>{t("prototype")}</p>
           <div className={styles.field}>
             <form.Field name="email">
               {(field) => (
                 <FormTextField
                   field={field}
-                  label={t("request.email")}
+                  label={t("email")}
                   type="email"
                   autoComplete="email"
                   maxLength={254}
@@ -78,14 +78,14 @@ export const AccessRequestDialog = ({
             <Text as="p" variant="supporting">
               <Trans
                 t={t}
-                i18nKey="request.privacyFootnote"
+                i18nKey="privacyFootnote"
                 components={{
                   privacy: (
                     <Link
                       href="/privacy"
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label={t("request.privacyNewTab")}
+                      aria-label={t("privacyNewTab")}
                     />
                   ),
                 }}

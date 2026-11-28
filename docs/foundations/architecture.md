@@ -188,6 +188,9 @@ shared business capabilities.
 | `tooling/`                      | Development, build, and verification infrastructure.                                                                                 |
 
 Dependencies flow from application to interfaces to capabilities to foundation.
+Imports between interface packages are forbidden. Shared interactions belong in
+capability web packages. The app supplies the public access-request transport
+through router context.
 Capability web packages use browser-safe business entries and deliberate public
 integrations. Business packages never import web code. Capabilities never import
 interfaces or application assembly, including through types or TypeScript source

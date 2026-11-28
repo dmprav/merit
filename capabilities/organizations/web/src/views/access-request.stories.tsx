@@ -2,9 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
 
 import { MessagesProvider } from "@merit/i18n";
+import type { OrganizationService } from "@merit/organizations/api";
 
-import { WebMessagesProvider, webMessages } from "../../../app/messages";
-import type { RequestAccess } from "../contracts";
+import { accessRequest } from "../access-request-messages";
 import { AccessRequestDialog } from "./access-request";
 
 const meta = {
@@ -12,12 +12,15 @@ const meta = {
   tags: ["!autodocs"],
   component: AccessRequestDialog,
   parameters: { controls: { disable: true } },
-  args: { hydrated: true, request: fn<RequestAccess>(async () => ({ status: "ok" as const })) },
+  args: {
+    hydrated: true,
+    request: fn<OrganizationService["requestAccess"]>(async () => ({ status: "ok" as const })),
+  },
   decorators: [
     (Story) => (
-      <WebMessagesProvider>
+      <MessagesProvider messages={{ accessRequest }}>
         <Story />
-      </WebMessagesProvider>
+      </MessagesProvider>
     ),
   ],
 } satisfies Meta<typeof AccessRequestDialog>;
@@ -51,23 +54,23 @@ export const Open: Story = {
 /** Text expansion check: ⟦ ⟧ marks pseudo-localised strings, longer than English, to test wrapping. */
 export const PseudoLocalised: Story = {
   name: "Pseudo-localised (text expansion)",
-  args: { request: fn<RequestAccess>(async () => ({ status: "unavailable" as const })) },
+  args: {
+    request: fn<OrganizationService["requestAccess"]>(async () => ({
+      status: "unavailable" as const,
+    })),
+  },
   decorators: [
     (Story) => (
       <MessagesProvider
         messages={{
-          ...webMessages,
-          onboarding: {
-            ...webMessages.onboarding,
-            request: {
-              ...webMessages.onboarding.request,
-              title: "⟦Request an invitation to explore a Merit workspace⟧",
-              email: "⟦Email address where you would like to receive your invitation⟧",
-              submit: "⟦Submit this request for a workspace invitation⟧",
-              close: "⟦Close this invitation request⟧",
-              error:
-                "⟦Your invitation request could not be saved just now. Your email address is still here so you can try sending the request again⟧",
-            },
+          accessRequest: {
+            ...accessRequest,
+            title: "⟦Request an invitation to explore a Merit workspace⟧",
+            email: "⟦Email address where you would like to receive your invitation⟧",
+            submit: "⟦Submit this request for a workspace invitation⟧",
+            close: "⟦Close this invitation request⟧",
+            error:
+              "⟦Your invitation request could not be saved just now. Your email address is still here so you can try sending the request again⟧",
           },
         }}
       >
@@ -93,7 +96,7 @@ export const Validation: Story = {
   },
 };
 export const Submitting: Story = {
-  args: { request: fn<RequestAccess>(() => new Promise(() => {})) },
+  args: { request: fn<OrganizationService["requestAccess"]>(() => new Promise(() => {})) },
   play: async (context) => {
     const dialog = await submit(context);
     await expect(dialog.getByRole("button", { name: "Submitting request…" })).toBeDisabled();
@@ -102,7 +105,9 @@ export const Submitting: Story = {
   },
 };
 export const RateLimited: Story = {
-  args: { request: fn<RequestAccess>(async () => ({ status: "limited" as const })) },
+  args: {
+    request: fn<OrganizationService["requestAccess"]>(async () => ({ status: "limited" as const })),
+  },
   play: async (context) => {
     const dialog = await submit(context);
     await expect(await dialog.findByRole("alert")).toHaveTextContent("try again in an hour");
@@ -112,7 +117,11 @@ export const RateLimited: Story = {
   },
 };
 export const Unavailable: Story = {
-  args: { request: fn<RequestAccess>(async () => ({ status: "unavailable" as const })) },
+  args: {
+    request: fn<OrganizationService["requestAccess"]>(async () => ({
+      status: "unavailable" as const,
+    })),
+  },
   play: async (context) => {
     const dialog = await submit(context);
     await expect(await dialog.findByRole("alert")).toHaveTextContent("could not be saved");

@@ -6,13 +6,8 @@ import { AnalyticsProvider } from "@merit/analytics";
 import { MessagesProvider } from "@merit/i18n";
 import { Toasts } from "@merit/ui/toast";
 
-import { webMessages } from "../../app/messages";
-import { RequestAccess } from "./access-request";
-import { requestAccess } from "./data/server/access-request.functions";
+import { accessRequest } from "./access-request-messages";
 import { AccessRequestDialog } from "./views/access-request";
-
-vi.mock("@tanstack/react-router", () => ({ useHydrated: () => true }));
-vi.mock("./data/server/access-request.functions", () => ({ requestAccess: vi.fn() }));
 
 it("uses the common email translation before submitting an access request", async () => {
   const request = vi.fn().mockResolvedValue({ status: "ok" });
@@ -20,7 +15,7 @@ it("uses the common email translation before submitting an access request", asyn
   render(
     <AnalyticsProvider client={analytics}>
       <MessagesProvider
-        messages={{ ...webMessages, common: { validation: { email: "Translated access email" } } }}
+        messages={{ accessRequest, common: { validation: { email: "Translated access email" } } }}
       >
         <AccessRequestDialog request={request} hydrated />
         <Toasts />
@@ -48,14 +43,15 @@ it("uses the common email translation before submitting an access request", asyn
 });
 
 it("explains the prototype, retains failed input, and confirms only a saved request", async () => {
-  vi.mocked(requestAccess)
+  const request = vi
+    .fn()
     .mockResolvedValueOnce({ status: "unavailable" })
     .mockResolvedValueOnce({ status: "ok" });
   render(
-    <>
-      <RequestAccess />
+    <MessagesProvider messages={{ accessRequest }}>
+      <AccessRequestDialog request={request} hydrated />
       <Toasts />
-    </>,
+    </MessagesProvider>,
   );
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Request an invitation" }));
@@ -85,5 +81,5 @@ it("explains the prototype, retains failed input, and confirms only a saved requ
   await waitFor(() =>
     expect(screen.queryByRole("dialog", { name: "Request an invitation" })).not.toBeInTheDocument(),
   );
-  expect(requestAccess).toHaveBeenLastCalledWith({ data: { email: "Visitor@example.test" } });
+  expect(request).toHaveBeenLastCalledWith({ email: "Visitor@example.test" });
 });

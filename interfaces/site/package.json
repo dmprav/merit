@@ -12,7 +12,7 @@
     "@merit/grantmaking-web": "workspace:*",
     "@merit/i18n": "workspace:*",
     "@merit/money": "workspace:*",
-    "@merit/product": "workspace:*",
+    "@merit/organizations-web": "workspace:*",
     "@merit/recommendations": "workspace:*",
     "@merit/reviews": "workspace:*",
     "@merit/ui": "workspace:*",
