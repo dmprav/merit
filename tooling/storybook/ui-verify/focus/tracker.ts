@@ -16,9 +16,10 @@ type SnapshotLimits = typeof SNAPSHOT_LIMITS;
 /** What a focused element shows: its size, whether it can paint, and its focus styles. */
 export type FocusedObservation = Pick<CapturedStop, "boundingBox" | "painted" | "focused">;
 
-type SnapshotCapture = {
+type StyleReader = {
+  relativeOf: (el: Element) => RelativeSnapshot;
+  styleOf: (el: Element, pseudo?: string) => ElementStyleSnapshot;
   isPainted: (el: Element) => boolean;
-  captureSnapshot: (el: Element) => FocusVisualSnapshot;
 };
 
 type FocusLocator = {
@@ -31,23 +32,23 @@ type FocusLocator = {
 };
 
 /** Reads and moves focus inside the page and remembers the stops traversal reached. */
-type MeritFocusTracker = SnapshotCapture &
-  FocusLocator & {
-    stops: Element[];
-    describeElement: (el: Element) => string;
-    observeFocused: (el: Element) => FocusedObservation;
-  };
+type MeritFocusTracker = FocusLocator & {
+  captureSnapshot: (el: Element) => FocusVisualSnapshot;
+  stops: Element[];
+  describeElement: (el: Element) => string;
+  observeFocused: (el: Element) => FocusedObservation;
+};
 
 declare global {
   interface Window {
-    __meritSnapshotCapture?: SnapshotCapture;
+    __meritStyleReader?: StyleReader;
     __meritFocusLocator?: FocusLocator;
     __meritFocusTracker?: MeritFocusTracker;
   }
 }
 
 /** Runs in the page: installs how a snapshot reads the styles that can paint a focus cue. */
-const defineSnapshotCapture = (limits: SnapshotLimits) => {
+const defineStyleReader = () => {
   const pickStyle = (style: CSSStyleDeclaration, pseudo: boolean): ElementStyleSnapshot => ({
     outlineStyle: style.outlineStyle,
     outlineWidth: style.outlineWidth,
@@ -69,14 +70,30 @@ const defineSnapshotCapture = (limits: SnapshotLimits) => {
     ...(pseudo ? { content: style.content, opacity: style.opacity } : {}),
   });
 
+  const computedStyleOf = (el: Element, pseudo?: string) =>
+    (el.ownerDocument.defaultView ?? window).getComputedStyle(el, pseudo);
+
   const styleOf = (el: Element, pseudo?: string): ElementStyleSnapshot =>
-    pickStyle((el.ownerDocument.defaultView ?? window).getComputedStyle(el, pseudo), !!pseudo);
+    pickStyle(computedStyleOf(el, pseudo), !!pseudo);
 
   const nodeIds = new WeakMap<Element, number>();
   let nextNodeId = 0;
 
   const isPainted = (el: Element): boolean =>
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+
+  // A decoration on an empty box has no text run to draw across.
+  const hasTextRun = (el: Element): boolean => {
+    const range = el.ownerDocument.createRange();
+    return Array.from(el.childNodes).some((node) => {
+      if (node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim()) {
+        return false;
+      }
+      range.selectNodeContents(node);
+      const { width, height } = range.getBoundingClientRect();
+      return width > 0 && height > 0;
+    });
+  };
 
   const relativeOf = (el: Element): RelativeSnapshot => {
     let nodeId = nodeIds.get(el);
@@ -85,53 +102,21 @@ const defineSnapshotCapture = (limits: SnapshotLimits) => {
       nodeIds.set(el, nodeId);
     }
     const { width, height } = el.getBoundingClientRect();
-    return { nodeId, hasArea: width > 0 && height > 0, painted: isPainted(el), style: styleOf(el) };
+    const style = computedStyleOf(el);
+    const painted = isPainted(el);
+    return {
+      nodeId,
+      hasArea: width > 0 && height > 0,
+      painted,
+      style: pickStyle(style, false),
+      decorationColor:
+        painted && style.textDecorationLine !== "none" && hasTextRun(el)
+          ? style.textDecorationColor
+          : undefined,
+    };
   };
 
-  const ancestorStyles = (el: Element): RelativeSnapshot[] => {
-    const styles: RelativeSnapshot[] = [];
-    const { body, documentElement } = el.ownerDocument;
-    let parent = el.parentElement;
-    while (
-      styles.length < limits.ancestorDepth &&
-      parent &&
-      parent !== body &&
-      parent !== documentElement
-    ) {
-      styles.push(relativeOf(parent));
-      parent = parent.parentElement;
-    }
-    return styles;
-  };
-
-  // Breadth first, so the nearest descendants fill the limit.
-  const descendantStyles = (el: Element): RelativeSnapshot[] => {
-    const styles: RelativeSnapshot[] = [];
-    const queue = Array.from(el.children, (node) => ({ node, depth: 1 }));
-    for (
-      let next = queue.shift();
-      next && styles.length < limits.maxDescendants;
-      next = queue.shift()
-    ) {
-      styles.push(relativeOf(next.node));
-      if (next.depth < limits.descendantDepth) {
-        const depth = next.depth + 1;
-        queue.push(...Array.from(next.node.children, (node) => ({ node, depth })));
-      }
-    }
-    return styles;
-  };
-
-  window.__meritSnapshotCapture = {
-    isPainted,
-    captureSnapshot: (el) => ({
-      self: styleOf(el),
-      before: styleOf(el, "::before"),
-      after: styleOf(el, "::after"),
-      ancestors: ancestorStyles(el),
-      descendants: descendantStyles(el),
-    }),
-  };
+  window.__meritStyleReader = { styleOf, relativeOf, isPainted };
 };
 
 /** Runs in the page: installs how traversal finds focus and returns it to the document start. */
@@ -208,15 +193,59 @@ const defineFocusLocator = () => {
 };
 
 /**
- * Runs in the page: combines snapshot capture and the focus locator into the focus tracker, and
+ * Runs in the page: combines style sampling and the focus locator into the focus tracker, and
  * reports false when either is missing because the document was replaced after it was installed.
  */
-const defineFocusTracker = (): boolean => {
-  const capture = window.__meritSnapshotCapture;
+const defineFocusTracker = (limits: SnapshotLimits): boolean => {
+  const reader = window.__meritStyleReader;
   const locator = window.__meritFocusLocator;
-  if (!capture || !locator) {
+  if (!reader || !locator) {
     return false;
   }
+
+  const { relativeOf, styleOf } = reader;
+
+  const ancestorStyles = (el: Element): RelativeSnapshot[] => {
+    const styles: RelativeSnapshot[] = [];
+    const { body, documentElement } = el.ownerDocument;
+    let parent = el.parentElement;
+    while (
+      styles.length < limits.ancestorDepth &&
+      parent &&
+      parent !== body &&
+      parent !== documentElement
+    ) {
+      styles.push(relativeOf(parent));
+      parent = parent.parentElement;
+    }
+    return styles;
+  };
+
+  // Breadth first, so the nearest descendants fill the limit.
+  const descendantStyles = (el: Element): RelativeSnapshot[] => {
+    const styles: RelativeSnapshot[] = [];
+    const queue = Array.from(el.children, (node) => ({ node, depth: 1 }));
+    for (
+      let next = queue.shift();
+      next && styles.length < limits.maxDescendants;
+      next = queue.shift()
+    ) {
+      styles.push(relativeOf(next.node));
+      if (next.depth < limits.descendantDepth) {
+        const depth = next.depth + 1;
+        queue.push(...Array.from(next.node.children, (node) => ({ node, depth })));
+      }
+    }
+    return styles;
+  };
+
+  const captureSnapshot = (el: Element): FocusVisualSnapshot => ({
+    self: styleOf(el),
+    before: styleOf(el, "::before"),
+    after: styleOf(el, "::after"),
+    ancestors: ancestorStyles(el),
+    descendants: descendantStyles(el),
+  });
 
   const describeElement = (el: Element): string => {
     const tag = el.tagName.toLowerCase();
@@ -234,19 +263,19 @@ const defineFocusTracker = (): boolean => {
       boundingBox: { width: rect.width, height: rect.height },
       // A control with positive size still paints nothing, its outline included, when it or an
       // ancestor is fully transparent.
-      painted: capture.isPainted(el),
-      focused: capture.captureSnapshot(el),
+      painted: reader.isPainted(el),
+      focused: captureSnapshot(el),
     };
   };
 
   window.__meritFocusTracker = {
-    ...capture,
+    captureSnapshot,
     ...locator,
     stops: [],
     describeElement,
     observeFocused,
   };
-  delete window.__meritSnapshotCapture;
+  delete window.__meritStyleReader;
   delete window.__meritFocusLocator;
   return true;
 };
@@ -257,9 +286,9 @@ const defineFocusTracker = (): boolean => {
  * later, during traversal, loses the tracker, which traversal reports.
  */
 export const installFocusTracker = async (page: Page): Promise<boolean> => {
-  await page.evaluate(defineSnapshotCapture, SNAPSHOT_LIMITS);
+  await page.evaluate(defineStyleReader);
   await page.evaluate(defineFocusLocator);
-  if (!(await page.evaluate(defineFocusTracker))) {
+  if (!(await page.evaluate(defineFocusTracker, SNAPSHOT_LIMITS))) {
     return false;
   }
   // Chromium applies a pending `autofocus` in the next rendering update, but only while nothing

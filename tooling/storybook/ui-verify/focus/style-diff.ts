@@ -26,6 +26,8 @@ export type ElementStyleSnapshot = {
 export type RelativeSnapshot = {
   nodeId: number;
   hasArea: boolean;
+  /** The decoration color when the relative has a laid-out text run of its own. */
+  decorationColor?: string | undefined;
   painted: boolean;
   style: ElementStyleSnapshot;
 };
@@ -253,8 +255,11 @@ const compareRelatives = (
     const scope = `${relation}[${index}]`;
     if (before.painted !== after.painted) {
       const visible = after.painted ? after : before;
-      // Visibility alone can reveal box paint. A decoration style alone cannot establish visible glyphs.
-      return visible.hasArea && hasVisibleBoxPaint(visible.style) ? [`${scope}:visibility`] : [];
+      const decorated =
+        visible.decorationColor !== undefined && !isTransparentColor(visible.decorationColor);
+      return visible.hasArea && (hasVisibleBoxPaint(visible.style) || decorated)
+        ? [`${scope}:visibility`]
+        : [];
     }
     return compareStyleSnapshots(before.style, after.style, { scope, kind: "element" });
   });

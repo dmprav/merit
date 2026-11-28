@@ -307,7 +307,7 @@ test.describe("live Chromium checker failure detection", () => {
     ]);
   });
 
-  test("rejects visibility changes that reveal no painted indicator", async ({ page }) => {
+  test("checks the paint revealed by a visibility change", async ({ page }) => {
     await page.setContent(`
       <style>
         button { outline: none; }
@@ -315,14 +315,19 @@ test.describe("live Chromium checker failure detection", () => {
         button:focus-visible .indicator { opacity: 1; }
         .empty-fill { background: red; width: 0; height: 0; }
         .empty-line { width: 10px; height: 10px; text-decoration: underline transparent; }
+        button:focus-visible .line { text-decoration: underline solid blue 3px; }
+        button:focus-visible .clear-line { text-decoration-color: transparent; }
       </style>
       <button>Empty fill<span class="indicator empty-fill"></span></button>
-      <button>Empty underline<span class="indicator empty-line"></span></button>`);
+      <button>Empty underline<span class="indicator empty-line"></span></button>
+      <button>Real underline<span class="indicator line">marked</span></button>
+      <button>Clear underline<span class="indicator line clear-line">marked</span></button>`);
     const focus = await checkKeyboardFocusTraversal(page);
-    expect(focus.stopsChecked).toBe(2);
+    expect(focus.stopsChecked).toBe(4);
     expect(focus.failures.map(({ element }) => element)).toEqual([
       'button "Empty fill"',
       'button "Empty underline"',
+      'button "Clear underlinemarked"',
     ]);
   });
 
