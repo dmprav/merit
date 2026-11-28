@@ -32,70 +32,8 @@ const read = async (db: Database, address: { publicId: string }) => {
 };
 
 describe("persisted recommendations", () => {
-  const competingSave = async (
-    database: { connectionString: string; client: PgClient },
-    firstRequest: SaveRecommendationRequest,
-    secondRequest: SaveRecommendationRequest,
-  ) => {
-    const options = { connectionString: database.connectionString, statement_timeout: 3000 };
-    const first = new PgClient(options);
-    const second = new PgClient(options);
-    let ready!: () => void;
-    let release!: () => void;
-    const started = new Promise<void>((resolve) => {
-      ready = resolve;
-    });
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const pending: Promise<unknown>[] = [];
-
-    try {
-      await Promise.all([first.connect(), second.connect()]);
-      const firstPid = (await first.query<{ pid: number }>("SELECT pg_backend_pid() AS pid"))
-        .rows[0]?.pid;
-      const secondPid = (await second.query<{ pid: number }>("SELECT pg_backend_pid() AS pid"))
-        .rows[0]?.pid;
-      const committed = drizzle(first).transaction(async (tx) => {
-        expect(
-          await saveFundingRecommendation(tx, actor, firstRequest, withoutAssessment),
-        ).toMatchObject({
-          status: "ok",
-        });
-
-        ready();
-        await held;
-      });
-      pending.push(committed.catch(() => undefined));
-      await Promise.race([started, committed]);
-      const competing = saveFundingRecommendation(
-        drizzle(second),
-        actor,
-        secondRequest,
-        withoutAssessment,
-      );
-      pending.push(competing.catch(() => undefined));
-      await expect
-        .poll(
-          async () =>
-            (
-              await database.client.query<{ blockers: number[] }>(
-                "SELECT pg_blocking_pids($1) AS blockers",
-                [secondPid],
-              )
-            ).rows[0]?.blockers,
-          { timeout: 1500 },
-        )
-        .toContain(firstPid);
-      release();
-      await committed;
-      return await competing;
-    } finally {
-      release();
-      await Promise.allSettled(pending);
-      await Promise.all([first.end(), second.end()]);
-    }
-  };
+  const save = (request: SaveRecommendationRequest) => (connection: Database) =>
+    saveFundingRecommendation(connection, actor, request, withoutAssessment);
 
   it("saves with a restricted runtime role and requires row-lock and audit privileges", async ({
     db,
@@ -456,6 +394,7 @@ describe("persisted recommendations", () => {
   });
 
   it("serializes competing saves and commits exactly one version of the same recommendation", async ({
+    locks,
     db,
     database,
     scenario,
@@ -463,10 +402,13 @@ describe("persisted recommendations", () => {
     const request = recommendationRequest(scenario.selected.publicId);
 
     expect(
-      await competingSave(database, request, {
-        ...request,
-        recommendation: { ...request.recommendation, reasoning: "Competing edit." },
-      }),
+      await locks.race(
+        save(request),
+        save({
+          ...request,
+          recommendation: { ...request.recommendation, reasoning: "Competing edit." },
+        }),
+      ),
     ).toEqual({ status: "conflict" });
 
     const page = await read(db, scenario.selected);
@@ -478,6 +420,7 @@ describe("persisted recommendations", () => {
   });
 
   it("validates totals against the committed sibling recommendation during concurrent saves", async ({
+    locks,
     db,
     database,
     scenario,
@@ -494,7 +437,7 @@ describe("persisted recommendations", () => {
     };
     const second = { ...first, publicId: scenario.sibling.publicId };
 
-    expect(await competingSave(database, first, second)).toEqual({
+    expect(await locks.race(save(first), save(second))).toEqual({
       status: "invalid",
       error: "allocation_total_too_large",
     });

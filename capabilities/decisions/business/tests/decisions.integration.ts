@@ -15,7 +15,7 @@ import { readWorkspace } from "@merit/organizations/transactions";
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { readDecisionStatesMap } from "../src/server/persistence/projections";
-import { createDecisionCases, decisionOf, raceHeld } from "./decision-test";
+import { createDecisionCases, decisionOf } from "./decision-test";
 
 const it = applicationTest.extend("scenario", async ({ db, applications }) => {
   const cases = await createDecisionCases(db, applications.createApplication);
@@ -146,6 +146,45 @@ describe("committee decisions", () => {
     expect(result.excess && minor(encodeMoney(result.excess))).toBe("1000");
     expect(minor(encodeMoney(result.committed))).toBe("11000");
     expect((await s.state(s.second)).versions).toEqual([]);
+  });
+
+  it.for(["Defer", "Decline"] as const)(
+    "allows %s when the round budget is fully committed",
+    async (outcome, { scenario: s }) => {
+      expect(
+        await s.record(s.first, { amount: { minorUnits: "10000", currency: "EUR" } }),
+      ).toMatchObject({
+        status: "ok",
+      });
+      expect(
+        await s.record(s.second, {
+          outcome,
+          amount: { minorUnits: "0", currency: "EUR" },
+        }),
+      ).toMatchObject({ status: "ok" });
+    },
+  );
+
+  it("releases a commitment when a Fund decision is superseded by a decline", async ({
+    scenario: s,
+  }) => {
+    const funded = await s.record(s.first, {});
+    assert(funded.status === "ok");
+    expect(encodeMoney(funded.totals.committed).minorUnits).toBe("5000");
+    expect(encodeMoney(funded.totals.available!).minorUnits).toBe("5000");
+
+    const declined = await s.record(
+      s.first,
+      {
+        outcome: "Decline",
+        amount: { minorUnits: "0", currency: "EUR" },
+        changeExplanation: "The applicant cannot proceed.",
+      },
+      1,
+    );
+    assert(declined.status === "ok");
+    expect(encodeMoney(declined.totals.committed).minorUnits).toBe("0");
+    expect(encodeMoney(declined.totals.available!).minorUnits).toBe("10000");
   });
 
   it("rejects funding when the round has no budget", async ({ db, rounds, scenario: s }) => {
@@ -428,7 +467,7 @@ describe("committee decisions", () => {
 
 describe("concurrent commitments", () => {
   it("lets only the first of two competing funding saves in a round fit the budget", async ({
-    database,
+    locks,
     scenario: s,
   }) => {
     const fund = (connection: Database, address: typeof s.first) =>
@@ -439,8 +478,7 @@ describe("concurrent commitments", () => {
       });
 
     // The second €60.00 fits the €100.00 budget only if the first, still uncommitted, is ignored.
-    const second = await raceHeld(
-      database,
+    const second = await locks.race(
       (tx) => fund(tx, s.first),
       (connection) => fund(connection, s.second),
     );

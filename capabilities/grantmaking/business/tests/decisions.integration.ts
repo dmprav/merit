@@ -5,7 +5,7 @@ import { assert, describe, expect } from "vite-plus/test";
 import { editFundingApplication } from "@merit/applications/server";
 import { type Database } from "@merit/db";
 import { recordCommitteeDecision } from "@merit/decisions/server";
-import { createDecisionCases, decisionOf, raceHeld, today } from "@merit/decisions/testing";
+import { createDecisionCases, decisionOf, today } from "@merit/decisions/testing";
 import { encodeMoney } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
@@ -73,6 +73,21 @@ describe("committee decisions", () => {
     });
     expect(encodeMoney(after.round.totals.committed).minorUnits).toBe("5000");
     expect(encodeMoney(after.round.totals.proposed).minorUnits).toBe("0");
+
+    expect(
+      await s.record(
+        s.first,
+        {
+          amount: { minorUnits: "4000", currency: "EUR" },
+          changeExplanation: "Budget reduced.",
+        },
+        1,
+      ),
+    ).toMatchObject({ status: "ok" });
+    const amended = await s.page(s.first);
+    expect(amended.decision.versions.map((version) => version.revision)).toEqual([2, 1]);
+    expect(encodeMoney(amended.round.totals.committed).minorUnits).toBe("4000");
+    expect(amended.application.managerRecommendation).toBeNull();
   });
 
   it("leaves a saved manager recommendation and the round's proposed total unchanged", async ({
@@ -98,30 +113,6 @@ describe("committee decisions", () => {
     expect(encodeMoney(after.round.totals.committed).minorUnits).toBe("5000");
   });
 
-  it("never blocks a deferral or decline on budget, and requires a budget to fund", async ({
-    scenario: s,
-  }) => {
-    expect(
-      await s.record(s.first, { amount: { minorUnits: "10000", currency: "EUR" } }),
-    ).toMatchObject({
-      status: "ok",
-    });
-    expect(
-      await s.record(s.second, {
-        outcome: "Decline",
-        amount: { minorUnits: "0", currency: "EUR" },
-      }),
-    ).toMatchObject({ status: "ok" });
-
-    // Removing the budget while anything is committed is refused.
-    const removal = await s.budget("");
-    expect(removal).toEqual({
-      status: "invalid",
-      error: "budget_below_commitments",
-      committed: { minorUnits: "10000", currency: "EUR" },
-    });
-  });
-
   it("refuses a round budget below the committed total and allows one that covers it", async ({
     scenario: s,
   }) => {
@@ -129,6 +120,11 @@ describe("committee decisions", () => {
       await s.record(s.first, { amount: { minorUnits: "6000", currency: "EUR" } }),
     ).toMatchObject({
       status: "ok",
+    });
+    expect(await s.budget("")).toEqual({
+      status: "invalid",
+      error: "budget_below_commitments",
+      committed: { minorUnits: "6000", currency: "EUR" },
     });
     expect(await s.budget("59.99")).toMatchObject({
       status: "invalid",
@@ -163,6 +159,10 @@ describe("decisions and application lifecycle", () => {
         1,
       ),
     ).toMatchObject({ status: "ok" });
+    const page = await s.roundPage();
+    expect(encodeMoney(page.round.totals.committed).minorUnits).toBe("0");
+    expect(encodeMoney(page.round.totals.available!).minorUnits).toBe("10000");
+
     expect(
       await s.edit(s.first, { action: "withdraw", withdrawnOn: today(), reason: "Withdrawn." }),
     ).toMatchObject({ status: "ok" });
@@ -199,32 +199,6 @@ describe("decisions and application lifecycle", () => {
         1,
       ),
     ).toMatchObject({ status: "ok" });
-  });
-
-  it("releases a commitment when a Fund decision is superseded by a decline", async ({
-    scenario: s,
-  }) => {
-    const funded = await s.record(s.first, {});
-    assert(funded.status === "ok");
-    expect(encodeMoney(funded.totals.committed).minorUnits).toBe("5000");
-    expect(encodeMoney(funded.totals.available!).minorUnits).toBe("5000");
-
-    const declined = await s.record(
-      s.first,
-      {
-        outcome: "Decline",
-        amount: { minorUnits: "0", currency: "EUR" },
-        changeExplanation: "The applicant cannot proceed.",
-      },
-      1,
-    );
-    assert(declined.status === "ok");
-    expect(encodeMoney(declined.totals.committed).minorUnits).toBe("0");
-    expect(encodeMoney(declined.totals.available!).minorUnits).toBe("10000");
-
-    const page = await s.roundPage();
-    expect(encodeMoney(page.round.totals.committed).minorUnits).toBe("0");
-    expect(encodeMoney(page.round.totals.available!).minorUnits).toBe("10000");
   });
 
   it("rejects deleting an application that has any decision", async ({ scenario: s }) => {
@@ -370,12 +344,11 @@ describe("concurrent commitments", () => {
     );
 
   it("refuses a budget reduction that a competing decision save has made too low", async ({
-    database,
+    locks,
     rounds,
     scenario: s,
   }) => {
-    const reduced = await raceHeld(
-      database,
+    const reduced = await locks.race(
       (tx) =>
         recordCommitteeDecision(tx, actor, {
           ...s.first,
@@ -389,12 +362,11 @@ describe("concurrent commitments", () => {
   });
 
   it("refuses a decision save that a competing budget reduction has made too large", async ({
-    database,
+    locks,
     rounds,
     scenario: s,
   }) => {
-    const saved = await raceHeld(
-      database,
+    const saved = await locks.race(
       (tx) => reduceBudget(tx, rounds.pageInput),
       (connection) =>
         recordCommitteeDecision(connection, actor, {

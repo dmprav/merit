@@ -521,30 +521,6 @@ it("rejects a new review request for an archived contact", async ({ db }) => {
   ).toMatchObject({ status: "invalid", error: "contact_unavailable" });
 });
 
-it.for(["expectedApplicationVersion", "expectedCriteriaVersion"] as const)(
-  "rejects a review saved against a stale %s without changing the application",
-  async (baseline, { db }) => {
-    const { address, read } = await setup(db);
-    const sam = await contact(db);
-    const before = await read();
-    const current = {
-      expectedApplicationVersion: before.application.version,
-      expectedCriteriaVersion: before.round.criteriaVersion,
-    };
-
-    expect(
-      await saveApplicationReview(db, actor, {
-        ...address,
-        expectedRevision: before.application.reviews.revision,
-        ...current,
-        [baseline]: (current[baseline] as number) + 1,
-        change: { action: "request", id: randomUUID(), contactId: sam.id, replacesId: null },
-      } as Parameters<typeof saveApplicationReview>[2]),
-    ).toEqual({ status: "conflict" });
-    expect(await read()).toEqual(before);
-  },
-);
-
 it("marks an assessment recorded without an application or criteria basis as unknown", async ({
   db,
 }) => {

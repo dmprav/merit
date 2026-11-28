@@ -250,6 +250,38 @@ it.for([
   },
 );
 
+it.for([
+  { expectedApplicationVersion: 2, expectedCriteriaVersion: 1 },
+  { expectedApplicationVersion: 1, expectedCriteriaVersion: 2 },
+])(
+  "rejects a request based on application version $expectedApplicationVersion and criteria version $expectedCriteriaVersion when either is stale",
+  async (basis, { db, database, reviewCase: { address, read } }) => {
+    const sam = await contact(db);
+    const before = await read();
+
+    const application = async () =>
+      (
+        await database.client.query<Record<string, unknown>>(
+          "SELECT * FROM application_cases WHERE id = $1",
+          [address.publicId],
+        )
+      ).rows;
+
+    const stored = await application();
+    expect(
+      await saveApplicationReview(db, actor, {
+        ...address,
+        expectedRevision: before.revision,
+        expectedApplicationVersion: materialVersionSchema.parse(basis.expectedApplicationVersion),
+        expectedCriteriaVersion: criteriaVersionSchema.parse(basis.expectedCriteriaVersion),
+        change: { action: "request", id: randomUUID(), contactId: sam.id, replacesId: null },
+      }),
+    ).toEqual({ status: "conflict" });
+    expect(await read()).toEqual(before);
+    expect(await application()).toEqual(stored);
+  },
+);
+
 it("rejects an assessment edit made against a stale review revision", async ({
   db,
   reviewCase,
