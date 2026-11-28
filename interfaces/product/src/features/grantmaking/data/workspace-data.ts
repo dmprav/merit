@@ -19,6 +19,7 @@ import { workspaceIntakeData } from "./intake/workspace-data";
 import { workspacePreparationData } from "./preparation/workspace-data";
 import { applicationOptions, roundOptions, roundsOptions } from "./queries";
 import { workspaceRecommendationData } from "./recommendations/workspace-data";
+import { workspaceAiReviewData } from "./reviews/ai-review-data";
 import { workspaceReviewData } from "./reviews/workspace-data";
 import { saveRecommendation } from "./server/recommendations/recommendations.functions";
 import { useWorkspaceApplications } from "./workspace-applications";
@@ -82,6 +83,11 @@ export const useWorkspaceApplicationData = (workspaceSlug: string, publicId: str
       key: current.application.id,
       intake: workspaceIntakeData(client, workspaceSlug, publicId, current.intake),
       reviews: workspaceReviewData(client, workspaceSlug, publicId, inviteReviewers),
+      aiReview: workspaceAiReviewData(client, workspaceSlug, publicId, {
+        reviews: current.aiReviews,
+        availability: current.aiReviewAvailability,
+        provider: current.aiReviewProvider,
+      }),
       recommendation: workspaceRecommendationData(
         client,
         workspaceSlug,

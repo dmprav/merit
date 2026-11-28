@@ -7,6 +7,7 @@ import type {
 } from "@merit/grantmaking/api";
 import type { RecommendationData } from "@merit/recommendations-web/contracts";
 import type { ReviewData } from "@merit/reviews-web/contracts";
+import type { AiReviewData } from "@merit/reviews-web/contracts/ai-review";
 import type { PreparationData } from "@merit/rounds-web/contracts";
 
 import type { ApplicationList } from "./application-list";
@@ -18,6 +19,7 @@ export type ApplicationData = {
   key: string;
   recommendation: RecommendationData;
   reviews: ReviewData | null;
+  aiReview: AiReviewData | null;
   intake: IntakeData | null;
 };
 

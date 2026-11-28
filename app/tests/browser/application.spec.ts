@@ -607,6 +607,38 @@ test("recommendation amount rejects invalid native clipboard content without rep
   await expect(page.getByText("Amount unchanged. Use up to two decimal places.")).toBeVisible();
 });
 
+test("demo shows a prepared AI review and explains why a new one cannot be run", async ({
+  page,
+}, testInfo) => {
+  await openDemoApplication(page, "Neighbour Table", true);
+  const section = page.getByRole("region", { name: "AI review", exact: true });
+
+  await expect(
+    section.getByText(
+      "The demo shows a prepared example. Running new AI reviews isn't available in the demo.",
+    ),
+  ).toBeVisible();
+  await expect(section.getByRole("button", { name: /^Run/ })).toHaveCount(0);
+
+  await section.getByRole("button", { name: /Merit AI/ }).click();
+  const review = page.getByRole("region", { name: "AI review details" });
+
+  await expect(review.getByRole("heading", { name: "AI review", exact: true })).toBeFocused();
+  await expect(review.getByText("Prepared example")).toBeVisible();
+  await expect(
+    review.getByText(
+      "AI review. Merit AI's interpretation of the application material, not an assessment by a reviewer.",
+    ),
+  ).toBeVisible();
+  await expect(review.getByRole("heading", { name: "Questions for the applicant" })).toBeVisible();
+  await expect(review.locator("blockquote").first()).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("ai-review.png") });
+  await checkPage(page);
+
+  await review.getByRole("button", { name: "Back to assessments" }).click();
+  await expect(section.getByRole("button", { name: /Merit AI/ })).toBeFocused();
+});
+
 test("saving announces success with a compact, centred confirmation and restores focus", async ({
   page,
 }, testInfo) => {

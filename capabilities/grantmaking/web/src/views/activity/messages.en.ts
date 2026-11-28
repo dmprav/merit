@@ -56,6 +56,7 @@ export const activityMessages = {
       assessmentRecorded: "Assessment recorded",
       assessmentSubmitted: "Assessment submitted",
       recommendationSaved: "Recommendation saved",
+      aiReviewRecorded: "Ran an AI review",
     },
   },
 } as const;

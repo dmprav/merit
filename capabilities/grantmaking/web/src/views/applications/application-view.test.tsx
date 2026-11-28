@@ -14,6 +14,11 @@ import {
 } from "@merit/grantmaking/testing/fixtures";
 import { fromMinorUnits, encodeMoney } from "@merit/money";
 import { createQueryClient } from "@merit/query";
+import {
+  aiReviewDataFixture,
+  aiReviewFixture,
+  outdatedAiReviewFixture,
+} from "@merit/reviews-web/testing";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { Toasts } from "@merit/ui/toast";
 
@@ -855,4 +860,118 @@ it("keeps assessment reading available and disables authoring while a recommenda
   expect(reference().getByRole("button", { name: /^Request actions for / })).toBeDisabled();
   expect(reference().getByRole("button", { name: "Review details" })).toBeEnabled();
   expect(workspace().getByRole("textbox", { name: "Recommendation draft" })).toBeVisible();
+});
+
+describe("AI review in the application workspace", () => {
+  const aiReviewData = aiReviewDataFixture({ reviews: [aiReviewFixture()] });
+
+  it("places the AI review section after the reviewer assessments, apart from them", () => {
+    render(
+      <ApplicationView round={round} application={application} aiReviewData={aiReviewData} />,
+      {
+        wrapper: GrantmakingMessagesProvider,
+      },
+    );
+
+    const reviewer = workspace().getByRole("region", { name: "Review" });
+    const ai = workspace().getByRole("region", { name: "AI review" });
+    expect(reviewer.compareDocumentPosition(ai) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(ai).getByRole("button", { name: /Merit AI/ })).toBeVisible();
+    expect(within(reviewer).queryByText("Merit AI")).not.toBeInTheDocument();
+  });
+
+  it("shows no AI review section without AI review data", () => {
+    render(<ApplicationView round={round} application={application} />, {
+      wrapper: GrantmakingMessagesProvider,
+    });
+
+    expect(workspace().queryByRole("region", { name: "AI review" })).not.toBeInTheDocument();
+  });
+
+  it("opens the review in the reference pane and returns focus to its entry", async () => {
+    const user = userEvent.setup();
+    render(
+      <ApplicationView round={round} application={application} aiReviewData={aiReviewData} />,
+      {
+        wrapper: GrantmakingMessagesProvider,
+      },
+    );
+
+    await user.click(workspace().getByRole("button", { name: /Merit AI/ }));
+
+    const full = reference().getByRole("region", { name: "AI review details" });
+    expect(
+      screen.getByRole("button", { name: "Reference material: Reviewer assessments" }),
+    ).toBeVisible();
+    expect(within(full).getByRole("heading", { name: "AI review" })).toHaveFocus();
+    expect(within(full).getAllByText("Quoted from Application title")[0]).toBeVisible();
+    expect(
+      reference().queryByRole("article", { name: "Assessment by Sam Morgan" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(full).getByRole("button", { name: "Back to assessments" }));
+    expect(
+      reference().queryByRole("region", { name: "AI review details" }),
+    ).not.toBeInTheDocument();
+    expect(reference().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
+    expect(workspace().getByRole("button", { name: /Merit AI/ })).toHaveFocus();
+  });
+
+  it("gives way to a reviewer assessment chosen while the AI review is open", async () => {
+    const user = userEvent.setup();
+    render(
+      <ApplicationView round={round} application={application} aiReviewData={aiReviewData} />,
+      {
+        wrapper: GrantmakingMessagesProvider,
+      },
+    );
+    await user.click(workspace().getByRole("button", { name: /Merit AI/ }));
+
+    await user.click(workspace().getByRole("button", { name: /Sam Morgan/ }));
+
+    expect(
+      reference().queryByRole("region", { name: "AI review details" }),
+    ).not.toBeInTheDocument();
+    expect(reference().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
+  });
+
+  it("opens the actual earlier submission from an outdated AI review", async () => {
+    const user = userEvent.setup();
+    render(
+      <ApplicationView
+        round={round}
+        application={application}
+        aiReviewData={aiReviewDataFixture({ reviews: [outdatedAiReviewFixture()] })}
+      />,
+      { wrapper: GrantmakingMessagesProvider },
+    );
+    await user.click(workspace().getByRole("button", { name: /Merit AI/ }));
+
+    await user.click(reference().getByRole("button", { name: "Compare changes" }));
+
+    expect(
+      screen.getByRole("button", { name: "Reference material: Version history" }),
+    ).toBeVisible();
+  });
+
+  it("runs from the section and leaves the saved confirmation outside the reference panes", async () => {
+    const user = userEvent.setup();
+    const run = vi.fn().mockResolvedValue({ status: "ok", review: aiReviewFixture() });
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <ApplicationView
+          round={round}
+          application={application}
+          aiReviewData={aiReviewDataFixture({ run })}
+        />
+        <Toasts />
+      </QueryClientProvider>,
+      { wrapper: GrantmakingMessagesProvider },
+    );
+
+    await user.click(workspace().getByRole("button", { name: "Run AI review" }));
+
+    expect(await screen.findByText("AI review saved")).toBeVisible();
+    expect(run).toHaveBeenCalledOnce();
+  });
 });

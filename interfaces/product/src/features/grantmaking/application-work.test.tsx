@@ -24,6 +24,7 @@ const dataFor = (id: string, disabled = false): ApplicationData => ({
   recommendation: { revision: 0, disabled, save: vi.fn() },
   intake: null,
   reviews: null,
+  aiReview: null,
 });
 
 const wrapper = ({ children }: { children: ReactNode }) => (

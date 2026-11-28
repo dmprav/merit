@@ -1,0 +1,79 @@
+/* The entry runs to the panel's edges so its avatar lines up with the section label. */
+.entry {
+  margin-inline: calc(-1 * var(--space-2));
+}
+
+.content {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.header {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.criterion {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.group {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  overflow-wrap: anywhere;
+}
+
+.claims {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.claim {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.quote {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.quote p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.earlier {
+  min-width: 0;
+}
+
+.earlierEntry {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.earlierSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}

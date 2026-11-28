@@ -104,3 +104,19 @@ Use the [manager-review stories](../../../../../../interfaces/product/src/featur
 for the connected flow and the [review tests](review-work.test.tsx) for focused
 states. Follow [UI verification](../../../../../../docs/guides/ui-verification.md)
 for keyboard, focus, and responsive checks.
+
+## Show the AI review apart from assessments
+
+The [AI review views](../ai-review/ai-review-overview.tsx) are their own section,
+after **Review** in the application overview, and never part of the assessment list.
+The latest run is a `JudgmentChoice` by **Merit AI**; choosing it opens the full
+review in the reference pane beside the assessments, with Back returning to its
+entry. The [AI review controller](../../controllers/ai-review/use-ai-review.ts)
+owns the run: one pending run at a time, a run ID generated per submission and kept
+only while a run's outcome is unconfirmed, a refused run replacing the action with
+its availability explanation, and a saved review whose refresh failed retrying only
+the refresh. The [AI review workflow](../../../../../../docs/workflows/review-applications.md)
+owns availability, input, and citation rules; the section explains each unavailable
+reason in visible text. The run button stays mounted through a run and a retry so
+focus is kept. Connected states are in the
+[AI review stories](../../../../../../interfaces/product/src/features/grantmaking/views/reviews/ai-review.stories.tsx).

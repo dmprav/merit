@@ -11,6 +11,12 @@ import {
 import type { FundingRoundOverviewData } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { fromMinorUnits } from "@merit/money";
+import {
+  aiReviewDataFixture,
+  aiReviewFixture,
+  earlierAiReviewFixture,
+  outdatedAiReviewFixture,
+} from "@merit/reviews-web/testing";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { Button } from "@merit/ui/button";
 import { Inline } from "@merit/ui/layout";
@@ -239,3 +245,67 @@ export const ReviewDetails: Story = {
     await expect(canvas.queryByRole("dialog")).not.toBeInTheDocument();
   },
 };
+
+/** Without assessments the section sits within the first screen, beside the recommendation. */
+const noReviewers = {
+  ...round.applications[0]!,
+  summary: "",
+  reviews: { revision: reviewRevisionSchema.parse(0), requests: [], assessments: [] },
+};
+
+const aiReviewSection = (canvas: Parameters<NonNullable<Story["play"]>>[0]["canvas"]) =>
+  within(canvas.getByRole("complementary", { name: "Application workspace" }));
+
+const aiReviewStory = (
+  aiReviewData: ReturnType<typeof aiReviewDataFixture>,
+  play?: Story["play"],
+): Story => ({
+  args: { application: noReviewers, tab: "reviews", aiReviewData },
+  play,
+});
+
+/** The AI review section beside the reviewer assessments, before any run. */
+export const AiReviewEmpty = aiReviewStory(aiReviewDataFixture(), async ({ canvas }) => {
+  await expect(
+    aiReviewSection(canvas).getByRole("region", { name: "AI review" }),
+  ).toHaveTextContent("No AI review yet.");
+  await expect(
+    aiReviewSection(canvas).getByRole("button", { name: "Run AI review" }),
+  ).toBeVisible();
+});
+export const AiReviewConsentRequired = aiReviewStory(
+  aiReviewDataFixture({ availability: "consent_required" }),
+  async ({ canvas }) => {
+    await expect(
+      aiReviewSection(canvas).getByText(/must turn on Merit AI for this workspace/),
+    ).toBeVisible();
+    await expect(
+      aiReviewSection(canvas).queryByRole("button", { name: /Run/ }),
+    ).not.toBeInTheDocument();
+  },
+);
+export const AiReviewDemo = aiReviewStory(
+  aiReviewDataFixture({ availability: "demo", provider: null, reviews: [aiReviewFixture()] }),
+);
+export const AiReviewCurrent = aiReviewStory(aiReviewDataFixture({ reviews: [aiReviewFixture()] }));
+export const AiReviewOutdated = aiReviewStory(
+  aiReviewDataFixture({ reviews: [outdatedAiReviewFixture()] }),
+);
+export const AiReviewDetails = aiReviewStory(
+  aiReviewDataFixture({ reviews: [aiReviewFixture()] }),
+  async ({ canvas, userEvent }) => {
+    await userEvent.click(aiReviewSection(canvas).getByRole("button", { name: /Merit AI/ }));
+    const full = within(canvas.getByRole("region", { name: "AI review details" }));
+    await expect(full.getByRole("heading", { name: "AI review" })).toHaveFocus();
+    await expect(full.getByRole("button", { name: "Back to assessments" })).toBeVisible();
+  },
+);
+export const AiReviewEarlierRuns = aiReviewStory(
+  aiReviewDataFixture({ reviews: [outdatedAiReviewFixture(), earlierAiReviewFixture()] }),
+  async ({ canvas, userEvent }) => {
+    await userEvent.click(aiReviewSection(canvas).getByRole("button", { name: /Merit AI/ }));
+    const full = within(canvas.getByRole("region", { name: "AI review details" }));
+    await userEvent.click(full.getByRole("button", { name: /^Earlier AI reviews/ }));
+    await expect(full.getByRole("list", { name: "Earlier AI reviews" })).toBeVisible();
+  },
+);
