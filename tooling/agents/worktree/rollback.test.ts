@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { type CheckoutRollback, decideRollbackCleanup, rollbackError } from "./rollback.ts";
+import { type CheckoutRollback, decideRegistryRollback, rollbackError } from "./rollback.ts";
 
 const removed: CheckoutRollback = { preserved: false, remains: false, metadataRemoved: false };
 const stuck: CheckoutRollback = {
@@ -10,67 +10,58 @@ const stuck: CheckoutRollback = {
   metadataRemoved: false,
 };
 
-const progress = { branchCreated: true, registryReserved: true, databaseCreated: false };
+const progress = { registryReserved: true, databaseCreated: false };
 
-describe("decideRollbackCleanup", () => {
+describe("decideRegistryRollback", () => {
   test.each([
-    {
-      name: "a failure before the branch was created",
-      progress: { branchCreated: false, registryReserved: false, databaseCreated: false },
-      checkout: removed,
-      cleanup: { deleteBranch: false, registry: { action: "none" } },
-    },
     {
       name: "a failure before the registry record was written",
       progress: { ...progress, registryReserved: false },
       checkout: removed,
-      cleanup: { deleteBranch: true, registry: { action: "none" } },
+      cleanup: { action: "none" },
     },
     {
       name: "a removed checkout",
       progress,
       checkout: removed,
-      cleanup: { deleteBranch: true, registry: { action: "remove" } },
+      cleanup: { action: "remove" },
     },
     {
       name: "a target another job occupies",
       progress,
       checkout: { ...removed, preserved: true },
-      cleanup: { deleteBranch: true, registry: { action: "remove" } },
+      cleanup: { action: "remove" },
     },
     {
       name: "a checkout Git refused to remove",
       progress: { ...progress, databaseCreated: true },
       checkout: stuck,
-      cleanup: {
-        deleteBranch: false,
-        registry: { action: "retain", partialRemoval: false, databaseCreated: true },
-      },
+      cleanup: { action: "retain", partialRemoval: false, databaseCreated: true },
     },
     {
       name: "a checkout whose `.git` Git removed before failing",
       progress,
       checkout: { ...stuck, metadataRemoved: true },
-      cleanup: {
-        deleteBranch: false,
-        registry: { action: "retain", partialRemoval: true, databaseCreated: false },
-      },
+      cleanup: { action: "retain", partialRemoval: true, databaseCreated: false },
     },
   ])("undoes $name", ({ progress: made, checkout, cleanup }) => {
-    expect(decideRollbackCleanup(made, checkout, false)).toEqual(cleanup);
+    expect(decideRegistryRollback(made, checkout, false)).toEqual(cleanup);
   });
 
   test("keeps the record of a removed checkout whose database rollback could not drop", () => {
-    expect(decideRollbackCleanup({ ...progress, databaseCreated: true }, removed, false)).toEqual({
-      deleteBranch: true,
-      registry: { action: "retain", partialRemoval: false, databaseCreated: true },
+    expect(decideRegistryRollback({ ...progress, databaseCreated: true }, removed, false)).toEqual({
+      action: "retain",
+      partialRemoval: false,
+      databaseCreated: true,
     });
   });
 
   test("records a retained checkout's database as dropped once rollback dropped it", () => {
-    expect(
-      decideRollbackCleanup({ ...progress, databaseCreated: true }, stuck, true).registry,
-    ).toEqual({ action: "retain", partialRemoval: false, databaseCreated: false });
+    expect(decideRegistryRollback({ ...progress, databaseCreated: true }, stuck, true)).toEqual({
+      action: "retain",
+      partialRemoval: false,
+      databaseCreated: false,
+    });
   });
 });
 

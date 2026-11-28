@@ -69,6 +69,7 @@ type CleanTarget = CleanClaim & {
   /** The registered record, whose checkout identity removal must still match. */
   identity: WorktreeRecord | undefined;
   branch: string;
+  cleanupPolicy: NonNullable<WorktreeRecord["cleanupPolicy"]>;
 };
 
 type CleanRun = {
@@ -111,6 +112,11 @@ const assertUnrecordedPathFree = (
   }
 };
 
+/** Older interrupted cleanups could have originated in rollback. Their branch stays for inspection. */
+const cleanupPolicyFor = (record: WorktreeRecord | undefined): CleanTarget["cleanupPolicy"] =>
+  record?.cleanupPolicy ??
+  (record?.status === "creating" || record?.status === "cleaning" ? "keep-branch" : "standard");
+
 /** Checks what the clean may remove and marks the record `cleaning` so no other operation takes it. */
 const claimCleanup = (
   registry: WorktreeRegistry,
@@ -140,8 +146,15 @@ const claimCleanup = (
   const databaseName = record?.databaseName ?? databaseNameForSlug(slug);
   assertSafeManagedDatabaseName(databaseName);
 
+  const cleanupPolicy = cleanupPolicyFor(record);
   if (record) {
-    registry.worktrees[slug] = { ...record, status: "cleaning", cleanToken, ownerPid: process.pid };
+    registry.worktrees[slug] = {
+      ...record,
+      status: "cleaning",
+      cleanupPolicy,
+      cleanToken,
+      ownerPid: process.pid,
+    };
     writeWorktreeRegistry(git.root, registry);
   }
   return {
@@ -149,6 +162,7 @@ const claimCleanup = (
     worktreePath,
     normalizedPath,
     identity: record,
+    cleanupPolicy,
     branch: record?.branch ?? defaultBranchForSlug(slug),
     databaseName,
     claimed: Boolean(record),
@@ -240,11 +254,17 @@ const assertClaimHeld = (run: CleanRun, refusedAction: string): void => {
 const withRegistryLock = <T>(run: CleanRun, operation: () => Promise<T> | T): Promise<T> =>
   withWorktreeRegistryLock(run.git.root, operation, run.deps.lockOptions);
 
-const dropDatabase = async (run: CleanRun): Promise<{ dropped: boolean; warnings: string[] }> => {
+const dropDatabase = async (
+  run: CleanRun,
+): Promise<{ dropped: boolean; pending: boolean; warnings: string[] }> => {
   const { target, deps } = run;
+  if (target.cleanupPolicy === "finish-rollback" && !target.identity?.databaseCreated) {
+    return { dropped: false, pending: false, warnings: [] };
+  }
   if (!(await deps.database.isReachable())) {
     return {
       dropped: false,
+      pending: true,
       warnings: [
         `Warning: PostgreSQL at ${LOCAL_POSTGRES_ADDRESS} is not reachable; skipped dropping database "${target.databaseName}".`,
       ],
@@ -262,7 +282,7 @@ const dropDatabase = async (run: CleanRun): Promise<{ dropped: boolean; warnings
       await deps.database.drop(target.databaseName);
     });
   }
-  return { dropped: true, warnings: [] };
+  return { dropped: true, pending: false, warnings: [] };
 };
 
 /**
@@ -333,8 +353,15 @@ const cleanClaimedWorktree = async (
   const worktreeRemoved = removeCheckout(run);
   const database = await dropDatabase(run);
   const branchDeleted =
-    !keepBranch && !isProtectedBranch(target.branch) && (await deleteBranch(run));
-  const registryRemoved = target.claimed && (await removeRecord(run));
+    !keepBranch &&
+    target.cleanupPolicy === "standard" &&
+    !isProtectedBranch(target.branch) &&
+    (await deleteBranch(run));
+  const retryRollback = target.cleanupPolicy !== "standard" && database.pending;
+  if (retryRollback) {
+    await releaseClaim(run);
+  }
+  const registryRemoved = target.claimed && !retryRollback && (await removeRecord(run));
   return {
     result: {
       slug: target.slug,
