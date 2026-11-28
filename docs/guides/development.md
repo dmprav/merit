@@ -317,8 +317,8 @@ ownership of the database it recreated.
 If Git removed a custom `--dir` checkout's `.git` but not its files,
 `worktree:clean` does not delete that directory outside `.tmp/worktrees/`
 itself: check it, delete it, and rerun `vp run worktree:clean <slug>`. If
-PostgreSQL is stopped when cleaning an owned database, clean keeps the registry
-record for a retry. Start services with `vp run services:start` and rerun
+PostgreSQL is stopped when cleaning an owned database, clean keeps the branch and
+registry record for a retry. Start services with `vp run services:start` and rerun
 `vp run worktree:clean <slug>` before reusing the slug. Pass `--keep-branch`
 again on the retry if you want to retain the branch. Once clean attempts a
 drop, it consumes the ownership record for that database. If the command is

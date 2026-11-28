@@ -147,7 +147,8 @@ describe("cleanWorktree", () => {
 
   test("retains an owned database for a retry when PostgreSQL is down", async () => {
     const repo = initTempRepo();
-    await createWithDatabase(repo, "alpha");
+    const branch = "feat/offline-alpha";
+    await createIn(repo, { slug: "alpha", branch, dbMode: "required" }, { database: reachable() });
 
     const { result, warnings } = await cleanWorktree(
       { primaryRepoRoot: repo, slug: "alpha", keepBranch: false },
@@ -156,12 +157,15 @@ describe("cleanWorktree", () => {
 
     expect(result.databaseDropped).toBe(false);
     expect(result.registryRemoved).toBe(false);
+    expect(result.branchDeleted).toBe(false);
+    expect(listBranch(repo, branch)).toContain(branch);
     expect(readWorktreeRegistry(repo).worktrees.alpha).toMatchObject({
       status: "cleaning",
       databaseCreated: true,
     });
     const drop = vi.fn(async () => {});
     expect(await cleanIn(repo, "alpha", { database: reachable(drop) })).toMatchObject({
+      branchDeleted: true,
       databaseDropped: true,
       registryRemoved: true,
     });

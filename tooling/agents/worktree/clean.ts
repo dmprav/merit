@@ -365,7 +365,10 @@ const cleanClaimedWorktree = async (
   const worktreeRemoved = removeCheckout(run);
   const database = await dropDatabase(run);
   const branchDeleted =
-    !keepBranch && !isProtectedBranch(target.branch) && (await deleteBranch(run));
+    !target.databaseCreated &&
+    !keepBranch &&
+    !isProtectedBranch(target.branch) &&
+    (await deleteBranch(run));
   const registryRemoved = target.claimed && (await finishRecord(run));
   return {
     result: {
