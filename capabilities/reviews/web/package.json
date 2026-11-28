@@ -35,7 +35,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@merit/grantmaking": "workspace:*",
     "@merit/test-support": "workspace:*",
     "@storybook/react-vite": "catalog:",
     "@testing-library/dom": "catalog:",

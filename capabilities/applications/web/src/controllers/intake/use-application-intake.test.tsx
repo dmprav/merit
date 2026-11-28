@@ -2,8 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { expect, it, vi } from "vite-plus/test";
 
-import { applicationView } from "@merit/grantmaking/api";
-import { makeApplication } from "@merit/grantmaking/testing/fixtures";
+import { makeApplication } from "@merit/applications/testing/fixtures";
 import { createQueryClient } from "@merit/query";
 
 import type { IntakeData } from "../../contracts/intake";
@@ -14,7 +13,7 @@ import { useApplicationIntake } from "./use-application-intake";
 it.each(["delete", "discard_revision"] as const)(
   "keeps the original %s confirmation revision through refresh and retry until reopened",
   async (action) => {
-    const application = applicationView(makeApplication());
+    const application = makeApplication();
     const data: IntakeData = {
       draftKey: "application",
       workspaceSlug: "alder",
@@ -74,7 +73,7 @@ it.each(["delete", "discard_revision"] as const)(
 );
 
 it("hides an open editor after a withdrawal saved elsewhere and restores it with its draft on reinstatement", () => {
-  const application = applicationView(makeApplication());
+  const application = makeApplication();
   const withdrawn = {
     ...application,
     withdrawal: {

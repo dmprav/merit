@@ -19,7 +19,7 @@ starts from the current decision. Keep the change explanation visible only once 
 exists, and keep amount errors beside the field. The preview uses the domain's
 `previewCommitment`, so it and the server agree.
 
-The [stories](../../../../../grantmaking/web/src/views/decisions/decision-editor.stories.tsx)
-exercise each state, and the [design notes](../../../../../grantmaking/web/src/views/decisions/decision-editor.mdx)
-explain the choices. The controllers keep a draft and its original baseline, as the
+The [editor stories](./decision-editor.stories.tsx) cover budget limits, amendments, and
+conflict recovery. The [application page stories](../../../../../grantmaking/web/src/views/decisions/decision-editor.stories.tsx)
+show the decision alongside the recommendation and version history. The controllers keep a draft and its original baseline, as the
 [recommendation walkthrough](../../../../../../docs/guides/recommendation-walkthrough.md) describes.

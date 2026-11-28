@@ -6,8 +6,6 @@ import { expect, it, vi } from "vite-plus/test";
 import { materialVersionSchema } from "@merit/applications/domain";
 import type { ContactsSource } from "@merit/contacts-web/contracts";
 import { ContactsProvider } from "@merit/contacts-web/provider";
-import { applicationView } from "@merit/grantmaking/api";
-import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
 import { createQueryClient } from "@merit/query";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
@@ -15,16 +13,15 @@ import { Button } from "@merit/ui/button";
 
 import type { ReviewBaseline, ReviewData } from "../../contracts/reviews";
 import { RequestPicker, useReview } from "../../reviews";
+import { makeApplication, makeRound } from "../../testing/fixtures";
 import { GrantmakingDrafts, GrantmakingMessagesProvider } from "../../testing/providers";
 
 const Picker = ({ baseline, save }: { baseline: ReviewBaseline; save: ReviewData["save"] }) => {
   const { beginRequest } = useReview({
-    application: applicationView(
-      makeApplication({
-        version: baseline.applicationVersion,
-        reviews: { revision: baseline.revision, requests: [], assessments: [] },
-      }),
-    ),
+    application: makeApplication({
+      version: baseline.applicationVersion,
+      reviews: { revision: baseline.revision, requests: [], assessments: [] },
+    }),
     round: makeRound({
       criteriaVersion: baseline.criteriaVersion,
       criteriaHistory: [{ version: baseline.criteriaVersion, criteria: [] }],

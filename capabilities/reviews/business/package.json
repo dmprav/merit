@@ -15,6 +15,7 @@
     "./server/demo": "./src/server/demo.ts",
     "./readers": "./src/server/persistence/reviewer-records.ts",
     "./server/workflow": "./src/server/reviewer-message.workflow.ts",
+    "./testing/fixtures": "./tests/fixtures.ts",
     "./testing": "./src/server/testing.ts"
   },
   "dependencies": {

@@ -1,0 +1,24 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as Decision from "./decision-editor.stories";
+
+<Meta of={Decision} />
+
+# Edit a committee decision
+
+## Show what saving would commit
+
+Place the budget effect beside the amount. Funding and conditional funding count
+in full; a deferral or decline reserves nothing. Show the excess before saving, and
+say plainly when the round has no budget, because Merit will not record funding
+that the budget cannot hold.
+
+<Canvas of={Decision.OverBudget} story={{ inline: false, height: "620px" }} />
+
+## Ask why a decision changed
+
+Every outcome can change, including a final one, and each change is a new version.
+Ask for the explanation once a decision exists and keep it with the version it
+explains. If someone else changed the decision first, keep the draft and offer to
+reaffirm it against the latest version or discard it.
+
+<Canvas of={Decision.AmendWithExplanation} story={{ inline: false, height: "620px" }} />

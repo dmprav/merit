@@ -89,6 +89,9 @@ Tests and fixtures may compose local layers regardless of their directory.
 Colocation helps readers find focused behavior checks; it does not restrict which
 local implementation a test can exercise. Cross-package public exports and
 dependency direction still apply, and production code cannot import tests.
+Rounds, Applications, Reviews, Recommendations, and Decisions use owner fixtures
+in their business and web tests and stories. Grantmaking examples, demo seeding,
+and combined test factories are reserved for composition.
 Keep scenarios focused on observable behavior and follow the
 [test guidance](testing.md) when choosing fixtures and coverage.
 

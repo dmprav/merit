@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { roundView } from "@merit/grantmaking/api";
-import { makeRound } from "@merit/grantmaking/testing/fixtures";
 import { fromMinorUnits } from "@merit/money";
 
+import { makePreparationRound } from "../../testing/fixtures";
 import {
   draftChange,
   hasPreparationChanges,
@@ -26,18 +25,15 @@ const reach = {
 };
 
 const criteriaRound = () =>
-  roundView(
-    makeRound({
-      criteria: [fit, reach],
-      criteriaHistory: [{ version: 1, criteria: [fit, reach] }],
-    }),
-  );
+  makePreparationRound({
+    criteria: [fit, reach],
+  });
 
 describe("unsaved changes", () => {
   it("ignores a budget amount that differs only in formatting", () => {
     const draft = preparationDraft(
       "budget",
-      roundView(makeRound({ budget: fromMinorUnits(10000n) })),
+      makePreparationRound({ budget: fromMinorUnits(10000n) }),
       0,
     );
 
@@ -47,7 +43,7 @@ describe("unsaved changes", () => {
   });
 
   it("ignores surrounding whitespace in a title", () => {
-    const draft = preparationDraft("title", roundView(makeRound({ title: "Local grants" })), 0);
+    const draft = preparationDraft("title", makePreparationRound({ title: "Local grants" }), 0);
 
     expect(hasPreparationDraft({ ...draft, value: { title: " Local grants " } })).toBe(false);
   });
@@ -85,7 +81,7 @@ describe("unsaved changes", () => {
   it("retains a budget draft containing only an unsaved reason", () => {
     const draft = preparationDraft(
       "budget",
-      roundView(makeRound({ budget: fromMinorUnits(10000n) })),
+      makePreparationRound({ budget: fromMinorUnits(10000n) }),
       0,
     );
 
@@ -100,7 +96,7 @@ describe("unsaved changes", () => {
 
 describe("detecting collisions against a newer saved round", () => {
   it("ignores edits in unrelated sections and preserves the author's draft", () => {
-    const round = roundView(makeRound({ purpose: "Support community projects" }));
+    const round = makePreparationRound({ purpose: "Support community projects" });
     const draft = {
       ...preparationDraft("purpose", round, 0),
       value: { purpose: "My new purpose" },
@@ -116,7 +112,7 @@ describe("detecting collisions against a newer saved round", () => {
   });
 
   it("does not flag a collision when the author has not changed their field yet", () => {
-    const round = roundView(makeRound({ purpose: "Original purpose" }));
+    const round = makePreparationRound({ purpose: "Original purpose" });
     const draft = preparationDraft("purpose", round, 0);
 
     expect(hasPreparationSectionConflict(draft, { ...round, purpose: "Updated elsewhere" })).toBe(
@@ -125,7 +121,7 @@ describe("detecting collisions against a newer saved round", () => {
   });
 
   it("does not flag a collision when a colleague saved the same value", () => {
-    const round = roundView(makeRound({ purpose: "Original purpose" }));
+    const round = makePreparationRound({ purpose: "Original purpose" });
     const draft = { ...preparationDraft("purpose", round, 0), value: { purpose: "Agreed" } };
 
     expect(hasPreparationSectionConflict(draft, { ...round, purpose: "Agreed" })).toBe(false);
@@ -134,7 +130,7 @@ describe("detecting collisions against a newer saved round", () => {
   });
 
   describe("when both authors changed the same field", () => {
-    const round = roundView(makeRound({ purpose: "Original purpose" }));
+    const round = makePreparationRound({ purpose: "Original purpose" });
     const draft = { ...preparationDraft("purpose", round, 0), value: { purpose: "Mine" } };
     const latest = { ...round, title: "Shared title", purpose: "Theirs" };
 
@@ -181,7 +177,7 @@ describe("detecting collisions against a newer saved round", () => {
   });
 
   describe("a budget draft with an unsaved reason", () => {
-    const round = roundView(makeRound({ budget: fromMinorUnits(10000n) }));
+    const round = makePreparationRound({ budget: fromMinorUnits(10000n) });
     const draft = {
       ...preparationDraft("budget", round, 0),
       value: { amount: "100.00", reason: "Preparing an allocation change" },
@@ -203,9 +199,11 @@ describe("detecting collisions against a newer saved round", () => {
 });
 
 describe("save commands", () => {
-  const round = roundView(
-    makeRound({ title: "Saved round", purpose: "Saved purpose", meetingDate: "2027-03-15" }),
-  );
+  const round = makePreparationRound({
+    title: "Saved round",
+    purpose: "Saved purpose",
+    meetingDate: "2027-03-15",
+  });
 
   it("sends only the edited title", () => {
     const title = { ...preparationDraft("title", round, 3), value: { title: "Local title" } };
@@ -248,7 +246,7 @@ describe("draft recovery", () => {
   it.each(["title", "purpose", "meetingDate", "criteria", "budget", "manager"] as const)(
     "recovers the current %s draft with its original revision and baseline",
     (section) => {
-      const draft = preparationDraft(section, roundView(makeRound()), 4);
+      const draft = preparationDraft(section, makePreparationRound(), 4);
 
       expect(preparationStorage.parse(JSON.parse(JSON.stringify(draft)))).toEqual(draft);
     },

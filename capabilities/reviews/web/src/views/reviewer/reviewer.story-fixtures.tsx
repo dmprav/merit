@@ -2,8 +2,6 @@ import type { ReactNode } from "react";
 import { fn } from "storybook/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
-import { getExampleRound } from "@merit/grantmaking/examples";
-import { encodeMoney } from "@merit/money";
 import type { ReviewerPage } from "@merit/reviews/api";
 import { reviewerSubmission, reviewRevisionSchema, type ReviewState } from "@merit/reviews/domain";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
@@ -12,8 +10,19 @@ import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 import type { ReviewerData, ManagerReviewerData } from "../../contracts/reviewer";
 import { Messages as ReviewsMessagesProvider } from "../../messages";
 
-const round = getExampleRound();
-const application = round.applications[0]!;
+const title = "Neighbour Table";
+const criteria = [
+  {
+    id: "c71be2aa-4794-4f1d-b5b7-6e656c2fa086",
+    title: "Community connection",
+    description: "How will the activity bring local residents together?",
+  },
+  {
+    id: "59a76eae-9d64-4766-b2c5-7cf48aa710bf",
+    title: "Evidence of demand",
+    description: "What did the group learn from its pilot?",
+  },
+];
 const recorder = { userId: "sam", name: "Sam Morgan", recordedAt: "2027-01-16T10:00:00Z" };
 
 export const reviewerPage = (): ReviewerPage => ({
@@ -25,9 +34,9 @@ export const reviewerPage = (): ReviewerPage => ({
     reviewer: "Sam Morgan",
     hasSubmitted: false,
     email: "sam@example.test",
-    applicationTitle: application.title,
+    applicationTitle: title,
     applicant: "Neighbourhood Kitchen",
-    organization: round.foundation,
+    organization: "Alder Foundation",
     workspaceSlug: "alder",
     dueDate: "2027-02-10",
     managerName: "Dana Reed",
@@ -48,13 +57,29 @@ export const reviewerPage = (): ReviewerPage => ({
     expiresAt: "2099-01-01T00:00:00Z",
   },
   material: {
-    title: application.title,
-    version: application.version,
-    requested: application.requested && encodeMoney(application.requested),
-    submission: structuredClone(application.submission),
-    evidence: structuredClone(application.evidence),
+    title,
+    version: materialVersionSchema.parse(1),
+    requested: { currency: "EUR", minorUnits: "2400000" },
+    submission: {
+      version: 1,
+      organization: "Neighbourhood Kitchen",
+      answers: [
+        {
+          questionId: "ea6818f9-940d-417b-b094-ed0c0d145f5b",
+          question: "Project overview",
+          response:
+            "Weekly shared meals will bring residents together over 24 weeks. Eight volunteers will cook and welcome neighbours at the community hall.",
+        },
+      ],
+    },
+    evidence: [
+      {
+        version: 1,
+        passage: "Of the 18 pilot attendees who gave feedback, 14 said they would return.",
+      },
+    ],
   },
-  criteria: structuredClone(round.criteria),
+  criteria: structuredClone(criteria),
   assessment: null,
   draft: {
     revision: 1,
@@ -219,7 +244,7 @@ export const managerReviews = (): ReviewState => ({
       reviewer: "Sam Morgan",
       applicationVersion: materialVersionSchema.parse(1),
       criteriaVersion: criteriaVersionSchema.parse(1),
-      criteria: round.criteria,
+      criteria: criteria,
       status: "outstanding",
       recorder,
       closedBy: null,

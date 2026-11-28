@@ -1,0 +1,17 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as Recommendation from "./recommendation-editor.stories";
+
+<Meta of={Recommendation} />
+
+# Edit a funding recommendation
+
+## Show what saving this draft would mean
+
+Place the proposed allocation and its effect on the round together. A manager
+can adjust the amount and see the remaining budget or overage before saving.
+Show when a conditional recommendation counts in full or a deferral reserves
+nothing. **Save recommendation** records a proposal.
+
+<Canvas of={Recommendation.BudgetPreview} story={{ inline: false, height: "620px" }} />
+
+[Concurrent changes](?path=/story/features-applications-recommendation-editor--concurrent-changes) shows how to inspect a newer save while drafting.

@@ -265,6 +265,18 @@ const policies = [
   ...serverImports,
   forbid(
     {
+      element: {
+        path: "capabilities/{rounds,applications,reviews,recommendations,decisions}/{business,web}",
+      },
+    },
+    {
+      element: { path: "capabilities/grantmaking/business" },
+      ...category("{business-examples,business-demo,test}"),
+    },
+    "Use capability-owned test fixtures. Combined grantmaking fixtures belong in composition.",
+  ),
+  forbid(
+    {
       element: { path: "capabilities/audit/business" },
       file: { categories: { noneOf: ["composition-test"] } },
     },
