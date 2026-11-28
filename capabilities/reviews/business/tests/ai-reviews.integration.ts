@@ -811,6 +811,30 @@ it.for([
   },
 );
 
+/**
+ * Hold an application the way a grant command does: the workspace and round shared, then the
+ * case row, in the order the save takes them. The save then waits for the case alone, and the
+ * holder never needs a lock the save holds, so the two cannot deadlock.
+ */
+const holdApplication = async (
+  holder: { query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }> },
+  caseId: string,
+) => {
+  await holder.query("BEGIN");
+  await holder.query(
+    "SELECT id FROM organizations WHERE id = (SELECT organization_id FROM application_cases WHERE id = $1) FOR SHARE",
+    [caseId],
+  );
+  await holder.query(
+    "SELECT id FROM funding_rounds WHERE id = (SELECT round_id FROM application_cases WHERE id = $1) FOR SHARE",
+    [caseId],
+  );
+  await holder.query("SELECT id FROM application_cases WHERE id = $1 FOR UPDATE", [caseId]);
+};
+
+/** The save connects on its own, which a loaded machine can take longer than the default second to do. */
+const lockWait = { timeout: 15_000 };
+
 it("saves nothing and reports a stopped run when Stop arrives while the save waits for the application", async ({
   aiReviewSetup,
   database,
@@ -822,10 +846,7 @@ it("saves nothing and reports a stopped run when Stop arrives while the save wai
   let held: number | undefined;
   // Another writer holds the application while the provider answers, so the save waits for it.
   const { reviewer } = stub(async (request) => {
-    await holder.query("BEGIN");
-    await holder.query("SELECT id FROM application_cases WHERE id = $1 FOR UPDATE", [
-      address.publicId,
-    ]);
+    await holdApplication(holder, address.publicId);
     held = (await holder.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0]?.pid;
     return validReply(request);
   });
@@ -833,12 +854,14 @@ it("saves nothing and reports a stopped run when Stop arrives while the save wai
   const result = run({ ...reviewer, signal: stopped.signal }, { onSaved });
   await vi.waitFor(async () => {
     expect(held).toBeDefined();
+    // Inside a transaction the activity view is a snapshot of its first read, so read it afresh.
+    await holder.query("SELECT pg_stat_clear_snapshot()");
     const waiting = await holder.query<{ count: string }>(
       "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND $1 = ANY(pg_blocking_pids(pid))",
       [held],
     );
     expect(Number(waiting.rows[0]?.count)).toBe(1);
-  });
+  }, lockWait);
   stopped.abort();
   await holder.query("COMMIT");
 
@@ -863,23 +886,24 @@ it("stamps a run when it is inserted after the case lock, so history order is co
   const { run, address } = await aiReviewSetup();
   // Another writer holds the application while the provider answers, so the save waits for it.
   const holder = database.client;
+  let held: number | undefined;
   const result = run(
     stub(async (request) => {
-      await holder.query("BEGIN");
-      await holder.query("SELECT id FROM application_cases WHERE id = $1 FOR UPDATE", [
-        address.publicId,
-      ]);
+      await holdApplication(holder, address.publicId);
+      held = (await holder.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0]?.pid;
       return validReply(request);
     }).reviewer,
   );
-  const { rows: held } = await holder.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
   await vi.waitFor(async () => {
+    expect(held).toBeDefined();
+    // Inside a transaction the activity view is a snapshot of its first read, so read it afresh.
+    await holder.query("SELECT pg_stat_clear_snapshot()");
     const waiting = await holder.query<{ count: string }>(
       "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND $1 = ANY(pg_blocking_pids(pid))",
-      [held[0]?.pid],
+      [held],
     );
     expect(Number(waiting.rows[0]?.count)).toBe(1);
-  });
+  }, lockWait);
   const releasedAt = (await holder.query<{ at: string }>("SELECT clock_timestamp()::text AS at"))
     .rows[0]?.at;
   await holder.query("COMMIT");
