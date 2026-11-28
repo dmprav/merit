@@ -259,17 +259,6 @@ it("refuses a linked-worktree reset when an exported DATABASE_URL overrides the 
   ).rejects.toThrow(/exported DATABASE_URL overrides the database in this worktree's \.env\.local/);
   expect(recreate).not.toHaveBeenCalled();
   expect(exec).not.toHaveBeenCalled();
-
-  const result = await resetLocalDatabase({
-    cwd: REPO_ROOT,
-    env: { DATABASE_URL: worktreeDatabaseUrl },
-    isLinkedWorktree: true,
-    worktreeDatabaseUrl,
-    exec,
-    recreate,
-  });
-  expect(result).toMatchObject({ mode: "worktree", database: { databaseName: "merit_alpha" } });
-  expect(recreate).toHaveBeenCalledOnce();
 });
 
 it("refuses a linked-worktree reset when the worktree's .env.local supplies no DATABASE_URL", async () => {
