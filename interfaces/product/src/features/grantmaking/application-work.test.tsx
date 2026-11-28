@@ -19,12 +19,12 @@ vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
 
 const round = roundView(makeRound());
 
-const dataFor = (id: string, disabled = false): ApplicationData => ({
+const dataFor = (id: string): ApplicationData => ({
   round,
   application: applicationView({ ...makeReviewedApplication(), id, title: `Project ${id}` }),
   key: id,
-  recommendation: { revision: 0, disabled, save: vi.fn() },
-  decision: { revision: 0, versions: [], disabled, save: vi.fn() },
+  recommendation: { revision: 0, save: vi.fn() },
+  decision: { revision: 0, versions: [], save: vi.fn() },
   intake: null,
   reviews: null,
 });
@@ -47,14 +47,13 @@ const view = (data: ApplicationData) => (
 );
 
 it("shows application evidence without initializing unavailable intake or review editors", () => {
-  render(view(dataFor("first", true)), { wrapper });
+  render(view(dataFor("first")), { wrapper });
 
   expect(screen.getByRole("heading", { name: "Project first" })).toBeVisible();
   expect(screen.getByRole("region", { name: "Applicant submission" })).toBeVisible();
   expect(
     screen.queryByRole("button", { name: "Edit application details" }),
   ).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /Edit recommendation for/ })).toBeDisabled();
 });
 
 it("resets active editing when the record changes while retaining each record's recommendation draft", async () => {

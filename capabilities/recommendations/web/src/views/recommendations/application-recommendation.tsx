@@ -47,7 +47,6 @@ export const ApplicationRecommendation = ({
         key={applicationKey}
         application={application}
         round={round}
-        disabled={data.disabled}
         ready={ready}
         draft={draft}
         conflict={conflict}

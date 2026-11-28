@@ -27,8 +27,7 @@ const setup = (
   const save = vi.fn<RecommendationData["save"]>();
   const setDraft = vi.fn();
   const hook = renderHook(
-    () =>
-      useRecommendation("application", applicationVersion, { revision: 5, disabled: false, save }),
+    () => useRecommendation("application", applicationVersion, { revision: 5, save }),
     {
       wrapper: ({ children }) => (
         <DraftContext
@@ -103,8 +102,7 @@ const renderStoredRecommendation = async (storageScope: string) => {
   );
 
   const hook = renderHook(
-    ({ revision, version }) =>
-      useRecommendation("application", version, { revision, disabled: false, save }),
+    ({ revision, version }) => useRecommendation("application", version, { revision, save }),
     { initialProps: { revision: 5, version: applicationVersion }, wrapper: Store },
   );
   await waitFor(() => expect(hook.result.current.ready).toBe(true));
@@ -185,7 +183,6 @@ const renderStoreConflict = () => {
     () =>
       useRecommendation("application", applicationVersion, {
         revision: 5,
-        disabled: false,
         save: vi.fn<RecommendationData["save"]>(),
       }),
     {

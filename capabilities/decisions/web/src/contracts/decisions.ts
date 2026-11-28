@@ -46,7 +46,6 @@ export type DecisionData = {
   revision: number;
   /** Every saved version, newest first. */
   versions: readonly DecisionVersion[];
-  disabled: boolean;
   save: (
     value: DecisionInput,
     baseline: DecisionBaseline,

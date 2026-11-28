@@ -55,7 +55,7 @@ const actionLabels = {
 type RecommendationEditorProps = {
   application: RecommendationApplication;
   round: RecommendationRound;
-  disabled: boolean;
+  disabled?: boolean;
   ready?: boolean;
   showActionLabel?: boolean;
   onClose?: () => void | Promise<void>;
@@ -78,7 +78,7 @@ export const RecommendationEditor = (props: RecommendationEditorProps) => {
   const {
     application,
     round,
-    disabled,
+    disabled = false,
     ready = true,
     showActionLabel = false,
     draft,

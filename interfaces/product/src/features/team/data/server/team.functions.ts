@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import { withActor } from "@merit/auth/request";
-import { teamHistoryInput } from "@merit/organizations/api";
 import {
   teamInput,
   inviteMemberInput,
@@ -43,12 +42,4 @@ export const removeMember = createServerFn({ method: "POST" })
   .validator(memberInput)
   .handler(({ context, data }) =>
     withActor(context.currentIdentity, (actor) => context.organizations.removeMember(actor, data)),
-  );
-
-export const readTeamHistory = createServerFn({ method: "GET" })
-  .validator(teamHistoryInput)
-  .handler(({ context, data }) =>
-    withActor(context.currentIdentity, (actor) =>
-      context.organizations.teamHistoryPage(actor, data),
-    ),
   );

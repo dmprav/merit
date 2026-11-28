@@ -5,7 +5,6 @@
   "license": "UNLICENSED",
   "type": "module",
   "exports": {
-    "./reviews": "./src/reviews.ts",
     "./reviewer": "./src/reviewer.ts",
     "./messages": "./src/messages.tsx",
     "./message-content": "./src/views/reviews/status.messages.ts",

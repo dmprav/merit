@@ -59,6 +59,8 @@
     "app/src/worker/workflows.workflow.ts",
     // Stylelint loads this plugin from a path in stylelint.config.mjs.
     "tooling/stylelint/icon-size.mjs",
+    // Agent runbooks and the pruning workflow run these CLIs by path.
+    "tooling/agents/{scout,proposal,queue,prune-verifications}.ts",
     // Checkly discovers config and synthetic checks by file pattern.
     "tooling/checkly/checkly.config.ts",
     "tooling/checkly/tests/**/*.check.ts",

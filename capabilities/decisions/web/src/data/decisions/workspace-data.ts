@@ -35,7 +35,6 @@ export const createDecisionData = <TApplication, TKey extends QueryKey>(
   const { application, roundScope, save, applySaved } = source;
 
   return {
-    disabled: false,
     revision: state.revision,
     versions: decodeDecisionVersions(state),
     save: async (decision, baseline) => {

@@ -48,7 +48,6 @@ export const ApplicationDecision = ({
       application={application}
       round={round}
       versions={data.versions}
-      disabled={data.disabled}
       ready={ready}
       draft={draft}
       conflict={conflict}
