@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { expect, mocked, within } from "storybook/test";
 
 import { ApplicationView } from "@merit/grantmaking-web/applications";
@@ -8,7 +9,7 @@ import { ApplicationContainedPreview } from "@merit/grantmaking-web/testing";
 import { roundView } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { aiReviewFixture } from "@merit/reviews-web/testing";
-import { reviewRevisionSchema } from "@merit/reviews/domain";
+import { reviewRevisionSchema, type AiReviewAvailability } from "@merit/reviews/domain";
 
 import { StoryEnvironment } from "../../../../../tests/storybook";
 import { workspaceAiReviewData } from "../../data/reviews/ai-review-data";
@@ -17,8 +18,16 @@ import { runAiReview } from "../../data/server/reviews/ai-reviews.functions";
 const round = getExampleRound();
 const provider = { provider: "OpenAI", model: "gpt-5.1" };
 
-const AiReviewPreview = ({ refreshFailure = false }: { refreshFailure?: boolean }) => {
+const AiReviewPreview = ({
+  refreshFailure = false,
+  reloaded,
+}: {
+  refreshFailure?: boolean;
+  /** What the page says once it has been read again, as the server's would after a change. */
+  reloaded?: AiReviewAvailability;
+}) => {
   const client = useQueryClient();
+  const [availability, setAvailability] = useState<AiReviewAvailability>("available");
   // Without assessments the section sits within the first screen, beside the recommendation.
   const application = roundView({
     ...round,
@@ -32,7 +41,7 @@ const AiReviewPreview = ({ refreshFailure = false }: { refreshFailure?: boolean 
   }).applications[0]!;
   const data = workspaceAiReviewData(client, "alder", "workshop-saturdays", {
     reviews: [],
-    availability: "available",
+    availability,
     provider,
   });
 
@@ -47,6 +56,9 @@ const AiReviewPreview = ({ refreshFailure = false }: { refreshFailure?: boolean 
           refresh: async () => {
             if (refreshFailure) {
               throw new Error("Preview refresh failure");
+            }
+            if (reloaded) {
+              setAvailability(reloaded);
             }
           },
         }}
@@ -116,6 +128,7 @@ export const Failed: Story = {
 };
 
 export const ConsentWithdrawnDuringRun: Story = {
+  args: { reloaded: "consent_required" },
   beforeEach: () => {
     mocked(runAiReview).mockResolvedValueOnce({
       status: "not_available",

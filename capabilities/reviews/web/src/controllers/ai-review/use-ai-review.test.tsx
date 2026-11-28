@@ -16,6 +16,35 @@ const setup = (overrides: Partial<AiReviewData> = {}) => {
   return { data, ...renderHook(() => useAiReview(data)) };
 };
 
+/**
+ * A page whose run answers `first` once, then saves. Its refresh completes and the page then reads
+ * as `reloaded`; by default the page does not change.
+ */
+const setupPage = (
+  first: Awaited<ReturnType<AiReviewData["run"]>>,
+  {
+    reloaded,
+    ...overrides
+  }: Partial<AiReviewData> & { reloaded?: AiReviewData["availability"] } = {},
+) => {
+  const page = aiReviewDataFixture({
+    run: vi
+      .fn<AiReviewData["run"]>()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValue({ status: "ok", review: aiReviewFixture() }),
+    refresh: vi.fn<AiReviewData["refresh"]>(async () => {
+      if (reloaded) {
+        rendered.rerender({ page: { ...page, availability: reloaded } });
+      }
+    }),
+    ...overrides,
+  });
+  const rendered = renderHook(({ page: current }: { page: AiReviewData }) => useAiReview(current), {
+    initialProps: { page },
+  });
+  return { ...rendered, page };
+};
+
 it("runs once at a time and refreshes the page after a saved review", async () => {
   let finish!: (result: Awaited<ReturnType<AiReviewData["run"]>>) => void;
   const run = vi.fn<AiReviewData["run"]>().mockImplementation(
@@ -63,46 +92,55 @@ it("clears the failure when the run is tried again", async () => {
   expect(result.current?.saved).toBe(1);
 });
 
+const refused = { status: "not_available", availability: "consent_required" } as const;
+
 it("shows the reason a run was refused at save time and reloads the page", async () => {
-  const { result, data } = setup({
-    run: vi.fn().mockResolvedValue({ status: "not_available", availability: "consent_required" }),
-  });
+  const { result, page } = setupPage(refused, { reloaded: "consent_required" });
 
   await act(() => result.current!.run());
 
+  // The reloaded page now says the same, so the reason stands on its own.
+  expect(result.current?.availability).toBe("consent_required");
+  expect(result.current?.failure).toBeNull();
+  // The reason ends the offer, so a further call cannot run.
+  await act(() => result.current!.run());
+  expect(page.run).toHaveBeenCalledOnce();
+  expect(page.refresh).toHaveBeenCalledOnce();
+});
+
+it("holds the save-time reason until the page has been read again", async () => {
+  let finish!: () => void;
+  const refresh = vi.fn<AiReviewData["refresh"]>().mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const { result } = setupPage(refused, { refresh });
+
+  act(() => void result.current?.run());
+  await waitFor(() => expect(refresh).toHaveBeenCalled());
   expect(result.current?.availability).toBe("consent_required");
   expect(result.current?.failure).toEqual({
     kind: "not_available",
     availability: "consent_required",
   });
-  expect(data.refresh).toHaveBeenCalledOnce();
-  // The reason ends the offer, so a further call cannot run.
-  await act(() => result.current!.run());
-  expect(data.run).toHaveBeenCalledOnce();
-});
 
-it("offers the run again once newer page data says it is available", async () => {
-  const refused = vi
-    .fn<AiReviewData["run"]>()
-    .mockResolvedValueOnce({ status: "not_available", availability: "consent_required" })
-    .mockResolvedValue({ status: "ok", review: aiReviewFixture() });
-  const available = aiReviewDataFixture({ run: refused });
-  const { result, rerender } = renderHook(({ page }: { page: AiReviewData }) => useAiReview(page), {
-    initialProps: { page: available },
-  });
+  await act(async () => finish());
 
-  await act(() => result.current!.run());
-  expect(result.current?.availability).toBe("consent_required");
-
-  // The reloaded page still refuses, then consent comes back: the save-time reason is gone.
-  rerender({ page: { ...available, availability: "consent_required" } });
-  expect(result.current?.availability).toBe("consent_required");
-  rerender({ page: { ...available, availability: "available" } });
+  // The page read says it is available again, with the same reviews as before.
   expect(result.current?.availability).toBe("available");
   expect(result.current?.failure).toBeNull();
+});
+
+it("offers the run again when the page read after a refusal is unchanged", async () => {
+  const { result, page } = setupPage(refused);
 
   await act(() => result.current!.run());
-  expect(refused).toHaveBeenCalledTimes(2);
+
+  expect(result.current?.availability).toBe("available");
+  await act(() => result.current!.run());
+  expect(page.run).toHaveBeenCalledTimes(2);
 });
 
 it("does not offer a run that the page already refuses", async () => {

@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { roundView, applicationView } from "@merit/grantmaking/api";
@@ -19,7 +19,7 @@ import {
   aiReviewFixture,
   outdatedAiReviewFixture,
 } from "@merit/reviews-web/testing";
-import { reviewRevisionSchema } from "@merit/reviews/domain";
+import { reviewRevisionSchema, type AiReviewEntry } from "@merit/reviews/domain";
 import { Toasts } from "@merit/ui/toast";
 
 import { GrantmakingMessagesProvider } from "../../messages";
@@ -862,6 +862,31 @@ it("keeps assessment reading available and disables authoring while a recommenda
   expect(workspace().getByRole("textbox", { name: "Recommendation draft" })).toBeVisible();
 });
 
+/** An application whose AI review run is saved by `server` and shown once the page is read again. */
+const SavingApplication = ({
+  server,
+  saved,
+}: {
+  server: AiReviewEntry[];
+  saved: AiReviewEntry;
+}) => {
+  const [reviews, setReviews] = useState<AiReviewEntry[]>([]);
+  return (
+    <ApplicationView
+      round={round}
+      application={application}
+      aiReviewData={aiReviewDataFixture({
+        reviews,
+        run: async () => {
+          server.push(saved);
+          return { status: "ok", review: saved };
+        },
+        refresh: async () => setReviews([...server]),
+      })}
+    />
+  );
+};
+
 describe("AI review in the application workspace", () => {
   const aiReviewData = aiReviewDataFixture({ reviews: [aiReviewFixture()] });
 
@@ -962,24 +987,40 @@ describe("AI review in the application workspace", () => {
     ).toBeVisible();
   });
 
-  it("runs from the section and leaves the saved confirmation outside the reference panes", async () => {
+  it("runs from the section, then shows the saved review as an entry that opens, with the confirmation outside the reference panes", async () => {
     const user = userEvent.setup();
-    const run = vi.fn().mockResolvedValue({ status: "ok", review: aiReviewFixture() });
+    const saved = aiReviewFixture();
+    const server: AiReviewEntry[] = [];
     render(
       <QueryClientProvider client={createQueryClient()}>
-        <ApplicationView
-          round={round}
-          application={application}
-          aiReviewData={aiReviewDataFixture({ run })}
-        />
+        <SavingApplication server={server} saved={saved} />
         <Toasts />
       </QueryClientProvider>,
       { wrapper: GrantmakingMessagesProvider },
     );
+    expect(workspace().queryByRole("button", { name: /Merit AI/ })).not.toBeInTheDocument();
 
     await user.click(workspace().getByRole("button", { name: "Run AI review" }));
 
     expect(await screen.findByText("AI review saved")).toBeVisible();
-    expect(run).toHaveBeenCalledOnce();
+    await user.click(await workspace().findByRole("button", { name: /Merit AI/ }));
+    const full = reference().getByRole("region", { name: "AI review details" });
+    expect(within(full).getByRole("heading", { name: "AI review" })).toHaveFocus();
+    expect(within(full).getByText("€24,000 proposed")).toBeVisible();
+  });
+
+  it("offers no run on a read-only page and keeps the saved review", () => {
+    render(
+      <ApplicationView
+        round={round}
+        application={application}
+        readOnly
+        aiReviewData={aiReviewData}
+      />,
+      { wrapper: GrantmakingMessagesProvider },
+    );
+
+    expect(workspace().queryByRole("button", { name: /Run/ })).not.toBeInTheDocument();
+    expect(workspace().getByRole("button", { name: /Merit AI/ })).toBeVisible();
   });
 });

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState, type ComponentProps } from "react";
+import { useRef, useState, type ComponentProps } from "react";
 import { expect, within } from "storybook/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
@@ -256,11 +256,39 @@ const noReviewers = {
 const aiReviewSection = (canvas: Parameters<NonNullable<Story["play"]>>[0]["canvas"]) =>
   within(canvas.getByRole("complementary", { name: "Application workspace" }));
 
+/**
+ * An application whose AI review runs to a saved review: the run saves one, and reading the page
+ * again shows it, so a story can press Run AI review and see it complete.
+ */
+const SavingAiReviewPreview = (props: PreviewProps) => {
+  const { aiReviewData, ...rest } = props;
+  const [reviews, setReviews] = useState(aiReviewData?.reviews ?? []);
+  const stored = useRef(reviews);
+  return (
+    <ApplicationPreview
+      {...rest}
+      aiReviewData={
+        aiReviewData && {
+          ...aiReviewData,
+          reviews,
+          run: async (runId) => {
+            const review = aiReviewFixture({ id: runId });
+            stored.current = [review, ...stored.current];
+            return { status: "ok", review };
+          },
+          refresh: async () => setReviews(stored.current),
+        }
+      }
+    />
+  );
+};
+
 const aiReviewStory = (
   aiReviewData: ReturnType<typeof aiReviewDataFixture>,
   play?: Story["play"],
 ): Story => ({
   args: { application: noReviewers, tab: "reviews", aiReviewData },
+  render: (args) => <SavingAiReviewPreview {...args} />,
   play,
 });
 
@@ -273,6 +301,43 @@ export const AiReviewEmpty = aiReviewStory(aiReviewDataFixture(), async ({ canva
     aiReviewSection(canvas).getByRole("button", { name: "Run AI review" }),
   ).toBeVisible();
 });
+/** Running from the empty section saves a review, which then appears as the section's entry. */
+export const AiReviewRun = aiReviewStory(aiReviewDataFixture(), async ({ canvas, userEvent }) => {
+  await userEvent.click(aiReviewSection(canvas).getByRole("button", { name: "Run AI review" }));
+  await expect(
+    await aiReviewSection(canvas).findByRole("button", { name: /Merit AI/ }),
+  ).toBeVisible();
+  await expect(aiReviewSection(canvas).getByRole("button", { name: "Run again" })).toBeVisible();
+});
+/** A run that fails saves nothing and offers Try again; the saved reviews are unchanged. */
+export const AiReviewRunFailed: Story = {
+  args: {
+    application: noReviewers,
+    tab: "reviews",
+    aiReviewData: aiReviewDataFixture({ run: async () => ({ status: "failed" }) }),
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(aiReviewSection(canvas).getByRole("button", { name: "Run AI review" }));
+    await expect(await aiReviewSection(canvas).findByRole("alert")).toHaveTextContent(
+      "The AI review couldn't be completed. Nothing was saved.",
+    );
+    await expect(aiReviewSection(canvas).getByRole("button", { name: "Try again" })).toBeVisible();
+    await expect(aiReviewSection(canvas).queryByRole("button", { name: /Merit AI/ })).toBeNull();
+  },
+};
+/** A page that accepts no work shows the saved review and offers no run. */
+export const AiReviewReadOnly: Story = {
+  args: {
+    application: noReviewers,
+    tab: "reviews",
+    readOnly: true,
+    aiReviewData: aiReviewDataFixture({ reviews: [aiReviewFixture()] }),
+  },
+  play: async ({ canvas }) => {
+    await expect(aiReviewSection(canvas).getByRole("button", { name: /Merit AI/ })).toBeVisible();
+    await expect(aiReviewSection(canvas).queryByRole("button", { name: /Run/ })).toBeNull();
+  },
+};
 export const AiReviewConsentRequired = aiReviewStory(
   aiReviewDataFixture({ availability: "consent_required" }),
   async ({ canvas }) => {

@@ -1,7 +1,9 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
+import type { AiReviewEntry } from "@merit/reviews/domain";
 import { Toasts } from "@merit/ui/toast";
 
 import type { AiReviewData } from "../../contracts/ai-review";
@@ -20,9 +22,11 @@ import { useAiReviewWork } from "./use-ai-review-work";
 const Harness = ({
   data,
   onInspectVersion,
+  readOnly,
 }: {
   data: AiReviewData;
   onInspectVersion?: (version: number) => void;
+  readOnly?: boolean;
 }) => {
   const work = useAiReviewWork(data);
   if (!work) {
@@ -30,7 +34,8 @@ const Harness = ({
   }
   return (
     <>
-      <AiReviewOverview work={work} onSelect={work.reading.open} />
+      <input aria-label="Elsewhere" />
+      <AiReviewOverview work={work} onSelect={work.reading.open} readOnly={readOnly} />
       <AiReviewContent work={work} onInspectVersion={onInspectVersion} />
       <AiReviewFeedback work={work} />
       <Toasts />
@@ -38,8 +43,34 @@ const Harness = ({
   );
 };
 
-const show = (data: AiReviewData, onInspectVersion?: (version: number) => void) =>
-  render(<Harness data={data} onInspectVersion={onInspectVersion} />, {
+/** A page that reads as `reloaded` once its refresh has completed, as the server's page does. */
+const ReloadingHarness = ({
+  data,
+  reloaded,
+}: {
+  data: AiReviewData;
+  reloaded: Partial<AiReviewData>;
+}) => {
+  const [page, setPage] = useState(data);
+  return (
+    <Harness
+      data={{
+        ...page,
+        refresh: async () => {
+          await data.refresh();
+          setPage((current) => ({ ...current, ...reloaded }));
+        },
+      }}
+    />
+  );
+};
+
+const show = (
+  data: AiReviewData,
+  onInspectVersion?: (version: number) => void,
+  readOnly?: boolean,
+) =>
+  render(<Harness data={data} onInspectVersion={onInspectVersion} readOnly={readOnly} />, {
     wrapper: GrantmakingMessagesProvider,
   });
 
@@ -126,6 +157,18 @@ describe("AI review section", () => {
     expect(screen.getByRole("button", { name: "Run again" })).toBeEnabled();
   });
 
+  it.each(["available", "consent_required"] as const)(
+    "offers no run on a page that accepts no work, however available (%s), and keeps the saved review",
+    (availability) => {
+      show(aiReviewDataFixture({ availability, reviews: [aiReviewFixture()] }), undefined, true);
+
+      expect(screen.queryByRole("button", { name: /Run/ })).not.toBeInTheDocument();
+      expect(screen.queryByText(/Sends this application's/)).not.toBeInTheDocument();
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Merit AI/ })).toBeVisible();
+    },
+  );
+
   it("keeps the run pending, announces it and prevents a second run", async () => {
     const user = userEvent.setup();
     const run = vi.fn<AiReviewData["run"]>().mockReturnValue(new Promise(() => {}));
@@ -163,21 +206,52 @@ describe("AI review section", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("explains a refusal at save time with the matching availability message", async () => {
-    const user = userEvent.setup();
-    show(
-      aiReviewDataFixture({
-        run: vi.fn().mockResolvedValue({ status: "not_available", availability: "withdrawn" }),
-      }),
-    );
+  describe("a run refused at save time", () => {
+    const refusing = () => {
+      let refuse!: () => void;
+      const run = vi.fn<AiReviewData["run"]>().mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            refuse = () => resolve({ status: "not_available", availability: "withdrawn" });
+          }),
+      );
+      render(
+        <ReloadingHarness
+          data={aiReviewDataFixture({ run })}
+          reloaded={{ availability: "withdrawn" }}
+        />,
+        { wrapper: GrantmakingMessagesProvider },
+      );
+      return { refuse: () => act(async () => refuse()) };
+    };
 
-    await user.click(screen.getByRole("button", { name: "Run AI review" }));
+    it("explains itself with the matching availability message and takes the focus the button held", async () => {
+      const user = userEvent.setup();
+      const { refuse } = refusing();
 
-    const explanation = await screen.findByRole("status");
-    expect(explanation).toHaveTextContent("Withdrawn applications can't be reviewed.");
-    // The focused button is gone, so focus moves to the explanation that replaced it.
-    expect(explanation).toHaveFocus();
-    expect(screen.queryByRole("button", { name: /Run/ })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Run AI review" }));
+      await refuse();
+
+      const explanation = await screen.findByRole("status");
+      expect(explanation).toHaveTextContent("Withdrawn applications can't be reviewed.");
+      // The focused button is gone, so focus moves to the explanation that replaced it.
+      expect(explanation).toHaveFocus();
+      expect(screen.queryByRole("button", { name: /Run/ })).not.toBeInTheDocument();
+    });
+
+    it("leaves the focus where the person moved it while the run was under way", async () => {
+      const user = userEvent.setup();
+      const { refuse } = refusing();
+
+      await user.click(screen.getByRole("button", { name: "Run AI review" }));
+      await user.click(screen.getByRole("textbox", { name: "Elsewhere" }));
+      await refuse();
+
+      expect(await screen.findByRole("status")).toHaveTextContent(
+        "Withdrawn applications can't be reviewed.",
+      );
+      expect(screen.getByRole("textbox", { name: "Elsewhere" })).toHaveFocus();
+    });
   });
 
   it("does not claim a lost connection saved nothing", async () => {
@@ -196,16 +270,24 @@ describe("AI review section", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-      const refresh = vi
-        .fn<AiReviewData["refresh"]>()
-        .mockRejectedValueOnce(new Error("Offline"))
-        .mockRejectedValueOnce(new Error("Offline"))
-        .mockRejectedValueOnce(new Error("Offline"))
-        .mockResolvedValue(undefined);
-      const run = vi
-        .fn<AiReviewData["run"]>()
-        .mockResolvedValue({ status: "ok", review: aiReviewFixture() });
-      show(aiReviewDataFixture({ run, refresh }));
+      // The server keeps what the run saved; the page shows it only once a refresh succeeds.
+      const server = { saved: [] as AiReviewEntry[], readsToFail: 3 };
+      const data = aiReviewDataFixture({
+        run: async () => {
+          const review = aiReviewFixture();
+          server.saved.push(review);
+          return { status: "ok", review };
+        },
+        refresh: async () => {
+          if (server.readsToFail > 0) {
+            server.readsToFail -= 1;
+            throw new Error("Offline");
+          }
+        },
+      });
+      render(<ReloadingHarness data={data} reloaded={{ reviews: server.saved }} />, {
+        wrapper: GrantmakingMessagesProvider,
+      });
 
       await user.click(screen.getByRole("button", { name: "Run AI review" }));
       await vi.advanceTimersByTimeAsync(4000);
@@ -213,13 +295,16 @@ describe("AI review section", () => {
       const recovery = await screen.findByRole("alertdialog", {
         name: "Saved, but the latest AI reviews could not be loaded.",
       });
+      expect(screen.queryByRole("button", { name: /Merit AI/ })).not.toBeInTheDocument();
       await user.click(within(recovery).getByRole("button", { name: "Refresh" }));
 
-      await waitFor(() =>
-        expect(screen.queryByRole("alertdialog", { name: /Saved, but/ })).toBeNull(),
-      );
-      expect(run).toHaveBeenCalledOnce();
-      expect(refresh).toHaveBeenCalledTimes(4);
+      // The saved review is now readable, and the run saved exactly one record.
+      await user.click(await screen.findByRole("button", { name: /Merit AI/ }));
+      expect(section().getByText("€24,000 proposed")).toBeVisible();
+      expect(screen.queryByRole("alertdialog", { name: /Saved, but/ })).toBeNull();
+      expect(server.saved).toHaveLength(1);
+      expect(screen.getAllByRole("button", { name: /Merit AI/ })).toHaveLength(1);
+      expect(section().queryByRole("button", { name: /Earlier AI reviews/ })).toBeNull();
     } finally {
       vi.useRealTimers();
     }

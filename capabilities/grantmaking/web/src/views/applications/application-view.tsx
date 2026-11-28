@@ -402,22 +402,7 @@ const ApplicationTaskContent = ({
   </>
 );
 
-const ApplicationWorkOverview = ({
-  application,
-  manager,
-  overview,
-  readOnly,
-  recommendationAction,
-  decisionVersions,
-  decisionAction,
-  onShowAll,
-  onSelect,
-  triggerRef,
-  actions,
-  aiReview,
-  onSelectAiReview,
-  onInspectVersion,
-}: Omit<ComponentProps<typeof ReviewOverview>, "application"> & {
+type WorkOverviewProps = Omit<ComponentProps<typeof ReviewOverview>, "application"> & {
   application: Application;
   aiReview: AiReviewWork | null;
   onSelectAiReview: (id: string) => void;
@@ -428,37 +413,86 @@ const ApplicationWorkOverview = ({
   decisionVersions?: readonly DecisionVersion[];
   decisionAction?: ReactNode;
   onInspectVersion: (version: number) => void;
-}) => (
-  <PanelSections>
-    {overview}
+};
+
+/** The committee decision and the manager's recommendation, each with its action while work is accepted. */
+const ApplicationJudgments = ({
+  application,
+  manager,
+  readOnly,
+  recommendationAction,
+  decisionVersions,
+  decisionAction,
+  onInspectVersion,
+  preparing,
+}: Pick<
+  WorkOverviewProps,
+  | "application"
+  | "manager"
+  | "readOnly"
+  | "recommendationAction"
+  | "decisionVersions"
+  | "decisionAction"
+  | "onInspectVersion"
+> & { preparing: boolean }) => (
+  <>
     {decisionVersions && (
       <ApplicationDecisionSummary
         versions={decisionVersions}
         action={!readOnly && decisionAction}
       />
     )}
-    {application.intakeStatus !== "in_preparation" || application.managerRecommendation ? (
+    {!preparing && (
       <ApplicationRecommendationSummary
         application={application}
         manager={manager}
         action={!readOnly && recommendationAction}
         onInspectVersion={onInspectVersion}
       />
-    ) : null}
-    <ReviewOverview
-      application={application}
-      onShowAll={onShowAll}
-      onSelect={onSelect}
-      triggerRef={triggerRef}
-      actions={actions}
-    />
-    {aiReview && <AiReviewOverview work={aiReview} onSelect={onSelectAiReview} />}
-    {application.intakeStatus === "in_preparation" &&
-      !application.managerRecommendation &&
-      !readOnly &&
-      recommendationAction}
-  </PanelSections>
+    )}
+  </>
 );
+
+const ApplicationWorkOverview = ({
+  application,
+  overview,
+  readOnly,
+  recommendationAction,
+  onShowAll,
+  onSelect,
+  triggerRef,
+  actions,
+  aiReview,
+  onSelectAiReview,
+  ...judgments
+}: WorkOverviewProps) => {
+  // Until a recommendation exists, an application in preparation offers to start one last.
+  const preparing =
+    application.intakeStatus === "in_preparation" && !application.managerRecommendation;
+  return (
+    <PanelSections>
+      {overview}
+      <ApplicationJudgments
+        {...judgments}
+        application={application}
+        readOnly={readOnly}
+        recommendationAction={recommendationAction}
+        preparing={preparing}
+      />
+      <ReviewOverview
+        application={application}
+        onShowAll={onShowAll}
+        onSelect={onSelect}
+        triggerRef={triggerRef}
+        actions={actions}
+      />
+      {aiReview && (
+        <AiReviewOverview work={aiReview} onSelect={onSelectAiReview} readOnly={readOnly} />
+      )}
+      {preparing && !readOnly && recommendationAction}
+    </PanelSections>
+  );
+};
 
 const ApplicationHistoryContent = (props: ComponentProps<typeof ApplicationHistory>) => {
   const [inspectingAudit, setInspectingAudit] = useState(false);

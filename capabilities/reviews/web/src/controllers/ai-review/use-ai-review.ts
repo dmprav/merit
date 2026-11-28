@@ -13,6 +13,28 @@ type AiReviewFailure =
   | { kind: "not_available"; availability: Exclude<AiReviewAvailability, "available"> };
 
 /**
+ * What a run that saved nothing, or could not be confirmed, tells the person. The web sends the
+ * current material and cannot stop a run, so a conflict or a stop reads as a run that failed.
+ */
+const failureOf = (result: AiReviewRunResponse): AiReviewFailure | null => {
+  switch (result.status) {
+    case "ok":
+      return null;
+    case "failed":
+    case "conflict":
+    case "stopped":
+      return { kind: "failed" };
+    case "not_available":
+      return { kind: "not_available", availability: result.availability };
+    case "not_found":
+    case "signed_out":
+      return { kind: "accessLost" };
+    case "unavailable":
+      return { kind: "unconfirmed" };
+  }
+};
+
+/**
  * Owns running an AI review and reading the saved ones. The run is a single request that can take
  * minutes, so the controller keeps it pending, reports each outcome apart from the refresh that
  * follows a save, and never repeats a committed write when only the refresh is retried.
@@ -24,26 +46,19 @@ export const useAiReview = (data: AiReviewData | null | undefined) => {
   const running = useRef(false);
   // Kept after an outcome that may have saved, so sending it again cannot add a second review.
   const runId = useRef<string | null>(null);
-  // What the page last said. A refusal at save time speaks for the page as it was; newer page data
-  // replaces it, whether that now agrees with the refusal or not.
-  const pageState = data ? `${data.availability}:${data.reviews.map(({ id }) => id).join()}` : "";
-  const [seenPageState, setSeenPageState] = useState(pageState);
-  if (seenPageState !== pageState) {
-    setSeenPageState(pageState);
-    if (failure?.kind === "not_available") {
-      setFailure(null);
-    }
-  }
-  const { refresh, refreshError, refreshing } = useWorkflowRefresh(() =>
-    data ? data.refresh() : Promise.resolve(),
-  );
+  const { refresh, refreshError, refreshing } = useWorkflowRefresh(async () => {
+    await data?.refresh();
+    // A refusal at save time speaks for the page as it was. Once the page has been read again,
+    // whatever it now says replaces it, even when that is the same as before.
+    setFailure((current) => (current?.kind === "not_available" ? null : current));
+  });
 
   if (!data) {
     return null;
   }
 
   const refused = failure?.kind === "not_available" ? failure.availability : null;
-  // A refusal at save time holds until newer page data arrives; a page that already refuses says why.
+  // A refusal at save time holds until the page is read again; a page that already refuses says why.
   const availability = data.availability === "available" && refused ? refused : data.availability;
 
   const run = async () => {
@@ -59,25 +74,12 @@ export const useAiReview = (data: AiReviewData | null | undefined) => {
     if (result.status !== "unavailable") {
       runId.current = null;
     }
-    switch (result.status) {
-      case "ok":
-        setSaved((value) => value + 1);
-        await refresh("saved");
-        break;
-      case "failed":
-        setFailure({ kind: "failed" });
-        break;
-      case "not_available":
-        setFailure({ kind: "not_available", availability: result.availability });
-        await refresh("read");
-        break;
-      case "not_found":
-      case "signed_out":
-        setFailure({ kind: "accessLost" });
-        break;
-      case "unavailable":
-        setFailure({ kind: "unconfirmed" });
-        break;
+    setFailure(failureOf(result));
+    if (result.status === "ok") {
+      setSaved((value) => value + 1);
+    }
+    if (result.status === "ok" || result.status === "not_available") {
+      await refresh(result.status === "ok" ? "saved" : "read");
     }
     running.current = false;
     setPending(false);

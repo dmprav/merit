@@ -20,10 +20,13 @@ import type { AiReviewWork } from "./use-ai-review-work";
 export const AiReviewOverview = ({
   work,
   onSelect,
+  readOnly = false,
 }: {
   work: AiReviewWork;
   /** Reveal the reference pane that shows the review, then open it. */
   onSelect: (id: string) => void;
+  /** A page that accepts no work shows the saved reviews and offers no run. */
+  readOnly?: boolean;
 }) => {
   const { t } = useTranslation("aiReview");
   const { calendarDate } = useFormat();
@@ -50,37 +53,95 @@ export const AiReviewOverview = ({
             {t("none")}
           </Text>
         )}
-        <AiReviewRun work={work} />
+        {!readOnly && <AiReviewRun work={work} />}
       </Stack>
     </PanelSection>
   );
 };
 
 const AiReviewRun = ({ work }: { work: AiReviewWork }) => {
+  // Held here because the button and the explanation never exist together: whether the button had
+  // focus as it left decides whether the explanation that replaces it takes it.
+  const buttonHadFocus = useRef(false);
+  return work.availability === "available" ? (
+    <RunControl
+      work={work}
+      onLeave={(hadFocus) => {
+        buttonHadFocus.current = hadFocus;
+      }}
+    />
+  ) : (
+    <RunUnavailable
+      availability={work.availability}
+      takesFocus={() => {
+        const takes = buttonHadFocus.current;
+        buttonHadFocus.current = false;
+        return takes;
+      }}
+    />
+  );
+};
+
+/** Why a run is not offered, in visible text. Focus follows the run button it replaced, if it held focus. */
+const RunUnavailable = ({
+  availability,
+  takesFocus,
+}: {
+  availability: Exclude<AiReviewWork["availability"], "available">;
+  /** Whether the run button held focus when it left; asking resets it. */
+  takesFocus: () => boolean;
+}) => {
   const { t } = useTranslation("aiReview");
-  const { availability, failure, pending, provider, reviews } = work;
   const explanation = useRef<HTMLDivElement>(null);
-  const requested = useRef(false);
-  // A refused run replaces the focused button with its explanation: focus follows it, and a screen
-  // reader reads it. Only a run that was just asked for moves focus.
   useEffect(() => {
-    if (pending || !requested.current) {
-      return;
-    }
-    requested.current = false;
-    if (availability !== "available") {
+    if (takesFocus()) {
       explanation.current?.focus();
     }
-  }, [availability, pending]);
-  if (availability !== "available") {
-    return (
-      <div role="status" tabIndex={-1} ref={explanation}>
-        <Text as="p" variant="supporting">
-          {t(`availability.${availability}`)}
-        </Text>
-      </div>
-    );
+  }, [takesFocus]);
+  return (
+    <div role="status" tabIndex={-1} ref={explanation}>
+      <Text as="p" variant="supporting">
+        {t(`availability.${availability}`)}
+      </Text>
+    </div>
+  );
+};
+
+const RunFailure = ({ work }: { work: AiReviewWork }) => {
+  const { t } = useTranslation("aiReview");
+  const { failure } = work;
+  if (!failure || failure.kind === "not_available") {
+    return null;
   }
+  return (
+    <Notice
+      appearance="inline"
+      tone="danger"
+      role="alert"
+      actions={
+        failure.kind === "unconfirmed" ? (
+          <Button variant="quiet" isDisabled={work.pending} onPress={() => void work.refresh()}>
+            {t("refresh")}
+          </Button>
+        ) : undefined
+      }
+    >
+      {t(failure.kind)}
+    </Notice>
+  );
+};
+
+const RunControl = ({
+  work,
+  onLeave,
+}: {
+  work: AiReviewWork;
+  /** Called as the button is removed, with whether it still held focus. */
+  onLeave: (hadFocus: boolean) => void;
+}) => {
+  const { t } = useTranslation("aiReview");
+  const { failure, pending, provider, reviews } = work;
+  const button = useRef<HTMLButtonElement | null>(null);
   const latest = reviews[0];
   // One button keeps its place, and focus, through a run and a retry.
   const label = pending
@@ -102,36 +163,23 @@ const AiReviewRun = ({ work }: { work: AiReviewWork }) => {
           <span role="status">{t("runningStatus")}</span>
         </Text>
       )}
-      {failure && failure.kind !== "not_available" && (
-        <Notice
-          appearance="inline"
-          tone="danger"
-          role="alert"
-          actions={
-            failure.kind === "unconfirmed" ? (
-              <Button variant="quiet" isDisabled={pending} onPress={() => void work.refresh()}>
-                {t("refresh")}
-              </Button>
-            ) : undefined
-          }
-        >
-          {t(failure.kind)}
-        </Notice>
-      )}
+      <RunFailure work={work} />
       <div>
         <Button
+          ref={(element) => {
+            // React detaches the button just before removing it, while focus is still readable.
+            // Whoever holds focus then decides whether the explanation that replaces it takes it.
+            if (element) {
+              button.current = element;
+            } else {
+              onLeave(document.activeElement === button.current);
+            }
+          }}
           variant={variant}
           alignment="start"
           aria-busy={pending}
           aria-disabled={pending}
-          onPress={
-            pending
-              ? undefined
-              : () => {
-                  requested.current = true;
-                  void work.run();
-                }
-          }
+          onPress={pending ? undefined : () => void work.run()}
         >
           {label}
         </Button>
