@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { expect, it, vi } from "vite-plus/test";
@@ -49,7 +49,12 @@ it("keeps valid PDFs when a selection includes a non-PDF, oversized file and six
   uploadFiles([file("letter.txt"), large, file("budget.pdf"), file("extra.pdf")]);
 
   expect(await screen.findByRole("button", { name: "Remove budget.pdf" })).toBeVisible();
-  expect(stage).toHaveBeenCalledTimes(1);
+  for (const n of [1, 2, 3, 4]) {
+    expect(screen.getByRole("button", { name: `Remove ${n}.pdf` })).toBeVisible();
+  }
+  for (const rejected of ["letter.txt", "large.pdf", "extra.pdf"]) {
+    expect(screen.queryByRole("button", { name: `Remove ${rejected}` })).not.toBeInTheDocument();
+  }
   expect(screen.getByRole("alert")).toHaveTextContent("letter.txt");
   expect(screen.getByRole("alert")).toHaveTextContent("large.pdf exceeds 25 MB");
   expect(screen.getByRole("alert")).toHaveTextContent("up to five PDFs");
@@ -90,6 +95,21 @@ it("offers only Merit sample choices in a demo", async () => {
   expect(screen.queryByLabelText("Choose PDFs", { selector: "input" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Choose a sample PDF" }));
   await user.click(screen.getByRole("menuitem", { name: "Sample proposal" }));
-  await waitFor(() => expect(stage).toHaveBeenCalledWith("proposal", expect.any(AbortSignal)));
-  expect(screen.getByRole("button", { name: "Remove proposal.pdf" })).toBeVisible();
+  expect(await screen.findByRole("button", { name: "Remove proposal.pdf" })).toBeVisible();
+});
+
+it("keeps keyboard focus among the PDF controls after removing a file", async () => {
+  const user = userEvent.setup();
+  render(
+    <Editor
+      upload={{ mode: "files", stage: vi.fn() }}
+      initial={[document("original.pdf"), document("budget.pdf")]}
+    />,
+  );
+  screen.getByRole("button", { name: "Remove original.pdf" }).focus();
+  await user.keyboard("{Enter}");
+  expect(screen.getByRole("button", { name: "Replace budget.pdf" })).toHaveFocus();
+  await user.tab();
+  await user.keyboard("{Enter}");
+  expect(screen.getByRole("button", { name: "Choose PDFs" })).toHaveFocus();
 });

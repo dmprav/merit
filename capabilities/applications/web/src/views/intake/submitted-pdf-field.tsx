@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import { intakeLimits, type ApplicationPdf } from "@merit/applications/domain";
@@ -21,27 +21,39 @@ export const SubmittedPdfField = (props: PdfFieldProps) => {
   const { t } = useTranslation("applicationIntake");
   const { upload, value = [], onChange } = props;
   const { select, pending, errors } = usePdfSelection(props);
+  const pickerRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const pickerRef = (index: number) => (button: HTMLButtonElement | null) => {
+    pickerRefs.current[index] = button;
+  };
+
   const picker = { mode: upload.mode, pending, onSelect: select };
   return (
     <Stack gap={2} role="group" aria-label={t("pdfs.title")}>
       <Text variant="emphasis">{t("pdfs.title")}</Text>
       <Text variant="caption">{t("pdfs.hint")}</Text>
-      {value.map((pdf) => (
+      {value.map((pdf, index) => (
         <Inline key={pdf.id}>
           <Reading prose={false}>{pdf.filename}</Reading>
-          <PdfPicker {...picker} pdf={pdf} />
+          <PdfPicker {...picker} pdf={pdf} triggerRef={pickerRef(index)} />
           <Button
             variant="quiet"
             isDisabled={pending}
             aria-label={t("pdfs.removeNamed", { name: pdf.filename })}
-            onPress={() => onChange(value.filter((item) => item.id !== pdf.id))}
+            onPress={({ target }) => {
+              if (target === target.ownerDocument.activeElement) {
+                const adjacent = value[index + 1] || value.length === 1 ? index + 1 : index - 1;
+                pickerRefs.current[adjacent]?.focus();
+              }
+              onChange(value.filter((item) => item.id !== pdf.id));
+            }}
           >
             {t("pdfs.remove")}
           </Button>
         </Inline>
       ))}
       <Inline>
-        <PdfPicker {...picker} />
+        <PdfPicker {...picker} triggerRef={pickerRef(value.length)} />
       </Inline>
       {pending && <span role="status">{t("pdfs.uploading")}</span>}
       {errors.length > 0 && (
@@ -60,9 +72,11 @@ const PdfPicker = ({
   pdf,
   pending,
   onSelect,
+  triggerRef,
 }: {
   mode: PdfUpload["mode"];
   pdf?: ApplicationPdf;
+  triggerRef: Ref<HTMLButtonElement>;
   pending: boolean;
   onSelect: (sources: (File | SamplePdf)[], replaceId?: string) => Promise<void>;
 }) => {
@@ -73,6 +87,7 @@ const PdfPicker = ({
     : t(mode === "samples" ? "pdfs.addSample" : "pdfs.add");
   const trigger = (
     <Button
+      ref={triggerRef}
       variant={pdf ? "quiet" : "secondary"}
       isDisabled={pending}
       aria-label={label}

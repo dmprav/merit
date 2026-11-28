@@ -157,7 +157,7 @@ const IntakePresentation = ({
   );
 
   const workingPdfs =
-    editingSection && editingSection !== "details" && intakeEditing?.workingRevision
+    editingSection === "content" && intakeEditing?.workingRevision
       ? intakeEditing.workingRevision.content.pdfs
       : application.submission?.pdfs;
   const draft = intakeEditing?.editor.draft;
