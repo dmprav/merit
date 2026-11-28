@@ -155,9 +155,6 @@ it("continues independent invitations and retries only a failed email after reop
     ["Email third"],
   ]);
   expect(ctx.catalog.execute).not.toHaveBeenCalled();
-  await expect(ctx.turns.approve(...address, { previewId: "old" })).rejects.toThrow(
-    AssistantTurnConflict,
-  );
   await ctx.turns.approve(...address, { previewId: preview.id });
   await ctx.run();
   const result = (await ctx.open())?.groups[0];
@@ -180,6 +177,19 @@ it("continues independent invitations and retries only a failed email after reop
   expect((await ctx.open())?.groups[0]?.actions.every((item) => item.status === "succeeded")).toBe(
     true,
   );
+});
+
+it("rejects an unknown preview without approving any action", async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValueOnce(calls("invite", "reviewer"));
+  await ctx.run();
+  const pending = await ctx.open();
+  expect(pending?.status).toBe("awaiting_approval");
+  await expect(ctx.turns.approve(...address, { previewId: "old" })).rejects.toThrow(
+    AssistantTurnConflict,
+  );
+  expect(await ctx.open()).toEqual(pending);
+  expect(ctx.catalog.execute).not.toHaveBeenCalled();
 });
 
 it("requires a fresh approval after a revision changes", async () => {
@@ -226,6 +236,60 @@ it("withholds the entire chat and pending approval after access to an uncited re
   ctx.catalog.permits.mockResolvedValue(true);
   expect(await ctx.open()).toBeNull();
   expect(ctx.catalog.execute).not.toHaveBeenCalled();
+});
+
+it("waits for a worker with a live model lease without sending another request", async () => {
+  const ctx = await fixture();
+
+  let finish: (decision: AssistantDecision) => void = () => {};
+
+  ctx.model.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const first = ctx.turns.advance(...address);
+  try {
+    await vi.waitFor(async () => {
+      expect((await ctx.store.read(...address))?.state).toHaveProperty("modelAttempt");
+    });
+    const claimed = await ctx.open();
+    expect(await ctx.turns.advance(...address)).toBe("waiting");
+    expect(await ctx.open()).toEqual(claimed);
+    expect(ctx.model).toHaveBeenCalledTimes(1);
+  } finally {
+    finish(answer("First reply."));
+    await first;
+  }
+  expect((await ctx.open())?.messages.at(-1)).toMatchObject({ text: "First reply." });
+});
+
+it("stops the investigation after 24 model steps", async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValue(calls("inspect", "reviewer"));
+  for (let step = 0; step < 24; step++) {
+    expect(await ctx.turns.advance(...address)).toBe("progressed");
+  }
+  await ctx.turns.advance(...address);
+  expect(await ctx.open()).toMatchObject({
+    status: "failed",
+    error: "This turn reached its investigation limit. Ask a follow-up question to continue.",
+  });
+  expect(ctx.model).toHaveBeenCalledTimes(24);
+});
+
+it("records a failed model request and clears its lease", async () => {
+  const ctx = await fixture();
+  ctx.model.mockRejectedValueOnce(new Error("Provider request failed"));
+  await ctx.run();
+  expect(await ctx.open()).toMatchObject({
+    status: "failed",
+    error: "The assistant could not complete this step. Ask again to continue.",
+  });
+  expect((await ctx.store.read(...address))?.state).not.toHaveProperty("modelAttempt");
+  expect(await ctx.turns.advance(...address)).toBe("finished");
+  expect(ctx.model).toHaveBeenCalledTimes(1);
 });
 
 it("discards a model response arriving after Stop, and aborts the request when the activity is cancelled", async () => {
@@ -293,12 +357,15 @@ it("defers dependent calls and halts them when the prerequisite fails", async ()
   expect(ctx.catalog.preview).toHaveBeenCalledTimes(2);
 });
 
-it("prevents execution after deletion or withdrawal of provider consent", async () => {
+it("withholds model requests while provider consent is withdrawn", async () => {
   const ctx = await fixture();
   vi.mocked(ctx.store.getConsent).mockResolvedValue(false);
   await ctx.run();
   expect(ctx.model).not.toHaveBeenCalled();
-  vi.mocked(ctx.store.getConsent).mockResolvedValue(true);
+});
+
+it("prevents an approved action from executing after provider consent is withdrawn", async () => {
+  const ctx = await fixture();
   ctx.model.mockResolvedValueOnce(calls("invite", "reviewer"));
   await ctx.run();
   const group = (await ctx.open())?.groups[0];
@@ -307,8 +374,16 @@ it("prevents execution after deletion or withdrawal of provider consent", async 
   vi.mocked(ctx.store.getConsent).mockResolvedValue(false);
   await ctx.run();
   expect(ctx.catalog.execute).not.toHaveBeenCalled();
+});
+
+it("prevents an approved action from executing after its conversation is deleted", async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValueOnce(calls("invite", "reviewer"));
+  await ctx.run();
+  const group = (await ctx.open())?.groups[0];
+  assert.isDefined(group);
+  await ctx.turns.approve(...address, { previewId: group.id });
   await ctx.turns.remove(...address);
-  vi.mocked(ctx.store.getConsent).mockResolvedValue(true);
   await ctx.run();
   expect(await ctx.open()).toBeNull();
   expect(ctx.catalog.execute).not.toHaveBeenCalled();
@@ -442,6 +517,57 @@ it("returns the saved observations for a citation until access to the chat is lo
   expect(await ctx.turns.evidence(...address, "E9")).toBeNull();
   ctx.catalog.permits.mockResolvedValue(false);
   expect(await ctx.turns.evidence(...address, "E1")).toBeNull();
+});
+
+it("discards an unavailable delivery ticket and requires approval for a new invitation", async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValueOnce(calls("invite", "reviewer"));
+  ctx.catalog.execute
+    .mockResolvedValueOnce({
+      ...ok,
+      delivery: { kind: "invitation", assignmentId: "A", messageId: "superseded" },
+    })
+    .mockResolvedValueOnce({
+      ...ok,
+      delivery: { kind: "invitation", assignmentId: "A", messageId: "replacement" },
+    });
+  ctx.catalog.deliver.mockResolvedValueOnce("unavailable").mockResolvedValueOnce("sent");
+  await ctx.run();
+  const original = (await ctx.open())?.groups[0];
+  assert.isDefined(original);
+  await ctx.turns.approve(...address, { previewId: original.id });
+  await ctx.run();
+  const failed = (await ctx.open())?.groups[0]?.actions[0];
+  assert.isDefined(failed);
+  expect(failed).toMatchObject({
+    status: "failed",
+    result: { delivery: "unavailable" },
+    canRetry: false,
+  });
+  await expect(
+    ctx.turns.retry(...address, { previewId: original.id, actionId: failed.id }),
+  ).rejects.toThrow(AssistantTurnConflict);
+  expect(ctx.catalog.retryDelivery).not.toHaveBeenCalled();
+
+  await ctx.turns.start(...address, { message: "Invite the reviewer again." });
+  ctx.model.mockResolvedValueOnce(calls("invite", "reviewer"));
+  await ctx.run();
+  const fresh = (await ctx.open())?.groups[1];
+  assert.isDefined(fresh);
+  expect(fresh.id).not.toBe(original.id);
+  expect(fresh.actions[0]?.status).toBe("waiting");
+  expect(ctx.catalog.execute).toHaveBeenCalledTimes(1);
+  await ctx.turns.approve(...address, { previewId: fresh.id });
+  await ctx.run();
+  expect((await ctx.open())?.groups[1]?.actions[0]).toMatchObject({
+    status: "succeeded",
+    result: { delivery: "sent" },
+  });
+  expect(ctx.catalog.execute).toHaveBeenCalledTimes(2);
+  expect(ctx.catalog.deliver.mock.calls.map(([ticket]) => ticket.messageId)).toEqual([
+    "superseded",
+    "replacement",
+  ]);
 });
 
 it("keeps an invitation delivering while its message is pending and records the outcome once it settles", async () => {
