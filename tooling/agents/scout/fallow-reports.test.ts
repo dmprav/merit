@@ -135,6 +135,14 @@ describe("fallow duplication summary", () => {
             ],
           },
           {
+            line_count: 30,
+            suggested_name: "outsideScope",
+            instances: [
+              { file: "capabilities/reviews/business/src/a.ts", start_line: 1, end_line: 30 },
+              { file: "capabilities/rounds/business/src/b.ts", start_line: 1, end_line: 30 },
+            ],
+          },
+          {
             line_count: 14,
             suggested_name: "applicationCases",
             instances: [
