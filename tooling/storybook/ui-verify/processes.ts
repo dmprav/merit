@@ -298,7 +298,7 @@ const waitForChildGroupExit = async (
 };
 
 /**
- * Children whose group was already empty when they exited. A later stop never signals their
+ * Children whose group no longer existed when they exited. A later stop never signals their
  * former pgid, so a pid reassigned between that exit and the stop cannot be mistaken for theirs.
  */
 const groupsEmptiedAtLeaderExit = new WeakSet<StoppableChild>();
@@ -310,11 +310,11 @@ const recordGroupEmptiedAtLeaderExit = (child: ChildProcess) => {
       return;
     }
     try {
+      // A swept group is recorded only by a stop that confirms the sweep ended it.
       const state = readChildGroupState(child, pgid);
       if (state === "empty") {
         sweepEmptyGroup(pgid);
-      }
-      if (state === "empty" || state === "gone") {
+      } else if (state === "gone") {
         groupsEmptiedAtLeaderExit.add(child);
       }
     } catch {
@@ -345,7 +345,7 @@ export const stopProcessGroup = async (
 ): Promise<void> => {
   const pgid = child.pid;
   if (pgid === undefined || groupsEmptiedAtLeaderExit.has(child)) {
-    // The spawn failed, or the group emptied with its leader.
+    // The spawn failed, or the group was gone when its leader exited.
     return;
   }
   const stages: ReadonlyArray<[NodeJS.Signals, number]> = [
@@ -361,7 +361,9 @@ export const stopProcessGroup = async (
       state = await waitForChildGroupExit(child, pgid, waitMs);
     }
     if (state === "empty") {
+      // The sweep ends any member the scan missed; confirm it did before resolving.
       sweepEmptyGroup(pgid);
+      state = await waitForChildGroupExit(child, pgid, killWaitMs);
     }
     if (state !== "alive") {
       return;
