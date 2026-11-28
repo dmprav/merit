@@ -84,7 +84,8 @@ const defineSnapshotCapture = (limits: SnapshotLimits) => {
       nodeId = nextNodeId++;
       nodeIds.set(el, nodeId);
     }
-    return { nodeId, painted: isPainted(el), style: styleOf(el) };
+    const { width, height } = el.getBoundingClientRect();
+    return { nodeId, hasArea: width > 0 && height > 0, painted: isPainted(el), style: styleOf(el) };
   };
 
   const ancestorStyles = (el: Element): RelativeSnapshot[] => {

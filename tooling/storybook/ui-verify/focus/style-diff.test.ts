@@ -5,6 +5,7 @@ import { compareStyleSnapshots, detectFocusVisualChange } from "./style-diff.ts"
 
 const relative = (nodeId: number, style = baseStyle(), painted = true) => ({
   nodeId,
+  hasArea: true,
   style,
   painted,
 });

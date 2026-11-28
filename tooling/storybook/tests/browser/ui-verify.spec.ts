@@ -307,6 +307,25 @@ test.describe("live Chromium checker failure detection", () => {
     ]);
   });
 
+  test("rejects visibility changes that reveal no painted indicator", async ({ page }) => {
+    await page.setContent(`
+      <style>
+        button { outline: none; }
+        .indicator { display: inline-block; opacity: 0; }
+        button:focus-visible .indicator { opacity: 1; }
+        .empty-fill { background: red; width: 0; height: 0; }
+        .empty-line { width: 10px; height: 10px; text-decoration: underline transparent; }
+      </style>
+      <button>Empty fill<span class="indicator empty-fill"></span></button>
+      <button>Empty underline<span class="indicator empty-line"></span></button>`);
+    const focus = await checkKeyboardFocusTraversal(page);
+    expect(focus.stopsChecked).toBe(2);
+    expect(focus.failures.map(({ element }) => element)).toEqual([
+      'button "Empty fill"',
+      'button "Empty underline"',
+    ]);
+  });
+
   test("compares a focus-trapped list option with its neighbour's focus, not a blur", async ({
     newContext,
   }) => {
