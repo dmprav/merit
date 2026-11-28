@@ -160,7 +160,10 @@ traversal stopped short (`cap`, `opaqueFrame`, or `trackerLost`). When a target 
 checks run, such as on an HTTP error, it is `errored` with its `error` and no audit or focus
 results, and `report.md` marks its axe, overflow, and focus checks as not checked.
 Servers and ephemeral databases are torn down automatically on exit or
-failure, and a teardown step that fails is logged rather than ignored. Pass `--update` on host runs to delete the selected targets' previous screenshots for
+failure, and a teardown step that fails is logged rather than ignored. Each server and each
+build or seed command runs in its own process group, and teardown stops the whole group, not
+only the process it started, even after that process exits successfully. A build or seed whose
+group survives SIGKILL fails. Pass `--update` on host runs to delete the selected targets' previous screenshots for
 the selected viewports before checking; screenshots of other targets and viewports stay. A run
 locks its output directory until its report is written, so a second concurrent run against the
 same `--out` fails immediately; give concurrent runs separate `--out` directories. The lock is the
