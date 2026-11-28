@@ -613,8 +613,8 @@ jobs:
         with:
           download-build: "true"
 
-      - name: Start Compose services (PostgreSQL, Mailpit, Temporal)
-        run: docker compose up -d --wait postgres mailpit temporal
+      - name: Start Compose services (PostgreSQL, Mailpit, storage, Temporal)
+        run: docker compose up -d --wait
 
       - name: Run persisted workspace browser tests in the pinned Playwright image
         env:
