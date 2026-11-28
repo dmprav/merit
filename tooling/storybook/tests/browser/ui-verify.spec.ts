@@ -1042,6 +1042,7 @@ test.describe("live Chromium checker failure detection", () => {
       body: `<button type="button">Never checked</button>
         <script>window.requestAnimationFrame = () => { ${LEAVE_PAGE} return 0; };</script>`,
       stopsChecked: 0,
+      failingStops: [],
     },
     {
       during: "the wait after a Tab press",
@@ -1050,6 +1051,8 @@ test.describe("live Chromium checker failure detection", () => {
         <button type="button">Never checked</button>
         <script>document.getElementById("leave").addEventListener("focus", () => { ${LEAVE_PAGE} });</script>`,
       stopsChecked: 1,
+      // The navigation replaced the document before focus left this stop.
+      failingStops: ['button "First control"'],
     },
     {
       during: "the final stop's baseline",
@@ -1061,6 +1064,8 @@ test.describe("live Chromium checker failure detection", () => {
           trap.addEventListener("blur", () => { ${LEAVE_PAGE} });
         </script>`,
       stopsChecked: 1,
+      // The navigation replaced the document before the stop's unfocused styles were read.
+      failingStops: ['button "Trapping control"'],
     },
     {
       during: "the baselines read with nothing focused",
@@ -1069,6 +1074,8 @@ test.describe("live Chromium checker failure detection", () => {
         <button type="button">Second control</button>
         <script>document.body.addEventListener("focus", () => { ${LEAVE_PAGE} });</script>`,
       stopsChecked: 2,
+      // Both stops kept the baselines read as focus left them.
+      failingStops: [],
     },
   ]) {
     test(`reports traversal as incomplete when the page navigates during ${navigation.during}`, async ({
@@ -1095,6 +1102,7 @@ test.describe("live Chromium checker failure detection", () => {
       await page.waitForURL("http://ui-verify.test/next");
       expect(focus.stopsChecked).toBe(navigation.stopsChecked);
       expect(focus.traversal).toEqual({ complete: false, reason: "trackerLost" });
+      expect(focus.failures.map((failure) => failure.element)).toEqual(navigation.failingStops);
     });
   }
 

@@ -25,10 +25,10 @@ const captureBaselines = async (
     return traversal;
   }
   const finalGap = await captureFinalBaseline(page, stops);
-  if (
-    finalGap === "trackerLost" ||
-    (await captureUnfocusedBaselines(page, stops)) === "trackerLost"
-  ) {
+  if (finalGap === "trackerLost") {
+    return TRACKER_LOST;
+  }
+  if ((await captureUnfocusedBaselines(page, stops)) === "trackerLost") {
     return TRACKER_LOST;
   }
   return traversal.complete && finalGap === "siblingFocus"
