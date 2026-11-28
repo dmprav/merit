@@ -10,6 +10,11 @@ export type DecisionOutcome = (typeof decisionOutcomes)[number];
 export const commitsFunding = (outcome: DecisionOutcome) =>
   outcome === "Fund" || outcome === "Fund with conditions";
 
+export const decisionUsage = (outcome: DecisionOutcome | undefined) => ({
+  hasDecision: outcome !== undefined,
+  hasCommitment: outcome !== undefined && commitsFunding(outcome),
+});
+
 export const decisionLimits = {
   reasonLength: 5000,
   conditionsLength: 5000,
