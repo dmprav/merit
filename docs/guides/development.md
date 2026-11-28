@@ -309,6 +309,14 @@ locked worktree. A registered checkout without a recorded token or Git metadata
 path requires manual cleanup. Inspect the checkout, branch, and database named
 in the refusal before retiring their registry entry.
 
+If bootstrap fails after a move, rollback keeps the moved checkout, branch,
+database, and registry record. Rollback briefly locks the checkout during
+removal. If the process exits while holding that lock, check its reason with
+`git worktree list --verbose` and release it with `git worktree unlock <path>`
+before cleanup. If the original path is a symlink to the moved checkout, verify
+its destination and unlink that symlink first. Move the checkout back and run
+`vp run worktree:clean <slug>` to finish cleanup.
+
 A failed `worktree:create` leaves the branch for inspection because Git can
 reuse its name while setup runs. Inspect the reported branch before reusing
 the name, or retry with a different `--branch`. Cleanup of a retained record

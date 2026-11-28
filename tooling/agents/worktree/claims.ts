@@ -22,11 +22,11 @@ export const withoutCleanClaim = (record: WorktreeRecord): WorktreeRecord => {
   return rest;
 };
 
-/** Matches the `creating` record a create attempt reserved for the checkout at `checkoutPath`. */
-export const isCreateClaimAt =
-  (checkoutPath: string) =>
+/** Matches the creating record reserved by this attempt, even if Git moved its checkout. */
+export const matchesCreateClaim =
+  (checkoutToken: string) =>
   (record: WorktreeRecord): boolean =>
-    record.status === "creating" && canonicalPath(record.path) === checkoutPath;
+    record.status === "creating" && record.checkoutToken === checkoutToken;
 
 /** Returns why a create may not take `slug` while `existing` is registered under it. */
 export const createRefusal = (

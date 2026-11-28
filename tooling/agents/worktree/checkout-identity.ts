@@ -72,6 +72,18 @@ export const currentCheckoutPath = (identity: CheckoutIdentity | undefined): str
   return backLink === null ? null : dirname(canonicalPath(resolve(identity.gitDir, backLink)));
 };
 
+/** Detects a live move against the path captured at registration, even when it is now a symlink. */
+export const movedCheckoutPath = (
+  registeredPath: string,
+  identity: CheckoutIdentity,
+): string | null => {
+  const path = currentCheckoutPath(identity);
+  return path && path !== registeredPath && existsSync(path) ? path : null;
+};
+
+export const moveBackInstruction = (original: string, moved: string): string =>
+  `If "${original}" is a symlink to "${moved}", unlink that symlink first. Move the checkout back with \`git worktree move "${moved}" "${original}"\``;
+
 export type CheckoutAttempt = {
   commonGitDir: string;
   /** The metadata directory `git worktree add` created, when it got that far. */
@@ -116,7 +128,7 @@ export const isCheckoutOfAttempt = (worktreePath: string, attempt: CheckoutAttem
 /** What is on disk at a registered checkout's path and in the Git metadata it points at. */
 export type CheckoutObservation = {
   expectedGitDir: string;
-  /** Where the registered checkout lives now, when it still exists. */
+  /** Live destination when the checkout has moved away from its registered path. */
   movedPath: string | null;
   checkoutExists: boolean;
   dotGitExists: boolean;
@@ -129,11 +141,10 @@ const observeCheckout = (
   worktreePath: string,
   identity: CheckoutIdentity & { gitDir: string },
 ): CheckoutObservation => {
-  const movedPath = currentCheckoutPath(identity);
   const actualGitDir = readWorktreeGitDir(worktreePath);
   return {
     expectedGitDir: canonicalPath(identity.gitDir),
-    movedPath: movedPath && existsSync(movedPath) ? movedPath : null,
+    movedPath: movedCheckoutPath(worktreePath, identity),
     checkoutExists: existsSync(worktreePath),
     dotGitExists: pathEntryExists(join(worktreePath, ".git")),
     actualGitDir,
@@ -151,8 +162,8 @@ export const checkoutIdentityRefusal = (
   identity: CheckoutIdentity & { checkoutToken: string },
   seen: CheckoutObservation,
 ): string | undefined => {
-  if (seen.movedPath && seen.movedPath !== normalizedPath) {
-    return `Refusing to clean "${normalizedPath}": its registered checkout was moved to "${seen.movedPath}" and still uses this worktree's database and branch. Move it back with \`git worktree move "${seen.movedPath}" "${normalizedPath}"\` and retry.`;
+  if (seen.movedPath) {
+    return `Refusing to clean "${normalizedPath}": its registered checkout was moved to "${seen.movedPath}" and still uses this worktree's database and branch. ${moveBackInstruction(normalizedPath, seen.movedPath)} and retry.`;
   }
   // Residue of a removal this tool started: allow it only while no checkout metadata reappears.
   if (!seen.checkoutExists || (identity.partialRemoval && !seen.dotGitExists)) {
@@ -175,7 +186,6 @@ export const checkoutIdentityRefusal = (
 /** Throws unless the checkout at `worktreePath` is still the one `identity` registered. */
 export const assertCheckoutIdentity = (
   worktreePath: string,
-  normalizedPath: string,
   identity: WorktreeRecord | undefined,
 ): void => {
   if (!identity) {
@@ -183,7 +193,7 @@ export const assertCheckoutIdentity = (
   }
   if (!identity.checkoutToken || !identity.gitDir) {
     throw new Error(
-      `Refusing to clean "${normalizedPath}": the registry record lacks a checkout token or Git metadata path. Inspect the checkout, branch "${identity.branch}", and database "${identity.databaseName}" manually.`,
+      `Refusing to clean "${worktreePath}": the registry record lacks a checkout token or Git metadata path. Inspect the checkout, branch "${identity.branch}", and database "${identity.databaseName}" manually.`,
     );
   }
   const registered = {
@@ -192,7 +202,7 @@ export const assertCheckoutIdentity = (
     partialRemoval: identity.partialRemoval,
   };
   const refusal = checkoutIdentityRefusal(
-    normalizedPath,
+    worktreePath,
     registered,
     observeCheckout(worktreePath, registered),
   );

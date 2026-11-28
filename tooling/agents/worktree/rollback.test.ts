@@ -70,7 +70,13 @@ describe("rollbackError", () => {
   const path = "/repo/.tmp/worktrees/alpha";
 
   test("reports both failures when rollback can remove neither the checkout nor the database", () => {
-    const error = rollbackError(original, path, stuck, "inspect database merit_alpha manually");
+    const error = rollbackError(
+      original,
+      "alpha",
+      path,
+      stuck,
+      "inspect database merit_alpha manually",
+    );
     expect(error).toMatchObject({
       message: `doctor check failed (rollback could not remove checkout at "${path}": worktree is locked; inspect database merit_alpha manually)`,
       cause: original,
@@ -78,7 +84,7 @@ describe("rollbackError", () => {
   });
 
   test("reports the original error when rollback removed everything", () => {
-    expect(rollbackError(original, path, removed)).toBe(original);
+    expect(rollbackError(original, "alpha", path, removed)).toBe(original);
   });
 
   test.each([
@@ -103,7 +109,7 @@ describe("rollbackError", () => {
       message: `doctor check failed (rollback preserved "${path}" because its Git metadata does not show that this attempt created it)`,
     },
   ])("adds $name to the original error", ({ checkout, message }) => {
-    const error = rollbackError(original, path, checkout);
+    const error = rollbackError(original, "alpha", path, checkout);
     expect(error).toBeInstanceOf(Error);
     expect(error).toMatchObject({ message, cause: original });
   });

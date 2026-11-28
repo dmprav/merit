@@ -3,8 +3,12 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 import { buildLocalDatabaseUrl } from "../../scripts/local-postgres.ts";
-import { readWorktreeGitDir, writeCheckoutToken } from "./checkout-identity.ts";
-import { createRefusal, isClaimOwnerAlive, isCreateClaimAt, withoutOwner } from "./claims.ts";
+import {
+  currentCheckoutPath,
+  readWorktreeGitDir,
+  writeCheckoutToken,
+} from "./checkout-identity.ts";
+import { createRefusal, isClaimOwnerAlive, matchesCreateClaim, withoutOwner } from "./claims.ts";
 import { LOCAL_POSTGRES_ADDRESS, type WorktreeDatabase } from "./database.ts";
 import { type WorktreeDeps } from "./deps.ts";
 import { formatWorktreeEnvFile } from "./env-file.ts";
@@ -19,6 +23,7 @@ import { canonicalPath, containsPath, defaultWorktreePath, pathsOverlap } from "
 import { allocateWorktreePorts, type WorktreePorts } from "./ports.ts";
 import {
   readWorktreeRegistry,
+  type RecordUpdate,
   updateRecord,
   type WorktreeRegistry,
   withWorktreeRegistryLock,
@@ -164,8 +169,7 @@ const addCheckout = ({ plan, progress, git }: CreateRun): void => {
     throw new Error(`Could not identify the linked checkout at "${progress.checkoutPath}".`);
   }
   writeCheckoutToken(gitDir, plan.checkoutToken);
-  // Recorded only once the token is in place: rollback then requires it, and before that it
-  // proves ownership through the checkout's branch and back-link instead.
+  // Until the token is written, rollback uses the branch and Git back-link to prove ownership.
   progress.gitDir = gitDir;
 };
 
@@ -226,16 +230,34 @@ const reserveCheckout = async (run: CreateRun): Promise<WorktreePorts> => {
   return ports;
 };
 
-const bootstrapCheckout = async ({ request, progress, deps }: CreateRun): Promise<void> => {
-  const options = { cwd: progress.checkoutPath, quiet: request.quiet };
-  await deps.execCommand("pnpm", ["install", "--frozen-lockfile", "--prefer-offline"], options);
-  const localVp = join(progress.checkoutPath, "node_modules/.bin/vp");
-  await deps.execCommand(existsSync(localVp) ? localVp : "vp", ["config", "--no-agent"], options);
+const checkoutPathOf = ({ plan, progress }: CreateRun): string => {
+  const path = currentCheckoutPath({ gitDir: progress.gitDir, checkoutToken: plan.checkoutToken });
+  if (!path || readWorktreeGitDir(path) !== progress.gitDir) {
+    throw new Error(`Cannot locate the registered checkout for "${plan.slug}".`);
+  }
+  return path;
+};
+
+const bootstrapCheckout = async (run: CreateRun): Promise<void> => {
+  const {
+    deps,
+    request: { quiet },
+  } = run;
+  await deps.execCommand("pnpm", ["install", "--frozen-lockfile", "--prefer-offline"], {
+    cwd: checkoutPathOf(run),
+    quiet,
+  });
+  const cwd = checkoutPathOf(run);
+  const localVp = join(cwd, "node_modules/.bin/vp");
+  await deps.execCommand(existsSync(localVp) ? localVp : "vp", ["config", "--no-agent"], {
+    cwd,
+    quiet,
+  });
 };
 
 /** Creates the worktree's database when PostgreSQL is up, returning a warning when it was skipped. */
 const createDatabase = async (run: CreateRun, postgresReachable: boolean): Promise<string[]> => {
-  const { request, plan, progress, deps, git } = run;
+  const { request, plan, progress, deps } = run;
   if (request.dbMode === "skip") {
     return [];
   }
@@ -246,45 +268,45 @@ const createDatabase = async (run: CreateRun, postgresReachable: boolean): Promi
   }
   progress.databaseCreated = (await deps.database.ensure(plan.databaseName)).created;
   if (progress.databaseCreated) {
-    await updateRecord(
-      git.root,
-      plan.slug,
-      {
-        when: isCreateClaimAt(progress.checkoutPath),
-        apply: (record) => ({ ...record, databaseCreated: true }),
-      },
-      deps.lockOptions,
-    );
+    await updateCreating(run, (record) => ({ ...record, databaseCreated: true }));
   }
   return [];
 };
 
-const runDoctor = async ({ request, progress, deps }: CreateRun): Promise<void> => {
-  if (!request.doctor) {
-    return;
+class LostCreateClaim extends Error {
+  constructor(slug: string) {
+    super(`Worktree "${slug}" no longer has this create attempt's registry claim.`);
   }
-  const doctorScript = join(progress.checkoutPath, ".agents/install-environment.sh");
-  if (existsSync(doctorScript)) {
-    await deps.execCommand("bash", [doctorScript, "--doctor"], {
-      cwd: progress.checkoutPath,
-      quiet: request.quiet,
-    });
-  }
-};
+}
 
-const activateRecord = async ({ plan, progress, git, deps }: CreateRun): Promise<void> => {
-  await updateRecord(
+const updateCreating = async ({ plan, git, deps }: CreateRun, apply: RecordUpdate["apply"]) => {
+  const updated = await updateRecord(
     git.root,
     plan.slug,
     {
-      when: isCreateClaimAt(progress.checkoutPath),
-      apply: (record) => ({
-        ...withoutOwner(record),
-        status: "active",
-      }),
+      when: matchesCreateClaim(plan.checkoutToken),
+      apply,
     },
     deps.lockOptions,
   );
+  if (!updated) {
+    throw new LostCreateClaim(plan.slug);
+  }
+};
+
+const runDoctor = async (run: CreateRun): Promise<void> => {
+  const { request, deps } = run;
+  if (!request.doctor) {
+    return;
+  }
+  const cwd = checkoutPathOf(run);
+  const doctorScript = join(cwd, ".agents/install-environment.sh");
+  if (existsSync(doctorScript)) {
+    await deps.execCommand("bash", [doctorScript, "--doctor"], {
+      cwd,
+      quiet: request.quiet,
+    });
+  }
 };
 
 const buildWorktree = async (
@@ -298,18 +320,22 @@ const buildWorktree = async (
     deps.lockOptions,
   );
   writeFileSync(
-    join(progress.checkoutPath, ".env.local"),
+    join(checkoutPathOf(run), ".env.local"),
     formatWorktreeEnvFile({ slug: plan.slug, databaseUrl: plan.databaseUrl, ports }),
     "utf8",
   );
   await bootstrapCheckout(run);
   const warnings = await createDatabase(run, postgresReachable);
   await runDoctor(run);
-  await activateRecord(run);
+  let path = progress.checkoutPath;
+  await updateCreating(run, (record) => {
+    path = checkoutPathOf(run);
+    return { ...withoutOwner(record), status: "active" };
+  });
   return {
     result: {
       slug: plan.slug,
-      path: progress.checkoutPath,
+      path,
       branch: plan.branch,
       baseRef: plan.baseRef,
       databaseName: plan.databaseName,
@@ -357,6 +383,9 @@ export const createWorktree = async (
   try {
     return await buildWorktree(run, postgresReachable);
   } catch (error) {
+    if (error instanceof LostCreateClaim) {
+      throw error;
+    }
     throw await rollBackCreate(attemptOf(run), run.progress, error);
   }
 };
