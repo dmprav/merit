@@ -1,8 +1,6 @@
 import type { IntakeApplication } from "@merit/applications/domain";
-import type { encodeMoney } from "@merit/money";
 import type {
-  encodeBudgetTotals,
-  encodeRecommendation,
+  encodeRecommendationResult,
   SaveRecommendationRequest,
 } from "@merit/recommendations/api";
 import type {
@@ -54,13 +52,7 @@ export type RecommendationFailure = Exclude<
 >;
 
 export type RecommendationSaveResponse =
-  | {
-      status: "ok";
-      recommendation: ReturnType<typeof encodeRecommendation>;
-      recommendationVersion: number;
-      budget: ReturnType<typeof encodeMoney> | null;
-      totals: ReturnType<typeof encodeBudgetTotals>;
-    }
+  | ReturnType<typeof encodeRecommendationResult>
   | RecommendationFailure;
 
 export type RecommendationTransport = (
