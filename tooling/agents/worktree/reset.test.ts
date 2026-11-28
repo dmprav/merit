@@ -120,6 +120,9 @@ test("resets the configured database of an unmanaged linked checkout", async () 
     recreate,
   });
   expect(result).toMatchObject({ mode: "worktree", database: { databaseName: "merit_alpha" } });
-  expect(recreate).toHaveBeenCalledOnce();
+  expect(recreate).toHaveBeenCalledExactlyOnceWith(
+    "merit_alpha",
+    buildLocalDatabaseUrl("postgres"),
+  );
   expect(readWorktreeRegistry(repo).worktrees).toEqual({});
 });
