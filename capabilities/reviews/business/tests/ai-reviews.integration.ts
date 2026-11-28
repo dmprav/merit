@@ -647,14 +647,23 @@ it("returns the review a concurrent run with the same identity saved when this r
   const otherSaved = new Promise<void>((resolve) => {
     finishOther = resolve;
   });
+
+  let enter = () => {};
+
+  const failingEntered = new Promise<void>((resolve) => {
+    enter = resolve;
+  });
   const failing = run(
     stub(async () => {
+      enter();
       await otherSaved;
       throw new Error("The provider timed out.");
     }).reviewer,
     { runId },
   );
 
+  // The other run starts only once the failing one is inside its provider call.
+  await failingEntered;
   const other = await run(stub().reviewer, { runId });
   assert(other.status === "ok");
   finishOther();
@@ -720,6 +729,43 @@ it.for([
   },
 );
 
+it("saves nothing and reports a stopped run when Stop arrives while the save waits for the application", async ({
+  aiReviewSetup,
+  database,
+}) => {
+  const { run, rows, address } = await aiReviewSetup();
+  const stopped = new AbortController();
+  const holder = database.client;
+  const onSaved = vi.fn();
+  let held: number | undefined;
+  // Another writer holds the application while the provider answers, so the save waits for it.
+  const { reviewer } = stub(async (request) => {
+    await holder.query("BEGIN");
+    await holder.query("SELECT id FROM application_cases WHERE id = $1 FOR UPDATE", [
+      address.publicId,
+    ]);
+    held = (await holder.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0]?.pid;
+    return validReply(request);
+  });
+
+  const result = run({ ...reviewer, signal: stopped.signal }, { onSaved });
+  await vi.waitFor(async () => {
+    expect(held).toBeDefined();
+    const waiting = await holder.query<{ count: string }>(
+      "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND $1 = ANY(pg_blocking_pids(pid))",
+      [held],
+    );
+    expect(Number(waiting.rows[0]?.count)).toBe(1);
+  });
+  stopped.abort();
+  await holder.query("COMMIT");
+
+  expect(await result).toEqual({ status: "stopped" });
+  expect(await rows()).toBe(0);
+  expect(await recordedEvents(holder, "action = 'ai_review.recorded'")).toEqual([]);
+  expect(onSaved).not.toHaveBeenCalled();
+});
+
 it("saves a run whose signal never ended", async ({ aiReviewSetup }) => {
   const { run, rows } = await aiReviewSetup();
   const { reviewer } = stub();
@@ -744,11 +790,13 @@ it("stamps a run when it is inserted after the case lock, so history order is co
       return validReply(request);
     }).reviewer,
   );
+  const { rows: held } = await holder.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
   await vi.waitFor(async () => {
     const waiting = await holder.query<{ count: string }>(
-      "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'",
+      "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND $1 = ANY(pg_blocking_pids(pid))",
+      [held[0]?.pid],
     );
-    expect(Number(waiting.rows[0]?.count)).toBeGreaterThan(0);
+    expect(Number(waiting.rows[0]?.count)).toBe(1);
   });
   const releasedAt = (await holder.query<{ at: string }>("SELECT clock_timestamp()::text AS at"))
     .rows[0]?.at;

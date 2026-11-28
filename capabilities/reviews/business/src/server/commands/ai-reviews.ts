@@ -156,6 +156,10 @@ const saveRun = async (
   output: AiReviewOutput,
 ) => {
   const prior = await readPrior(tx, access.organizationId, request.publicId);
+  // The save may have waited on the case lock; a Stop that arrived meanwhile saves nothing.
+  if (reviewer.signal?.aborted) {
+    return { stopped: true } as const;
+  }
   const id = await insertAiReview(tx, {
     organizationId: access.organizationId,
     runId: request.runId,
@@ -301,6 +305,9 @@ export const runAiReview = async (
       const saved = await saveRun(tx, { actor, request }, opened, started.basis, output);
       if (!saved) {
         return { status: "not_found" } as const;
+      }
+      if ("stopped" in saved) {
+        return { status: "stopped" } as const;
       }
       if (saved.created) {
         changed(opened.access.organizationId, opened.access.organizationKind, {
