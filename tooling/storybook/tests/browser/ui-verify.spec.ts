@@ -272,6 +272,41 @@ test.describe("live Chromium checker failure detection", () => {
     }
   });
 
+  test("counts only painted focus cues on the same relative across snapshots", async ({ page }) => {
+    await page.setContent(`
+      <style>
+        button { outline: none; display: inline-flex; }
+        .transparent, .reveal { opacity: 0; }
+        .ring, button:focus-visible .indicator { outline: 2px solid blue; }
+        button:focus-visible .reveal { opacity: 1; }
+        .ring { order: 1; }
+      </style>
+      <button>Hidden ring<span class="transparent"><span class="indicator">A</span></span></button>
+      <button>Visible ring<span class="indicator">B</span></button>
+      <button>Revealed ring<span class="reveal ring">C</span></button>
+      <button data-reorder aria-label="Reordered"><span>A</span><span class="ring">B</span></button>
+      <button data-reorder aria-label="Reordered with cue"><span class="indicator">A</span><span class="ring">B</span></button>
+      <script>
+        for (const button of document.querySelectorAll('[data-reorder]')) {
+          const ring = button.lastElementChild;
+          button.addEventListener('focus', () => button.prepend(ring));
+          button.addEventListener('blur', () => button.append(ring));
+        }
+      </script>`);
+    const focus = await checkKeyboardFocusTraversal(page);
+    expect(focus.stopsChecked).toBe(5);
+    expect(focus.failures.map(({ element, reasons }) => ({ element, reasons }))).toEqual([
+      {
+        element: 'button "Hidden ringA"',
+        reasons: ["no visible focus indicator change compared to unfocused state"],
+      },
+      {
+        element: 'button "Reordered"',
+        reasons: ["no visible focus indicator change compared to unfocused state"],
+      },
+    ]);
+  });
+
   test("compares a focus-trapped list option with its neighbour's focus, not a blur", async ({
     newContext,
   }) => {

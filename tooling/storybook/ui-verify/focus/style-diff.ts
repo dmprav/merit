@@ -23,12 +23,18 @@ export type ElementStyleSnapshot = {
   opacity?: string;
 };
 
+export type RelativeSnapshot = {
+  nodeId: number;
+  painted: boolean;
+  style: ElementStyleSnapshot;
+};
+
 export type FocusVisualSnapshot = {
   self: ElementStyleSnapshot;
   before?: ElementStyleSnapshot;
   after?: ElementStyleSnapshot;
-  ancestors: ElementStyleSnapshot[];
-  descendants: ElementStyleSnapshot[];
+  ancestors: RelativeSnapshot[];
+  descendants: RelativeSnapshot[];
 };
 
 /** A pseudo-element paints only with content and nonzero opacity, so its rules differ. */
@@ -136,12 +142,11 @@ const hasVisibleOpacity = (opacity: string | undefined): boolean => {
   return Number.isFinite(parsed) && parsed > 0;
 };
 
-const hasVisiblePseudoPaint = (style: ElementStyleSnapshot): boolean =>
-  hasVisibleOpacity(style.opacity) &&
-  (hasVisibleOutline(style) ||
-    hasVisibleBoxShadow(style.boxShadow) ||
-    hasVisibleBorder(style) ||
-    hasVisibleBackground(style));
+const hasVisibleBoxPaint = (style: ElementStyleSnapshot): boolean =>
+  hasVisibleOutline(style) ||
+  hasVisibleBoxShadow(style.boxShadow) ||
+  hasVisibleBorder(style) ||
+  hasVisibleBackground(style);
 
 /** A rule that decides whether one kind of focus cue appeared or changed visibly. */
 type FocusCueRule = {
@@ -202,7 +207,8 @@ const pseudoIndicatorChanged: FocusCueRule["changed"] = (unfocused, focused, kin
   focused.content !== undefined &&
   focused.content !== "none" &&
   (focused.content !== unfocused.content || focused.opacity !== unfocused.opacity) &&
-  hasVisiblePseudoPaint(focused);
+  hasVisibleOpacity(focused.opacity) &&
+  hasVisibleBoxPaint(focused);
 
 /** Checked in this order, which is the order a snapshot's reasons are reported in. */
 const FOCUS_CUE_RULES: readonly FocusCueRule[] = [
@@ -233,16 +239,26 @@ export const compareStyleSnapshots = (
 };
 
 const compareRelatives = (
-  unfocused: readonly ElementStyleSnapshot[],
-  focused: readonly ElementStyleSnapshot[],
+  unfocused: readonly RelativeSnapshot[],
+  focused: readonly RelativeSnapshot[],
   relation: "ancestor" | "descendant",
-): string[] =>
-  unfocused.slice(0, focused.length).flatMap((before, index) => {
-    const after = focused[index];
-    return after
-      ? compareStyleSnapshots(before, after, { scope: `${relation}[${index}]`, kind: "element" })
-      : [];
+): string[] => {
+  const baselines = new Map(unfocused.map((sample) => [sample.nodeId, sample]));
+  return focused.flatMap((after, index) => {
+    const before = baselines.get(after.nodeId);
+    if (!before || (!before.painted && !after.painted)) {
+      return [];
+    }
+    const scope = `${relation}[${index}]`;
+    if (before.painted !== after.painted) {
+      const visible = after.painted ? after.style : before.style;
+      return hasVisibleBoxPaint(visible) || visible.textDecorationLine !== "none"
+        ? [`${scope}:visibility`]
+        : [];
+    }
+    return compareStyleSnapshots(before.style, after.style, { scope, kind: "element" });
   });
+};
 
 const comparePseudo = (
   unfocused: ElementStyleSnapshot | undefined,

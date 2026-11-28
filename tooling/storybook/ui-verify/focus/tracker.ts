@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { waitForRenderUpdate } from "../render-update.ts";
 import type { CapturedStop } from "./judge.ts";
-import type { ElementStyleSnapshot, FocusVisualSnapshot } from "./style-diff.ts";
+import type { ElementStyleSnapshot, FocusVisualSnapshot, RelativeSnapshot } from "./style-diff.ts";
 
 // Playwright serializes each function passed to `page.evaluate` on its own, so code that runs in
 // the page cannot call module helpers. Each installer below defines its helpers inline and
@@ -17,6 +17,7 @@ type SnapshotLimits = typeof SNAPSHOT_LIMITS;
 export type FocusedObservation = Pick<CapturedStop, "boundingBox" | "painted" | "focused">;
 
 type SnapshotCapture = {
+  isPainted: (el: Element) => boolean;
   captureSnapshot: (el: Element) => FocusVisualSnapshot;
 };
 
@@ -71,8 +72,23 @@ const defineSnapshotCapture = (limits: SnapshotLimits) => {
   const styleOf = (el: Element, pseudo?: string): ElementStyleSnapshot =>
     pickStyle((el.ownerDocument.defaultView ?? window).getComputedStyle(el, pseudo), !!pseudo);
 
-  const ancestorStyles = (el: Element): ElementStyleSnapshot[] => {
-    const styles: ElementStyleSnapshot[] = [];
+  const nodeIds = new WeakMap<Element, number>();
+  let nextNodeId = 0;
+
+  const isPainted = (el: Element): boolean =>
+    el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+
+  const relativeOf = (el: Element): RelativeSnapshot => {
+    let nodeId = nodeIds.get(el);
+    if (nodeId === undefined) {
+      nodeId = nextNodeId++;
+      nodeIds.set(el, nodeId);
+    }
+    return { nodeId, painted: isPainted(el), style: styleOf(el) };
+  };
+
+  const ancestorStyles = (el: Element): RelativeSnapshot[] => {
+    const styles: RelativeSnapshot[] = [];
     const { body, documentElement } = el.ownerDocument;
     let parent = el.parentElement;
     while (
@@ -81,22 +97,22 @@ const defineSnapshotCapture = (limits: SnapshotLimits) => {
       parent !== body &&
       parent !== documentElement
     ) {
-      styles.push(styleOf(parent));
+      styles.push(relativeOf(parent));
       parent = parent.parentElement;
     }
     return styles;
   };
 
   // Breadth first, so the nearest descendants fill the limit.
-  const descendantStyles = (el: Element): ElementStyleSnapshot[] => {
-    const styles: ElementStyleSnapshot[] = [];
+  const descendantStyles = (el: Element): RelativeSnapshot[] => {
+    const styles: RelativeSnapshot[] = [];
     const queue = Array.from(el.children, (node) => ({ node, depth: 1 }));
     for (
       let next = queue.shift();
       next && styles.length < limits.maxDescendants;
       next = queue.shift()
     ) {
-      styles.push(styleOf(next.node));
+      styles.push(relativeOf(next.node));
       if (next.depth < limits.descendantDepth) {
         const depth = next.depth + 1;
         queue.push(...Array.from(next.node.children, (node) => ({ node, depth })));
@@ -106,6 +122,7 @@ const defineSnapshotCapture = (limits: SnapshotLimits) => {
   };
 
   window.__meritSnapshotCapture = {
+    isPainted,
     captureSnapshot: (el) => ({
       self: styleOf(el),
       before: styleOf(el, "::before"),
@@ -216,7 +233,7 @@ const defineFocusTracker = (): boolean => {
       boundingBox: { width: rect.width, height: rect.height },
       // A control with positive size still paints nothing, its outline included, when it or an
       // ancestor is fully transparent.
-      painted: el.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+      painted: capture.isPainted(el),
       focused: capture.captureSnapshot(el),
     };
   };
