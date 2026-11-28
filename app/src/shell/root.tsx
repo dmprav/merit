@@ -12,6 +12,7 @@ import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { createMessages, MessagesProvider, type LocaleSettings } from "@merit/i18n";
+import type { OrganizationService } from "@merit/organizations/api";
 import { reportError } from "@merit/telemetry/errors";
 import { Link } from "@merit/ui/link";
 import { StateMessage } from "@merit/ui/state-message";
@@ -103,6 +104,7 @@ const Root = ({ children }: { children: ReactNode }) => {
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
+  requestAccess: OrganizationService["requestAccess"];
   locale: LocaleSettings;
 }>()({
   head: ({ match: { context } }) => ({

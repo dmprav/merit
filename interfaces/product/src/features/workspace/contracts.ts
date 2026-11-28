@@ -1,9 +1,5 @@
 import type { InvitationMessage, OrganizationProblem } from "@merit/organizations/api";
 
-export type RequestAccess = (input: {
-  email: string;
-}) => Promise<{ status: "ok" | "limited" | "invalid_input" | "unavailable" }>;
-
 export type InvitationResult =
   | {
       status: "ok";

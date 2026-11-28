@@ -1509,6 +1509,9 @@ importers:
       '@merit/access':
         specifier: workspace:*
         version: link:../../access
+      '@merit/analytics':
+        specifier: workspace:*
+        version: link:../../../foundation/analytics
       '@merit/drafts':
         specifier: workspace:*
         version: link:../../../foundation/drafts
@@ -3035,9 +3038,9 @@ importers:
       '@merit/money':
         specifier: workspace:*
         version: link:../../foundation/money
-      '@merit/product':
+      '@merit/organizations-web':
         specifier: workspace:*
-        version: link:../product
+        version: link:../../capabilities/organizations/web
       '@merit/recommendations':
         specifier: workspace:*
         version: link:../../capabilities/recommendations/business

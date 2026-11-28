@@ -5,7 +5,6 @@
   "license": "UNLICENSED",
   "type": "module",
   "exports": {
-    "./access-request": "./src/features/workspace/access-request.tsx",
     "./routing": "./routing.ts",
     "./context": "./src/features/demo/contracts.ts",
     "./grantmaking": "./src/features/grantmaking/data/server/funding-round.server.ts",

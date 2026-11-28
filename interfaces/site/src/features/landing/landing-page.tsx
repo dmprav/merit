@@ -1,10 +1,11 @@
+import { useHydrated, useRouteContext } from "@tanstack/react-router";
 import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { useLocaleSettings } from "@merit/i18n";
 import { formatMoney } from "@merit/money";
-import { RequestAccess } from "@merit/product/access-request";
+import { AccessRequestDialog } from "@merit/organizations-web/access-request";
 import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { PopoverDialog } from "@merit/ui/dialog";
@@ -160,6 +161,8 @@ const HighlightedText = ({ text, highlight }: { text: string; highlight: string 
   ));
 
 const Invitation = () => {
+  const request = useRouteContext({ from: "/", select: (context) => context.requestAccess });
+  const hydrated = useHydrated();
   const { t } = useTranslation("site");
 
   return (
@@ -172,7 +175,7 @@ const Invitation = () => {
         <DemoLink />
         <div className={styles.invitationRequest}>
           <p>{t("invitation.request")}</p>
-          <RequestAccess />
+          <AccessRequestDialog request={request} hydrated={hydrated} />
         </div>
       </div>
     </section>
