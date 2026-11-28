@@ -1,6 +1,6 @@
 import { AGENT_LABELS } from "../../verification/agent-policy.ts";
 import { buildScoutContext, type ScoutContext, type ScoutRun, type ScoutScan } from "./context.ts";
-import { type DueRun, computeDueRuns, historyQueryFor } from "./due.ts";
+import { computeDueRuns, countInFlight, type DueRun, historyQueryFor, isInFlight } from "./due.ts";
 import { assertCheckoutAt, type CommitSummary, type GitPort, SCAN_REF } from "./git.ts";
 import type { IssuePort, ScoutPorts } from "./ports.ts";
 import { collectUnreadVerifications } from "./repo-paths.ts";
@@ -18,6 +18,7 @@ import {
   nextRunCursor,
   parseScoutState,
   type RunCursor,
+  type ScoutState,
   SCOUT_STATE_ISSUE_NUMBER,
   SCOUT_STATE_ISSUE_TITLE,
   scoutStateForReading,
@@ -51,19 +52,51 @@ export type DueReport =
 
 /**
  * Lists the audits whose merged activity since their cursors reached a threshold, most overdue
- * first, up to the per-check cap. Runs past the cap are counted as `deferred`; runs whose started
- * session is still in flight are neither listed nor counted.
+ * first, as many as the in-flight limit leaves room for. Runs that do not fit are counted as
+ * `deferred`; runs whose started session is still in flight are neither listed nor counted.
  */
 export const buildDue = (ports: ScoutPorts): DueReport => {
   const state = readScoutState(ports);
+  const now = ports.now();
   const scanTipSha = ports.git.revParse(SCAN_REF);
-  const due = computeDueRuns({ git: ports.git, state, scanTipSha, now: ports.now() });
-  const runs = due.slice(0, SCOUT_RUN_POLICY.check.maxRunsPerCheck);
+  const due = computeDueRuns({ git: ports.git, state, scanTipSha, now });
+  const room = Math.max(0, SCOUT_RUN_POLICY.check.maxRunsInFlight - countInFlight(state, now));
+  const runs = due.slice(0, room);
   if (runs.length === 0) {
     return { status: "idle", scanTipSha };
   }
   const deferred = due.length - runs.length;
   return { status: "due", scanTipSha, runs, ...(deferred > 0 ? { deferred } : {}) };
+};
+
+/**
+ * Writes the state issue body that `compute` derives from the body it is given, then reads the issue
+ * back and checks `holds`. The issue has no compare-and-swap, so a concurrent writer can overwrite
+ * the edit; on a miss the change is applied once more to the fresh body, and a second miss fails.
+ * `compute` returns a null body when there is nothing to write.
+ */
+const writeStateVerified = <T>(
+  issues: IssuePort,
+  compute: (body: string, state: ScoutState) => { body: string | null; result: T },
+  holds: (state: ScoutState, result: T) => boolean,
+): T => {
+  let issue = fetchScoutStateIssue(issues);
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const read = parseScoutState(issue.body);
+    const { body, result } = compute(issue.body, read.kind === "parsed" ? read.state : {});
+    if (body === null) {
+      return result;
+    }
+    issues.editIssueBody(issue.number, body);
+    issue = fetchScoutStateIssue(issues);
+    const written = parseScoutState(issue.body);
+    if (written.kind === "parsed" && holds(written.state, result)) {
+      return result;
+    }
+  }
+  throw new Error(
+    `Scout state issue #${SCOUT_STATE_ISSUE_NUMBER} did not keep the written cursors after a retry; another writer may be overwriting it. Rerun the command.`,
+  );
 };
 
 const filtersPaths = ({ kind }: ScoutRunTarget): boolean => kind === "area" || kind === "mechanism";
@@ -164,6 +197,13 @@ export type AdvanceOptions = {
   prNumber?: number;
 };
 
+const sameCursor = (stored: RunCursor | undefined, expected: RunCursor): boolean =>
+  stored?.lastCommitSha === expected.lastCommitSha &&
+  stored?.lastCommitDate === expected.lastCommitDate &&
+  stored?.lastPrNumber === expected.lastPrNumber &&
+  stored?.lastRunAt === expected.lastRunAt &&
+  stored?.startedAt === expected.startedAt;
+
 /** Records a finished run's scan tip, and for `records` its pull request, on the state issue. */
 export const advanceRun = (
   ports: Pick<ScoutPorts, "git" | "issues" | "now">,
@@ -174,46 +214,77 @@ export const advanceRun = (
     throw new Error(`--pr applies only to the "${RECORDS_RUN_ID}" run (got "${runId}").`);
   }
   requireKnownArea(target, runId, ports.git.trackedFiles(ports.git.revParse(SCAN_REF)));
-  const stateIssue = fetchScoutStateIssue(ports.issues);
-  const { body, cursor } = advanceScoutStateBody({
-    issueNumber: stateIssue.number,
-    issueBody: stateIssue.body,
-    runId,
-    nextCursor: (previous) => {
-      const resolvedSha = ports.git.verifyCommit(commitSha);
-      return nextRunCursor({
-        previous,
-        commitSha: resolvedSha,
-        commitDate: ports.git.commitDate(resolvedSha),
-        prNumber,
-        runAt: ports.now(),
+  const cursor = writeStateVerified(
+    ports.issues,
+    (issueBody) => {
+      const { body, cursor: next } = advanceScoutStateBody({
+        issueNumber: SCOUT_STATE_ISSUE_NUMBER,
+        issueBody,
+        runId,
+        nextCursor: (previous) => {
+          const resolvedSha = ports.git.verifyCommit(commitSha);
+          return nextRunCursor({
+            previous,
+            commitSha: resolvedSha,
+            commitDate: ports.git.commitDate(resolvedSha),
+            prNumber,
+            runAt: ports.now(),
+          });
+        },
       });
+      return { body, result: next };
     },
-  });
-  ports.issues.editIssueBody(stateIssue.number, body);
+    (state, next) => sameCursor(state[runId], next),
+  );
   return { status: "advanced", run: runId, cursor };
 };
 
 /**
  * Records that sessions were started for `runIds` on the state issue in one edit, so the next check
  * does not list them again until they advance or time out. Validates every run id before writing.
+ * Runs already in flight are reported as `alreadyStarted` and left alone, and a start that would
+ * put more runs in flight than the policy allows is refused. Only the returned `runs` need sessions.
  */
 export const startRuns = (
   ports: Pick<ScoutPorts, "git" | "issues" | "now">,
   { runIds }: { runIds: readonly string[] },
-): { status: "started"; runs: string[]; startedAt: string } => {
+): { status: "started"; runs: string[]; alreadyStarted?: string[]; startedAt: string } => {
   const unique = [...new Set(runIds)];
   const targets = unique.map((runId) => resolveRunTarget(runId));
   const trackedFiles = ports.git.trackedFiles(ports.git.revParse(SCAN_REF));
   targets.forEach((target, index) => requireKnownArea(target, unique[index] ?? "", trackedFiles));
-  const stateIssue = fetchScoutStateIssue(ports.issues);
   const startedAt = ports.now();
-  const { body } = startScoutStateBody({
-    issueNumber: stateIssue.number,
-    issueBody: stateIssue.body,
-    runIds: unique,
-    startedAt,
-  });
-  ports.issues.editIssueBody(stateIssue.number, body);
-  return { status: "started", runs: unique, startedAt: startedAt.toISOString() };
+  const startedAtIso = startedAt.toISOString();
+  const { maxRunsInFlight } = SCOUT_RUN_POLICY.check;
+
+  const { runs, alreadyStarted } = writeStateVerified(
+    ports.issues,
+    (issueBody, state) => {
+      const alreadyStarted = unique.filter((runId) => isInFlight(state[runId], startedAt));
+      const runs = unique.filter((runId) => !alreadyStarted.includes(runId));
+      const inFlight = countInFlight(state, startedAt);
+      if (runs.length > 0 && inFlight + runs.length > maxRunsInFlight) {
+        throw new Error(
+          `Refusing to start ${runs.length} run(s): ${inFlight} already in flight, and at most ${maxRunsInFlight} may be.`,
+        );
+      }
+      if (runs.length === 0) {
+        return { body: null, result: { runs, alreadyStarted } };
+      }
+      const { body } = startScoutStateBody({
+        issueNumber: SCOUT_STATE_ISSUE_NUMBER,
+        issueBody,
+        runIds: runs,
+        startedAt,
+      });
+      return { body, result: { runs, alreadyStarted } };
+    },
+    (state, result) => result.runs.every((runId) => state[runId]?.startedAt === startedAtIso),
+  );
+  return {
+    status: "started",
+    runs,
+    ...(alreadyStarted.length > 0 ? { alreadyStarted } : {}),
+    startedAt: startedAtIso,
+  };
 };

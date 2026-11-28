@@ -58,8 +58,11 @@ const memoizeByCursor = <T>(compute: (query: HistoryQuery) => T): ((query: Histo
   };
 };
 
-/** Whether a session was started for the cursor's run, has not advanced it, and is within the timeout. */
-const isInFlight = (cursor: RunCursor | undefined, now: Date): boolean => {
+/**
+ * Whether a session was started for the cursor's run, has not advanced it, and is within the
+ * timeout. A start at the same instant as the last advance counts as advanced.
+ */
+export const isInFlight = (cursor: RunCursor | undefined, now: Date): boolean => {
   const startedMs = cursor?.startedAt ? Date.parse(cursor.startedAt) : Number.NaN;
   if (Number.isNaN(startedMs)) {
     return false;
@@ -69,13 +72,17 @@ const isInFlight = (cursor: RunCursor | undefined, now: Date): boolean => {
   return startedMs > advancedMs && now.getTime() - startedMs < timeoutMs;
 };
 
+/** How many runs have a started session still in flight, whether or not they are due. */
+export const countInFlight = (state: ScoutState, now: Date): number =>
+  Object.values(state).filter((cursor) => isInFlight(cursor, now)).length;
+
 const touchesMechanism = (files: readonly string[], mechanism: Mechanism): boolean =>
   classifyChangedPaths({ paths: files, mechanisms: [mechanism] }).matched.length > 0;
 
 /**
  * Measures every audit against the merged activity since its cursor and returns those that reached
- * their threshold, most overdue first, leaving out runs whose started session is still in flight. Reads history only through `git`, so it needs no checkout at
- * the scan tip.
+ * their threshold, most overdue first, leaving out runs whose started session is still in flight.
+ * Reads history only through `git`, so it needs no checkout at the scan tip.
  */
 export const computeDueRuns = ({
   git,

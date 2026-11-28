@@ -41,13 +41,18 @@ const createFakePorts = ({
   body = stateBody({}),
   checkout = { headSha: "tip1234567", changedPaths: [], hiddenPaths: [] },
   issues = [],
+  lostEdits = 0,
 }: {
+  /** How many leading edits a concurrent writer overwrites, so the issue keeps its earlier body. */
+  lostEdits?: number;
   body?: string;
   checkout?: CheckoutState;
   issues?: IssueListItem[];
 } = {}) => {
   const calls: string[] = [];
   const edits: string[] = [];
+  let current = body;
+  let lost = lostEdits;
   const warnings: string[] = [];
 
   const record = <T>(call: string, value: T): T => {
@@ -78,11 +83,21 @@ const createFakePorts = ({
     },
     issues: {
       viewIssue: (number) =>
-        record("issues.viewIssue", { number, state: "OPEN", title: SCOUT_STATE_ISSUE_TITLE, body }),
+        record("issues.viewIssue", {
+          number,
+          state: "OPEN",
+          title: SCOUT_STATE_ISSUE_TITLE,
+          body: current,
+        }),
       listIssues: (query) => record(`issues.listIssues ${describeQuery(query)}`, issues),
       editIssueBody: (_number, nextBody) => {
         calls.push("issues.editIssueBody");
         edits.push(nextBody);
+        if (lost > 0) {
+          lost -= 1;
+          return;
+        }
+        current = nextBody;
       },
     },
     fallow: {
@@ -149,12 +164,11 @@ describe("listing due runs", () => {
     expect(buildDue(ports)).toEqual({ status: "idle", scanTipSha: "tip1234567" });
   });
 
-  describe("with more due runs than one check starts", () => {
-    const { maxRunsPerCheck } = SCOUT_RUN_POLICY.check;
-    const areas = ["app", "docs", ".github", "verifications-tools", "scripts"].slice(
-      0,
-      maxRunsPerCheck + 2,
-    );
+  describe("with more due runs than may be in flight", () => {
+    const { maxRunsInFlight } = SCOUT_RUN_POLICY.check;
+    const areas = Array.from({ length: maxRunsInFlight + 2 }, (_, index) => `crowd${index}`);
+    const startedAt = "2026-11-28T11:00:00.000Z";
+    const ids = areas.map((area) => `area:${area}`);
 
     const lines = (index: number) => 3000 + (areas.length - index) * 100;
 
@@ -170,34 +184,63 @@ describe("listing due runs", () => {
       return fake;
     };
 
-    test("lists the most urgent runs up to the cap and counts the rest as deferred", () => {
+    const listed = (report: ReturnType<typeof buildDue>) =>
+      report.status === "due" ? report.runs.map((run) => run.id) : [];
+
+    test("lists the most urgent runs up to the limit and counts the rest as deferred", () => {
       const report = buildDue(crowd().ports);
-      expect(report).toMatchObject({ status: "due", deferred: 2 });
-      expect(report.status === "due" && report.runs.map((run) => run.id)).toEqual(
-        areas.slice(0, maxRunsPerCheck).map((area) => `area:${area}`),
-      );
+      expect(report).toMatchObject({ status: "due", deferred: areas.length - maxRunsInFlight });
+      expect(listed(report)).toEqual(ids.slice(0, maxRunsInFlight));
     });
 
     test("omits deferred when every due run is listed", () => {
       const { ports } = crowd();
       const churn = ports.git.churnSince;
-      ports.git.churnSince = (query) => churn(query).slice(0, maxRunsPerCheck);
+      ports.git.churnSince = (query) => churn(query).slice(0, maxRunsInFlight);
       expect(buildDue(ports)).not.toHaveProperty("deferred");
     });
 
-    test("does not count a run in flight as deferred and lists the next run in its place", () => {
-      const startedAt = "2026-11-28T11:00:00.000Z";
-      const { ports } = crowd(stateBody({ [`area:${areas[0]}`]: { startedAt } }));
+    test("lists only as many runs as the runs in flight leave room for", () => {
+      const { ports } = crowd(stateBody({ [ids[0] ?? ""]: { startedAt } }));
       const report = buildDue(ports);
-      expect(report.status === "due" && report.runs.map((run) => run.id)).toEqual(
-        areas.slice(1, maxRunsPerCheck + 1).map((area) => `area:${area}`),
+      expect(listed(report)).toEqual(ids.slice(1, maxRunsInFlight));
+      expect(report).toMatchObject({ deferred: areas.length - maxRunsInFlight });
+    });
+
+    test("counts an in-flight run that is no longer due against the limit", () => {
+      const inFlight = Object.fromEntries(
+        Array.from({ length: maxRunsInFlight - 1 }, (_, index) => [
+          `area:gone${index}`,
+          { startedAt },
+        ]),
       );
-      expect(report).toMatchObject({ deferred: 1 });
+      const report = buildDue(crowd(stateBody(inFlight)).ports);
+      expect(listed(report)).toEqual(ids.slice(0, 1));
+      expect(report).toMatchObject({ deferred: areas.length - 1 });
+    });
+
+    test("is idle when the limit is reached, even with due runs waiting", () => {
+      const inFlight = Object.fromEntries(
+        Array.from({ length: maxRunsInFlight }, (_, index) => [`area:gone${index}`, { startedAt }]),
+      );
+      expect(buildDue(crowd(stateBody(inFlight)).ports)).toEqual({
+        status: "idle",
+        scanTipSha: "tip1234567",
+      });
+    });
+
+    test("is idle, not a negative slice, when more runs are in flight than the limit", () => {
+      const inFlight = Object.fromEntries(
+        Array.from({ length: maxRunsInFlight + 1 }, (_, index) => [
+          `area:gone${index}`,
+          { startedAt },
+        ]),
+      );
+      expect(buildDue(crowd(stateBody(inFlight)).ports).status).toBe("idle");
     });
 
     test("is idle when every due run is in flight", () => {
-      const startedAt = "2026-11-28T11:00:00.000Z";
-      const state = Object.fromEntries(areas.map((area) => [`area:${area}`, { startedAt }]));
+      const state = Object.fromEntries(ids.map((id) => [id, { startedAt }]));
       expect(buildDue(crowd(stateBody(state)).ports)).toEqual({
         status: "idle",
         scanTipSha: "tip1234567",
@@ -449,6 +492,19 @@ describe("advancing a run", () => {
     });
   });
 
+  test("applies the advance again when a concurrent writer overwrote the first edit", () => {
+    const { ports, edits } = createFakePorts({ lostEdits: 1 });
+    expect(advanceRun(ports, options)).toMatchObject({ status: "advanced" });
+    expect(edits).toHaveLength(2);
+    expect(parseScoutStateEntries(edits[1] ?? "")[0]).toMatchObject({ lastRunAt: NOW });
+  });
+
+  test("fails when the advance does not hold after the second write", () => {
+    const { ports, edits } = createFakePorts({ lostEdits: 2 });
+    expect(() => advanceRun(ports, options)).toThrow(/#219 did not keep the written cursors/);
+    expect(edits).toHaveLength(2);
+  });
+
   test("refuses --pr for any run but records before touching the state issue", () => {
     const { ports, calls } = createFakePorts();
     expect(() => advanceRun(ports, { ...options, prNumber: 5 })).toThrow(
@@ -547,6 +603,98 @@ describe("starting runs", () => {
       lastRunAt: NOW,
     });
     expect(advanced.edits[0]).not.toContain("startedAt");
+
+    const next = buildDue(createFakePorts({ body: advanced.edits[0] ?? "" }).ports);
+    expect(next.status === "due" && next.runs.map((run) => run.id)).toEqual([
+      "area:tooling/agents",
+    ]);
+  });
+
+  test("collapses duplicate run ids into one start", () => {
+    const { ports, edits } = createFakePorts();
+    expect(startRuns(ports, { runIds: ["records", "records"] })).toMatchObject({
+      runs: ["records"],
+    });
+    expect(edits).toHaveLength(1);
+    expect(parseScoutState(edits[0] ?? "")).toMatchObject({
+      state: { records: { startedAt } },
+    });
+  });
+
+  test("does not restart a run started an hour ago and reports it", () => {
+    const earlier = "2026-11-28T11:00:00.000Z";
+    const { ports, edits } = createFakePorts({
+      body: stateBody({ records: { startedAt: earlier } }),
+    });
+    expect(startRuns(ports, { runIds: ["records", "change-batch"] })).toEqual({
+      status: "started",
+      runs: ["change-batch"],
+      alreadyStarted: ["records"],
+      startedAt,
+    });
+    expect(parseScoutState(edits[0] ?? "")).toMatchObject({
+      state: { records: { startedAt: earlier }, "change-batch": { startedAt } },
+    });
+  });
+
+  test("writes nothing when every requested run is already in flight", () => {
+    const earlier = "2026-11-28T11:00:00.000Z";
+    const { ports, edits } = createFakePorts({
+      body: stateBody({ records: { startedAt: earlier } }),
+    });
+    expect(startRuns(ports, { runIds: ["records"] })).toEqual({
+      status: "started",
+      runs: [],
+      alreadyStarted: ["records"],
+      startedAt,
+    });
+    expect(edits).toEqual([]);
+  });
+
+  test("starts a run whose earlier start timed out", () => {
+    const hours = SCOUT_RUN_POLICY.check.startedRunTimeoutHours;
+    const old = new Date(Date.parse(NOW) - hours * 60 * 60 * 1000).toISOString();
+    const { ports } = createFakePorts({ body: stateBody({ records: { startedAt: old } }) });
+    expect(startRuns(ports, { runIds: ["records"] })).toMatchObject({ runs: ["records"] });
+  });
+
+  test("treats a start at the instant of the last advance as advanced, not in flight", () => {
+    const { ports } = createFakePorts({
+      body: stateBody({ records: { lastRunAt: NOW, startedAt: NOW } }),
+    });
+    expect(startRuns(ports, { runIds: ["records"] })).toMatchObject({ runs: ["records"] });
+  });
+
+  test("refuses to put more runs in flight than the limit allows, before editing", () => {
+    const { maxRunsInFlight } = SCOUT_RUN_POLICY.check;
+    const inFlight = Object.fromEntries(
+      Array.from({ length: maxRunsInFlight }, (_, index) => [`area:gone${index}`, { startedAt }]),
+    );
+    const { ports, edits } = createFakePorts({ body: stateBody(inFlight) });
+    expect(() => startRuns(ports, { runIds: ["records"] })).toThrow(
+      /Refusing to start 1 run\(s\).*already in flight/,
+    );
+    expect(edits).toEqual([]);
+  });
+
+  test("applies the start again when a concurrent writer overwrote the first edit", () => {
+    const { ports, edits } = createFakePorts({
+      body: stateBody({ "change-batch": batchCursor }),
+      lostEdits: 1,
+    });
+    expect(startRuns(ports, { runIds: ["records"] })).toMatchObject({ runs: ["records"] });
+    expect(edits).toHaveLength(2);
+    expect(parseScoutState(edits[1] ?? "")).toMatchObject({
+      state: { "change-batch": batchCursor, records: { startedAt } },
+    });
+  });
+
+  test("fails when the start does not hold after the second write", () => {
+    const { ports, edits } = createFakePorts({ lostEdits: 2 });
+    expect(() => startRuns(ports, { runIds: ["records"] })).toThrow(
+      /#219 did not keep the written cursors/,
+    );
+    expect(edits).toHaveLength(2);
   });
 
   test("validates every run id before editing the issue", () => {

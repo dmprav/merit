@@ -21,9 +21,9 @@ export const SCOUT_RUN_POLICY = {
   records: { minRecords: 8 },
   /** How one scheduled check starts sessions. */
   check: {
-    /** The most runs a check lists; the rest wait for the next check. */
-    maxRunsPerCheck: 3,
-    /** How long a started run stays out of the due list before a crashed session is retried. */
+    /** The most runs in flight at once: `due` lists up to this many minus those already started. */
+    maxRunsInFlight: 3,
+    /** How long a started run stays in flight before a crashed session's run is due again. */
     startedRunTimeoutHours: 6,
   },
 } as const;
