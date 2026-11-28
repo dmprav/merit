@@ -1030,6 +1030,74 @@ test.describe("live Chromium checker failure detection", () => {
     );
   });
 
+  // Each page navigates from one of its own handlers, and the long animation the handler starts
+  // keeps the checker waiting in the page, so the new document commits during an evaluation
+  // rather than between two, and that evaluation rejects.
+  const LEAVE_PAGE = `document.documentElement.animate([{ opacity: 0.99 }, { opacity: 1 }], 3000);
+    location.href = "/next";`;
+  for (const navigation of [
+    {
+      during: "installing the tracker",
+      // Only the checker requests animation frames here, to wait for a rendering update.
+      body: `<button type="button">Never checked</button>
+        <script>window.requestAnimationFrame = () => { ${LEAVE_PAGE} return 0; };</script>`,
+      stopsChecked: 0,
+    },
+    {
+      during: "the wait after a Tab press",
+      body: `<button type="button">First control</button>
+        <button type="button" id="leave">Leave page</button>
+        <button type="button">Never checked</button>
+        <script>document.getElementById("leave").addEventListener("focus", () => { ${LEAVE_PAGE} });</script>`,
+      stopsChecked: 1,
+    },
+    {
+      during: "the final stop's baseline",
+      // The control keeps focus on Tab, so its baseline is read after the checker blurs it.
+      body: `<button type="button" id="trap">Trapping control</button>
+        <script>
+          const trap = document.getElementById("trap");
+          trap.addEventListener("keydown", (event) => { if (event.key === "Tab") event.preventDefault(); });
+          trap.addEventListener("blur", () => { ${LEAVE_PAGE} });
+        </script>`,
+      stopsChecked: 1,
+    },
+    {
+      during: "the baselines read with nothing focused",
+      // Only the reset before those baselines focuses the body.
+      body: `<button type="button">First control</button>
+        <button type="button">Second control</button>
+        <script>document.body.addEventListener("focus", () => { ${LEAVE_PAGE} });</script>`,
+      stopsChecked: 2,
+    },
+  ]) {
+    test(`reports traversal as incomplete when the page navigates during ${navigation.during}`, async ({
+      newContext,
+    }) => {
+      const context = await newContext({ viewport: { width: 1280, height: 800 } });
+      const page = await context.newPage();
+      await page.route("http://ui-verify.test/**", async (route) => {
+        const leaving = !route.request().url().endsWith("/next");
+        await route.fulfill({
+          contentType: "text/html",
+          body: `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Navigation</title><style>
+            body { background: #fff; color: #111; }
+            button { padding: 8px 14px; background: #fff; color: #111; border: 1px solid #333; }
+            button:focus-visible { outline: 2px solid #0f62fe; outline-offset: 2px; }
+          </style></head><body><main><h1>${leaving ? "Leaving page" : "Next page"}</h1>
+            ${leaving ? navigation.body : '<button type="button">Elsewhere</button>'}
+          </main></body></html>`,
+        });
+      });
+      await page.goto("http://ui-verify.test/", { waitUntil: "load" });
+
+      const focus = await checkKeyboardFocusTraversal(page);
+      await page.waitForURL("http://ui-verify.test/next");
+      expect(focus.stopsChecked).toBe(navigation.stopsChecked);
+      expect(focus.traversal).toEqual({ complete: false, reason: "trackerLost" });
+    });
+  }
+
   test("measures the page state the screenshot shows after animations are fast-forwarded", async ({
     newContext,
   }) => {

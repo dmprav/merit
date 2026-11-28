@@ -104,7 +104,7 @@ describe("capturing a list item's unfocused baseline", () => {
     const stop = optionStop();
     const { page, keys } = pageWithListOption({ arrowMoves: true });
 
-    await expect(captureFinalBaseline(page, [stop])).resolves.toBe(true);
+    await expect(captureFinalBaseline(page, [stop])).resolves.toBeUndefined();
 
     expect(keys).toEqual(["Tab", "ArrowDown"]);
     expect(stop.unfocused).toEqual(baseSnapshot());
@@ -114,14 +114,14 @@ describe("capturing a list item's unfocused baseline", () => {
     const stop = optionStop();
     const { page } = pageWithListOption({ arrowMoves: true, nested: true });
 
-    await expect(captureFinalBaseline(page, [stop])).resolves.toBe(false);
+    await expect(captureFinalBaseline(page, [stop])).resolves.toBe("siblingFocus");
   });
 
   test("reports an incomplete comparison when focus does not reach a sibling", async () => {
     const stop = optionStop();
     const { page } = pageWithListOption({ arrowMoves: false });
 
-    await expect(captureFinalBaseline(page, [stop])).resolves.toBe(false);
+    await expect(captureFinalBaseline(page, [stop])).resolves.toBe("siblingFocus");
 
     expect(stop.unfocused).toBeUndefined();
   });
