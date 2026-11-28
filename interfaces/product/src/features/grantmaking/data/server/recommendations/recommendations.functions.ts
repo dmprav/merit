@@ -1,9 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import { withActor } from "@merit/auth/request";
-import { encodeBudgetTotals } from "@merit/grantmaking/api";
 import { encodeMoney } from "@merit/money";
-import { saveRecommendationRequestSchema, encodeRecommendation } from "@merit/recommendations/api";
+import {
+  saveRecommendationRequestSchema,
+  encodeBudgetTotals,
+  encodeRecommendation,
+} from "@merit/recommendations/api";
 
 export const saveRecommendation = createServerFn({ method: "POST" })
   .validator(saveRecommendationRequestSchema)

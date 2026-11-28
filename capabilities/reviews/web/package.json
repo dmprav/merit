@@ -21,7 +21,6 @@
     "@merit/dates": "workspace:*",
     "@merit/drafts": "workspace:*",
     "@merit/forms": "workspace:*",
-    "@merit/grantmaking": "workspace:*",
     "@merit/i18n": "workspace:*",
     "@merit/money": "workspace:*",
     "@merit/query": "workspace:*",
@@ -36,6 +35,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@merit/grantmaking": "workspace:*",
     "@merit/test-support": "workspace:*",
     "@storybook/react-vite": "catalog:",
     "@testing-library/dom": "catalog:",

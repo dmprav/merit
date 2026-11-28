@@ -1,9 +1,13 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type ApplicationView as Application } from "@merit/grantmaking/api";
+import type { IntakeApplication } from "@merit/applications/domain";
 import { useFormat } from "@merit/i18n/format";
-import { summarizeAssessments } from "@merit/reviews/domain";
+import {
+  summarizeAssessments,
+  type ReviewAssessment,
+  type ReviewState,
+} from "@merit/reviews/domain";
 import { Button } from "@merit/ui/button";
 import { JudgmentChoice } from "@merit/ui/judgment";
 import { PanelSection } from "@merit/ui/panel-section";
@@ -11,6 +15,11 @@ import { PanelSection } from "@merit/ui/panel-section";
 import styles from "../review-overview.module.css";
 import { reviewPositionKeys } from "./assessment-outcome";
 import { reviewStatusText } from "./status-text";
+
+type ReviewOverviewApplication = Pick<IntakeApplication, "intakeStatus" | "version"> & {
+  reviews: Pick<ReviewState, "requests">;
+  assessments: readonly ReviewAssessment[];
+};
 
 export const ReviewOverview = ({
   application,
@@ -20,7 +29,7 @@ export const ReviewOverview = ({
   actions,
 }: {
   actions?: ReactNode;
-  application: Application;
+  application: ReviewOverviewApplication;
   onShowAll: () => void;
   onSelect: (id: string) => void;
   triggerRef: (id: string, element: HTMLButtonElement | null) => void;
@@ -88,8 +97,8 @@ const ReviewChoiceBasis = ({
   application,
   assessment,
 }: {
-  application: Application;
-  assessment: Application["assessments"][number];
+  application: ReviewOverviewApplication;
+  assessment: ReviewAssessment;
 }) => {
   const { t } = useTranslation(["reviewGrant", "reviews"]);
   const request = application.reviews.requests.find((item) => item.id === assessment.id);

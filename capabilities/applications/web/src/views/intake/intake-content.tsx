@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ApplicationView as Application } from "@merit/grantmaking/api";
+import type { IntakeApplication } from "@merit/applications/domain";
 import { Attribution } from "@merit/ui/attribution";
 import { Reading, Stack } from "@merit/ui/layout";
 import { PanelSection } from "@merit/ui/panel-section";
 import { SectionHeader } from "@merit/ui/section-header";
 import { Text } from "@merit/ui/text";
 
-import type { IntakeData } from "../../contracts/intake";
+import type { IntakeActivity, IntakeData } from "../../contracts/intake";
 import type { IntakeSection } from "../../controllers/intake/intake-state";
 import {
   useApplicationIntake,
@@ -45,8 +45,8 @@ type IntakeContent = {
 };
 
 type Props = {
-  application: Application;
-  session?: IntakeSession;
+  application: IntakeApplication;
+  session?: IntakeSession & { activity: IntakeActivity };
   onReveal: () => void;
   children: (content: IntakeContent) => ReactNode;
 };
@@ -59,7 +59,7 @@ export const ApplicationIntake = (props: Props) =>
     <IntakePresentation {...props} />
   );
 
-const EditableIntake = (props: Props & { session: IntakeSession }) => {
+const EditableIntake = (props: Props & { session: NonNullable<Props["session"]> }) => {
   const intakeEditing = useApplicationIntake({ application: props.application, ...props.session });
   useIntakeRefreshToast(intakeEditing);
   return <IntakePresentation {...props} intakeEditing={intakeEditing} />;
@@ -168,7 +168,7 @@ const IntakePresentation = ({
 };
 
 type SectionProps = {
-  application: Application;
+  application: IntakeApplication;
   intakeEditing?: ApplicationIntakeController;
   onClose: () => void;
   triggerRef: Ref<HTMLButtonElement>;

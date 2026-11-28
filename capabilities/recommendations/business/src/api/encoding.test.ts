@@ -7,6 +7,7 @@ import {
   encodeRecommendation,
   decodeRecommendation,
 } from "../domain/encoding";
+import { decodeBudgetTotals, encodeBudgetTotals, totalsDataSchema } from "./budget-totals";
 import { saveRecommendationRequestSchema } from "./commands";
 
 const recorded = (position: "Fund" | "Defer") => ({
@@ -71,6 +72,10 @@ it.each([null, fromMinorUnits(10000n)])("preserves unknown and exceeded budgets:
     [encodeMoney(fromMinorUnits(12001n)), null, encodeMoney(fromMinorUnits(0n))],
     0,
   );
+  const encoded = totalsDataSchema.parse(
+    JSON.parse(JSON.stringify(encodeBudgetTotals(context.totals))),
+  );
+  expect(decodeBudgetTotals(encoded)).toEqual(context.totals);
   expect(context.budget).toEqual(budget);
   expect(context.totals).toEqual({
     proposed: fromMinorUnits(12001n),

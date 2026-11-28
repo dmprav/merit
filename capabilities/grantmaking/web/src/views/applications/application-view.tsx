@@ -116,7 +116,24 @@ const ApplicationWorkspace = (
     editorOpen: Boolean(editor) || review.active,
   });
   return (
-    <ApplicationIntake application={application} session={intake} onReveal={state.revealIntake}>
+    <ApplicationIntake
+      application={application}
+      session={
+        intake && {
+          ...intake,
+          activity: {
+            hasReviews: Boolean(
+              application.reviews.requests.length || application.reviews.assessments.length,
+            ),
+            hasRecommendation: application.managerRecommendation !== null,
+            outstandingReviews: application.reviews.requests.filter(
+              (request) => request.status === "outstanding",
+            ).length,
+          },
+        }
+      }
+      onReveal={state.revealIntake}
+    >
       {(content) => <ApplicationLayout {...props} content={content} state={state} />}
     </ApplicationIntake>
   );
@@ -367,7 +384,8 @@ const ApplicationWorkOverview = ({
   triggerRef,
   actions,
   onInspectVersion,
-}: ComponentProps<typeof ReviewOverview> & {
+}: Omit<ComponentProps<typeof ReviewOverview>, "application"> & {
+  application: Application;
   manager: ApplicationRoundContext["manager"];
   overview: ReactNode;
   readOnly: boolean;

@@ -33,6 +33,7 @@ it.each(["delete", "discard_revision"] as const)(
     const { result, rerender } = renderHook(
       ({ revision }) =>
         useApplicationIntake({
+          activity: { hasReviews: false, hasRecommendation: false, outstandingReviews: 0 },
           application,
           data: { ...data, state: { ...data.state, revision } },
           onDeleted,
@@ -93,7 +94,13 @@ it("hides an open editor after a withdrawal saved elsewhere and restores it with
   };
   const client = createQueryClient();
   const { result, rerender } = renderHook(
-    ({ current }) => useApplicationIntake({ application: current, data, onDeleted: vi.fn() }),
+    ({ current }) =>
+      useApplicationIntake({
+        activity: { hasReviews: false, hasRecommendation: false, outstandingReviews: 0 },
+        application: current,
+        data,
+        onDeleted: vi.fn(),
+      }),
     {
       initialProps: { current: application },
       wrapper: ({ children }) => (

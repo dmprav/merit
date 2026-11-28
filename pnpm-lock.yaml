@@ -830,9 +830,6 @@ importers:
       '@merit/forms':
         specifier: workspace:*
         version: link:../../../foundation/forms
-      '@merit/grantmaking':
-        specifier: workspace:*
-        version: link:../../grantmaking/business
       '@merit/i18n':
         specifier: workspace:*
         version: link:../../../foundation/i18n
@@ -864,6 +861,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@merit/grantmaking':
+        specifier: workspace:*
+        version: link:../../grantmaking/business
       '@merit/test-support':
         specifier: workspace:*
         version: link:../../../tooling/testing
@@ -1146,6 +1146,9 @@ importers:
 
   capabilities/decisions/web:
     dependencies:
+      '@merit/applications':
+        specifier: workspace:*
+        version: link:../../applications/business
       '@merit/decisions':
         specifier: workspace:*
         version: link:../business
@@ -1155,15 +1158,15 @@ importers:
       '@merit/forms':
         specifier: workspace:*
         version: link:../../../foundation/forms
-      '@merit/grantmaking':
-        specifier: workspace:*
-        version: link:../../grantmaking/business
       '@merit/i18n':
         specifier: workspace:*
         version: link:../../../foundation/i18n
       '@merit/money':
         specifier: workspace:*
         version: link:../../../foundation/money
+      '@merit/recommendations':
+        specifier: workspace:*
+        version: link:../../recommendations/business
       '@merit/ui':
         specifier: workspace:*
         version: link:../../../foundation/ui
@@ -1603,9 +1606,6 @@ importers:
       '@merit/db':
         specifier: workspace:*
         version: link:../../../foundation/db
-      '@merit/grantmaking':
-        specifier: workspace:*
-        version: link:../../grantmaking/business
       '@merit/money':
         specifier: workspace:*
         version: link:../../../foundation/money
@@ -1677,6 +1677,9 @@ importers:
 
   capabilities/recommendations/web:
     dependencies:
+      '@merit/applications':
+        specifier: workspace:*
+        version: link:../../applications/business
       '@merit/contacts-web':
         specifier: workspace:*
         version: link:../../contacts/web
@@ -1686,9 +1689,6 @@ importers:
       '@merit/forms':
         specifier: workspace:*
         version: link:../../../foundation/forms
-      '@merit/grantmaking':
-        specifier: workspace:*
-        version: link:../../grantmaking/business
       '@merit/i18n':
         specifier: workspace:*
         version: link:../../../foundation/i18n
@@ -1698,6 +1698,9 @@ importers:
       '@merit/recommendations':
         specifier: workspace:*
         version: link:../business
+      '@merit/rounds':
+        specifier: workspace:*
+        version: link:../../rounds/business
       '@merit/ui':
         specifier: workspace:*
         version: link:../../../foundation/ui
@@ -1872,9 +1875,6 @@ importers:
       '@merit/forms':
         specifier: workspace:*
         version: link:../../../foundation/forms
-      '@merit/grantmaking':
-        specifier: workspace:*
-        version: link:../../grantmaking/business
       '@merit/i18n':
         specifier: workspace:*
         version: link:../../../foundation/i18n
@@ -1912,6 +1912,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@merit/grantmaking':
+        specifier: workspace:*
+        version: link:../../grantmaking/business
       '@merit/test-support':
         specifier: workspace:*
         version: link:../../../tooling/testing

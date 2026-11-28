@@ -1,8 +1,8 @@
 import { useDraftEditor } from "@merit/drafts";
-import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import type { Recommendation } from "@merit/recommendations/domain";
 
 import type {
+  RecommendationApplication,
   RecommendationDraft,
   RecommendationFailure,
   SaveRecommendation,
@@ -17,7 +17,7 @@ export const useRecommendationEditor = ({
   onSave,
   onClose,
 }: {
-  application: Application;
+  application: RecommendationApplication;
   ready?: boolean;
   draft?: RecommendationDraft;
   onDraftChange: (draft: RecommendationDraft | undefined) => void;

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { IntakeApplication } from "@merit/applications/domain";
 import { ContactPicker } from "@merit/contacts-web/contacts";
-import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import { Button } from "@merit/ui/button";
 import { PickerPopover } from "@merit/ui/dialog";
 import { Inline } from "@merit/ui/layout";
@@ -21,7 +21,7 @@ import { IntakeEditButton } from "./application-intake";
 type ContactSectionProps = {
   data: ApplicationContactData;
   revision: number;
-  application: Application;
+  application: Pick<IntakeApplication, "contactId" | "requested" | "submission">;
   isDisabled: boolean;
 };
 
@@ -187,7 +187,7 @@ const ContactChoice = ({
   onEditorOpenChange,
   triggerRef,
 }: {
-  application: Application;
+  application: Pick<IntakeApplication, "contactId" | "submission">;
   contact: ReturnType<typeof useApplicationContact>;
   workspaceSlug: string;
   isDisabled: boolean;

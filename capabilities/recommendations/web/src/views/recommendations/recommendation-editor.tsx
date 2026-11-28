@@ -11,8 +11,6 @@ import {
   useForm,
   useTranslatedSchema,
 } from "@merit/forms";
-import { type ApplicationRoundContext } from "@merit/grantmaking/api";
-import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
 import { absolute, isNegative, fromMinorUnits } from "@merit/money";
 import { parseMoneyInput } from "@merit/money/input";
@@ -33,7 +31,12 @@ import { SectionHeader } from "@merit/ui/section-header";
 import { Text } from "@merit/ui/text";
 import { Tooltip } from "@merit/ui/tooltip";
 
-import type { RecommendationDraft, SaveRecommendation } from "../../contracts/recommendations";
+import type {
+  RecommendationApplication,
+  RecommendationRound,
+  RecommendationDraft,
+  SaveRecommendation,
+} from "../../contracts/recommendations";
 import type { RecommendationConflict } from "../../controllers/recommendations/use-recommendation";
 import { useRecommendationEditor } from "../../controllers/recommendations/use-recommendation-editor";
 import { recommendationFormSchema } from "./form-schema";
@@ -50,8 +53,8 @@ const actionLabels = {
 } as const;
 
 type RecommendationEditorProps = {
-  application: Application;
-  round: ApplicationRoundContext;
+  application: RecommendationApplication;
+  round: RecommendationRound;
   disabled: boolean;
   ready?: boolean;
   showActionLabel?: boolean;
@@ -178,8 +181,8 @@ const RecommendationSummaryContent = ({
   recommendation,
   manager,
 }: {
-  recommendation: Application["managerRecommendation"];
-  manager: ApplicationRoundContext["manager"];
+  recommendation: RecommendationApplication["managerRecommendation"];
+  manager: RecommendationRound["manager"];
 }) => {
   const { t } = useTranslation("fundingRecommendations");
   return recommendation ? (
@@ -287,8 +290,8 @@ const RecommendationAction = ({
 };
 
 type RecommendationFormProps = {
-  application: Application;
-  round: ApplicationRoundContext;
+  application: RecommendationApplication;
+  round: RecommendationRound;
   initialDraft: RecommendationDraft;
   conflict?: RecommendationConflict | null;
   onDraftChange: (draft: RecommendationDraft) => void;

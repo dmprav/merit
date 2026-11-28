@@ -1,11 +1,10 @@
 import type { Money } from "@merit/money";
-import { assessmentStatus } from "@merit/reviews/domain";
+import { reviewAssessments } from "@merit/reviews/domain";
 import type { FundingRound, CriteriaVersion } from "@merit/rounds/domain";
 
 import { decodeRoundOverview } from "../../domain/encoding";
 import type { ApplicationRecord, FundingRoundOverview } from "../../domain/model";
 import { summarizeRound } from "../../domain/summaries";
-import { reviewAssessments } from "./review-view";
 
 export const applicationView = (
   application: ApplicationRecord,
@@ -13,10 +12,11 @@ export const applicationView = (
   criteriaVersion: CriteriaVersion | null = null,
 ) => ({
   ...application,
-  assessments: reviewAssessments(application, criteria, criteriaVersion).map((assessment) => ({
-    ...assessment,
-    status: assessmentStatus(assessment, application.version),
-  })),
+  assessments: reviewAssessments(application.reviews, {
+    applicationVersion: application.version,
+    criteria: criteria ?? null,
+    criteriaVersion,
+  }),
 });
 
 export type ApplicationView = ReturnType<typeof applicationView>;

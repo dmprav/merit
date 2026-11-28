@@ -128,7 +128,8 @@ preview the sticky comment locally, and run `vp run test:ci` after changing it.
 [Architecture checks](architecture-checks.md#change-a-guarantee-deliberately)
 explain what `vp run test:architecture` covers and when to run it after changing
 the [configuration](../../tooling/verification/architecture/config.ts),
-[import rules](../../tooling/verification/architecture/imports.ts), resolver, or
+[import rules](../../tooling/verification/architecture/imports.ts), resolver,
+[capability dependency check](../../tooling/verification/architecture/capabilities.ts), or
 [mechanisms checker](../../tooling/verification/architecture/mechanisms.ts).
 
 ## Check code health

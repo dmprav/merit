@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ApplicationView as Application } from "@merit/grantmaking/api";
+import type { IntakeApplication } from "@merit/applications/domain";
 import { useFormat } from "@merit/i18n/format";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { CalendarDate } from "@merit/ui/timestamp";
 
 type Props = {
-  application: Application;
+  application: Pick<IntakeApplication, "requested" | "submission">;
   contact?: ReactNode;
   fields?: {
     applicant: ReactNode;
@@ -47,7 +47,7 @@ const ApplicantDetails = ({
   submission,
   contact,
   fields,
-}: Pick<Props, "contact" | "fields"> & { submission: Application["submission"] }) => {
+}: Pick<Props, "contact" | "fields"> & { submission: IntakeApplication["submission"] }) => {
   const { t } = useTranslation(["applicationIntake", "contacts"]);
 
   return (

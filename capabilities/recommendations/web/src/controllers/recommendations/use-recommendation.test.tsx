@@ -2,15 +2,20 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
-import { applicationView } from "@merit/grantmaking/api";
-import { makeApplication, makeReviewedApplication } from "@merit/grantmaking/testing/fixtures";
+import { materialVersionSchema } from "@merit/applications/domain";
+import { fromMinorUnits } from "@merit/money";
+import type { Recommendation } from "@merit/recommendations/domain";
 
 import type { RecommendationData, RecommendationFailure } from "../../contracts/recommendations";
 import { DraftContext, useRecommendationDraftStore } from "./recommendation-drafts";
 import { useRecommendation } from "./use-recommendation";
 
-const application = applicationView(makeReviewedApplication());
-const recommendation = application.managerRecommendation!;
+const applicationVersion = materialVersionSchema.parse(1);
+const recommendation: Recommendation = {
+  position: "Fund",
+  allocation: fromMinorUnits(10000n),
+  reasoning: "Support the project.",
+};
 const baseline = { expectedRevision: 2, expectedApplicationVersion: 1 };
 const draft = { position: recommendation.position, amount: "100", reasoning: "My draft" };
 
@@ -22,7 +27,8 @@ const setup = (
   const save = vi.fn<RecommendationData["save"]>();
   const setDraft = vi.fn();
   const hook = renderHook(
-    () => useRecommendation("application", application, { revision: 5, disabled: false, save }),
+    () =>
+      useRecommendation("application", applicationVersion, { revision: 5, disabled: false, save }),
     {
       wrapper: ({ children }) => (
         <DraftContext
@@ -85,7 +91,7 @@ it("saves a recommendation without a retained draft against the current revision
 
   expect(save).toHaveBeenCalledExactlyOnceWith(recommendation, {
     expectedRevision: 5,
-    expectedApplicationVersion: application.version,
+    expectedApplicationVersion: applicationVersion,
   });
 });
 
@@ -98,12 +104,8 @@ const renderStoredRecommendation = async (storageScope: string) => {
 
   const hook = renderHook(
     ({ revision, version }) =>
-      useRecommendation(
-        "application",
-        { ...application, version },
-        { revision, disabled: false, save },
-      ),
-    { initialProps: { revision: 5, version: application.version }, wrapper: Store },
+      useRecommendation("application", version, { revision, disabled: false, save }),
+    { initialProps: { revision: 5, version: applicationVersion }, wrapper: Store },
   );
   await waitFor(() => expect(hook.result.current.ready).toBe(true));
   act(() => hook.result.current.updateDraft(draft));
@@ -112,13 +114,13 @@ const renderStoredRecommendation = async (storageScope: string) => {
 
 it("saves an edited draft against its original recommendation revision and application version", async () => {
   const { result, rerender, save } = await renderStoredRecommendation("use-recommendation-test");
-  rerender({ revision: 6, version: makeApplication({ version: 2 }).version });
+  rerender({ revision: 6, version: materialVersionSchema.parse(2) });
   act(() => result.current.updateDraft({ ...draft, reasoning: "Edited after the change" }));
   await act(async () => expect(await result.current.save(recommendation)).toBeNull());
 
   expect(save).toHaveBeenCalledExactlyOnceWith(recommendation, {
     expectedRevision: 5,
-    expectedApplicationVersion: application.version,
+    expectedApplicationVersion: applicationVersion,
   });
 });
 
@@ -126,7 +128,7 @@ it("reports a record change when the saved recommendation advances under a draft
   const { result, rerender } = await renderStoredRecommendation("record-change-test");
   expect(result.current.conflict).toBeNull();
 
-  rerender({ revision: 6, version: application.version });
+  rerender({ revision: 6, version: applicationVersion });
 
   expect(result.current.conflict).toBe("record_changed");
 });
@@ -134,14 +136,14 @@ it("reports a record change when the saved recommendation advances under a draft
 it("reports a basis change when the application version advances under a draft", async () => {
   const { result, rerender } = await renderStoredRecommendation("basis-change-test");
 
-  rerender({ revision: 6, version: makeApplication({ version: 2 }).version });
+  rerender({ revision: 6, version: materialVersionSchema.parse(2) });
 
   expect(result.current.conflict).toBe("basis_changed");
 });
 
 it("keeps a conflicted draft and saves it against the latest revision and version", async () => {
   const { result, rerender, save } = await renderStoredRecommendation("keep-draft-test");
-  rerender({ revision: 6, version: makeApplication({ version: 2 }).version });
+  rerender({ revision: 6, version: materialVersionSchema.parse(2) });
 
   act(() => result.current.keepDraft());
 
@@ -156,7 +158,7 @@ it("keeps a conflicted draft and saves it against the latest revision and versio
 
 it("discards a conflicted draft and resets the editor when loading the latest", async () => {
   const { result, rerender } = await renderStoredRecommendation("load-latest-test");
-  rerender({ revision: 6, version: application.version });
+  rerender({ revision: 6, version: applicationVersion });
 
   act(() => result.current.loadLatest());
 
@@ -168,7 +170,7 @@ it("discards a conflicted draft and resets the editor when loading the latest", 
 const renderStoreConflict = () => {
   const storedDraft = {
     value: { position: recommendation.position, amount: "200", reasoning: "Stored tab draft" },
-    baseline: { expectedRevision: 5, expectedApplicationVersion: application.version },
+    baseline: { expectedRevision: 5, expectedApplicationVersion: applicationVersion },
   };
   const store: {
     drafts: Record<string, typeof storedDraft>;
@@ -181,7 +183,7 @@ const renderStoreConflict = () => {
 
   const hook = renderHook(
     () =>
-      useRecommendation("application", application, {
+      useRecommendation("application", applicationVersion, {
         revision: 5,
         disabled: false,
         save: vi.fn<RecommendationData["save"]>(),

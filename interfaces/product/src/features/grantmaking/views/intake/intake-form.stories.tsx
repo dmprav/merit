@@ -12,10 +12,9 @@ import {
 } from "@merit/applications-web/intake";
 import { useApplicationIntake } from "@merit/applications-web/intake";
 import { ApplicationDetails, IntakeForm } from "@merit/applications-web/intake";
-import type { IntakeChange } from "@merit/applications/domain";
+import { newIntakeApplication, type IntakeChange } from "@merit/applications/domain";
 import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
 import { ApplicationContainedPreview } from "@merit/grantmaking-web/testing";
-import { getExampleRound } from "@merit/grantmaking/examples";
 import { fromMinorUnits } from "@merit/money";
 import { Button } from "@merit/ui/button";
 import { Reading } from "@merit/ui/layout";
@@ -55,11 +54,9 @@ const IntakeSession = ({
   onSave: (value: IntakeChange) => Promise<string | null>;
 }) => {
   const application = {
-    ...getExampleRound().applications[0]!,
+    ...newIntakeApplication("m7n2p9x4k6rt", initial.content),
     intakeStatus: working ? ("ready" as const) : ("in_preparation" as const),
     requested: conflict ? conflictingRequested : null,
-    title: initial.content.title,
-    summary: "",
     submission: {
       version: 1,
       organization: initial.content.applicant,
@@ -75,10 +72,11 @@ const IntakeSession = ({
   const navigate = useNavigate();
   const intake = useApplicationIntake({
     application,
+    activity: { hasReviews: false, hasRecommendation: false, outstandingReviews: 0 },
     data: {
       draftKey: "form-preview",
       workspaceSlug: "alder",
-      publicId: "m7n2p9x4k6rt",
+      publicId: application.id,
       state: {
         revision: conflict ? 2 : 1,
         history: [],

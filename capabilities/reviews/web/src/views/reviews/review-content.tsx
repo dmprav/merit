@@ -8,6 +8,7 @@ import type { ReviewBasis } from "@merit/reviews/domain";
 import {
   compareCriteriaContent,
   compareReviewBasis,
+  currentReviewEntries,
   reviewFreshness,
   type ReviewState,
 } from "@merit/reviews/domain";
@@ -458,16 +459,14 @@ const inspectionTitle = (inspection: ReviewInspection) =>
   )[inspection.kind];
 
 const reviewEntries = (state: ReviewState, focusedId: string | undefined) => {
-  const superseded = new Set(
-    state.assessments.flatMap((item) => (item.previousId ? [item.previousId] : [])),
-  );
-  const latest = state.assessments.filter(
-    (item) => !superseded.has(item.id) && (!focusedId || item.id === focusedId),
-  );
-  const pending = state.requests.filter(
-    (request) => request.status === "outstanding" && (!focusedId || request.id === focusedId),
-  );
-  return { latest, pending };
+  const entries = currentReviewEntries(state);
+  if (!focusedId) {
+    return entries;
+  }
+  return {
+    latest: entries.latest.filter((assessment) => assessment.id === focusedId),
+    pending: entries.pending.filter((request) => request.id === focusedId),
+  };
 };
 
 const PendingRequests = ({

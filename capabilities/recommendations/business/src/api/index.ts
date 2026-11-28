@@ -1,4 +1,5 @@
 export * from "./commands";
+export { totalsDataSchema, encodeBudgetTotals, decodeBudgetTotals } from "./budget-totals";
 export {
   recommendationDataSchema,
   encodeRecommendation,

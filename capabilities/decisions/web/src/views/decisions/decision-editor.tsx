@@ -22,8 +22,6 @@ import {
   useForm,
   useTranslatedSchema,
 } from "@merit/forms";
-import type { ApplicationRoundContext } from "@merit/grantmaking/api";
-import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
 import { fromMinorUnits, type Money } from "@merit/money";
 import { parseMoneyInput } from "@merit/money/input";
@@ -39,7 +37,12 @@ import { SectionHeader } from "@merit/ui/section-header";
 import { Text } from "@merit/ui/text";
 import { Tooltip } from "@merit/ui/tooltip";
 
-import type { DecisionDraft, SaveDecision } from "../../contracts/decisions";
+import type {
+  DecisionApplication,
+  DecisionRound,
+  DecisionDraft,
+  SaveDecision,
+} from "../../contracts/decisions";
 import type { DecisionConflict } from "../../controllers/decisions/use-decision";
 import { useDecisionEditor } from "../../controllers/decisions/use-decision-editor";
 import localStyles from "./decision-editor.module.css";
@@ -55,8 +58,8 @@ import {
 const zero = fromMinorUnits(0n);
 
 type DecisionEditorProps = {
-  application: Application;
-  round: ApplicationRoundContext;
+  application: DecisionApplication;
+  round: DecisionRound;
   versions: readonly DecisionVersion[];
   disabled: boolean;
   ready?: boolean;
@@ -212,7 +215,7 @@ const DecisionAction = ({
   ref,
   onOpen,
 }: {
-  application: Application;
+  application: DecisionApplication;
   hasDecision: boolean;
   disabled: boolean;
   canResume: boolean;
@@ -248,8 +251,8 @@ const DecisionAction = ({
 };
 
 type DecisionFormProps = {
-  application: Application;
-  round: ApplicationRoundContext;
+  application: DecisionApplication;
+  round: DecisionRound;
   versions: readonly DecisionVersion[];
   initialDraft: DecisionDraft;
   conflict?: DecisionConflict | null;
@@ -433,7 +436,7 @@ const JustificationFields = ({
   );
 };
 
-const RecommendationComparison = ({ application }: { application: Application }) => {
+const RecommendationComparison = ({ application }: { application: DecisionApplication }) => {
   const { t } = useTranslation("committeeDecisions");
   const { money } = useFormat();
   const recommendation = application.managerRecommendation;

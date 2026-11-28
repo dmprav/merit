@@ -8,7 +8,7 @@ export const assessmentStatus = (
     criteriaUnknown: boolean;
     submission: { applicationVersion: MaterialVersion | null } | null;
   },
-  applicationVersion: MaterialVersion,
+  applicationVersion: MaterialVersion | null,
 ): "current" | "outdated" | "outstanding" | "unknown" => {
   if (!assessment.submission) {
     return "outstanding";

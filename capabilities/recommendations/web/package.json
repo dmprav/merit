@@ -14,13 +14,14 @@
     "./data": "./src/data/recommendations/workspace-data.ts"
   },
   "dependencies": {
+    "@merit/applications": "workspace:*",
     "@merit/contacts-web": "workspace:*",
     "@merit/drafts": "workspace:*",
     "@merit/forms": "workspace:*",
-    "@merit/grantmaking": "workspace:*",
     "@merit/i18n": "workspace:*",
     "@merit/money": "workspace:*",
     "@merit/recommendations": "workspace:*",
+    "@merit/rounds": "workspace:*",
     "@merit/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "i18next": "catalog:",
