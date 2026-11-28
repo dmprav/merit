@@ -367,7 +367,8 @@ const ApplicationWorkOverview = ({
   triggerRef,
   actions,
   onInspectVersion,
-}: ComponentProps<typeof ReviewOverview> & {
+}: Omit<ComponentProps<typeof ReviewOverview>, "application"> & {
+  application: Application;
   manager: ApplicationRoundContext["manager"];
   overview: ReactNode;
   readOnly: boolean;

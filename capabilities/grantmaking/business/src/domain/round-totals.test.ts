@@ -1,6 +1,5 @@
 import { expect, it } from "vite-plus/test";
 
-import { materialVersionSchema } from "@merit/applications/domain";
 import { fromMinorUnits } from "@merit/money";
 
 import { summarizeRound } from "./summaries";
@@ -8,15 +7,12 @@ import { summarizeRound } from "./summaries";
 it("counts the manager allocation independently of the reviewer's proposed amount", () => {
   const applications = [
     {
-      version: materialVersionSchema.parse(1),
       requested: fromMinorUnits(2400000n),
       managerRecommendation: { allocation: fromMinorUnits(2000000n) },
       assessments: [
         {
-          criteriaChanged: false,
-          criteriaUnknown: false,
+          status: "current" as const,
           submission: {
-            applicationVersion: materialVersionSchema.parse(1),
             recommendation: { allocation: fromMinorUnits(1000000n) },
           },
         },
@@ -32,7 +28,6 @@ it("counts the manager allocation independently of the reviewer's proposed amoun
 it("leaves the budget unallocated when no recommendation has been recorded", () => {
   const applications = [
     {
-      version: materialVersionSchema.parse(1),
       requested: null,
       managerRecommendation: null,
       assessments: [],
@@ -48,7 +43,6 @@ it("leaves the budget unallocated when no recommendation has been recorded", () 
 it("reports a negative balance for an over-budget allocation without changing its input", () => {
   const applications = [
     {
-      version: materialVersionSchema.parse(1),
       requested: null,
       managerRecommendation: { allocation: fromMinorUnits(7400000n) },
       assessments: [],
@@ -87,7 +81,6 @@ it("reports the committed funding the caller supplies beside the proposed total"
 it("counts unknown requested amounts separately while summing known amounts", () => {
   const applications = [null, fromMinorUnits(2400000n)].map((requested) => ({
     requested,
-    version: materialVersionSchema.parse(1),
     managerRecommendation: null,
     assessments: [],
   }));
@@ -112,28 +105,21 @@ it("excludes withdrawn applications from every total and discloses how many it l
     reason: "The applicant withdrew.",
     recorder: { userId: "manager", name: "Dana Reed", recordedAt: "2027-01-11T09:00:00Z" },
   };
-  const outstanding = {
-    criteriaChanged: false,
-    criteriaUnknown: false,
-    submission: null,
-  };
+  const outstanding = { status: "outstanding" } as const;
   const applications = [
     {
-      version: materialVersionSchema.parse(1),
       requested: fromMinorUnits(2400000n),
       managerRecommendation: { allocation: fromMinorUnits(2000000n) },
       assessments: [outstanding],
     },
     {
       withdrawal,
-      version: materialVersionSchema.parse(1),
       requested: fromMinorUnits(5000000n),
       managerRecommendation: { allocation: fromMinorUnits(3000000n) },
       assessments: [outstanding, outstanding],
     },
     {
       withdrawal,
-      version: materialVersionSchema.parse(1),
       requested: null,
       managerRecommendation: null,
       assessments: [],

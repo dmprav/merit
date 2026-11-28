@@ -1,6 +1,6 @@
 import { isWithdrawn, type ApplicationWithdrawal } from "@merit/applications/domain";
 import { add, subtract, fromMinorUnits, type Money } from "@merit/money";
-import { assessmentStatus, reviewProgress } from "@merit/reviews/domain";
+import { reviewProgress, type ReviewAssessment } from "@merit/reviews/domain";
 
 /**
  * Round totals from application records. Commitments belong to Decisions, so callers that
@@ -12,8 +12,7 @@ export const summarizeRound = (
     withdrawal?: ApplicationWithdrawal | undefined;
     requested: Money | null;
     managerRecommendation: { allocation: Money } | null;
-    version: Parameters<typeof assessmentStatus>[1];
-    assessments: readonly Parameters<typeof assessmentStatus>[0][];
+    assessments: readonly Pick<ReviewAssessment, "status">[];
   }[],
   committed: Money = fromMinorUnits(0n),
 ) => {
@@ -40,8 +39,7 @@ export const summarizeRound = (
     }
 
     for (const assessment of application.assessments) {
-      const status = assessmentStatus(assessment, application.version);
-      totals.reviews[status]++;
+      totals.reviews[assessment.status]++;
     }
   }
 
