@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { Client as PgClient } from "pg";
 import { assert, expect, onTestFinished, vi } from "vite-plus/test";
 import { z } from "zod";
 
@@ -191,11 +192,15 @@ const harness = (runtime: Runtime, sendEmail: EmailSender, aiReviewer?: AiReview
   });
 
   // The workflow cancels a conversation's step after Stop; here that aborts the step's signal.
-  const cancellations = new Map<string, AbortController>();
+  // Several drives of one conversation can overlap (a wake while an earlier drive still runs), so
+  // each keeps its own controller until it ends, and Stop aborts every one that is still running.
+  const cancellations = new Map<string, Set<AbortController>>();
 
   const drive = async (...address: Parameters<typeof driver.turns.advance>) => {
     const cancellation = new AbortController();
-    cancellations.set(address[2], cancellation);
+    const running = cancellations.get(address[2]) ?? new Set<AbortController>();
+    running.add(cancellation);
+    cancellations.set(address[2], running);
     try {
       while (
         !ending &&
@@ -209,6 +214,11 @@ const harness = (runtime: Runtime, sendEmail: EmailSender, aiReviewer?: AiReview
       if (!ending) {
         throw error;
       }
+    } finally {
+      running.delete(cancellation);
+      if (running.size === 0) {
+        cancellations.delete(address[2]);
+      }
     }
   };
 
@@ -216,7 +226,9 @@ const harness = (runtime: Runtime, sendEmail: EmailSender, aiReviewer?: AiReview
     {
       ...dependencies,
       cancelConversation: async (id) => {
-        cancellations.get(id)?.abort();
+        for (const cancellation of cancellations.get(id) ?? []) {
+          cancellation.abort();
+        }
       },
       wakeConversation: async ({ userId, workspaceSlug, conversationId }) => {
         void drive({ userId }, workspaceSlug, conversationId);
@@ -695,6 +707,19 @@ const approvedRun = async (
   return { id, group, read, fetchModel };
 };
 
+type Client = {
+  query: <T = Record<string, unknown>>(sql: string, values?: unknown[]) => Promise<{ rows: T[] }>;
+};
+
+/** How many sessions of this database's runtime role sit in a transaction without running a statement. */
+const openRuntimeTransactions = async (client: Client) => {
+  const { rows } = await client.query<{ count: string }>(
+    `select count(*) from pg_stat_activity
+     where datname = current_database() and usename like '%\\_runtime' and state like 'idle in transaction%'`,
+  );
+  return Number(rows[0]?.count);
+};
+
 it(
   "runs an approved AI review with no conversation lock or open transaction, while the application stays writable",
   { timeout: 30_000 },
@@ -704,6 +729,16 @@ it(
     const { id, read } = await approvedRun(database, command, applicationId);
     await provider.begun;
 
+    // The probe sees runtime sessions: one parked in a transaction is counted, so a zero below is a
+    // finding about the run and not a view the probe cannot see.
+    const parked = new PgClient({ connectionString: runtime });
+    await parked.connect();
+    await parked.query("begin");
+    await parked.query("select 1");
+    expect(await openRuntimeTransactions(database.client)).toBeGreaterThanOrEqual(1);
+    await parked.query("rollback");
+    await parked.end();
+
     // The conversation row is free: nothing holds its lock, and no backend waits in a transaction.
     await database.client.query("begin");
     await database.client.query(
@@ -711,10 +746,12 @@ it(
       [id],
     );
     await database.client.query("rollback");
-    const waiting = await database.client.query<{ count: string }>(
-      "select count(*) from pg_stat_activity where datname = current_database() and state like 'idle in transaction%'",
-    );
-    expect(waiting.rows[0]?.count).toBe("0");
+    // A worker's own short transaction can be seen between two statements, but one held open
+    // through the provider call would stay.
+    await vi.waitFor(async () => expect(await openRuntimeTransactions(database.client)).toBe(0), {
+      timeout: 5_000,
+      interval: 25,
+    });
     // The conversation can be read, and a second worker leaves the live claim alone.
     expect(await read()).toMatchObject({
       status: "running",
@@ -789,10 +826,6 @@ it(
     expect(group.actions).toHaveLength(1);
   },
 );
-
-type Client = {
-  query: <T = Record<string, unknown>>(sql: string, values?: unknown[]) => Promise<{ rows: T[] }>;
-};
 
 /** A transaction that holds a row lock, and the backend that holds it. */
 const holdLock = async (client: Client, lock: string, id: string) => {
@@ -916,10 +949,13 @@ it(
     // The worker waits to record the outcome; it dies there, as its connection is lost.
     await waitBlockedBy(database.client, holder, 1);
     crash();
-    await database.client.query(
-      "select pg_terminate_backend(pid) from (select distinct pid from pg_locks where not granted and $1 = any(pg_blocking_pids(pid))) as blocked",
+    // The backend must have exited, not merely been signalled, before the lock is released.
+    const { rows: terminated } = await database.client.query<{ terminated: boolean }>(
+      "select pg_terminate_backend(pid, 5000) as terminated from (select distinct pid from pg_locks where not granted and $1 = any(pg_blocking_pids(pid))) as blocked",
       [holder],
     );
+    expect(terminated).toEqual([{ terminated: true }]);
+    await waitBlockedBy(database.client, holder, 0);
     await database.client.query("rollback");
 
     expect((await command({ action: "stop", id })).status).toBe(200);
@@ -948,22 +984,31 @@ it(
   "keeps a stopped action stopped when its worker died before the review committed",
   { timeout: 30_000 },
   async ({ database, runtime, committee: { applicationId } }) => {
-    const provider = slowReviewer(reviewOutput);
+    // The provider ignores Stop and its gate stays closed: the run is still under way, so no worker
+    // reports back and only the claim's expiry can settle the action.
+    const provider = slowReviewer(reviewOutput, false);
     const { command, step } = harness(runtime, async () => {}, provider.reviewer);
     const { id, read } = await approvedRun(database, command, applicationId);
     await provider.begun;
     expect((await command({ action: "stop", id })).status).toBe(200);
-    // The worker never reports back; its claim lapses.
+    const claim =
+      "select state #> '{groups,0,actions,0,executing,until}' as until from assistant_conversations where id = $1";
+    const live = await database.client.query<{ until: number | null }>(claim, [id]);
+    expect(live.rows[0]?.until).toBeGreaterThan(Date.now());
+    expect((await read()).groups[0]?.actions[0]).toMatchObject({ status: "stopped" });
+    expect(await step(id)).toBe("waiting");
+
+    // The claim lapses with the worker gone: the action is settled, still stopped, with no review.
     await database.client.query(
       "update assistant_conversations set state = jsonb_set(state, '{groups,0,actions,0,executing,until}', '0') where id = $1",
       [id],
     );
-    await vi.waitFor(async () => expect(await step(id)).not.toBe("waiting"), {
-      timeout: 10_000,
-      interval: 50,
-    });
+    expect(await step(id)).toBe("progressed");
+    const settled = await database.client.query<{ until: number | null }>(claim, [id]);
+    expect(settled.rows[0]?.until).toBeNull();
     expect((await read()).groups[0]?.actions[0]).toMatchObject({ status: "stopped" });
     expect((await database.client.query("select id from ai_reviews")).rows).toEqual([]);
+    expect(provider.review).toHaveBeenCalledOnce();
   },
 );
 
@@ -1037,6 +1082,8 @@ it(
     ).groups;
     assert(retried);
     expect((await database.client.query("select id from ai_reviews")).rows).toEqual([]);
+    // Nothing is sent to the provider again until the retry is approved.
+    expect(crashed.review).toHaveBeenCalledOnce();
     await command({ action: "approve", id, previewId: retried.id });
     await vi.waitFor(() => expect(crashed.review).toHaveBeenCalledTimes(2), {
       timeout: 10_000,
