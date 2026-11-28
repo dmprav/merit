@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import type { Actor } from "@merit/auth";
 
-import { publication } from "../app/publication";
+import { publication, slowToolNames } from "../app/publication";
 import { workspaceCatalog } from "../app/tools";
 import { permitsAll, requiredAccess, workspacePermits } from "./authority";
 import {
@@ -18,6 +18,13 @@ import type { AssistantContext, AssistantOperations } from "./operations";
 import { prepareWrite } from "./preview";
 
 export type { AssistantOperations } from "./operations";
+
+/**
+ * Whether an approved action of this tool makes a slow external call. The assistant claims such an
+ * action, runs it without the conversation's lock or a surrounding transaction, then applies the
+ * outcome. Every other tool executes inside the conversation's transaction.
+ */
+export const isSlowTool = (name: string) => slowToolNames.has(name);
 
 export {
   assistantDependencySchema,

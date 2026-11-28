@@ -4,7 +4,7 @@ import { aiReviewEntrySchema } from "@merit/reviews/domain";
 
 import { testOperations } from "../../tests/operations";
 import { publication } from "../app/publication";
-import { createAssistantCatalog, type AssistantOperations } from "./catalog";
+import { createAssistantCatalog, isSlowTool, type AssistantOperations } from "./catalog";
 import { describeResult } from "./evidence";
 
 const actor = { userId: "manager" };
@@ -587,4 +587,8 @@ it("withholds both AI review tools from a reviewer and refuses them without call
   );
   expect(ops.reviews.readAiReviews).not.toHaveBeenCalled();
   expect(ops.reviews.runAiReview).not.toHaveBeenCalled();
+});
+
+it("declares only the AI review run as a slow external call", () => {
+  expect(Object.keys(publication).filter(isSlowTool)).toEqual(["run_ai_review"]);
 });

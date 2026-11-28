@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 
+import { isSlowTool } from "@merit/mcp/assistant";
+
 import { change, type Access, type Stored } from "./access.server";
 import { deliverNext, settleStopped, unsettledDelivery } from "./delivery.server";
 import {
@@ -9,6 +11,7 @@ import {
   nextAction,
   prepareDeferred,
 } from "./dispatch.server";
+import { executeSlow } from "./execution.server";
 import { beginModelRequest, endModelRequest } from "./model-request.server";
 import { observationTool } from "./observation.server";
 import type { AssistantModel } from "./openai.server";
@@ -89,6 +92,9 @@ const step = async (
   }
   if (next.action.status === "delivering") {
     return deliverNext(access, row);
+  }
+  if (next.action.status === "approved" && isSlowTool(next.action.preview.name)) {
+    return executeSlow(access, row, cancellation);
   }
   try {
     return Boolean(await access.locked(row, executeNext));

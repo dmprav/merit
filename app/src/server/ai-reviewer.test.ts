@@ -90,3 +90,21 @@ it("fails on a provider error, a truncated reply, a refusal, invalid JSON and an
   }
   expect(fetch).toHaveBeenCalledTimes(5);
 });
+
+it("abandons the provider request when the run is stopped", async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>(
+    (_url, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+      }),
+  );
+  vi.stubGlobal("fetch", fetch);
+  const reviewer = createOpenAiReviewer({ apiKey: "test-only", model: "merit-test" });
+  assert(reviewer);
+  const stop = new AbortController();
+
+  const running = reviewer.review({ ...request, signal: stop.signal });
+  stop.abort();
+
+  await expect(running).rejects.toThrow("aborted");
+});

@@ -90,7 +90,7 @@ const it = roundTest
       assert(request.status === "ok");
       reviewers.push({ contactId, requestId, name, email });
     }
-    return { applicationId: address.publicId, assessmentId, reviewers };
+    return { address, applicationId: address.publicId, assessmentId, reviewers };
   });
 
 const calls = (...tools: Array<[string, Record<string, unknown>]>) =>
@@ -190,9 +190,18 @@ const harness = (runtime: Runtime, sendEmail: EmailSender, aiReviewer?: AiReview
     ending = true;
   });
 
+  // The workflow cancels a conversation's step after Stop; here that aborts the step's signal.
+  const cancellations = new Map<string, AbortController>();
+
   const drive = async (...address: Parameters<typeof driver.turns.advance>) => {
+    const cancellation = new AbortController();
+    cancellations.set(address[2], cancellation);
     try {
-      while (!ending && (await driver.turns.advance(...address)) !== "finished") {
+      while (
+        !ending &&
+        (await driver.turns.advance(address[0], address[1], address[2], cancellation.signal)) !==
+          "finished"
+      ) {
         await new Promise((resolve) => setTimeout(resolve, 20));
       }
     } catch (error) {
@@ -206,7 +215,9 @@ const harness = (runtime: Runtime, sendEmail: EmailSender, aiReviewer?: AiReview
   const host = createAssistantHost(
     {
       ...dependencies,
-      cancelConversation: async () => {},
+      cancelConversation: async (id) => {
+        cancellations.get(id)?.abort();
+      },
       wakeConversation: async ({ userId, workspaceSlug, conversationId }) => {
         void drive({ userId }, workspaceSlug, conversationId);
         return true;
@@ -222,7 +233,10 @@ const harness = (runtime: Runtime, sendEmail: EmailSender, aiReviewer?: AiReview
     signal = new AbortController().signal,
   ) => host.command(who, workspace, input, signal);
 
-  return { command };
+  /** One step by a second worker, as another activity would run it. */
+  const step = (id: string) => driver.turns.advance(actor, workspaceSlug, id);
+
+  return { command, step };
 };
 
 it(
@@ -570,5 +584,274 @@ it(
     ]);
     expect(review).toHaveBeenCalledOnce();
     expect(await savedRows()).toEqual([{ provenance_interface: "web" }]);
+  },
+);
+
+/** A reviewer whose provider call waits until the test lets it answer, as a slow provider does. */
+const slowReviewer = (output: (request: AiReviewerRequest) => unknown, honorsStop = true) => {
+  const gate: { release: () => void } = { release: () => {} };
+  const started: { resolve: () => void } = { resolve: () => {} };
+  const begun = new Promise<void>((resolve) => {
+    started.resolve = resolve;
+  });
+  const review = vi.fn(async (request: AiReviewerRequest) => {
+    started.resolve();
+    await new Promise<void>((resolve, reject) => {
+      gate.release = resolve;
+      if (honorsStop) {
+        request.signal?.addEventListener("abort", () => reject(new Error("The run was stopped.")));
+      }
+    });
+    return output(request);
+  });
+  return {
+    reviewer: { provider: "OpenAI", model: "scripted", review } satisfies AiReviewer,
+    review,
+    begun,
+    release: () => gate.release(),
+  };
+};
+
+const reviewOutput = ({ input }: AiReviewerRequest) => ({
+  criteria: [
+    {
+      criterionId: null,
+      claims: [
+        {
+          text: "Activities run weekly.",
+          citations: [
+            {
+              source: input.application.answers[0]?.questionId,
+              quote: "Weekly community activities",
+            },
+          ],
+        },
+      ],
+      gaps: [],
+      strengths: [],
+      weaknesses: [],
+      concerns: [],
+    },
+  ],
+  questions: [],
+  reasoning: "Weekly and clear.",
+  position: "Fund",
+  amount: { minorUnits: "8000", currency: "EUR" },
+});
+
+/** A consented conversation whose AI review run is approved and under way in the provider. */
+const approvedRun = async (
+  database: { client: { query: (sql: string, values?: unknown[]) => Promise<unknown> } },
+  command: ReturnType<typeof harness>["command"],
+  applicationId: string,
+) => {
+  const fetchModel = vi.fn<typeof fetch>();
+  vi.stubGlobal("fetch", fetchModel);
+  onTestFinished(() => {
+    vi.unstubAllGlobals();
+  });
+  await database.client.query(
+    "insert into memberships (organization_id, user_id, role, administration) values ('alder','birch-manager','member','administrator')",
+  );
+  await command({ action: "set_consent", enabled: true }, { userId: "birch-manager" });
+  const { id } = snapshot.parse(await (await command({ action: "create" })).json());
+
+  const read = async () => snapshot.parse(await (await command({ action: "open", id })).json());
+
+  fetchModel.mockResolvedValueOnce(calls(["run_ai_review", { applicationId }]));
+  await command({ action: "start", id, message: "Run an AI review of this application." });
+  const waiting = await vi.waitFor(
+    async () => {
+      const saved = await read();
+      expect(saved.status).toBe("awaiting_approval");
+      return saved;
+    },
+    { timeout: 10_000, interval: 50 },
+  );
+  const [group] = waiting.groups;
+  assert(group);
+  fetchModel.mockImplementation(async (...args) => {
+    const saved = (await receipts(...args))
+      .flatMap((item) => item.evidence)
+      .find((item) => item.kind === "ai_review");
+    return answer(saved ? `Merit AI proposes funding [${saved.key}].` : "No AI review was saved.");
+  });
+  await command({ action: "approve", id, previewId: group.id });
+  return { id, group, read, fetchModel };
+};
+
+it(
+  "runs an approved AI review with no conversation lock or open transaction, while the application stays writable",
+  { timeout: 30_000 },
+  async ({ db, database, runtime, committee: { address, applicationId, reviewers } }) => {
+    const provider = slowReviewer(reviewOutput);
+    const { command, step } = harness(runtime, async () => {}, provider.reviewer);
+    const { id, read } = await approvedRun(database, command, applicationId);
+    await provider.begun;
+
+    // The conversation row is free: nothing holds its lock, and no backend waits in a transaction.
+    await database.client.query("begin");
+    await database.client.query(
+      "select id from assistant_conversations where id = $1 for update nowait",
+      [id],
+    );
+    await database.client.query("rollback");
+    const waiting = await database.client.query<{ count: string }>(
+      "select count(*) from pg_stat_activity where datname = current_database() and state like 'idle in transaction%'",
+    );
+    expect(waiting.rows[0]?.count).toBe("0");
+    // The conversation can be read, and a second worker leaves the live claim alone.
+    expect(await read()).toMatchObject({
+      status: "running",
+      groups: [{ actions: [{ status: "approved" }] }],
+    });
+    expect(await step(id)).toBe("waiting");
+    expect(provider.review).toHaveBeenCalledOnce();
+
+    // Another write to the same application commits during the run.
+    const [reviewer] = reviewers;
+    assert(reviewer);
+    const other = await saveApplicationReview(db, actor, {
+      ...address,
+      expectedRevision: reviewRevisionSchema.parse(4),
+      expectedApplicationVersion: materialVersionSchema.parse(1),
+      expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+      change: {
+        action: "record",
+        id: randomUUID(),
+        contactId: reviewer.contactId,
+        requestId: reviewer.requestId,
+        previousId: null,
+        content: {
+          applicationVersion: materialVersionSchema.parse(1),
+          criteriaVersion: criteriaVersionSchema.parse(1),
+          date: null,
+          position: null,
+          amount: null,
+          reasoning: "Recorded while the AI review ran.",
+          observations: [],
+        },
+      },
+    });
+    expect(other.status).toBe("ok");
+
+    provider.release();
+    await vi.waitFor(async () => expect((await read()).status).toBe("completed"), {
+      timeout: 10_000,
+      interval: 50,
+    });
+    expect((await database.client.query("select id from ai_reviews")).rows).toHaveLength(1);
+  },
+);
+
+it(
+  "stops an AI review run that saved nothing, and keeps one that committed before Stop as succeeded without a retry",
+  { timeout: 30_000 },
+  async ({ database, runtime, committee: { applicationId } }) => {
+    const stopped = slowReviewer(reviewOutput);
+    const { command } = harness(runtime, async () => {}, stopped.reviewer);
+    const { id, group, read } = await approvedRun(database, command, applicationId);
+    await stopped.begun;
+    expect((await command({ action: "stop", id })).status).toBe(200);
+
+    const claimCleared = async () =>
+      (
+        await database.client.query(
+          "select 1 from assistant_conversations where id = $1 and state #> '{groups,0,actions,0,executing}' is null",
+          [id],
+        )
+      ).rowCount === 1;
+
+    await vi.waitFor(async () => expect(await claimCleared()).toBe(true), {
+      timeout: 10_000,
+      interval: 50,
+    });
+    expect((await database.client.query("select id from ai_reviews")).rows).toEqual([]);
+    expect(await read()).toMatchObject({
+      status: "stopped",
+      groups: [{ actions: [{ status: "stopped", canRetry: false }] }],
+    });
+    expect(group.actions).toHaveLength(1);
+  },
+);
+
+it(
+  "keeps an AI review that committed before Stop and offers no retry that could save it twice",
+  { timeout: 30_000 },
+  async ({ database, runtime, committee: { applicationId } }) => {
+    // This provider ignores the abort and answers: the review commits after Stop was requested.
+    const committed = slowReviewer(reviewOutput, false);
+    const { command } = harness(runtime, async () => {}, committed.reviewer);
+    const { id, group, read } = await approvedRun(database, command, applicationId);
+    await committed.begun;
+    expect((await command({ action: "stop", id })).status).toBe(200);
+    committed.release();
+    await vi.waitFor(
+      async () =>
+        expect((await read()).groups[0]?.actions[0]).toMatchObject({ status: "succeeded" }),
+      { timeout: 10_000, interval: 50 },
+    );
+    expect((await read()).status).toBe("stopped");
+    expect((await database.client.query("select id from ai_reviews")).rows).toHaveLength(1);
+    const [action] = (await read()).groups[0]?.actions ?? [];
+    assert(action);
+    expect(
+      (await command({ action: "retry", id, previewId: group.id, actionId: action.id })).status,
+    ).toBe(409);
+    expect((await database.client.query("select id from ai_reviews")).rows).toHaveLength(1);
+  },
+);
+
+it(
+  "reports an expired claim as a failed action, never runs it again, and saves a review only when its retry is approved",
+  { timeout: 30_000 },
+  async ({ database, runtime, committee: { applicationId } }) => {
+    const crashed = slowReviewer(reviewOutput);
+    const { command, step } = harness(runtime, async () => {}, crashed.reviewer);
+    const { id, group, read } = await approvedRun(database, command, applicationId);
+    await crashed.begun;
+    // The worker dies mid-run: its claim lapses and its request never reports back.
+    await database.client.query(
+      "update assistant_conversations set state = jsonb_set(state, '{groups,0,actions,0,executing,until}', '0') where id = $1",
+      [id],
+    );
+    expect(await step(id)).toBe("progressed");
+    expect(crashed.review).toHaveBeenCalledOnce();
+    const failed = (await read()).groups[0]?.actions[0];
+    expect(failed).toMatchObject({ status: "failed", canRetry: true });
+    assert(failed);
+    expect((await database.client.query("select id from ai_reviews")).rows).toEqual([]);
+
+    // Retrying asks for a fresh approval before anything is sent again.
+    await vi.waitFor(
+      async () => {
+        await step(id);
+        expect((await read()).status).toBe("completed");
+      },
+      { timeout: 10_000, interval: 50 },
+    );
+    expect(
+      (await command({ action: "retry", id, previewId: group.id, actionId: failed.id })).status,
+    ).toBe(202);
+    const [, retried] = (
+      await vi.waitFor(async () => {
+        const saved = await read();
+        expect(saved.status).toBe("awaiting_approval");
+        return saved;
+      })
+    ).groups;
+    assert(retried);
+    expect((await database.client.query("select id from ai_reviews")).rows).toEqual([]);
+    await command({ action: "approve", id, previewId: retried.id });
+    await vi.waitFor(() => expect(crashed.review).toHaveBeenCalledTimes(2), {
+      timeout: 10_000,
+      interval: 50,
+    });
+    crashed.release();
+    await vi.waitFor(
+      async () =>
+        expect((await database.client.query("select id from ai_reviews")).rows).toHaveLength(1),
+      { timeout: 10_000, interval: 50 },
+    );
   },
 );
