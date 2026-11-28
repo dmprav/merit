@@ -689,7 +689,13 @@ const renderUiSection = (
   const paths = [...new Set(changedFiles.map((file) => file.path))];
   const uiFiles = paths.filter(isUiProdPath).sort();
   const storyFiles = paths.filter(isStoryPath).sort();
-  if (uiFiles.length === 0 && storyFiles.length === 0 && screenshots.length === 0) {
+  const affectsStories = (affected?.storyFiles ?? 0) > 0;
+  if (
+    uiFiles.length === 0 &&
+    storyFiles.length === 0 &&
+    screenshots.length === 0 &&
+    !affectsStories
+  ) {
     return [];
   }
 
@@ -700,20 +706,24 @@ const renderUiSection = (
   if (storyFiles.length > 0) {
     lines.push(`- **Stories (${storyFiles.length}):** ${formatCappedList(storyFiles)}`);
   }
-  if (screenshots.length > 0) {
+  if (affected && affectsStories) {
+    lines.push(
+      "",
+      "#### Desktop Screenshots",
+      "",
+      describeScreenshotCoverage(screenshots, affected),
+    );
+  } else if (screenshots.length > 0) {
     lines.push("", "#### Desktop Screenshots");
-    if (affected) {
-      lines.push("", describeScreenshotCoverage(screenshots, affected));
-    }
-    for (const shot of screenshots) {
-      const label = shot.title ? `${shot.title} — ${shot.name}` : shot.storyId;
-      const status = shot.passed ? "passed" : "audit warnings";
-      lines.push(
-        "",
-        `**${label}** (\`${shot.storyId}\` · ${status})`,
-        `![${escapeMarkdownAlt(label)}](${shot.url})`,
-      );
-    }
+  }
+  for (const shot of screenshots) {
+    const label = shot.title ? `${shot.title} — ${shot.name}` : shot.storyId;
+    const status = shot.passed ? "passed" : "audit warnings";
+    lines.push(
+      "",
+      `**${label}** (\`${shot.storyId}\` · ${status})`,
+      `![${escapeMarkdownAlt(label)}](${shot.url})`,
+    );
   }
   return lines;
 };

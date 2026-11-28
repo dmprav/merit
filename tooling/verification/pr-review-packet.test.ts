@@ -312,6 +312,37 @@ None.
     );
   });
 
+  test("reports affected story files even when no screenshot was captured", () => {
+    const packet = (changedPath: string) =>
+      renderReviewPacket({
+        changedFiles: [{ status: "modified", path: changedPath }],
+        numstat: [{ path: changedPath, additions: 1, deletions: 1 }],
+        addedLines: [],
+        baseMigrationSql: "",
+        headMigrationSql: "",
+        screenshots: [],
+        affectedStoryFiles: { storyFiles: 4, directStoryFiles: 1 },
+      });
+
+    // A shared package reaches stories without being a UI module the section lists.
+    const markdown = packet("foundation/money/src/index.ts");
+    expect(markdown).toContain("### UI Touched");
+    expect(markdown).toContain(
+      "_Showing 0 of 4 affected story files, nearest to the change first. 1 changed or imports a changed module directly._",
+    );
+    expect(markdown).not.toContain("![");
+    expect(
+      renderReviewPacket({
+        changedFiles: [{ status: "modified", path: "docs/README.md" }],
+        numstat: [{ path: "docs/README.md", additions: 1, deletions: 1 }],
+        addedLines: [],
+        baseMigrationSql: "",
+        headMigrationSql: "",
+        affectedStoryFiles: { storyFiles: 0, directStoryFiles: 0 },
+      }),
+    ).not.toContain("### UI Touched");
+  });
+
   test("runs the screenshot job for any source the Storybook preview may bundle", () => {
     for (const path of [
       "tooling/storybook/.storybook/preview.tsx",
