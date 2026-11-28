@@ -138,6 +138,7 @@ const collaborationFiles = {
       "./server": "./src/server/index.ts",
       "./server/demo": "./src/server/demo.ts",
       "./schema": "./src/server/persistence/membership-schema.ts",
+      "./server/assistant": "./src/server/assistant.ts",
       "./scope": "./src/server/persistence/scope.ts",
       "./locks": "./src/server/persistence/commands/locks.ts",
     },
@@ -154,6 +155,8 @@ const collaborationFiles = {
       `${organizationsRoot}/src/server/persistence/membership-schema.ts`,
       `${organizationsRoot}/src/server/persistence/scope.ts`,
       `${organizationsRoot}/src/server/persistence/commands/locks.ts`,
+      `${organizationsRoot}/src/server/assistant.ts`,
+      `${organizationsRoot}/src/server/persistence/commands/assistant.ts`,
       "capabilities/access/src/persistence/scope.ts",
     ].map((path) => [path, "export const value = 1; export type Value = number;"]),
   ),
@@ -840,6 +843,8 @@ describe.concurrent("architecture rules", { timeout: checkTimeout() }, () => {
     ["server/persistence/projections.ts", "./queries/value", "shared-persistence"],
     ["server/persistence/encoding.ts", "../../api/values", "shared-persistence"],
     ["server/integrations.ts", "./service", "integrations"],
+    ["server/assistant.ts", "./commands/value", "assistant"],
+    ["server/delivery.ts", "./persistence/commands/value", "delivery"],
     ["server/demo.ts", "./queries/value", "demo"],
     ["examples/probe.ts", "../server/demo", "examples"],
   ];
@@ -1123,6 +1128,7 @@ describe.concurrent("architecture rules", { timeout: checkTimeout() }, () => {
               : {}),
             "./server/grant-work": "./src/server/grant-work.ts",
             "./server/integrations": "./src/server/integrations.ts",
+            ...(name === "reviews" ? { "./server/delivery": "./src/server/delivery.ts" } : {}),
           };
           return [
             [
@@ -1141,6 +1147,58 @@ describe.concurrent("architecture rules", { timeout: checkTimeout() }, () => {
 
   const crossCapabilityMessage =
     "Capability server imports require an approved consumer and public entry";
+
+  test("the assistant host and access use the assistant store, and only the host needs delivery", async () => {
+    await check({
+      ...extractedCapabilityFiles,
+      [`${organizationsRoot}/src/server/assistant.ts`]:
+        'export { value } from "./persistence/commands/assistant"; export type { Value } from "./persistence/scope";',
+      "capabilities/reviews/business/src/server/commands/reviewer-delivery.ts":
+        "export const value = 1;",
+      "capabilities/reviews/business/src/server/delivery.ts":
+        'export { value } from "./commands/reviewer-delivery";',
+      "app/src/server/assistant/host.server.ts":
+        'export { value as store } from "@merit/organizations/server/assistant"; export { value as deliver } from "@merit/reviews/server/delivery";',
+      "app/src/server/assistant/access.server.ts":
+        'export type { Value } from "@merit/organizations/server/assistant";',
+    });
+  });
+
+  test("organization queries cannot import assistant locks or writes", async () => {
+    await check(
+      {
+        ...collaborationFiles,
+        [`${organizationsRoot}/src/server/queries/probe.ts`]:
+          'export { value } from "../persistence/commands/assistant";',
+      },
+      "Business queries cannot",
+    );
+  });
+
+  test("background work and worker activities can import the reviews assembly", async () => {
+    await check({
+      ...extractedCapabilityFiles,
+      "app/src/server/background-work.server.ts": 'export { value } from "@merit/reviews/server";',
+      "app/src/worker/activities.ts": 'export { value } from "@merit/reviews/server";',
+    });
+  });
+
+  test.each([
+    [`${contactsRoot}/src/server/queries/probe.ts`, "@merit/organizations/server/assistant"],
+    [`${contactsRoot}/src/server/commands/probe.ts`, "@merit/organizations/server/assistant"],
+    ["app/src/server/mcp.server.ts", "@merit/organizations/server/assistant"],
+    ["app/src/server/services.server.ts", "@merit/organizations/server/assistant"],
+    ["app/src/server/assistant/host.server.ts", "@merit/reviews/server"],
+    ["app/src/server/assistant/access.server.ts", "@merit/reviews/server/delivery"],
+    ["app/src/server/services.server.ts", "@merit/reviews/server/delivery"],
+    ["app/src/server/background-work.server.ts", "@merit/reviews/server/delivery"],
+    ["app/src/worker/activities.ts", "@merit/reviews/server/delivery"],
+  ])("%s cannot use the assistant integration %s", async (path, specifier) => {
+    await check(
+      { ...extractedCapabilityFiles, [path]: `export { value } from "${specifier}";` },
+      crossCapabilityMessage,
+    );
+  });
 
   const auditFiles = {
     ...collaborationFiles,
