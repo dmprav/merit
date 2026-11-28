@@ -154,3 +154,47 @@ it("rejects forged metadata and files staged for other managers or cases", async
     filename: pdf.filename,
   });
 });
+
+it("publishes a reloaded revision removing the last PDF and keeps its earlier version readable", async ({
+  db,
+  applications,
+}) => {
+  const address = await applications.createApplication("Proposal with an optional PDF");
+  const pdf = await registerApplicationPdf(
+    db,
+    actor,
+    { workspaceSlug: address.workspaceSlug, applicationId: address.publicId },
+    upload("Proposal.pdf"),
+  );
+  assert(pdf);
+
+  const edit = (expectedRevision: number, change: IntakeChange) =>
+    editFundingApplication(db, actor, { ...address, expectedRevision, change }, noApplicationWork);
+
+  expect(await edit(0, { action: "save_content", content: { pdfs: [pdf] } })).toMatchObject({
+    status: "ok",
+  });
+  expect(await edit(1, { action: "mark_ready" })).toMatchObject({ status: "ok" });
+  expect(await edit(2, { action: "start_revision", kind: "correction" })).toMatchObject({
+    status: "ok",
+  });
+  expect(
+    await edit(3, {
+      action: "save_revision",
+      draft: {
+        kind: "correction",
+        reason: "Remove the duplicate attachment.",
+        content: { pdfs: [] },
+      },
+    }),
+  ).toMatchObject({ status: "ok" });
+  const draft = await readPersistedApplication(db, address.publicId);
+  expect(draft?.application.submission?.pdfs).toEqual([pdf]);
+  expect(await edit(4, { action: "publish_revision" })).toMatchObject({ status: "ok" });
+  expect(draft?.workingRevision?.content.pdfs).toEqual([]);
+  const previous = await readMaterialVersionRecord(db, address.publicId, 2);
+  expect(previous?.content.submission?.pdfs).toEqual([pdf]);
+  const current = await readMaterialVersionRecord(db, address.publicId, 3);
+  expect(current?.version).toBe(3);
+  expect(current?.content.submission?.pdfs ?? []).toEqual([]);
+});

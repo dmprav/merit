@@ -330,7 +330,7 @@ export const readWorkingRevisionsMap = async (db: Database, caseIds: string[]) =
         applicant: string;
         projectPeriod?: string;
         requested: string;
-        pdfs?: ApplicationPdf[];
+        pdfs: ApplicationPdf[];
         answers: AnswerRecord[];
       };
     }
@@ -365,7 +365,7 @@ export const readWorkingRevisionsMap = async (db: Database, caseIds: string[]) =
         applicant: draft.applicant,
         ...(draft.projectPeriod !== null ? { projectPeriod: draft.projectPeriod } : {}),
         requested: draft.requested,
-        ...(draft.pdfs.length ? { pdfs: draft.pdfs } : {}),
+        pdfs: draft.pdfs,
         answers: answersByCase.get(draft.caseId) ?? [],
       },
     });
