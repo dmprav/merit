@@ -21,10 +21,18 @@ A scheduled task runs the check; it audits nothing itself.
 2. `vpx tooling/agents/scout.ts due`. It reads `origin/main` and `#219`, so the
    checkout need not be at the scan tip.
 3. `{"status": "idle"}`: exit.
-4. `{"status": "due", "runs": [...]}`: for each run, start one cloud session with
-   `create_session` in the same environment and the prompt
-   `Follow .agents/tasks/scout.md run protocol for run <id>`. Then exit; do not
-   audit, file, or advance anything.
+4. `{"status": "due", "runs": [...]}`: run
+   `vpx tooling/agents/scout.ts start --run <id> [--run <id> ...]` for exactly the
+   listed runs. It records each run as in flight on `#219` in one edit, so the next
+   check does not start it again while its session works. Then start one cloud
+   session per listed run with `create_session` in the same environment and the
+   prompt `Follow .agents/tasks/scout.md run protocol for run <id>`, and exit; do
+   not audit, file, or advance anything.
+
+`due` lists at most `check.maxRunsPerCheck` runs. When more are due, `deferred`
+counts the rest; they wait for the next check. A started run stays out of `due`
+until its session runs `advance`, or `check.startedRunTimeoutHours` pass and a
+crashed session is retried. Both live in `SCOUT_RUN_POLICY`.
 
 `due` lists the runs in descending `metric / threshold`. Each kind has one
 threshold, tuned in `SCOUT_RUN_POLICY` in

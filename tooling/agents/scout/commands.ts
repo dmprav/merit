@@ -9,6 +9,7 @@ import {
   listAreas,
   measuresEntryWeights,
   resolveRunTarget,
+  SCOUT_RUN_POLICY,
   type ScoutRunTarget,
 } from "./runs.ts";
 import { RECORDS_RUN_ID } from "./state-marker.ts";
@@ -20,6 +21,7 @@ import {
   SCOUT_STATE_ISSUE_NUMBER,
   SCOUT_STATE_ISSUE_TITLE,
   scoutStateForReading,
+  startScoutStateBody,
 } from "./state.ts";
 import { collectStructuralTelemetry } from "./telemetry.ts";
 import {
@@ -44,15 +46,24 @@ const readScoutState = (ports: Pick<ScoutPorts, "issues" | "warn">) => {
 };
 
 export type DueReport =
-  | { status: "due"; scanTipSha: string; runs: DueRun[] }
+  | { status: "due"; scanTipSha: string; runs: DueRun[]; deferred?: number }
   | { status: "idle"; scanTipSha: string };
 
-/** Lists the audits whose merged activity since their cursors reached a threshold, most overdue first. */
+/**
+ * Lists the audits whose merged activity since their cursors reached a threshold, most overdue
+ * first, up to the per-check cap. Runs past the cap are counted as `deferred`; runs whose started
+ * session is still in flight are neither listed nor counted.
+ */
 export const buildDue = (ports: ScoutPorts): DueReport => {
   const state = readScoutState(ports);
   const scanTipSha = ports.git.revParse(SCAN_REF);
-  const runs = computeDueRuns({ git: ports.git, state, scanTipSha, now: ports.now() });
-  return runs.length > 0 ? { status: "due", scanTipSha, runs } : { status: "idle", scanTipSha };
+  const due = computeDueRuns({ git: ports.git, state, scanTipSha, now: ports.now() });
+  const runs = due.slice(0, SCOUT_RUN_POLICY.check.maxRunsPerCheck);
+  if (runs.length === 0) {
+    return { status: "idle", scanTipSha };
+  }
+  const deferred = due.length - runs.length;
+  return { status: "due", scanTipSha, runs, ...(deferred > 0 ? { deferred } : {}) };
 };
 
 const filtersPaths = ({ kind }: ScoutRunTarget): boolean => kind === "area" || kind === "mechanism";
@@ -181,4 +192,28 @@ export const advanceRun = (
   });
   ports.issues.editIssueBody(stateIssue.number, body);
   return { status: "advanced", run: runId, cursor };
+};
+
+/**
+ * Records that sessions were started for `runIds` on the state issue in one edit, so the next check
+ * does not list them again until they advance or time out. Validates every run id before writing.
+ */
+export const startRuns = (
+  ports: Pick<ScoutPorts, "git" | "issues" | "now">,
+  { runIds }: { runIds: readonly string[] },
+): { status: "started"; runs: string[]; startedAt: string } => {
+  const unique = [...new Set(runIds)];
+  const targets = unique.map((runId) => resolveRunTarget(runId));
+  const trackedFiles = ports.git.trackedFiles(ports.git.revParse(SCAN_REF));
+  targets.forEach((target, index) => requireKnownArea(target, unique[index] ?? "", trackedFiles));
+  const stateIssue = fetchScoutStateIssue(ports.issues);
+  const startedAt = ports.now();
+  const { body } = startScoutStateBody({
+    issueNumber: stateIssue.number,
+    issueBody: stateIssue.body,
+    runIds: unique,
+    startedAt,
+  });
+  ports.issues.editIssueBody(stateIssue.number, body);
+  return { status: "started", runs: unique, startedAt: startedAt.toISOString() };
 };

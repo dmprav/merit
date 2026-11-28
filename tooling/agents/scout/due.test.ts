@@ -263,3 +263,58 @@ describe("due ordering", () => {
     ]);
   });
 });
+
+describe("due runs in flight", () => {
+  const { startedRunTimeoutHours } = SCOUT_RUN_POLICY.check;
+
+  const hoursAgo = (hours: number) =>
+    new Date(NOW.getTime() - hours * 60 * 60 * 1000).toISOString();
+
+  const history = commits(SCOUT_RUN_POLICY.changeBatch.minCommits);
+
+  const ids = (state: ScoutState) => due({ commits: history }, state).runs.map((run) => run.id);
+
+  test("leaves out a run whose session started and has not advanced it", () => {
+    expect(ids({ "change-batch": { startedAt: hoursAgo(1) } })).toEqual([]);
+    expect(
+      ids({
+        "change-batch": {
+          lastCommitSha: "abcdef12",
+          lastRunAt: hoursAgo(48),
+          startedAt: hoursAgo(1),
+        },
+      }),
+    ).toEqual([]);
+  });
+
+  test("lists a run whose last advance is not older than its start", () => {
+    const advanced = { lastCommitSha: "abcdef12", lastRunAt: hoursAgo(1), startedAt: hoursAgo(2) };
+    expect(ids({ "change-batch": advanced })).toEqual(["change-batch"]);
+  });
+
+  test("lists a started run again once the timeout has passed", () => {
+    const startedAt = (hours: number) => ({ "change-batch": { startedAt: hoursAgo(hours) } });
+
+    expect(ids(startedAt(startedRunTimeoutHours - 0.01))).toEqual([]);
+    expect(ids(startedAt(startedRunTimeoutHours))).toEqual(["change-batch"]);
+    expect(ids(startedAt(startedRunTimeoutHours + 1))).toEqual(["change-batch"]);
+  });
+
+  test("only excludes the started run", () => {
+    const tracked = Array.from({ length: 8 }, (_, index) => `verifications/${index + 1}.md`);
+    const { runs } = due({ commits: history, tracked }, { records: { startedAt: hoursAgo(1) } });
+    expect(runs.map((run) => run.id)).toEqual(["change-batch"]);
+  });
+
+  test("measures a cursor that holds only startedAt from the lookback", () => {
+    const { queries } = due(
+      { commits: history },
+      { "change-batch": { startedAt: hoursAgo(startedRunTimeoutHours + 1) } },
+    );
+    expect(queries[0]).toEqual({
+      cursor: { startedAt: hoursAgo(startedRunTimeoutHours + 1) },
+      tipSha: "tip",
+      fallbackSinceIso: "2026-11-21T12:00:00.000Z",
+    });
+  });
+});

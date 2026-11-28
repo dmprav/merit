@@ -12,7 +12,7 @@ describe("scout commands", () => {
 
   test.each([[[]], [["prune"]]])("rejects the unknown command in %j", (args) => {
     expect(() => parseScoutArgs(args)).toThrow(
-      /Unknown scout command ".*"\. Expected "due", "context", or "advance"/,
+      /Unknown scout command ".*"\. Expected "due", "context", "start", or "advance"/,
     );
   });
 });
@@ -36,6 +36,26 @@ describe("context arguments", () => {
     expect(() => parseScoutArgs(["context"])).toThrow("Missing required --run flag.");
     expect(() => parseScoutArgs(["context", "--lens", "auto"])).toThrow("Unknown option '--lens'");
     expect(() => parseScoutArgs(["context", "--run", "records", "--commit", "abc123"])).toThrow(
+      "Unknown option '--commit'",
+    );
+  });
+});
+
+describe("start arguments", () => {
+  test("reads one or more run ids", () => {
+    expect(parseScoutArgs(["start", "--run", "records"])).toEqual({
+      command: "start",
+      runIds: ["records"],
+    });
+    expect(parseScoutArgs(["start", "--run", "records", "--run", "change-batch"])).toEqual({
+      command: "start",
+      runIds: ["records", "change-batch"],
+    });
+  });
+
+  test("requires --run and rejects other flags", () => {
+    expect(() => parseScoutArgs(["start"])).toThrow("Missing required --run flag.");
+    expect(() => parseScoutArgs(["start", "--run", "records", "--commit", "abc123"])).toThrow(
       "Unknown option '--commit'",
     );
   });

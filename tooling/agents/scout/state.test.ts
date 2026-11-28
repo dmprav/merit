@@ -6,6 +6,7 @@ import {
   nextRunCursor,
   parseScoutState,
   scoutStateForReading,
+  startScoutStateBody,
 } from "./state.ts";
 
 const batchCursor = { lastCommitSha: "abcdef12", lastRunAt: "2026-11-22T00:00:00Z" };
@@ -247,5 +248,65 @@ describe("next run cursor", () => {
       lastCommitDate: "2026-11-23T00:00:00Z",
       lastRunAt: "2026-11-23T01:00:00.000Z",
     });
+  });
+});
+
+describe("starting scout state", () => {
+  const startedAt = new Date("2026-11-28T12:00:00.000Z");
+
+  test("rejects a cursor with neither lastRunAt nor startedAt and accepts either alone", () => {
+    expect(parseScoutState(bodyWith({ records: { lastPrNumber: 4 } }))).toEqual({
+      kind: "parsed",
+      state: {},
+    });
+    expect(
+      parseScoutState(bodyWith({ records: { startedAt: "2026-11-28T12:00:00.000Z" } })),
+    ).toEqual({
+      kind: "parsed",
+      state: { records: { startedAt: "2026-11-28T12:00:00.000Z" } },
+    });
+  });
+
+  test("refuses to rewrite a corrupt marker", () => {
+    expect(() =>
+      startScoutStateBody({
+        issueNumber: 219,
+        issueBody: "<!-- merit-scout-state: {nope} -->",
+        runIds: ["records"],
+        startedAt,
+      }),
+    ).toThrow(/Refusing to start.*corrupt.*rerun start/);
+  });
+
+  test("replaces an entry it cannot validate with a start-only cursor and drops lens keys", () => {
+    const { body } = startScoutStateBody({
+      issueNumber: 219,
+      issueBody: bodyWith({
+        "change-batch": { lastCommitSha: "abc", lastRunAt: "x" },
+        docs: batchCursor,
+      }),
+      runIds: ["change-batch"],
+      startedAt,
+    });
+    expect(body).toBe(bodyWith({ "change-batch": { startedAt: startedAt.toISOString() } }));
+  });
+
+  test("advancing clears startedAt", () => {
+    const { cursor } = advanceScoutStateBody({
+      issueNumber: 219,
+      issueBody: bodyWith({
+        "change-batch": { ...batchCursor, startedAt: "2026-11-28T12:00:00Z" },
+      }),
+      runId: "change-batch",
+      nextCursor: (previous) =>
+        nextRunCursor({
+          previous,
+          commitSha: "c7e4efa123",
+          commitDate: "2026-11-28T00:00:00Z",
+          prNumber: undefined,
+          runAt: startedAt,
+        }),
+    });
+    expect(cursor).not.toHaveProperty("startedAt");
   });
 });

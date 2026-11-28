@@ -16,12 +16,19 @@ export {
   SCOUT_STATE_ISSUE_TITLE,
 } from "./state-marker.ts";
 
-const runCursorSchema = z.object({
-  lastCommitSha: z.string().min(7).optional(),
-  lastCommitDate: z.string().min(10).optional(),
-  lastPrNumber: z.number().int().positive().optional(),
-  lastRunAt: z.string().min(10),
-});
+const runCursorSchema = z
+  .object({
+    lastCommitSha: z.string().min(7).optional(),
+    lastCommitDate: z.string().min(10).optional(),
+    lastPrNumber: z.number().int().positive().optional(),
+    /** When the last finished run advanced the cursor; absent until a run first finishes. */
+    lastRunAt: z.string().min(10).optional(),
+    /** When a session was last started for the run; `advance` clears it. */
+    startedAt: z.string().min(10).optional(),
+  })
+  .refine((cursor) => cursor.lastRunAt !== undefined || cursor.startedAt !== undefined, {
+    message: "a cursor needs lastRunAt or startedAt",
+  });
 
 export type RunCursor = z.infer<typeof runCursorSchema>;
 
@@ -91,27 +98,30 @@ export const scoutStateForReading = (
 };
 
 /**
- * Computes the state issue body that records the next cursor for `runId`. Entries under run-id keys
- * stay exactly as stored, even when they fail validation, except that a missing or invalid `records`
- * entry is replaced by the cursor seeded from the old `verification-flakes` one when that exists;
- * entries under any other key, such as the old lens cursors, are dropped. Refuses before computing the cursor when the marker is corrupt, because
- * rewriting it would erase the cursors it still holds.
+ * Computes the state issue body after `update` rewrites the cursors of `runIds`. Entries under
+ * run-id keys stay exactly as stored, even when they fail validation, except that a missing or
+ * invalid `records` entry is replaced by the cursor seeded from the old `verification-flakes` one
+ * when that exists; entries under any other key, such as the old lens cursors, are dropped. Refuses
+ * before computing any cursor when the marker is corrupt, because rewriting it would erase the
+ * cursors it still holds.
  */
-export const advanceScoutStateBody = ({
+const rewriteScoutStateBody = ({
   issueNumber,
   issueBody,
-  runId,
-  nextCursor,
+  runIds,
+  verb,
+  update,
 }: {
   issueNumber: number;
   issueBody: string;
-  runId: string;
-  nextCursor: (previous: RunCursor | undefined) => RunCursor;
-}): { body: string; cursor: RunCursor } => {
+  runIds: readonly string[];
+  verb: string;
+  update: (previous: RunCursor | undefined) => RunCursor;
+}): { body: string; cursors: Record<string, RunCursor> } => {
   const read = readMarker(issueBody);
   if (read.kind === "corrupt") {
     throw new Error(
-      `Refusing to advance: ${describeCorruptScoutState(issueNumber, read.error)} Then rerun advance.`,
+      `Refusing to ${verb}: ${describeCorruptScoutState(issueNumber, read.error)} Then rerun ${verb}.`,
     );
   }
   const stored = read.kind === "parsed" ? read.entries : {};
@@ -124,10 +134,62 @@ export const advanceScoutStateBody = ({
       entries[RECORDS_RUN_ID] = seeded;
     }
   }
-  const previous = runCursorSchema.safeParse(entries[runId]);
-  const cursor = nextCursor(previous.success ? previous.data : undefined);
-  return { body: formatScoutStateBody(issueBody, { ...entries, [runId]: cursor }), cursor };
+  const cursors: Record<string, RunCursor> = {};
+  for (const runId of runIds) {
+    const previous = runCursorSchema.safeParse(entries[runId]);
+    cursors[runId] = update(previous.success ? previous.data : undefined);
+  }
+  return { body: formatScoutStateBody(issueBody, { ...entries, ...cursors }), cursors };
 };
+
+/** Computes the state issue body that records the next cursor for `runId`. */
+export const advanceScoutStateBody = ({
+  issueNumber,
+  issueBody,
+  runId,
+  nextCursor,
+}: {
+  issueNumber: number;
+  issueBody: string;
+  runId: string;
+  nextCursor: (previous: RunCursor | undefined) => RunCursor;
+}): { body: string; cursor: RunCursor } => {
+  const { body, cursors } = rewriteScoutStateBody({
+    issueNumber,
+    issueBody,
+    runIds: [runId],
+    verb: "advance",
+    update: nextCursor,
+  });
+  const cursor = cursors[runId];
+  if (!cursor) {
+    throw new Error(`No cursor computed for run "${runId}".`);
+  }
+  return { body, cursor };
+};
+
+/**
+ * Computes the state issue body that marks each run in `runIds` as started at `startedAt`, creating
+ * a cursor that holds only `startedAt` where a run has none and keeping every other field.
+ */
+export const startScoutStateBody = ({
+  issueNumber,
+  issueBody,
+  runIds,
+  startedAt,
+}: {
+  issueNumber: number;
+  issueBody: string;
+  runIds: readonly string[];
+  startedAt: Date;
+}): { body: string; cursors: Record<string, RunCursor> } =>
+  rewriteScoutStateBody({
+    issueNumber,
+    issueBody,
+    runIds,
+    verb: "start",
+    update: (previous) => ({ ...previous, startedAt: startedAt.toISOString() }),
+  });
 
 /** Records a finished run at `commitSha`; the pull request number carries over unless this run passes a new one. */
 export const nextRunCursor = ({

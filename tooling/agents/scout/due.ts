@@ -11,6 +11,7 @@ import {
   isChurnExcludedPath,
   listAreas,
   MS_PER_DAY,
+  MS_PER_HOUR,
   mechanismRunId,
   type ScoutRunKind,
   SCOUT_RUN_POLICY,
@@ -57,12 +58,23 @@ const memoizeByCursor = <T>(compute: (query: HistoryQuery) => T): ((query: Histo
   };
 };
 
+/** Whether a session was started for the cursor's run, has not advanced it, and is within the timeout. */
+const isInFlight = (cursor: RunCursor | undefined, now: Date): boolean => {
+  const startedMs = cursor?.startedAt ? Date.parse(cursor.startedAt) : Number.NaN;
+  if (Number.isNaN(startedMs)) {
+    return false;
+  }
+  const advancedMs = cursor?.lastRunAt ? Date.parse(cursor.lastRunAt) : Number.NEGATIVE_INFINITY;
+  const timeoutMs = SCOUT_RUN_POLICY.check.startedRunTimeoutHours * MS_PER_HOUR;
+  return startedMs > advancedMs && now.getTime() - startedMs < timeoutMs;
+};
+
 const touchesMechanism = (files: readonly string[], mechanism: Mechanism): boolean =>
   classifyChangedPaths({ paths: files, mechanisms: [mechanism] }).matched.length > 0;
 
 /**
  * Measures every audit against the merged activity since its cursor and returns those that reached
- * their threshold, most overdue first. Reads history only through `git`, so it needs no checkout at
+ * their threshold, most overdue first, leaving out runs whose started session is still in flight. Reads history only through `git`, so it needs no checkout at
  * the scan tip.
  */
 export const computeDueRuns = ({
@@ -143,6 +155,7 @@ export const computeDueRuns = ({
 
   return measured
     .filter(({ metric, threshold }) => metric >= threshold)
+    .filter(({ id }) => !isInFlight(state[id], now))
     .map(({ id, kind, metric, threshold }) => ({
       id,
       kind,

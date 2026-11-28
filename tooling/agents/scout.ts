@@ -1,11 +1,19 @@
 import { parseCliArgs, parseWholeNumber, stripLeadingSeparator } from "../cli.ts";
 import { REPO_ROOT } from "../paths.ts";
-import { type AdvanceOptions, advanceRun, buildContext, buildDue } from "./scout/commands.ts";
+import {
+  type AdvanceOptions,
+  advanceRun,
+  buildContext,
+  buildDue,
+  startRuns,
+} from "./scout/commands.ts";
 import { createScoutPorts } from "./scout/ports.ts";
 
 const DUE_USAGE = "Usage: scout.ts due";
 const CONTEXT_USAGE = "Usage: scout.ts context --run <run id>";
 const ADVANCE_USAGE = "Usage: scout.ts advance --run <run id> --commit <scanTipSha> [--pr <n>]";
+
+const START_USAGE = "Usage: scout.ts start --run <run id> [--run <run id> ...]";
 
 const requireRun = (run: string | undefined, usage: string): string => {
   if (!run) {
@@ -40,6 +48,7 @@ const parseAdvanceArgs = (args: readonly string[]): AdvanceOptions => {
 export type ScoutCommand =
   | { command: "due" }
   | { command: "context"; runId: string }
+  | { command: "start"; runIds: string[] }
   | { command: "advance"; options: AdvanceOptions };
 
 /** Validates a scout command line, including the `--` that `vp run` forwards, before any GitHub call. */
@@ -56,11 +65,21 @@ export const parseScoutArgs = (args: readonly string[]): ScoutCommand => {
     });
     return { command, runId: requireRun(values.run, CONTEXT_USAGE) };
   }
+  if (command === "start") {
+    const { values } = parseCliArgs(rest, {
+      options: { run: { type: "string", multiple: true } },
+      usage: START_USAGE,
+    });
+    if (!values.run?.length) {
+      throw new Error(`Missing required --run flag.\n${START_USAGE}`);
+    }
+    return { command, runIds: values.run };
+  }
   if (command === "advance") {
     return { command, options: parseAdvanceArgs(rest) };
   }
   throw new Error(
-    `Unknown scout command "${command ?? ""}". Expected "due", "context", or "advance".`,
+    `Unknown scout command "${command ?? ""}". Expected "due", "context", "start", or "advance".`,
   );
 };
 
@@ -74,6 +93,10 @@ const runCli = () => {
   }
   if (command.command === "context") {
     console.log(JSON.stringify(buildContext(ports, command.runId), null, 2));
+    return;
+  }
+  if (command.command === "start") {
+    console.log(JSON.stringify(startRuns(ports, { runIds: command.runIds })));
     return;
   }
   console.log(JSON.stringify(advanceRun(ports, command.options)));

@@ -3,7 +3,8 @@ import { type Mechanism, MECHANISMS } from "../../verification/architecture/mech
 import { classifyChangedPaths } from "../../verification/architecture/mechanisms.ts";
 import { RECORDS_RUN_ID } from "./state-marker.ts";
 
-export const MS_PER_DAY = 24 * 60 * 60 * 1000;
+export const MS_PER_HOUR = 60 * 60 * 1000;
+export const MS_PER_DAY = 24 * MS_PER_HOUR;
 
 /** How far back a run that was never audited reads history. */
 export const FIRST_SCAN_LOOKBACK_DAYS = 7;
@@ -18,6 +19,13 @@ export const SCOUT_RUN_POLICY = {
   mechanism: { minCommits: 5 },
   /** `verifications/<n>.md` files newer than the `records` cursor's pull request. */
   records: { minRecords: 8 },
+  /** How one scheduled check starts sessions. */
+  check: {
+    /** The most runs a check lists; the rest wait for the next check. */
+    maxRunsPerCheck: 3,
+    /** How long a started run stays out of the due list before a crashed session is retried. */
+    startedRunTimeoutHours: 6,
+  },
 } as const;
 
 export type ScoutRunKind = "change-batch" | "area" | "mechanism" | "records";

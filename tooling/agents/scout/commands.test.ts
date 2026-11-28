@@ -1,12 +1,18 @@
 import { describe, expect, test } from "vite-plus/test";
 
 import type { IssueListItem, IssueListQuery } from "../github.ts";
-import { advanceRun, buildContext, buildDue } from "./commands.ts";
+import { advanceRun, buildContext, buildDue, startRuns } from "./commands.ts";
 import type { CheckoutState } from "./git.ts";
 import type { ScoutPorts } from "./ports.ts";
+import { SCOUT_RUN_POLICY } from "./runs.ts";
 import { parseScoutState, SCOUT_STATE_ISSUE_TITLE } from "./state.ts";
 
 const NOW = "2026-11-28T12:00:00.000Z";
+
+const parseScoutStateEntries = (body: string) => {
+  const read = parseScoutState(body);
+  return read.kind === "parsed" ? [read.state["area:tooling/agents"]] : [];
+};
 
 const batchCursor = { lastCommitSha: "abcdef12", lastRunAt: "2026-11-22T00:00:00Z" };
 
@@ -141,6 +147,62 @@ describe("listing due runs", () => {
     const { ports } = createFakePorts();
     ports.git.churnSince = () => [];
     expect(buildDue(ports)).toEqual({ status: "idle", scanTipSha: "tip1234567" });
+  });
+
+  describe("with more due runs than one check starts", () => {
+    const { maxRunsPerCheck } = SCOUT_RUN_POLICY.check;
+    const areas = ["app", "docs", ".github", "verifications-tools", "scripts"].slice(
+      0,
+      maxRunsPerCheck + 2,
+    );
+
+    const lines = (index: number) => 3000 + (areas.length - index) * 100;
+
+    const crowd = (body?: string) => {
+      const fake = createFakePorts(body === undefined ? {} : { body });
+      fake.ports.git.trackedFiles = () => areas.map((area) => `${area}/file.ts`);
+      fake.ports.git.churnSince = () =>
+        areas.map((area, index) => ({
+          path: `${area}/file.ts`,
+          additions: lines(index),
+          deletions: 0,
+        }));
+      return fake;
+    };
+
+    test("lists the most urgent runs up to the cap and counts the rest as deferred", () => {
+      const report = buildDue(crowd().ports);
+      expect(report).toMatchObject({ status: "due", deferred: 2 });
+      expect(report.status === "due" && report.runs.map((run) => run.id)).toEqual(
+        areas.slice(0, maxRunsPerCheck).map((area) => `area:${area}`),
+      );
+    });
+
+    test("omits deferred when every due run is listed", () => {
+      const { ports } = crowd();
+      const churn = ports.git.churnSince;
+      ports.git.churnSince = (query) => churn(query).slice(0, maxRunsPerCheck);
+      expect(buildDue(ports)).not.toHaveProperty("deferred");
+    });
+
+    test("does not count a run in flight as deferred and lists the next run in its place", () => {
+      const startedAt = "2026-11-28T11:00:00.000Z";
+      const { ports } = crowd(stateBody({ [`area:${areas[0]}`]: { startedAt } }));
+      const report = buildDue(ports);
+      expect(report.status === "due" && report.runs.map((run) => run.id)).toEqual(
+        areas.slice(1, maxRunsPerCheck + 1).map((area) => `area:${area}`),
+      );
+      expect(report).toMatchObject({ deferred: 1 });
+    });
+
+    test("is idle when every due run is in flight", () => {
+      const startedAt = "2026-11-28T11:00:00.000Z";
+      const state = Object.fromEntries(areas.map((area) => [`area:${area}`, { startedAt }]));
+      expect(buildDue(crowd(stateBody(state)).ports)).toEqual({
+        status: "idle",
+        scanTipSha: "tip1234567",
+      });
+    });
   });
 
   test("reads a corrupt state marker as no cursors and warns which issue to repair", () => {
@@ -434,5 +496,90 @@ describe("advancing a run", () => {
       "git.trackedFiles tip1234567",
       "issues.viewIssue",
     ]);
+  });
+});
+
+describe("starting runs", () => {
+  const startedAt = NOW;
+
+  test("creates cursors that hold only startedAt and keeps sibling cursors, in one edit", () => {
+    const { ports, edits } = createFakePorts({ body: stateBody({ "change-batch": batchCursor }) });
+    expect(startRuns(ports, { runIds: ["area:tooling/agents", "records"] })).toEqual({
+      status: "started",
+      runs: ["area:tooling/agents", "records"],
+      startedAt,
+    });
+    expect(edits).toHaveLength(1);
+    expect(parseScoutState(edits[0] ?? "")).toEqual({
+      kind: "parsed",
+      state: {
+        "change-batch": batchCursor,
+        "area:tooling/agents": { startedAt },
+        records: { startedAt },
+      },
+    });
+  });
+
+  test("keeps the fields of an existing cursor and sets startedAt", () => {
+    const { ports, edits } = createFakePorts({
+      body: stateBody({ "change-batch": { ...batchCursor, lastPrNumber: 4 } }),
+    });
+    startRuns(ports, { runIds: ["change-batch"] });
+    expect(parseScoutState(edits[0] ?? "")).toEqual({
+      kind: "parsed",
+      state: { "change-batch": { ...batchCursor, lastPrNumber: 4, startedAt } },
+    });
+  });
+
+  test("lists the run again after advance clears startedAt", () => {
+    const started = createFakePorts();
+    startRuns(started.ports, { runIds: ["area:tooling/agents"] });
+    expect(buildDue(createFakePorts({ body: started.edits[0] ?? "" }).ports)).toMatchObject({
+      status: "idle",
+    });
+
+    const advanced = createFakePorts({ body: started.edits[0] ?? "" });
+    advanceRun(advanced.ports, { runId: "area:tooling/agents", commitSha: "HEAD" });
+    const [after] = parseScoutStateEntries(advanced.edits[0] ?? "");
+    expect(after).toEqual({
+      lastCommitSha: "resolved1234567",
+      lastCommitDate: "2026-11-25T10:00:00Z",
+      lastRunAt: NOW,
+    });
+    expect(advanced.edits[0]).not.toContain("startedAt");
+  });
+
+  test("validates every run id before editing the issue", () => {
+    const unknown = createFakePorts();
+    expect(() => startRuns(unknown.ports, { runIds: ["records", "docs"] })).toThrow(
+      /Unknown run id "docs"/,
+    );
+    expect(unknown.calls).toEqual([]);
+
+    const removed = createFakePorts();
+    expect(() =>
+      startRuns(removed.ports, { runIds: ["records", "area:capabilities/removed"] }),
+    ).toThrow(/Unknown area run "area:capabilities\/removed"\. Valid areas: .*tooling\/agents/);
+    expect(removed.edits).toEqual([]);
+  });
+
+  test("refuses a corrupt state marker without editing the issue", () => {
+    const { ports, edits } = createFakePorts({ body: CORRUPT_STATE_BODY });
+    expect(() => startRuns(ports, { runIds: ["records"] })).toThrow(
+      /Refusing to start.*#219.*corrupt/,
+    );
+    expect(edits).toEqual([]);
+  });
+
+  test("a started run is not listed by due, and is again after the timeout", () => {
+    const fresh = createFakePorts();
+    startRuns(fresh.ports, { runIds: ["area:tooling/agents"] });
+    const body = fresh.edits[0] ?? "";
+    expect(buildDue(createFakePorts({ body }).ports)).toMatchObject({ status: "idle" });
+
+    const later = createFakePorts({ body });
+    const hours = SCOUT_RUN_POLICY.check.startedRunTimeoutHours;
+    later.ports.now = () => new Date(Date.parse(NOW) + hours * 60 * 60 * 1000);
+    expect(buildDue(later.ports)).toMatchObject({ status: "due" });
   });
 });
